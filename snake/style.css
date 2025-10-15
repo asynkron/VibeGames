@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 20%, #0a0f13 0, #05080a 60%, #020405 100%);
+  color: #cfe;
+  font-family: 'Press Start 2P', system-ui, monospace;
+  text-shadow: 0 0 6px rgba(80,255,160,0.3);
+}
+
+.bezel {
+  position: relative;
+  width: min(95vw, 980px);
+  aspect-ratio: 4/3;
+  border-radius: 18px;
+  padding: clamp(8px, 1.2vw, 16px);
+  background: linear-gradient(145deg, #1a1f29, #0b0e14);
+  box-shadow:
+    inset 0 0 30px #000,
+    0 30px 60px rgba(0,0,0,0.6),
+    0 0 0 3px #1a2030;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #00140a;
+  border-radius: 10px;
+  box-shadow:
+    0 0 50px rgba(0,255,128,0.15) inset,
+    0 0 120px rgba(0,255,128,0.05) inset;
+}
+
+.ui {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: clamp(8px, 1.8vw, 14px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.title {
+  letter-spacing: 2px;
+  color: #7effc2;
+  text-shadow: 0 0 8px rgba(0,255,128,0.8), 0 0 18px rgba(0,170,90,0.6);
+}
+
+.controls {
+  position: absolute;
+  bottom: 6px;
+  left: 12px;
+  right: 12px;
+  text-align: center;
+  opacity: 0.7;
+  font-size: clamp(8px, 1.6vw, 12px);
+  pointer-events: none;
+}
+
+.scoreboard span { margin-right: 10px; }
+
+.crt.scanlines, .crt.vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+}
+
+/* Scanlines and subtle sub-pixel mask */
+.crt.scanlines {
+  background:
+    repeating-linear-gradient(to bottom, rgba(255,255,255,0.04) 0 1px, rgba(0,0,0,0.06) 1px 2px),
+    repeating-linear-gradient(to right, rgba(255,255,255,0.02) 0 1px, rgba(0,0,0,0.04) 1px 2px);
+  mix-blend-mode: overlay;
+  opacity: 0.7;
+  animation: flicker 2.2s infinite steps(2, end);
+}
+
+/* Vignette, bloom tint, and slight panel curvature feel */
+.crt.vignette {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0.55) 100%),
+    radial-gradient(circle at 50% -20%, rgba(0,255,160,0.25), transparent 40%);
+  filter: blur(0.3px) contrast(1.06) saturate(1.1);
+}
+
+@keyframes flicker {
+  0% { opacity: 0.6; }
+  10% { opacity: 0.72; }
+  20% { opacity: 0.65; }
+  30% { opacity: 0.75; }
+  40% { opacity: 0.68; }
+  50% { opacity: 0.74; }
+  60% { opacity: 0.66; }
+  70% { opacity: 0.76; }
+  80% { opacity: 0.67; }
+  90% { opacity: 0.73; }
+  100% { opacity: 0.7; }
+}
