@@ -199,54 +199,10 @@
     const [tx,ty]=toTile(pacman.x,pacman.y);
     if (pellets[ty] && pellets[ty][tx]===1){
       pellets[ty][tx]=0; state.score+=10; state.pelletsRemaining--; updateHUD();
-
-  // Simple settings panel (UI) with sliders for CRT warp and chromatic aberration
-  ;(function setupSettingsUI(){
-    const persistKey = 'pm_settings';
-    // Load persisted
-    try{ const saved = JSON.parse(localStorage.getItem(persistKey)||'{}'); if(saved.crt){ Object.assign(settings.crt, saved.crt); } }catch{}
-    const panel = document.createElement('div');
-    panel.style.cssText = 'position:absolute; right:8px; top:8px; font:10px monospace; color:#9fd; background:rgba(0,0,0,0.45); padding:6px 8px; border:1px solid rgba(160,200,255,0.25); border-radius:6px; backdrop-filter: blur(2px); user-select:none; z-index:10;';
-    const mkRow = (label, input)=>{ const row=document.createElement('div'); row.style.marginBottom='4px'; const l=document.createElement('label'); l.textContent=label; l.style.marginRight='6px'; l.style.display='inline-block'; l.style.minWidth='90px'; row.appendChild(l); row.appendChild(input); return row; };
-    const warp = document.createElement('input'); warp.type='range'; warp.min='0'; warp.max='1'; warp.step='0.01'; warp.value=String(settings.crt.warp);
-    const ab = document.createElement('input'); ab.type='range'; ab.min='0'; ab.max='1'; ab.step='0.01'; ab.value=String(settings.crt.aberration);
-    const en = document.createElement('input'); en.type='checkbox'; en.checked = !!settings.crt.enabled;
-    panel.appendChild(mkRow('CRT Warp', warp));
-    panel.appendChild(mkRow('Chromatic Aber.', ab));
-    const enRow = document.createElement('div'); enRow.style.marginTop='2px'; const enLbl=document.createElement('label'); enLbl.textContent='Enable CRT'; enLbl.style.marginLeft='6px'; enRow.appendChild(en); enRow.appendChild(enLbl); panel.appendChild(enRow);
-    function persist(){ try{ localStorage.setItem(persistKey, JSON.stringify({crt: settings.crt})); }catch{} }
-    warp.addEventListener('input', ()=>{ settings.crt.warp = parseFloat(warp.value)||0; persist(); });
-    ab.addEventListener('input', ()=>{ settings.crt.aberration = parseFloat(ab.value)||0; persist(); });
-    en.addEventListener('change', ()=>{ settings.crt.enabled = !!en.checked; persist(); });
-    document.body.appendChild(panel);
-  })();
-
       AudioMgr.pellet();
       spawnSparks(pacman.x,pacman.y,'#ffdca6',3);
     } else if (pellets[ty] && pellets[ty][tx]===2){
       pellets[ty][tx]=0; state.score+=50; state.pelletsRemaining--; updateHUD();
-
-  // Simple settings panel (UI) with sliders for CRT warp and chromatic aberration
-  ;(function setupSettingsUI(){
-    const persistKey = 'pm_settings';
-    // Load persisted
-    try{ const saved = JSON.parse(localStorage.getItem(persistKey)||'{}'); if(saved.crt){ Object.assign(settings.crt, saved.crt); } }catch{}
-    const panel = document.createElement('div');
-    panel.style.cssText = 'position:absolute; right:8px; top:8px; font:10px monospace; color:#9fd; background:rgba(0,0,0,0.45); padding:6px 8px; border:1px solid rgba(160,200,255,0.25); border-radius:6px; backdrop-filter: blur(2px); user-select:none; z-index:10;';
-    const mkRow = (label, input)=>{ const row=document.createElement('div'); row.style.marginBottom='4px'; const l=document.createElement('label'); l.textContent=label; l.style.marginRight='6px'; l.style.display='inline-block'; l.style.minWidth='90px'; row.appendChild(l); row.appendChild(input); return row; };
-    const warp = document.createElement('input'); warp.type='range'; warp.min='0'; warp.max='1'; warp.step='0.01'; warp.value=String(settings.crt.warp);
-    const ab = document.createElement('input'); ab.type='range'; ab.min='0'; ab.max='1'; ab.step='0.01'; ab.value=String(settings.crt.aberration);
-    const en = document.createElement('input'); en.type='checkbox'; en.checked = !!settings.crt.enabled;
-    panel.appendChild(mkRow('CRT Warp', warp));
-    panel.appendChild(mkRow('Chromatic Aber.', ab));
-    const enRow = document.createElement('div'); enRow.style.marginTop='2px'; const enLbl=document.createElement('label'); enLbl.textContent='Enable CRT'; enLbl.style.marginLeft='6px'; enRow.appendChild(en); enRow.appendChild(enLbl); panel.appendChild(enRow);
-    function persist(){ try{ localStorage.setItem(persistKey, JSON.stringify({crt: settings.crt})); }catch{} }
-    warp.addEventListener('input', ()=>{ settings.crt.warp = parseFloat(warp.value)||0; persist(); });
-    ab.addEventListener('input', ()=>{ settings.crt.aberration = parseFloat(ab.value)||0; persist(); });
-    en.addEventListener('change', ()=>{ settings.crt.enabled = !!en.checked; persist(); });
-    document.body.appendChild(panel);
-  })();
-
       state.frightenedUntil = performance.now() + 6000; // brighten maze via lighting
       startShockwave(pacman.x, pacman.y);
       AudioMgr.power();
@@ -263,7 +219,7 @@
     ghosts[1].x=13*TILE+TILE/2; ghosts[1].y=16*TILE+TILE/2; ghosts[1].dir='right';
     ghosts[2].x=14*TILE+TILE/2; ghosts[2].y=16*TILE+TILE/2; ghosts[2].dir='left';
     ghosts[3].x=15*TILE+TILE/2; ghosts[3].y=16*TILE+TILE/2; ghosts[3].dir='right';
-    state.readyTime = death ? 120 : 1200;
+    state.readyTime = death ? 120 : 180;
     const [itx,ity]=toTile(pacman.x,pacman.y); depositScentAt(itx,ity); lastPacTile=[itx,ity];
     startIris('in', 900); AudioMgr.start();
   }
@@ -341,20 +297,33 @@
     ctx.fillStyle=COLORS.eyes; const ex=({left:-3,right:3,up:0,down:0})[g.dir]||0; const ey=({up:-2,down:2,left:0,right:0})[g.dir]||0; ctx.beginPath(); ctx.arc(baseX-4,baseY-2,2.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(baseX+4,baseY-2,2.5,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#0033aa'; ctx.beginPath(); ctx.arc(baseX-4+ex,baseY-2+ey,1.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(baseX+4+ex,baseY-2+ey,1.2,0,Math.PI*2); ctx.fill(); }
 
   // Lighting and glows (drawn on screen)
-  function drawLighting(now){ if(!settings.lighting.enabled) return; const frightened = now < state.frightenedUntil; const ambient = clamp(settings.lighting.ambient - (frightened ? settings.lighting.frightenedBoost : 0), 0, 1);
-    if (ambient > 0){ screen.save();
-      // Dim entire scene
+  function drawLighting(now){
+    if(!settings.lighting.enabled) return;
+    const frightened = now < state.frightenedUntil;
+    const ambient = clamp(settings.lighting.ambient - (frightened ? settings.lighting.frightenedBoost : 0), 0, 1);
+    if (ambient > 0){
+      screen.save();
+      // Dim entire scene with a translucent veil
       screen.globalCompositeOperation = 'source-over';
-      screen.fillStyle = `rgba(0,0,0,${ambient})`;
+      screen.globalAlpha = ambient;
+      screen.fillStyle = '#000';
       screen.fillRect(0,0,WIDTH,HEIGHT);
-      // Punch a soft light hole around Pac-Man
+      screen.globalAlpha = 1;
+
       const r = settings.lighting.radius;
-      const g = screen.createRadialGradient(pacman.x, pacman.y, 0, pacman.x, pacman.y, r);
-      g.addColorStop(0, 'rgba(0,0,0,1)');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      screen.globalCompositeOperation = 'destination-out';
-      screen.fillStyle = g;
-      screen.beginPath(); screen.arc(pacman.x, pacman.y, r, 0, Math.PI*2); screen.fill();
+      if (r > 0){
+        // Carve out light around Pac-Man
+        const g = screen.createRadialGradient(pacman.x, pacman.y, 0, pacman.x, pacman.y, r);
+        g.addColorStop(0, 'rgba(0,0,0,1)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        screen.globalCompositeOperation = 'destination-out';
+        screen.fillStyle = g;
+        screen.beginPath(); screen.arc(pacman.x, pacman.y, r, 0, Math.PI*2); screen.fill();
+
+        // Restore the scene behind the cleared region so Pac-Man stays visible
+        screen.globalCompositeOperation = 'destination-over';
+        screen.drawImage(scene,0,0);
+      }
       screen.restore();
     }
     // Subtle glow on existing power pellets
@@ -382,79 +351,31 @@
           const [gx,gy]=toTile(g.x,g.y); const id=gy*COLS+gx; if (interiorTargetIds.has(id)){ const [cx,cy]=centerOf(HOUSE_TILE.x, HOUSE_TILE.y); g.x=cx; g.y=cy; g.dir='up'; g.mode='respawn'; g.respawnUntil=now+1000; }
         }
         if(g.mode!=='eyes' && collides(pacman,g)){
-          if(frightened){ state.score+=200; updateHUD();
-
-  // Simple settings panel (UI) with sliders for CRT warp and chromatic aberration
-  ;(function setupSettingsUI(){
-    const persistKey = 'pm_settings';
-    // Load persisted
-    try{ const saved = JSON.parse(localStorage.getItem(persistKey)||'{}'); if(saved.crt){ Object.assign(settings.crt, saved.crt); } }catch{}
-    const panel = document.createElement('div');
-    panel.style.cssText = 'position:absolute; right:8px; top:8px; font:10px monospace; color:#9fd; background:rgba(0,0,0,0.45); padding:6px 8px; border:1px solid rgba(160,200,255,0.25); border-radius:6px; backdrop-filter: blur(2px); user-select:none; z-index:10;';
-    const mkRow = (label, input)=>{ const row=document.createElement('div'); row.style.marginBottom='4px'; const l=document.createElement('label'); l.textContent=label; l.style.marginRight='6px'; l.style.display='inline-block'; l.style.minWidth='90px'; row.appendChild(l); row.appendChild(input); return row; };
-    const warp = document.createElement('input'); warp.type='range'; warp.min='0'; warp.max='1'; warp.step='0.01'; warp.value=String(settings.crt.warp);
-    const ab = document.createElement('input'); ab.type='range'; ab.min='0'; ab.max='1'; ab.step='0.01'; ab.value=String(settings.crt.aberration);
-    const en = document.createElement('input'); en.type='checkbox'; en.checked = !!settings.crt.enabled;
-    panel.appendChild(mkRow('CRT Warp', warp));
-    panel.appendChild(mkRow('Chromatic Aber.', ab));
-    const enRow = document.createElement('div'); enRow.style.marginTop='2px'; const enLbl=document.createElement('label'); enLbl.textContent='Enable CRT'; enLbl.style.marginLeft='6px'; enRow.appendChild(en); enRow.appendChild(enLbl); panel.appendChild(enRow);
-    function persist(){ try{ localStorage.setItem(persistKey, JSON.stringify({crt: settings.crt})); }catch{} }
-    warp.addEventListener('input', ()=>{ settings.crt.warp = parseFloat(warp.value)||0; persist(); });
-    ab.addEventListener('input', ()=>{ settings.crt.aberration = parseFloat(ab.value)||0; persist(); });
-    en.addEventListener('change', ()=>{ settings.crt.enabled = !!en.checked; persist(); });
-    document.body.appendChild(panel);
-  })();
- addToast('200', g.x, g.y, '#a0ffea', 800); AudioMgr.eaten(); g.mode='eyes'; }
+          if(frightened){ state.score+=200; updateHUD(); addToast('200', g.x, g.y, '#a0ffea', 800); AudioMgr.eaten(); g.mode='eyes'; }
           else { gameState='dying'; pacDeath.active=true; pacDeath.start=now; AudioMgr.death(); startIris('out', pacDeath.dur); break; }
         }
       }
       if(state.pelletsRemaining<=0){ state.level+=1; state.frightenedUntil=0; state.pelletsRemaining=0; for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){ const ch=tileAt(x,y); if(ch==='.'||ch==='o') state.pelletsRemaining++; pellets[y][x]=(ch==='.'?1:(ch==='o'?2:0)); } pacman.speed=Math.min(pacman.speed+0.04,1.4); for(const g of ghosts) g.speed=Math.min(g.speed+0.03,1.25); resetPositions(false); }
     } else if (gameState==='dying'){
-      if(now-pacDeath.start>=pacDeath.dur){ pacDeath.active=false; state.lives-=1; updateHUD();
-
-  // Simple settings panel (UI) with sliders for CRT warp and chromatic aberration
-  ;(function setupSettingsUI(){
-    const persistKey = 'pm_settings';
-    // Load persisted
-    try{ const saved = JSON.parse(localStorage.getItem(persistKey)||'{}'); if(saved.crt){ Object.assign(settings.crt, saved.crt); } }catch{}
-    const panel = document.createElement('div');
-    panel.style.cssText = 'position:absolute; right:8px; top:8px; font:10px monospace; color:#9fd; background:rgba(0,0,0,0.45); padding:6px 8px; border:1px solid rgba(160,200,255,0.25); border-radius:6px; backdrop-filter: blur(2px); user-select:none; z-index:10;';
-    const mkRow = (label, input)=>{ const row=document.createElement('div'); row.style.marginBottom='4px'; const l=document.createElement('label'); l.textContent=label; l.style.marginRight='6px'; l.style.display='inline-block'; l.style.minWidth='90px'; row.appendChild(l); row.appendChild(input); return row; };
-    const warp = document.createElement('input'); warp.type='range'; warp.min='0'; warp.max='1'; warp.step='0.01'; warp.value=String(settings.crt.warp);
-    const ab = document.createElement('input'); ab.type='range'; ab.min='0'; ab.max='1'; ab.step='0.01'; ab.value=String(settings.crt.aberration);
-    const en = document.createElement('input'); en.type='checkbox'; en.checked = !!settings.crt.enabled;
-    panel.appendChild(mkRow('CRT Warp', warp));
-    panel.appendChild(mkRow('Chromatic Aber.', ab));
-    const enRow = document.createElement('div'); enRow.style.marginTop='2px'; const enLbl=document.createElement('label'); enLbl.textContent='Enable CRT'; enLbl.style.marginLeft='6px'; enRow.appendChild(en); enRow.appendChild(enLbl); panel.appendChild(enRow);
-    function persist(){ try{ localStorage.setItem(persistKey, JSON.stringify({crt: settings.crt})); }catch{} }
-    warp.addEventListener('input', ()=>{ settings.crt.warp = parseFloat(warp.value)||0; persist(); });
-    ab.addEventListener('input', ()=>{ settings.crt.aberration = parseFloat(ab.value)||0; persist(); });
-    en.addEventListener('change', ()=>{ settings.crt.enabled = !!en.checked; persist(); });
-    document.body.appendChild(panel);
-  })();
- if(state.lives<0){ gameState='gameover'; setTimeout(()=>{ state.lives=3; state.score=0; updateHUD();
-
-  // Simple settings panel (UI) with sliders for CRT warp and chromatic aberration
-  ;(function setupSettingsUI(){
-    const persistKey = 'pm_settings';
-    // Load persisted
-    try{ const saved = JSON.parse(localStorage.getItem(persistKey)||'{}'); if(saved.crt){ Object.assign(settings.crt, saved.crt); } }catch{}
-    const panel = document.createElement('div');
-    panel.style.cssText = 'position:absolute; right:8px; top:8px; font:10px monospace; color:#9fd; background:rgba(0,0,0,0.45); padding:6px 8px; border:1px solid rgba(160,200,255,0.25); border-radius:6px; backdrop-filter: blur(2px); user-select:none; z-index:10;';
-    const mkRow = (label, input)=>{ const row=document.createElement('div'); row.style.marginBottom='4px'; const l=document.createElement('label'); l.textContent=label; l.style.marginRight='6px'; l.style.display='inline-block'; l.style.minWidth='90px'; row.appendChild(l); row.appendChild(input); return row; };
-    const warp = document.createElement('input'); warp.type='range'; warp.min='0'; warp.max='1'; warp.step='0.01'; warp.value=String(settings.crt.warp);
-    const ab = document.createElement('input'); ab.type='range'; ab.min='0'; ab.max='1'; ab.step='0.01'; ab.value=String(settings.crt.aberration);
-    const en = document.createElement('input'); en.type='checkbox'; en.checked = !!settings.crt.enabled;
-    panel.appendChild(mkRow('CRT Warp', warp));
-    panel.appendChild(mkRow('Chromatic Aber.', ab));
-    const enRow = document.createElement('div'); enRow.style.marginTop='2px'; const enLbl=document.createElement('label'); enLbl.textContent='Enable CRT'; enLbl.style.marginLeft='6px'; enRow.appendChild(en); enRow.appendChild(enLbl); panel.appendChild(enRow);
-    function persist(){ try{ localStorage.setItem(persistKey, JSON.stringify({crt: settings.crt})); }catch{} }
-    warp.addEventListener('input', ()=>{ settings.crt.warp = parseFloat(warp.value)||0; persist(); });
-    ab.addEventListener('input', ()=>{ settings.crt.aberration = parseFloat(ab.value)||0; persist(); });
-    en.addEventListener('change', ()=>{ settings.crt.enabled = !!en.checked; persist(); });
-    document.body.appendChild(panel);
-  })();
- for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){ const ch=tileAt(x,y); pellets[y][x]=(ch==='.'?1:(ch==='o'?2:0)); } resetPositions(false); gameState='playing'; }, 800); } else { resetPositions(true); gameState='playing'; } }
+      if(now-pacDeath.start>=pacDeath.dur){
+        pacDeath.active=false;
+        state.lives-=1;
+        updateHUD();
+        if(state.lives<0){
+          gameState='gameover';
+          setTimeout(()=>{
+            state.lives=3;
+            state.score=0;
+            updateHUD();
+            for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){ const ch=tileAt(x,y); pellets[y][x]=(ch==='.'?1:(ch==='o'?2:0)); }
+            resetPositions(false);
+            gameState='playing';
+          }, 800);
+        } else {
+          resetPositions(true);
+          gameState='playing';
+        }
+      }
     }
 
     // Update FX systems
