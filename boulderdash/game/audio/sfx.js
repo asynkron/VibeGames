@@ -1,4 +1,4 @@
-import { createBeeper } from '../../../../shared/audio/beeper.js';
+import { createBeeper } from '../../../shared/audio/beeper.js';
 
 const beeper = createBeeper({ masterGain: 0.12 });
 beeper.unlockWithGestures();

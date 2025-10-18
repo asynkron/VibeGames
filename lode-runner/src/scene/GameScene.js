@@ -34,9 +34,15 @@ export default class GameScene extends Phaser.Scene {
     this.queueRestart = false;
   }
 
-  preload() {}
+  preload() {
+    // Preload all level layouts so create() can stay synchronous and Phaser
+    // doesn't enter the update loop before the stage data is ready.
+    LEVELS.forEach((path, index) => {
+      this.load.text(`level-${index}`, path);
+    });
+  }
 
-  async create() {
+  create() {
     this.cameras.main.setBackgroundColor(Colors.bg);
 
     // Persisted state
@@ -46,9 +52,16 @@ export default class GameScene extends Phaser.Scene {
     this.lives = typeof savedLives === 'number' ? savedLives : 3;
     this.exitSpawned = false;
 
-    const levelPath = LEVELS[this.levelIndex] ?? LEVELS[0];
-    const levelText = await this.loadLevel(levelPath);
-    const levelGrid = parseTextMap(levelText.trim(), COLS, ROWS, {
+    const levelKey = `level-${this.levelIndex}`;
+    let levelText = this.cache.text.get(levelKey);
+    if (typeof levelText !== 'string') {
+      this.levelIndex = 0;
+      this.registry.set('levelIndex', 0);
+      // Fallback to the first level if the cached entry is missing for any reason.
+      levelText = this.cache.text.get('level-0') ?? '';
+    }
+    const levelSource = (typeof levelText === 'string' ? levelText : '').trim();
+    const levelGrid = parseTextMap(levelSource, COLS, ROWS, {
       lineFilter: (line) => !line.startsWith('#'),
       padChar: '=',
       mapTile: (ch) => charMap(ch),
@@ -331,14 +344,6 @@ export default class GameScene extends Phaser.Scene {
     this.prevDirections.down = down;
     this.prevDirections.left = left;
     this.prevDirections.right = right;
-  }
-
-  async loadLevel(path) {
-    return new Promise((resolve) => {
-      this.load.text('level', path);
-      this.load.once('complete', () => { resolve(this.cache.text.get('level')); });
-      this.load.start();
-    });
   }
 
   buildMap(grid) {
