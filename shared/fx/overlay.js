@@ -1,3 +1,5 @@
+import { createIrisTransition } from './irisTransition.js';
+
 const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
 const clamp01 = v => Math.min(1, Math.max(0, v));
 
@@ -18,7 +20,7 @@ export function createOverlayFX({ ctx, width, height }) {
   };
 
   const flash = { until: 0, strength: 0.18, duration: 200 };
-  const iris = { active: false, type: 'in', start: 0, duration: 900 };
+  const iris = createIrisTransition({ ctx, width, height });
 
   function startShockwave(x, y, options = {}) {
     Object.assign(shock, {
@@ -75,32 +77,12 @@ export function createOverlayFX({ ctx, width, height }) {
     ctx.restore();
   }
 
-  function startIris(type = 'in', duration = 900) {
-    iris.active = true;
-    iris.type = type;
-    iris.start = performance.now();
-    iris.duration = duration;
+  function startIris(type = 'in', duration = 900, options = {}) {
+    iris.start(type, duration, options);
   }
 
   function drawIris(now = performance.now()) {
-    if (!ctx || !iris.active) return;
-    const progress = clamp01((now - iris.start) / iris.duration);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const maxRadius = Math.sqrt(width * width + height * height);
-    const radius = iris.type === 'in' ? eased * maxRadius : (1 - eased) * maxRadius;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(0,0,0,1)';
-    ctx.fillRect(0, 0, width, height);
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.arc(width / 2, height / 2, Math.max(0, radius), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    if (progress >= 1) {
-      iris.active = false;
-    }
+    iris.draw(now);
   }
 
   return {
@@ -113,3 +95,5 @@ export function createOverlayFX({ ctx, width, height }) {
     getShockInfo,
   };
 }
+
+export { createIrisTransition } from './irisTransition.js';
