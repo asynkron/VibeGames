@@ -1,4 +1,8 @@
 import { ensureUnlocked, playSequence, setMasterVolume } from '../shared/audio/beep.js';
+import { createDPad } from '../shared/input/dpad.js';
+
+(() => {
+  'use strict';
 
 setMasterVolume(0.18);
 ensureUnlocked();
@@ -207,14 +211,12 @@ ensureUnlocked();
   window.addEventListener('keydown', ensureUnlocked, { once: true });
 
   // Input
-  window.addEventListener('keydown', (e) => {
-    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+  const dpad = createDPad({ preventDefault: true });
+  dpad.onDirectionChange((dir, meta) => {
+    if (!dir || meta?.reason === 'release') return;
     if (gameState !== 'playing') return;
-    if (e.key==='ArrowUp') pacman.nextDir='up';
-    if (e.key==='ArrowDown') pacman.nextDir='down';
-    if (e.key==='ArrowLeft') pacman.nextDir='left';
-    if (e.key==='ArrowRight') pacman.nextDir='right';
-  }, { passive:false });
+    pacman.nextDir = dir;
+  });
 
   // Helpers
   function wrapTunnel(px){ if (px < 0) return WIDTH - 1; if (px >= WIDTH) return 0; return px; }

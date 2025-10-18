@@ -4,6 +4,10 @@ setMasterVolume(0.12);
 ensureUnlocked();
 
 const canvas = document.getElementById('game');
+import { createDPad } from '../shared/input/dpad.js';
+
+(() => {
+  const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
 
@@ -73,17 +77,18 @@ const canvas = document.getElementById('game');
     nextDir = { x: nx, y: ny };
   }
 
-  // Inputs
-  window.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-    if (k === ' ' || k === 'spacebar') { paused = !paused; ensureUnlocked(); return; }
-    if (k === 'r') { ensureUnlocked(); init(); return; }
+  // Inputs via shared D-pad helper
+  const dpad = createDPad({ preventDefault: true, pauseKeys: [' ', 'spacebar'], restartKeys: ['r'] });
+  dpad.onDirectionChange((dir) => {
+    if (!dir) return; // releases simply yield null
+    if (dir === 'left') setDir(-1, 0);
+    else if (dir === 'right') setDir(1, 0);
+    else if (dir === 'up') setDir(0, -1);
+    else if (dir === 'down') setDir(0, 1);
 
-    if (k === 'arrowleft' || k === 'a') setDir(-1, 0);
-    else if (k === 'arrowright' || k === 'd') setDir(1, 0);
-    else if (k === 'arrowup' || k === 'w') setDir(0, -1);
-    else if (k === 'arrowdown' || k === 's') setDir(0, 1);
   });
+  dpad.onPause(() => { paused = !paused; ensureAudio(); });
+  dpad.onRestart(() => { ensureAudio(); init(); });
 
   function update() {
     if (!alive || paused) return;
