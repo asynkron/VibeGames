@@ -1,7 +1,12 @@
+import { createBeeper } from '../shared/audio/beeper.js';
 import { parseTextMap } from '../shared/map/textMap.js';
 import { COLS, ROWS, buildMapRows } from './mapData.js';
 import { createDPad } from '../shared/input/dpad.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
+import { createToastManager } from '../shared/fx/toast.js';
+import { createOverlayFX } from '../shared/fx/overlay.js';
+import { drawGlowBatch, rgbaFromHex } from '../shared/fx/glow.js';
+import { applyAmbientLighting } from '../shared/fx/lighting.js';
 
 (() => {
   'use strict';
@@ -21,6 +26,17 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
   const scenePixel = createPixelContext(scene);
   const ctx = scenePixel.ctx; // all game drawing happens here first
   scenePixel.resizeToGrid(COLS, ROWS, TILE);
+
+  const toastFx = createToastManager();
+  const {
+    startShockwave,
+    drawShockwave,
+    screenFlash,
+    drawFlash,
+    startIris,
+    drawIris,
+    getShockInfo,
+  } = createOverlayFX({ ctx: screen, width: WIDTH, height: HEIGHT });
 
   // Settings for lighting and glow (more settings added in later phases)
   const settings = {
@@ -135,9 +151,41 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
 
 
   // Audio manager (synth SFX)
-  const AudioMgr={ ctx:null,gain:null,muted:false,wakaFlip:false, init(){ if (this.ctx) return; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; this.ctx=new AC(); this.gain=this.ctx.createGain(); this.gain.gain.value=0.18; this.gain.connect(this.ctx.destination); }, ensure(){ if(!this.ctx) this.init(); return !!this.ctx && !this.muted; }, playTone({freq=440,dur=0.08,type='square',gain=0.08,delay=0}){ if(!this.ensure()) return; const now=this.ctx.currentTime+delay; const o=this.ctx.createOscillator(); const g=this.ctx.createGain(); o.type=type; o.frequency.setValueAtTime(freq, now); o.connect(g); g.connect(this.gain); g.gain.setValueAtTime(0.0001, now); g.gain.linearRampToValueAtTime(gain, now+0.01); g.gain.exponentialRampToValueAtTime(0.0001, now+dur); o.start(now); o.stop(now+dur+0.05); }, pellet(){ if(!this.ensure()) return; const f=this.wakaFlip?420:520; this.wakaFlip=!this.wakaFlip; this.playTone({freq:f,dur:0.05,type:'square',gain:0.06}); }, power(){ if(!this.ensure()) return; this.playTone({freq:220,dur:0.14,type:'sawtooth',gain:0.09}); this.playTone({freq:180,dur:0.14,type:'sawtooth',gain:0.07,delay:0.05}); }, eaten(){ if(!this.ensure()) return; const base=320; this.playTone({freq:base,dur:0.08,type:'triangle',gain:0.08}); this.playTone({freq:base*1.25,dur:0.08,type:'triangle',gain:0.08,delay:0.08}); this.playTone({freq:base*1.5,dur:0.1,type:'triangle',gain:0.08,delay:0.16}); }, death(){ if(!this.ensure()) return; const seq=[520,440,360,280,220,180]; seq.forEach((f,i)=>this.playTone({freq:f,dur:0.12,type:'sine',gain:0.09,delay:i*0.1})); }, start(){ if(!this.ensure()) return; this.playTone({freq:660,dur:0.1,type:'square',gain:0.08}); this.playTone({freq:880,dur:0.16,type:'square',gain:0.08,delay:0.12}); } };
-  window.addEventListener('pointerdown', ()=>AudioMgr.init(), {once:true});
-  window.addEventListener('keydown', ()=>AudioMgr.init(), {once:true});
+  const beeper = createBeeper({ masterGain: 0.18 });
+  beeper.unlockWithGestures(window, ['pointerdown', 'keydown']);
+  const AudioMgr = {
+    wakaFlip: false,
+    playTone: (tone) => beeper.playTone(tone),
+    pellet() {
+      const freq = this.wakaFlip ? 420 : 520;
+      this.wakaFlip = !this.wakaFlip;
+      beeper.playTone({ freq, dur: 0.05, type: 'square', gain: 0.06 });
+    },
+    power() {
+      beeper.sequence([
+        { freq: 220, dur: 0.14, type: 'sawtooth', gain: 0.09 },
+        { freq: 180, dur: 0.14, type: 'sawtooth', gain: 0.07, at: 0.05 },
+      ]);
+    },
+    eaten() {
+      const base = 320;
+      beeper.sequence([
+        { freq: base, dur: 0.08, type: 'triangle', gain: 0.08 },
+        { freq: base * 1.25, dur: 0.08, type: 'triangle', gain: 0.08, at: 0.08 },
+        { freq: base * 1.5, dur: 0.1, type: 'triangle', gain: 0.08, at: 0.16 },
+      ]);
+    },
+    death() {
+      const seq = [520, 440, 360, 280, 220, 180];
+      beeper.sequence(seq.map((freq, i) => ({ freq, dur: 0.12, type: 'sine', gain: 0.09, at: i * 0.1 }))); 
+    },
+    start() {
+      beeper.sequence([
+        { freq: 660, dur: 0.1, type: 'square', gain: 0.08 },
+        { freq: 880, dur: 0.16, type: 'square', gain: 0.08, at: 0.12 },
+      ]);
+    },
+  };
 
   // Input
   const dpad = createDPad({ preventDefault: true });
@@ -188,7 +236,7 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
       state.frightenedUntil = performance.now() + 6000; // brighten maze via lighting
       startShockwave(pacman.x, pacman.y);
       AudioMgr.power();
-      screenFlash(240, 0.22);
+      screenFlash({ duration: 240, strength: 0.22 });
       addToast('POWER!', pacman.x, pacman.y, '#ffd28a', 900);
       spawnSparks(pacman.x,pacman.y,'#ffe9b8',6);
     }
@@ -217,22 +265,16 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
   function updateParticles(dtMs){ for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.02; p.life-=dtMs; if(p.life<=0) particles.splice(i,1); } }
   function drawParticles(){ ctx.save(); for(const p of particles){ const a=clamp(p.life/260,0,1); ctx.fillStyle=`rgba(255, 230, 180, ${0.4*a})`; ctx.fillRect(p.x-0.5,p.y-0.5,1,1); } ctx.restore(); }
 
-  // Toasts
-  const toasts=[]; function addToast(text,x,y,color='#fff',dur=800){ toasts.push({text,x,y,start:performance.now(),dur,color}); }
-  function drawToasts(now){ ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='6px monospace'; for(let i=toasts.length-1;i>=0;i--){ const t=toasts[i]; const k=clamp((now-t.start)/t.dur,0,1); const dy = -6*k; const alpha = 1 - k; ctx.fillStyle = `rgba(255,255,255,${alpha*0.25})`; ctx.fillText(t.text, t.x+1, t.y+dy+1); ctx.fillStyle = `rgba(0,0,0,${alpha*0.6})`; ctx.fillText(t.text, t.x, t.y+dy+0.5); ctx.fillStyle = t.color; ctx.fillText(t.text, t.x, t.y+dy); if(k>=1) toasts.splice(i,1); }
-    ctx.restore(); }
+  // Toasts (floating score/power popups)
+  const addToast = (text, x, y, color = '#fff', dur = 800) => {
+    toastFx.add({ text, x, y, color, duration: dur });
+  };
+  function drawToasts(now) {
+    toastFx.draw(ctx, now);
+  }
 
-  // Screen flash overlay (drawn on screen)
   // Shockwave + time dilation
-  let shock = {active:false,x:0,y:0,start:0,dur:450};
   let timeScale = 1;
-  function startShockwave(x,y){ shock.active=true; shock.x=x; shock.y=y; shock.start=performance.now(); shock.dur=450; }
-  function drawShockwave(now){ if(!shock.active) return; const t= (now - shock.start) / shock.dur; if(t>=1){ shock.active=false; return; } const easeOut = (x)=>1-Math.pow(1-x,3); const k=easeOut(t); const r = 12 + k * Math.max(WIDTH,HEIGHT); const w = 6; screen.save(); screen.globalCompositeOperation='lighter'; const g=screen.createRadialGradient(shock.x,shock.y, r-w, shock.x,shock.y, r+w); g.addColorStop(0,'rgba(180,180,255,0)'); g.addColorStop(0.5,'rgba(200,200,255,0.25)'); g.addColorStop(1,'rgba(180,180,255,0)'); screen.fillStyle=g; screen.beginPath(); screen.arc(shock.x,shock.y,r+w,0,Math.PI*2); screen.fill(); screen.restore(); }
-  let flash={until:0,strength:0.18}; function screenFlash(ms=200,strength=0.18){ flash.until=performance.now()+ms; flash.strength=strength; }
-
-  // Iris transitions (drawn on screen)
-  const iris={active:false,type:'in',start:0,dur:900}; function startIris(type='in',dur=900){ iris.active=true; iris.type=type; iris.start=performance.now(); iris.dur=dur; }
-  function drawIris(now){ if(!iris.active) return; const t=clamp((now-iris.start)/iris.dur,0,1); const ease=(x)=>1- Math.pow(1-x,3); const maxR=Math.sqrt(WIDTH*WIDTH+HEIGHT*HEIGHT); const r= iris.type==='in' ? ease(t)*maxR : (1-ease(t))*maxR; screen.save(); screen.fillStyle='rgba(0,0,0,1)'; screen.fillRect(0,0,WIDTH,HEIGHT); screen.globalCompositeOperation='destination-out'; screen.beginPath(); screen.arc(WIDTH/2,HEIGHT/2,Math.max(0,r),0,Math.PI*2); screen.fill(); screen.restore(); if(t>=1) iris.active=false; }
 
   // Track Pac-Man tile for scent
   let lastPacTile = toTile(pacman.x, pacman.y);
@@ -284,39 +326,60 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
     const frightened = now < state.frightenedUntil;
     const ambient = clamp(settings.lighting.ambient - (frightened ? settings.lighting.frightenedBoost : 0), 0, 1);
     if (ambient > 0){
-      screen.save();
-      // Dim entire scene with a translucent veil
-      screen.globalCompositeOperation = 'source-over';
-      screen.globalAlpha = ambient;
-      screen.fillStyle = '#000';
-      screen.fillRect(0,0,WIDTH,HEIGHT);
-      screen.globalAlpha = 1;
-
-      const r = settings.lighting.radius;
-      if (r > 0){
-        // Carve out light around Pac-Man
-        const g = screen.createRadialGradient(pacman.x, pacman.y, 0, pacman.x, pacman.y, r);
-        g.addColorStop(0, 'rgba(0,0,0,1)');
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        screen.globalCompositeOperation = 'destination-out';
-        screen.fillStyle = g;
-        screen.beginPath(); screen.arc(pacman.x, pacman.y, r, 0, Math.PI*2); screen.fill();
-
-        // Restore the scene behind the cleared region so Pac-Man stays visible
-        screen.globalCompositeOperation = 'destination-over';
-        screen.drawImage(scene,0,0);
+      const sources = [];
+      if (settings.lighting.radius > 0){
+        sources.push({ x: pacman.x, y: pacman.y, radius: settings.lighting.radius });
       }
-      screen.restore();
+      applyAmbientLighting({
+        ctx: screen,
+        width: WIDTH,
+        height: HEIGHT,
+        ambient,
+        sources,
+        sourceCanvas: scene,
+      });
     }
-    // Subtle glow on existing power pellets
-    if (settings.lighting.powerGlow > 0){ screen.save(); screen.globalCompositeOperation='lighter'; screen.globalAlpha = settings.lighting.powerGlow; for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){ if (pellets[y][x]===2){ const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2; const rg=screen.createRadialGradient(cx,cy,0,cx,cy,TILE*2.2); rg.addColorStop(0,'rgba(255,200,120,0.5)'); rg.addColorStop(1,'rgba(255,200,120,0)'); screen.fillStyle=rg; screen.beginPath(); screen.arc(cx,cy,TILE*2.2,0,Math.PI*2); screen.fill(); } } screen.restore(); }
+    if (settings.lighting.powerGlow > 0){
+      const glows = [];
+      for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+        if (pellets[y][x]===2){
+          const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2;
+          glows.push({
+            x: cx,
+            y: cy,
+            radius: TILE*2.2,
+            stops: [
+              { offset: 0, color: 'rgba(255,200,120,0.5)' },
+              { offset: 1, color: 'rgba(255,200,120,0)' },
+            ],
+          });
+        }
+      }
+      drawGlowBatch(screen, glows, { composite: 'lighter', alpha: settings.lighting.powerGlow });
+    }
   }
 
-  function drawGhostGlows(now){ if(!settings.ghostGlow.enabled) return; const frightened = now < state.frightenedUntil; screen.save(); screen.globalCompositeOperation='lighter'; for(const g of ghosts){ if (g.mode==='eyes') continue; const strength = frightened ? settings.ghostGlow.frightenedStrength : settings.ghostGlow.strength; const r = TILE * (frightened ? 2.6 : 2.1); const grad = screen.createRadialGradient(g.x, g.y, 0, g.x, g.y, r); const col = g.color;
-      const rgba = (hex, a)=>{ const h=hex.replace('#',''); const r=parseInt(h.substring(0,2),16), gg=parseInt(h.substring(2,4),16), b=parseInt(h.substring(4,6),16); return `rgba(${r},${gg},${b},${a})`; };
-      grad.addColorStop(0, rgba(col, 0.28*strength)); grad.addColorStop(1, rgba(col, 0));
-      screen.fillStyle=grad; screen.beginPath(); screen.arc(g.x, g.y, r, 0, Math.PI*2); screen.fill(); }
-    screen.restore(); }
+  function drawGhostGlows(now){
+    if(!settings.ghostGlow.enabled) return;
+    const frightened = now < state.frightenedUntil;
+    const glows = [];
+    for(const g of ghosts){
+      if (g.mode==='eyes') continue;
+      const strength = frightened ? settings.ghostGlow.frightenedStrength : settings.ghostGlow.strength;
+      const radius = TILE * (frightened ? 2.6 : 2.1);
+      const col = g.color;
+      glows.push({
+        x: g.x,
+        y: g.y,
+        radius,
+        stops: [
+          { offset: 0, color: rgbaFromHex(col, 0.28*strength) },
+          { offset: 1, color: rgbaFromHex(col, 0) },
+        ],
+      });
+    }
+    drawGlowBatch(screen, glows, { composite: 'lighter' });
+  }
 
   let last=performance.now();
   function loop(now){ const dt = clamp((now-last)/(1000/60),0.5,2.0); const dtMs = (now-last); last=now; if(state.readyTime>0 && gameState==='playing') state.readyTime-=1;
@@ -374,9 +437,12 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
     // Composite to screen
     screen.clearRect(0,0,WIDTH,HEIGHT);
     (function(){
+      const shockInfo = getShockInfo();
       let split=0;
-      if (shock.active){ const t=(performance.now()-shock.start)/shock.dur; if(t<1){ const f=1-Math.min(1,t); split = 1.6 * f; } }
-      // Base image
+      if (shockInfo.active){
+        const t=(now-shockInfo.start)/shockInfo.duration;
+        if(t<1){ const f=1-Math.min(1,t); split = 1.6 * f; }
+      }
       screen.drawImage(scene,0,0);
       if (split>0.01){ const drawTinted=(dx,dy,rgba)=>{ screen.save(); screen.globalCompositeOperation='lighter'; screen.globalAlpha=0.65; screen.drawImage(scene, dx, dy); screen.globalCompositeOperation='source-atop'; screen.fillStyle=rgba; screen.fillRect(0,0,WIDTH,HEIGHT); screen.restore(); }; drawTinted(split,0,'rgba(255,0,0,0.9)'); drawTinted(-split,0,'rgba(0,255,255,0.85)'); }
     })();
@@ -384,13 +450,13 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
     drawGhostGlows(now);
 
     // Shockwave time dilatation window (first 200ms)
-    if (shock.active){ const e = performance.now() - shock.start; timeScale = e < 200 ? 0.45 : 1; } else { timeScale = 1; }
+    { const shockInfo = getShockInfo(); if (shockInfo.active){ const e = now - shockInfo.start; timeScale = e < 200 ? 0.45 : 1; } else { timeScale = 1; } }
 
     // Shockwave ring overlay
     drawShockwave(now);
 
     // Flash and iris overlays on screen
-    if(flash.until>now){ screen.save(); screen.fillStyle=`rgba(255,255,255,${flash.strength*(flash.until-now)/240})`; screen.fillRect(0,0,WIDTH,HEIGHT); screen.restore(); }
+    drawFlash(now);
     drawIris(now);
 
     requestAnimationFrame(loop);

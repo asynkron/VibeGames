@@ -1,0 +1,115 @@
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const clamp01 = v => Math.min(1, Math.max(0, v));
+
+export function createOverlayFX({ ctx, width, height }) {
+  const shock = {
+    active: false,
+    x: 0,
+    y: 0,
+    start: 0,
+    duration: 450,
+    innerRadius: 12,
+    expandTo: Math.max(width, height),
+    colorStops: [
+      [0, 'rgba(180,180,255,0)'],
+      [0.5, 'rgba(200,200,255,0.25)'],
+      [1, 'rgba(180,180,255,0)'],
+    ],
+  };
+
+  const flash = { until: 0, strength: 0.18, duration: 200 };
+  const iris = { active: false, type: 'in', start: 0, duration: 900 };
+
+  function startShockwave(x, y, options = {}) {
+    Object.assign(shock, {
+      active: true,
+      x,
+      y,
+      start: performance.now(),
+      duration: options.duration ?? shock.duration,
+      innerRadius: options.innerRadius ?? shock.innerRadius,
+      expandTo: options.expandTo ?? Math.max(width, height),
+      colorStops: options.colorStops ?? shock.colorStops,
+    });
+  }
+
+  function getShockInfo() {
+    return { active: shock.active, start: shock.start, duration: shock.duration };
+  }
+
+  function drawShockwave(now = performance.now()) {
+    if (!shock.active || !ctx) return;
+    const t = (now - shock.start) / shock.duration;
+    if (t >= 1) {
+      shock.active = false;
+      return;
+    }
+    const eased = easeOutCubic(clamp01(t));
+    const radius = shock.innerRadius + eased * shock.expandTo;
+    const gradient = ctx.createRadialGradient(shock.x, shock.y, Math.max(0, radius - 6), shock.x, shock.y, radius + 6);
+    for (const [offset, color] of shock.colorStops) {
+      gradient.addColorStop(offset, color);
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(shock.x, shock.y, radius + 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function screenFlash({ duration = 200, strength = 0.18 } = {}) {
+    flash.until = performance.now() + duration;
+    flash.strength = strength;
+    flash.duration = duration;
+  }
+
+  function drawFlash(now = performance.now()) {
+    if (!ctx || now >= flash.until) return;
+    const remaining = flash.until - now;
+    const alpha = flash.strength * clamp01(remaining / flash.duration);
+    ctx.save();
+    ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
+
+  function startIris(type = 'in', duration = 900) {
+    iris.active = true;
+    iris.type = type;
+    iris.start = performance.now();
+    iris.duration = duration;
+  }
+
+  function drawIris(now = performance.now()) {
+    if (!ctx || !iris.active) return;
+    const progress = clamp01((now - iris.start) / iris.duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const maxRadius = Math.sqrt(width * width + height * height);
+    const radius = iris.type === 'in' ? eased * maxRadius : (1 - eased) * maxRadius;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,1)';
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, Math.max(0, radius), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    if (progress >= 1) {
+      iris.active = false;
+    }
+  }
+
+  return {
+    startShockwave,
+    drawShockwave,
+    screenFlash,
+    drawFlash,
+    startIris,
+    drawIris,
+    getShockInfo,
+  };
+}

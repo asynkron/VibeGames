@@ -1,3 +1,4 @@
+import { createBeeper } from '../shared/audio/beeper.js';
 import { createDPad } from '../shared/input/dpad.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
 
@@ -28,27 +29,11 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
   const highEl = document.getElementById('high');
   const fpsEl = document.getElementById('fps');
 
-  // Audio (bleeps), guard for user gesture policies
-  let audioCtx = null;
-  function ensureAudio() {
-    if (!audioCtx) {
-      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch { audioCtx = null; }
-    }
-  }
-  function beep(freq = 440, dur = 0.07, type = 'square', gain = 0.03) {
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t0);
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g).connect(audioCtx.destination);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.01);
-  }
+  // Audio helper shared across games
+  const beeper = createBeeper({ masterGain: 0.12 });
+  beeper.unlockWithGestures();
+  const crashTone = beeper.createPreset({ freq: 90, dur: 0.2, type: 'sawtooth', gain: 0.05 });
+  const eatTone = beeper.createPreset({ freq: 560, dur: 0.06, type: 'square', gain: 0.03 });
 
   // Game state
   let snake, dir, nextDir, food, score, high, alive, paused;
@@ -99,8 +84,8 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
     else if (dir === 'up') setDir(0, -1);
     else if (dir === 'down') setDir(0, 1);
   });
-  dpad.onPause(() => { paused = !paused; ensureAudio(); });
-  dpad.onRestart(() => { ensureAudio(); init(); });
+  dpad.onPause(() => { paused = !paused; beeper.resume(); });
+  dpad.onRestart(() => { beeper.resume(); init(); });
 
   function update() {
     if (!alive || paused) return;
@@ -109,13 +94,13 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
 
     // Wall collision (solid)
     if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
-      alive = false; ensureAudio(); beep(90, 0.2, 'sawtooth', 0.05); return;
+      alive = false; crashTone(); return;
     }
 
     // Self collision
     for (let i = 0; i < snake.length; i++) {
       if (snake[i].x === head.x && snake[i].y === head.y) {
-        alive = false; ensureAudio(); beep(90, 0.2, 'sawtooth', 0.05); return;
+        alive = false; crashTone(); return;
       }
     }
 
@@ -126,7 +111,7 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
       scoreEl.textContent = String(score);
       if (score > high) { high = score; localStorage.setItem('snake_crt_high', String(high)); highEl.textContent = String(high); }
       food = spawnFood();
-      ensureAudio(); beep(560, 0.06, 'square', 0.03);
+      eatTone();
       // Optional slight speed-up over time
       if (score % 5 === 0 && stepPerSec < 20) { stepPerSec += 1; stepMs = 1000 / stepPerSec; }
     } else {

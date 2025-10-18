@@ -1,3 +1,4 @@
+import { createBeeper } from '../../../shared/audio/beeper.js';
 import { parseTextMap } from '../../../shared/map/textMap.js';
 import { charMap } from '../map/charMap.js';
 import { TILE_SIZE, COLS, ROWS } from '../map/constants.js';
@@ -19,7 +20,13 @@ const Colors = {
 };
 
 export default class GameScene extends Phaser.Scene {
-  constructor() { super('game'); }
+  constructor() {
+    super('game');
+    this.beeper = createBeeper({ masterGain: 0.1 });
+    if (typeof window !== 'undefined') {
+      this.beeper.unlockWithGestures(window, ['pointerdown', 'keydown']);
+    }
+  }
 
   preload() {}
 
@@ -497,14 +504,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   beep(freq = 440, dur = 0.05, type = 'square', vol = 0.06) {
-    try {
-      if (!this._actx) this._actx = new (window.AudioContext || window.webkitAudioContext)();
-      const actx = this._actx;
-      const o = actx.createOscillator();
-      const g = actx.createGain();
-      o.type = type; o.frequency.value = freq; g.gain.value = vol;
-      o.connect(g).connect(actx.destination);
-      const t = actx.currentTime; o.start(t); o.stop(t + dur);
-    } catch (_) { /* audio may be blocked until user input */ }
+    if (!this.beeper) return;
+    this.beeper.playTone({ freq, dur, type, gain: vol });
   }
 }
