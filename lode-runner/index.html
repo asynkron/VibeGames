@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lode Runner (Retro CRT)</title>
+  <link rel="stylesheet" href="./styles/crt.css" />
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #101014;
+      color: #cfcfcf;
+      font-family: monospace;
+    }
+    .wrap {
+      display: grid;
+      place-items: center;
+      height: 100%;
+    }
+    .bezel {
+      position: relative;
+      width: 960px; /* 30 cols x 32 px = 960 */
+      max-width: 95vw;
+      aspect-ratio: 15 / 9;
+      box-shadow: 0 0 60px #0a0a0a inset, 0 0 80px #000;
+      border-radius: 18px;
+      background: radial-gradient(120% 100% at 50% 10%, #0b0d12, #050608 60%, #030306);
+      padding: 12px;
+    }
+    #game-root {
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      position: relative;
+      overflow: hidden;
+      border-radius: 10px;
+    }
+    .hud {
+      position: absolute; top: 6px; left: 10px; z-index: 5; color: #9fe7ff; text-shadow: 0 0 4px #69d0ff77;
+      font-size: 14px;
+    }
+    .hud-keys { position: absolute; bottom: 6px; left: 10px; z-index: 5; color: #9fe7ff; text-shadow: 0 0 4px #69d0ff77; font-size: 13px; opacity: 0.9; }\n</style>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="bezel crt">
+      <div id="game-root"></div>
+      <div class="hud">Lode Runner — Proto</div>
+      <div class="hud-keys">Arrows: Move/Climb | Z: Dig Left | X: Dig Right | R: Restart | P: Pause | Up: Step Up</div>
+      <div class="scanlines"></div>
+      <div class="vignette"></div>
+    </div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

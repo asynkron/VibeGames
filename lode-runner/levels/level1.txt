@@ -1,0 +1,19 @@
+# 28x16 grid. Legend:
+# X brick, = solid ground, L ladder, - rope, . empty, G gold, E enemy, P player
+# Outer border is solid ground/brick to keep entities inside in this prototype.
+============================
+=..........G..............=
+=..XXXX..........XXXX.....=
+=..X..X....L.....X..X..G..=
+=..X..X....L.....X..X.....=
+=..X..XXXXXLXXXXX..XX..XXXX=
+=..X.........-...........X=
+=..X....G....-...G.......X=
+=..XXXXXXX...-...XXXXXXX.X=
+=........L...L...........=
+=..G.....L...L.....G.....=
+=........L---L...........=
+=..XXXXXXL...LXXXXXX.....=
+=..P.....L...L.....E.....=
+=..........G.............=
+============================
