@@ -20,6 +20,7 @@ startCrtJitter({ element: document.getElementById('root'), amplitude: 0.3 });
 
 let levelIndex = 0;
 let world = createWorld(LEVELS[levelIndex]);
+renderer.syncOverlayBounds(world);
 
 function updateHUD() {
   hudGems.textContent = `Gems: ${world.collected}/${world.gemsRequired}`;
@@ -33,18 +34,26 @@ function onEvent(evt, payload) {
   if (evt === 'push') audio.push();
   if (evt === 'exit-open') audio.exitOpen();
   if (evt === 'win') audio.win();
-  if (evt === 'die') audio.die();
+  if (evt === 'die') {
+    audio.die();
+    renderer.syncOverlayBounds(world);
+    renderer.startIris('out', 900);
+  }
 }
 
 const engine = new GameEngine(world, renderer, onEvent);
 engine.onRestart = () => {
   world = createWorld(LEVELS[levelIndex]);
   engine.setWorld(world);
+  renderer.syncOverlayBounds(world);
+  renderer.startIris('in', 900);
 };
 engine.onNextLevel = () => {
   levelIndex = (levelIndex + 1) % LEVELS.length;
   world = createWorld(LEVELS[levelIndex]);
   engine.setWorld(world);
+  renderer.syncOverlayBounds(world);
+  renderer.startIris('in', 900);
 };
 
 function loopFrame(t) {
@@ -54,4 +63,5 @@ function loopFrame(t) {
 }
 
 updateHUD();
+renderer.startIris('in', 900);
 requestAnimationFrame(loopFrame);

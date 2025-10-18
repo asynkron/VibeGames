@@ -6,6 +6,7 @@ import { TILE_SIZE, COLS, ROWS } from '../map/constants.js';
 
 const TILE = TILE_SIZE;
 const LEVELS = ['levels/level1.txt','levels/level2.txt','levels/level3.txt'];
+const IRIS_DURATION = 900;
 
 const Colors = {
   bg: 0x0b0d12,
@@ -33,6 +34,7 @@ export default class GameScene extends Phaser.Scene {
     this.pendingDigDirs = [];
     this.queuePauseToggle = false;
     this.queueRestart = false;
+    this.pendingRestart = false;
   }
 
   preload() {
@@ -52,6 +54,7 @@ export default class GameScene extends Phaser.Scene {
     const savedLives = this.registry.get('lives');
     this.lives = typeof savedLives === 'number' ? savedLives : 3;
     this.exitSpawned = false;
+    this.pendingRestart = false;
 
     const levelKey = `level-${this.levelIndex}`;
     let levelText = this.cache.text.get(levelKey);
@@ -208,14 +211,20 @@ export default class GameScene extends Phaser.Scene {
 
     this.cameras.main.roundPixels = true;
     this.physics.world.setBounds(0, 0, COLS * TILE, ROWS * TILE);
+
+    if (this.game?.events) {
+      this.game.events.emit('iris-transition', { type: 'in', duration: IRIS_DURATION });
+    }
   }
 
   update() {
     if (!this.player) return;
 
+    if (this.pendingRestart) return;
+
     if (this.queueRestart) {
       this.queueRestart = false;
-      this.scene.restart();
+      this.scheduleRestart();
       return;
     }
 
@@ -769,6 +778,20 @@ export default class GameScene extends Phaser.Scene {
     this.hudText.setText('Exit opened! Reach the green tile.');
   }
 
+  scheduleRestart(delay = IRIS_DURATION) {
+    if (this.pendingRestart) return;
+    this.pendingRestart = true;
+    this.queueRestart = false;
+    if (this.game?.events) {
+      this.game.events.emit('iris-transition', { type: 'out', duration: delay });
+    }
+    this.physics.world.isPaused = true;
+    this.time.delayedCall(delay, () => {
+      this.physics.world.isPaused = false;
+      this.scene.restart();
+    });
+  }
+
   onPlayerHit() {
     const now = this.time.now;
     if (now < this.invulnUntil) return;
@@ -780,10 +803,11 @@ export default class GameScene extends Phaser.Scene {
     if (this.lives <= 0) {
       this.registry.set('lives', 3);
       this.registry.set('levelIndex', 0);
-      this.scene.restart();
-    } else {
-      this.scene.restart();
     }
+
+    this.updateHUD();
+
+    this.scheduleRestart(IRIS_DURATION);
   }
 
   nextLevel() {

@@ -4,6 +4,9 @@ const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
 const clamp01 = v => Math.min(1, Math.max(0, v));
 
 export function createOverlayFX({ ctx, width, height }) {
+  let boundsWidth = typeof width === 'number' ? width : ctx?.canvas?.width ?? 0;
+  let boundsHeight = typeof height === 'number' ? height : ctx?.canvas?.height ?? 0;
+
   const shock = {
     active: false,
     x: 0,
@@ -11,7 +14,7 @@ export function createOverlayFX({ ctx, width, height }) {
     start: 0,
     duration: 450,
     innerRadius: 12,
-    expandTo: Math.max(width, height),
+    expandTo: Math.max(boundsWidth, boundsHeight),
     colorStops: [
       [0, 'rgba(180,180,255,0)'],
       [0.5, 'rgba(200,200,255,0.25)'],
@@ -20,7 +23,23 @@ export function createOverlayFX({ ctx, width, height }) {
   };
 
   const flash = { until: 0, strength: 0.18, duration: 200 };
-  const iris = createIrisTransition({ ctx, width, height });
+  const iris = createIrisTransition({ ctx, width: boundsWidth, height: boundsHeight });
+
+  function setBounds({ width: nextWidth, height: nextHeight } = {}) {
+    let changed = false;
+    if (typeof nextWidth === 'number' && Number.isFinite(nextWidth) && nextWidth >= 0) {
+      boundsWidth = nextWidth;
+      changed = true;
+    }
+    if (typeof nextHeight === 'number' && Number.isFinite(nextHeight) && nextHeight >= 0) {
+      boundsHeight = nextHeight;
+      changed = true;
+    }
+    if (changed) {
+      shock.expandTo = Math.max(boundsWidth, boundsHeight);
+      iris.setBounds({ width: boundsWidth, height: boundsHeight });
+    }
+  }
 
   function startShockwave(x, y, options = {}) {
     Object.assign(shock, {
@@ -30,7 +49,7 @@ export function createOverlayFX({ ctx, width, height }) {
       start: performance.now(),
       duration: options.duration ?? shock.duration,
       innerRadius: options.innerRadius ?? shock.innerRadius,
-      expandTo: options.expandTo ?? Math.max(width, height),
+      expandTo: options.expandTo ?? Math.max(boundsWidth, boundsHeight),
       colorStops: options.colorStops ?? shock.colorStops,
     });
   }
@@ -73,7 +92,7 @@ export function createOverlayFX({ ctx, width, height }) {
     const alpha = flash.strength * clamp01(remaining / flash.duration);
     ctx.save();
     ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, boundsWidth, boundsHeight);
     ctx.restore();
   }
 
@@ -93,6 +112,7 @@ export function createOverlayFX({ ctx, width, height }) {
     startIris,
     drawIris,
     getShockInfo,
+    setBounds,
   };
 }
 

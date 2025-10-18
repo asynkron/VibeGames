@@ -3,6 +3,7 @@ import { createDPad } from '../shared/input/dpad.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
 import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
+import { createOverlayFX } from '../shared/fx/overlay.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -40,6 +41,7 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
   const TILE = 10; // canvas is 320x240 -> 32x24 grid
 
   pixel.resizeToGrid(COLS, ROWS, TILE);
+  const { startIris, drawIris, setBounds } = createOverlayFX({ ctx, width: canvas.width, height: canvas.height });
 
   // Colors (retro green phosphor vibe)
   const COLORS = {
@@ -86,6 +88,7 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
     scoreEl.textContent = String(score);
     high = Number(localStorage.getItem('snake_crt_high') || '0');
     highEl.textContent = String(high);
+    startIris('in', 900);
   }
 
   function spawnFood() {
@@ -121,13 +124,19 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 
     // Wall collision (solid)
     if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
-      alive = false; crashTone(); return;
+      alive = false;
+      crashTone();
+      startIris('out', 900);
+      return;
     }
 
     // Self collision
     for (let i = 0; i < snake.length; i++) {
       if (snake[i].x === head.x && snake[i].y === head.y) {
-        alive = false; crashTone(); return;
+        alive = false;
+        crashTone();
+        startIris('out', 900);
+        return;
       }
     }
 
@@ -252,6 +261,8 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 
     // Apply CRT post-processing after drawing the frame.
     crtPost.render();
+    setBounds({ width: canvas.width, height: canvas.height });
+    drawIris();
 
     requestAnimationFrame(frame);
   }
