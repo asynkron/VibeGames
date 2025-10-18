@@ -109,13 +109,18 @@ export function createCrtPostProcessor({
     const enabled = settings ? settings.enabled !== false : true;
     const warpStrength = enabled ? clamp01(settings?.warp ?? 0) : 0;
     const aberration = enabled ? clamp01(settings?.aberration ?? 0) : 0;
+    const aberrationOpacity = enabled ? clamp01(settings?.aberrationOpacity ?? 0.45) : 0;
 
     const overlayList = Array.isArray(overlays) ? [...overlays] : [];
-    if (aberration > 0.001) {
+    if (aberration > 0.001 && aberrationOpacity > 0.001) {
       const shift = aberration * Math.min(8, width * 0.025 + 1.5);
-      const alpha = Math.min(1, 0.18 + aberration * 0.3);
-      overlayList.push({ dx: shift, tint: 'rgba(255, 80, 80, 0.85)', alpha });
-      overlayList.push({ dx: -shift, tint: 'rgba(80, 255, 255, 0.8)', alpha });
+      const alpha = Math.min(1, (0.18 + aberration * 0.3) * aberrationOpacity);
+      // Blend in softer red/cyan layers whose own opacity scales with the
+      // aberration amount. This avoids the layered channels blowing out scene
+      // brightness while still letting higher settings feel punchy.
+      const tintStrength = Math.min(1, 0.55 + aberration * 0.25);
+      overlayList.push({ dx: shift, tint: `rgba(255, 110, 110, ${tintStrength})`, alpha });
+      overlayList.push({ dx: -shift, tint: `rgba(110, 255, 255, ${Math.max(0.5, tintStrength - 0.05)})`, alpha });
     }
 
     targetContext.save();

@@ -31,7 +31,13 @@ const syncScanlines = (value) => {
   applyScanlineIntensity(crtFrame, value, { alphaRange: [0.05, 0.26] });
 };
 
-const crtSettings = { enabled: true, warp: 0.08, aberration: 0.05, scanlines: 0.45 };
+const crtSettings = {
+  enabled: true,
+  warp: 0.08,
+  aberration: 0.05,
+  aberrationOpacity: 0.45,
+  scanlines: 0.45,
+};
 const crtControls = createCrtControls({
   storageKey: 'loderunner_crt_settings',
   defaults: crtSettings,
