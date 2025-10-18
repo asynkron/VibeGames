@@ -49,7 +49,13 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
   };
 
   const settings = {
-    crt: { warp: 0.08, aberration: 0.05, scanlines: 0.45, enabled: true },
+    crt: {
+      warp: 0.08,
+      aberration: 0.05,
+      aberrationOpacity: 0.45,
+      scanlines: 0.45,
+      enabled: true,
+    },
     lighting: {
       enabled: true,
       ambient: 0.55,            // base darkness over the whole scene

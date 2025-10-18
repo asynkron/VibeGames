@@ -15,7 +15,13 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
     applyScanlineIntensity(crtFrame, value, { alphaRange: [0.05, 0.28] });
   };
 
-  const crtSettings = { enabled: true, warp: 0.08, aberration: 0.05, scanlines: 0.5 };
+  const crtSettings = {
+    enabled: true,
+    warp: 0.08,
+    aberration: 0.05,
+    aberrationOpacity: 0.45,
+    scanlines: 0.5,
+  };
   const crtControls = createCrtControls({
     storageKey: 'snake_crt_settings',
     defaults: crtSettings,

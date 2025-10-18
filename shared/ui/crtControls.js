@@ -1,7 +1,13 @@
 // Shared CRT settings controller used across games.
 // Exposes a small slider/checkbox panel with persistence and change callbacks.
 
-const DEFAULTS = { enabled: true, warp: 0.08, aberration: 0.05, scanlines: 0.45 };
+const DEFAULTS = {
+  enabled: true,
+  warp: 0.08,
+  aberration: 0.05,
+  aberrationOpacity: 0.45,
+  scanlines: 0.45,
+};
 
 function clamp01(value) {
   const v = Number.isFinite(value) ? value : 0;
@@ -21,6 +27,9 @@ function loadState(storageKey, defaults) {
     if ('enabled' in saved) state.enabled = !!saved.enabled;
     if ('warp' in saved) state.warp = clamp01(saved.warp);
     if ('aberration' in saved) state.aberration = clamp01(saved.aberration);
+    if ('aberrationOpacity' in saved) {
+      state.aberrationOpacity = clamp01(saved.aberrationOpacity);
+    }
     if ('scanlines' in saved) state.scanlines = clamp01(saved.scanlines);
   } catch (_) {
     // Ignore persistence errors (private mode, etc.).
@@ -121,6 +130,14 @@ export function createCrtControls({
   aberration.value = String(state.aberration);
   aberration.style.flex = '0 0 96px';
 
+  const aberrationOpacity = document.createElement('input');
+  aberrationOpacity.type = 'range';
+  aberrationOpacity.min = '0';
+  aberrationOpacity.max = '1';
+  aberrationOpacity.step = '0.01';
+  aberrationOpacity.value = String(state.aberrationOpacity);
+  aberrationOpacity.style.flex = '0 0 96px';
+
   const scanlines = document.createElement('input');
   scanlines.type = 'range';
   scanlines.min = '0';
@@ -146,6 +163,7 @@ export function createCrtControls({
 
   panel.appendChild(createRow('CRT Warp', warp));
   panel.appendChild(createRow('Chromatic Aber.', aberration));
+  panel.appendChild(createRow('Chromatic Opacity', aberrationOpacity));
   panel.appendChild(createRow('Scanline Strength', scanlines));
 
   const toggleRow = document.createElement('div');
@@ -178,14 +196,19 @@ export function createCrtControls({
     if (partial) {
       if ('warp' in partial) state.warp = clampFromInput(partial.warp, warp);
       if ('aberration' in partial) state.aberration = clampFromInput(partial.aberration, aberration);
+      if ('aberrationOpacity' in partial) {
+        state.aberrationOpacity = clampFromInput(partial.aberrationOpacity, aberrationOpacity);
+      }
       if ('scanlines' in partial) state.scanlines = clampFromInput(partial.scanlines, scanlines);
       if ('enabled' in partial) state.enabled = !!partial.enabled;
     }
     state.warp = clampFromInput(state.warp, warp);
     state.aberration = clampFromInput(state.aberration, aberration);
+    state.aberrationOpacity = clampFromInput(state.aberrationOpacity, aberrationOpacity);
     state.scanlines = clampFromInput(state.scanlines, scanlines);
     warp.value = String(state.warp);
     aberration.value = String(state.aberration);
+    aberrationOpacity.value = String(state.aberrationOpacity);
     scanlines.value = String(state.scanlines);
     enabled.checked = !!state.enabled;
     persistState(storageKey, state);
@@ -194,6 +217,9 @@ export function createCrtControls({
 
   warp.addEventListener('input', () => updateState({ warp: parseFloat(warp.value) || 0 }));
   aberration.addEventListener('input', () => updateState({ aberration: parseFloat(aberration.value) || 0 }));
+  aberrationOpacity.addEventListener('input', () => updateState({
+    aberrationOpacity: parseFloat(aberrationOpacity.value) || 0,
+  }));
   scanlines.addEventListener('input', () => updateState({ scanlines: parseFloat(scanlines.value) || 0 }));
   enabled.addEventListener('change', () => updateState({ enabled: !!enabled.checked }));
 
