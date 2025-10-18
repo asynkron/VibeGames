@@ -16,7 +16,8 @@ const Colors = {
   gold: 0xffd14d,
   player: 0x7fe8ff,
   playerShadow: 0x3fa3b5,
-  enemy: 0xff6c6c,
+  enemy: 0xf86b6b,
+  enemyShadow: 0xc23f3f,
   exit: 0x58ff85,
 };
 
@@ -80,6 +81,7 @@ export default class GameScene extends Phaser.Scene {
     // Generate tiles and sprite frames
     this.makeTileTextures();
     this.makePlayerFramesAndAnimations();
+    this.makeEnemyFramesAndAnimations();
 
     this.player = null;
     this.playerSpawn = { x: TILE * 1.5, y: TILE * 1.5 };
@@ -116,9 +118,12 @@ export default class GameScene extends Phaser.Scene {
           this.player.body.setSize(18, 26).setOffset(7, 6);
           this.player.play('player-idle');
         } else if (type === 'enemy') {
-          const e = this.physics.add.sprite(x, y, 'enemy');
+          const e = this.physics.add.sprite(x, y, 'enemy_idle');
           e.setCollideWorldBounds(true);
-          e.setMaxVelocity(200, 540);
+          e.setMaxVelocity(280, 540);
+          e.setDragX(900);
+          e.body.setSize(18, 26).setOffset(7, 6);
+          e.play('enemy-idle');
           e.setData('aiState', 'chase');
           this.enemies.add(e);
         }
@@ -313,23 +318,25 @@ export default class GameScene extends Phaser.Scene {
     // Ground/air drag split for better feel
     this.player.setDragX(grounded ? 1400 : 450);
 
-    // Enemy simple AI
+    // Enemy pathfinding + animation
     this.enemies.getChildren().forEach(e => {
-      // Enemy hole stun: if enemy stands in a dug hole, trap briefly
-      const ec = Math.floor(e.x / TILE); const er = Math.floor(e.y / TILE);
-      const prevStuck = e.getData("stuckUntil") || 0;
+      const ec = Math.floor(e.x / TILE);
+      const er = Math.floor(e.y / TILE);
+      const prevStuck = e.getData('stuckUntil') || 0;
       if (this.map[er] && this.map[er][ec] === 'hole') {
-        if (prevStuck < nowTime) { e.setData("stuckUntil", nowTime + 2200); this.beep(180, 0.05, 'sawtooth', 0.04); }
+        if (prevStuck < nowTime) {
+          e.setData('stuckUntil', nowTime + 2200);
+          this.beep(180, 0.05, 'sawtooth', 0.04);
+        }
       }
-      if ((e.getData("stuckUntil") || 0) > nowTime) { e.setVelocity(0, 0); e.setAcceleration(0, 0); return; }
-      const dx = this.player.x - e.x;
-      const dy = this.player.y - e.y;
-      const onL = this.isOnLadder(e);
-      const vx = Math.sign(dx) * 120;
-      e.setAccelerationX(vx * 6);
-      if (onL) {
-        if (Math.abs(dx) < 20) e.setVelocityY(Math.sign(dy) * 120); else e.setVelocityY(0);
+      if ((e.getData('stuckUntil') || 0) > nowTime) {
+        e.setVelocity(0, 0);
+        e.setAcceleration(0, 0);
+        this.updateEnemyAnimation(e, false, false);
+        return;
       }
+
+      this.updateEnemyAI(e, nowTime);
     });
 
     // Holes lifecycle
@@ -400,12 +407,6 @@ export default class GameScene extends Phaser.Scene {
     g.lineStyle(2, 0xffffff, 0.6); g.strokeRoundedRect(6, 10, TILE-12, TILE-20, 6);
     g.generateTexture('gold', TILE, TILE);
 
-    // Enemy (simple with eyes)
-    g.clear();
-    g.fillStyle(Colors.enemy, 1); g.fillRoundedRect(6, 10, TILE-12, TILE-14, 6);
-    g.fillStyle(0x000000, 0.7); g.fillRect(10, 12, 4, 4); g.fillRect(18, 12, 4, 4);
-    g.generateTexture('enemy', TILE, TILE);
-
     // Exit
     g.clear(); g.fillStyle(Colors.exit, 1); g.fillRoundedRect(6, 6, TILE-12, TILE-12, 6);
     g.lineStyle(2, 0xffffff, 0.5); g.strokeRoundedRect(6, 6, TILE-12, TILE-12, 6);
@@ -463,6 +464,50 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  makeEnemyFramesAndAnimations() {
+    const g = this.make.graphics({ x: 0, y: 0, add: false });
+    const base = (fill = Colors.enemy, shadow = Colors.enemyShadow) => {
+      // Torso/head block similar to player for quick readability
+      g.fillStyle(fill, 1); g.fillRect(11, 8, 10, 10);
+      g.fillRect(12, 4, 8, 4);
+      g.fillStyle(shadow, 0.6); g.fillRect(11, 8, 10, 2);
+    };
+    const legs = (l1x, l1y, l2x, l2y) => {
+      g.fillStyle(Colors.enemy, 1);
+      g.fillRect(l1x, l1y, 3, 8);
+      g.fillRect(l2x, l2y, 3, 8);
+    };
+    const arms = (ax1, ay1, ax2, ay2) => {
+      g.fillStyle(Colors.enemy, 1);
+      g.fillRect(ax1, ay1, 3, 6);
+      g.fillRect(ax2, ay2, 3, 6);
+    };
+
+    const gen = (key, draw) => {
+      g.clear(); g.fillStyle(0x000000, 0); g.fillRect(0, 0, TILE, TILE);
+      base(); draw();
+      g.generateTexture(key, TILE, TILE);
+    };
+
+    gen('enemy_idle', () => { legs(12, 18, 17, 18); arms(10, 10, 21, 10); });
+    gen('enemy_run_0', () => { legs(10, 18, 18, 20); arms(9, 10, 22, 12); });
+    gen('enemy_run_1', () => { legs(12, 20, 16, 18); arms(10, 12, 21, 10); });
+    gen('enemy_run_2', () => { legs(18, 18, 10, 20); arms(9, 12, 22, 10); });
+    gen('enemy_run_3', () => { legs(12, 18, 16, 20); arms(10, 10, 21, 12); });
+    gen('enemy_climb_0', () => { legs(12, 18, 17, 14); arms(10, 8, 21, 12); });
+    gen('enemy_climb_1', () => { legs(12, 14, 17, 18); arms(10, 12, 21, 8); });
+    gen('enemy_hang_0', () => { legs(12, 20, 17, 20); arms(10, 8, 21, 8); });
+    gen('enemy_hang_1', () => { legs(12, 20, 17, 20); arms(10, 9, 21, 9); });
+
+    const anims = this.anims;
+    if (!anims.exists('enemy-idle')) {
+      anims.create({ key: 'enemy-idle', frames: [{ key: 'enemy_idle' }], frameRate: 6, repeat: -1 });
+      anims.create({ key: 'enemy-run', frames: [ 'enemy_run_0','enemy_run_1','enemy_run_2','enemy_run_3' ].map(k => ({ key: k })), frameRate: 10, repeat: -1 });
+      anims.create({ key: 'enemy-climb', frames: [ 'enemy_climb_0','enemy_climb_1' ].map(k => ({ key: k })), frameRate: 6, repeat: -1 });
+      anims.create({ key: 'enemy-hang', frames: [ 'enemy_hang_0','enemy_hang_1' ].map(k => ({ key: k })), frameRate: 4, repeat: -1 });
+    }
+  }
+
   updatePlayerAnimation(onLadder, onRope) {
     const vx = this.player.body.velocity.x;
     const vy = this.player.body.velocity.y;
@@ -479,6 +524,21 @@ export default class GameScene extends Phaser.Scene {
       this.player.anims.play('player-run', true);
     } else {
       this.player.anims.play('player-idle', true);
+    }
+  }
+
+  updateEnemyAnimation(enemy, onLadder, onRope) {
+    const vx = enemy.body.velocity.x;
+    const grounded = enemy.body.blocked.down;
+    if (Math.abs(vx) > 5) enemy.setFlipX(vx < 0);
+    if (onLadder) {
+      enemy.anims.play('enemy-climb', true);
+    } else if (onRope) {
+      enemy.anims.play('enemy-hang', true);
+    } else if (grounded && Math.abs(vx) > 30) {
+      enemy.anims.play('enemy-run', true);
+    } else {
+      enemy.anims.play('enemy-idle', true);
     }
   }
 
@@ -502,6 +562,160 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     return false;
+  }
+
+  updateEnemyAI(enemy, nowTime) {
+    // Guards chase by planning toward the player's current tile with a
+    // lightweight breadth-first search on the level grid.
+    const onLadder = this.isOnLadder(enemy);
+    const onRope = this.isTouchingRope(enemy);
+
+    const currentTile = this.worldToTile(enemy.x, enemy.y);
+    const targetTile = this.worldToTile(this.player.x, this.player.y);
+
+    const storedPath = enemy.getData('path') || [];
+    const needPlan =
+      storedPath.length === 0 ||
+      nowTime >= (enemy.getData('nextPathRefresh') || 0) ||
+      storedPath[0].r !== currentTile.r ||
+      storedPath[0].c !== currentTile.c;
+
+    let path = storedPath;
+    if (needPlan) {
+      path = this.findEnemyPath(currentTile, targetTile);
+      enemy.setData('path', path);
+      enemy.setData('nextPathRefresh', nowTime + 200);
+    }
+
+    let desiredTile = path.length > 1 ? path[1] : path[0];
+    if (!desiredTile) desiredTile = targetTile;
+
+    const targetX = desiredTile.c * TILE + TILE / 2;
+    const targetY = desiredTile.r * TILE + TILE / 2;
+    const accel = onRope ? 900 : 1500;
+    const dx = targetX - enemy.x;
+
+    if (onLadder) {
+      const targetColCenter = Math.round((enemy.x - TILE / 2) / TILE) * TILE + TILE / 2;
+      if (Math.abs(enemy.x - targetColCenter) < 2) {
+        enemy.x = targetColCenter;
+      }
+      enemy.setGravityY(0);
+      const dy = targetY - enemy.y;
+      const climbDir = Math.abs(dy) > 6 ? Math.sign(dy) : 0;
+      enemy.setVelocityY(climbDir * 150);
+      enemy.setAccelerationX(0);
+      if (Math.abs(dx) > 6 && climbDir === 0) {
+        enemy.setAccelerationX(Math.sign(dx) * accel);
+      }
+    } else if (onRope) {
+      enemy.setGravityY(0);
+      enemy.setVelocityY(0);
+      if (Math.abs(dx) > 6) {
+        enemy.setAccelerationX(Math.sign(dx) * accel);
+      } else {
+        enemy.setAccelerationX(0);
+      }
+    } else {
+      enemy.setGravityY(this.physics.world.gravity.y);
+      if (Math.abs(dx) > 8) {
+        enemy.setAccelerationX(Math.sign(dx) * accel);
+      } else {
+        enemy.setAccelerationX(0);
+        if (Math.abs(enemy.body.velocity.x) < 20) enemy.setVelocityX(0);
+      }
+    }
+
+    this.updateEnemyAnimation(enemy, onLadder, onRope);
+  }
+
+  worldToTile(x, y) {
+    const c = Phaser.Math.Clamp(Math.floor(x / TILE), 0, COLS - 1);
+    const r = Phaser.Math.Clamp(Math.floor(y / TILE), 0, ROWS - 1);
+    return { r, c };
+  }
+
+  findEnemyPath(start, goal) {
+    const queue = [start];
+    const key = (t) => `${t.r},${t.c}`;
+    const visited = new Map();
+    visited.set(key(start), null);
+
+    while (queue.length > 0) {
+      const node = queue.shift();
+      if (node.r === goal.r && node.c === goal.c) {
+        return this.reconstructEnemyPath(node, visited);
+      }
+      const neighbors = this.getEnemyNeighbors(node);
+      for (const n of neighbors) {
+        const k = key(n);
+        if (!visited.has(k)) {
+          visited.set(k, node);
+          queue.push(n);
+        }
+      }
+    }
+
+    return [start];
+  }
+
+  reconstructEnemyPath(end, visited) {
+    const key = (t) => `${t.r},${t.c}`;
+    const path = [end];
+    let parent = visited.get(key(end));
+    while (parent) {
+      path.unshift(parent);
+      parent = visited.get(key(parent));
+    }
+    return path;
+  }
+
+  getEnemyNeighbors(tile) {
+    const { r, c } = tile;
+    const neighbors = [];
+    const here = this.tileAt(r, c);
+    const support = this.tileHasSupport(r, c);
+
+    // Up: only possible if we're actively on a ladder.
+    if (here === 'ladder' && this.isTileWalkable(this.tileAt(r - 1, c))) {
+      neighbors.push({ r: r - 1, c });
+    }
+
+    // Down: either on a ladder or falling due to lack of support.
+    if (here === 'ladder' || !support) {
+      const downTile = this.tileAt(r + 1, c);
+      if (this.isTileWalkable(downTile)) {
+        neighbors.push({ r: r + 1, c });
+      }
+    }
+
+    // Horizontal: only when standing on something (or a ladder/rope).
+    const canStepHoriz = support || here === 'ladder' || here === 'rope';
+    if (canStepHoriz && this.isTileWalkable(this.tileAt(r, c - 1))) {
+      neighbors.push({ r, c: c - 1 });
+    }
+    if (canStepHoriz && this.isTileWalkable(this.tileAt(r, c + 1))) {
+      neighbors.push({ r, c: c + 1 });
+    }
+
+    return neighbors;
+  }
+
+  tileAt(r, c) {
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return 'solid';
+    return this.map[r][c];
+  }
+
+  isTileWalkable(tile) {
+    if (!tile) return false;
+    return tile !== 'solid' && tile !== 'brick';
+  }
+
+  tileHasSupport(r, c) {
+    const tile = this.tileAt(r, c);
+    if (tile === 'ladder') return true;
+    const below = this.tileAt(r + 1, c);
+    return below === 'solid' || below === 'brick' || below === 'ladder';
   }
 
   tryStepUpFromLadder(sprite) {
