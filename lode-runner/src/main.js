@@ -1,4 +1,5 @@
 import GameScene from './scene/GameScene.js';
+import { initCrtPresetHotkeys } from '../../shared/ui/crt.js';
 
 const WIDTH = 28 * 32;  // 28 cols
 const HEIGHT = 16 * 32; // 16 rows
@@ -21,3 +22,6 @@ const config = {
 };
 
 new Phaser.Game(config);
+
+// Allow the same CRT intensity hotkeys as the other games (F1/F2 cycles).
+initCrtPresetHotkeys({ storageKey: 'lodeRunnerCrt', target: document.documentElement });
