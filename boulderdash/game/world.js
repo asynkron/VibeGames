@@ -1,3 +1,5 @@
+import { parseTextMap } from '../../shared/map/textMap.js';
+
 export const TILE = {
   EMPTY: 0,
   DIRT: 1,
@@ -14,32 +16,32 @@ export const DIRS = {
 };
 
 export function createWorld(levelDef) {
-  const rows = levelDef.map.trim().split('\n');
-  const height = rows.length; const width = rows[0].length;
+  let player = {x: 1, y: 1};
+  const enemies = [];
+  const grid = parseTextMap(levelDef.map, undefined, undefined, {
+    arrayType: Uint8Array,
+    padChar: ' ',
+    outOfBounds: () => TILE.STEEL,
+    mapTile(ch, x, y) {
+      if (ch === 'P') { player = { x, y }; return TILE.EMPTY; }
+      if (ch === 'F') { enemies.push({ x, y, dir: 0, type: 'FIREFLY' }); return TILE.EMPTY; }
+      if (ch === 'B') { enemies.push({ x, y, dir: 0, type: 'BUTTERFLY' }); return TILE.EMPTY; }
+      switch (ch) {
+        case '#': return TILE.WALL;
+        case 'X': return TILE.STEEL;
+        case '.': return TILE.DIRT;
+        case 'o': return TILE.BOULDER;
+        case '*': return TILE.GEM;
+        case 'E': return TILE.EXIT_CLOSED;
+        default: return TILE.EMPTY;
+      }
+    }
+  });
+
+  const { width, height, data: t } = grid;
   const tilesize = 8;
-  const t = new Uint8Array(width*height);
   // falling marks tiles that were falling in the previous tick
   let falling = new Uint8Array(width*height);
-  let player = {x:1,y:1};
-  let gemsTotal = 0;
-  let enemies = [];
-  for (let y=0;y<height;y++){
-    for(let x=0;x<width;x++){
-      const ch = rows[y][x];
-      let id = TILE.EMPTY;
-      if (ch === '#') id = TILE.WALL;
-      else if (ch === 'X') id = TILE.STEEL;
-      else if (ch === '.') id = TILE.DIRT;
-      else if (ch === 'o') id = TILE.BOULDER;
-      else if (ch === '*') { id = TILE.GEM; gemsTotal++; }
-      else if (ch === 'E') id = TILE.EXIT_CLOSED;
-      else if (ch === 'F') { id = TILE.EMPTY; enemies.push({x,y,dir:0,type:'FIREFLY'}); }
-      else if (ch === 'B') { id = TILE.EMPTY; enemies.push({x,y,dir:0,type:'BUTTERFLY'}); }
-      else if (ch === ' ') id = TILE.EMPTY;
-      else if (ch === 'P') { id = TILE.EMPTY; player = {x,y}; }
-      t[y*width+x] = id;
-    }
-  }
   // Compute reachable gems from player position (flood fill over passable tiles)
   function reachableGemCount() {
     const visited = new Uint8Array(width*height);
@@ -71,15 +73,16 @@ export function createWorld(levelDef) {
     width, height, tilesize, t,
     falling,
     player,
+    enemies,
     collected: 0, gemsRequired: computedRequirement,
     score: 0,
     timeLeft: 120,
     state: 'play', // play | dead | timeup | win
     tick: 0,
-    idx(x,y){ return y*width+x; },
-    inb(x,y){ return x>=0 && y>=0 && x<width && y<height; },
-    get(x,y){ return this.inb(x,y) ? t[this.idx(x,y)] : TILE.STEEL; },
-    set(x,y,v){ if(this.inb(x,y)) t[this.idx(x,y)] = v; },
+    idx: grid.index.bind(grid),
+    inb: grid.inBounds.bind(grid),
+    get(x,y){ return grid.get(x,y, TILE.STEEL); },
+    set(x,y,v){ grid.set(x,y,v); },
     isFree(x,y){ const id=this.get(x,y); return id===TILE.EMPTY || id===TILE.DIRT || id===TILE.GEM || id===TILE.EXIT_OPEN; },
     tryMovePlayer(dir){
       if (this.state!=='play') return false;
