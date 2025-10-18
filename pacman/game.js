@@ -1,3 +1,6 @@
+import { parseTextMap } from '../shared/map/textMap.js';
+import { COLS, ROWS, buildMapRows } from './mapData.js';
+
 (() => {
   'use strict';
 
@@ -5,7 +8,7 @@
   const canvas = document.getElementById('game');
   const screen = canvas.getContext('2d'); // final composite target
 
-  const TILE = 8; const COLS = 28; const ROWS = 31;
+  const TILE = 8;
   const WIDTH = COLS * TILE; const HEIGHT = ROWS * TILE;
   canvas.width = WIDTH; canvas.height = HEIGHT;
 
@@ -37,43 +40,19 @@
     eyes: '#ffffff', mouth: '#000', gate: '#8bd8ff'
   };
 
-  // Map (26 rows) padded to 31
-  const MAP = [
-    '############################',
-    '#............##............#',
-    '#.####.#####.##.#####.####.#',
-    '#o####.#####.##.#####.####o#',
-    '#.####.#####.##.#####.####.#',
-    '#..........................#',
-    '#.####.##.########.##.####.#',
-    '#......##....##....##......#',
-    '######.#####.##.#####.######',
-    '     #.#####.##.#####.#     ',
-    '     #.##          ##.#     ',
-    '     #.## ###--### ##.#     ',
-    '######.## #      # ##.######',
-    '      .   #      #   .      ',
-    '######.## #      # ##.######',
-    '     #.## ######## ##.#     ',
-    '     #.##          ##.#     ',
-    '     #.## ######## ##.#     ',
-    '######.## ######## ##.######',
-    '#............##............#',
-    '#.####.#####.##.#####.####.#',
-    '#o..##................##..o#',
-    '###.##.##.########.##.##.###',
-    '#......##....##....##......#',
-    '#.##########.##.##########.#',
-    '#..........................#',
-    '############################',
-  ];
-  while (MAP.length < ROWS) { if (MAP.length % 2 === 0) MAP.unshift('############################'); else MAP.push('############################'); }
+  // Map (26 rows) padded to 31 using shared parser utilities
+  const mapRows = buildMapRows();
+  const mapGrid = parseTextMap(mapRows.join('\n'), COLS, ROWS, {
+    padChar: ' ',
+    trimLines: false,
+    outOfBounds: () => '#',
+  });
 
   // Utils
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 
-  function tileAt(x, y) { if (y < 0 || y >= ROWS) return '#'; if (x < 0 || x >= COLS) return '#'; return MAP[y][x] || '#'; }
+  function tileAt(x, y) { return mapGrid.get(x, y, '#'); }
   const isWall = t => t === '#'; const isGate = t => t === '-';
 
   // Pellets

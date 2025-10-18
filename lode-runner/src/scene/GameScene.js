@@ -1,6 +1,8 @@
-const TILE = 32;
-const COLS = 28;
-const ROWS = 16;
+import { parseTextMap } from '../../../shared/map/textMap.js';
+import { charMap } from '../map/charMap.js';
+import { TILE_SIZE, COLS, ROWS } from '../map/constants.js';
+
+const TILE = TILE_SIZE;
 const LEVELS = ['levels/level1.txt','levels/level2.txt','levels/level3.txt'];
 
 const Colors = {
@@ -15,19 +17,6 @@ const Colors = {
   enemy: 0xff6c6c,
   exit: 0x58ff85,
 };
-
-function charMap(ch) {
-  switch (ch) {
-    case 'X': return 'brick';
-    case '=': return 'solid';
-    case 'L': return 'ladder';
-    case '-': return 'rope';
-    case 'G': return 'gold';
-    case 'P': return 'player';
-    case 'E': return 'enemy';
-    default: return 'empty';
-  }
-}
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('game'); }
@@ -46,9 +35,14 @@ export default class GameScene extends Phaser.Scene {
 
     const levelPath = LEVELS[this.levelIndex] ?? LEVELS[0];
     const levelText = await this.loadLevel(levelPath);
-    const rows = levelText.trim().split('\n').filter(r => !r.startsWith('#'));
+    const levelGrid = parseTextMap(levelText.trim(), COLS, ROWS, {
+      lineFilter: (line) => !line.startsWith('#'),
+      padChar: '=',
+      mapTile: (ch) => charMap(ch),
+      outOfBounds: () => 'solid',
+    });
 
-    this.map = this.buildMap(rows);
+    this.map = this.buildMap(levelGrid);
 
     // Static/dynamic groups
     this.solidLayer = this.physics.add.staticGroup();
@@ -290,18 +284,12 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  buildMap(rows) {
-    const grid = [];
-    for (let r = 0; r < ROWS; r++) {
-      const line = rows[r] || ''.padEnd(COLS, '=');
-      const row = [];
-      for (let c = 0; c < COLS; c++) {
-        const ch = line[c] || '=';
-        row.push(charMap(ch));
-      }
-      grid.push(row);
-    }
-    return grid;
+  buildMap(grid) {
+    const rows = Array.from({ length: ROWS }, () => new Array(COLS));
+    grid.forEachTile((value, c, r) => {
+      rows[r][c] = value;
+    });
+    return rows;
   }
 
   makeTileTextures() {
