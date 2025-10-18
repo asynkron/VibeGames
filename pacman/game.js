@@ -2,6 +2,7 @@ import { createBeeper } from '../shared/audio/beeper.js';
 import { parseTextMap } from '../shared/map/textMap.js';
 import { COLS, ROWS, buildMapRows } from './mapData.js';
 import { createDPad } from '../shared/input/dpad.js';
+import { createPixelContext } from '../shared/render/pixelCanvas.js';
 import { createToastManager } from '../shared/fx/toast.js';
 import { createOverlayFX } from '../shared/fx/overlay.js';
 import { drawGlowBatch, rgbaFromHex } from '../shared/fx/glow.js';
@@ -12,16 +13,19 @@ import { applyAmbientLighting } from '../shared/fx/lighting.js';
 
   // Canvas and contexts
   const canvas = document.getElementById('game');
-  const screen = canvas.getContext('2d'); // final composite target
+  const scene = document.createElement('canvas');
 
   const TILE = 8;
   const WIDTH = COLS * TILE; const HEIGHT = ROWS * TILE;
-  canvas.width = WIDTH; canvas.height = HEIGHT;
+
+  const screenPixel = createPixelContext(canvas);
+  const screen = screenPixel.ctx; // final composite target
+  screenPixel.resizeToGrid(COLS, ROWS, TILE);
 
   // Offscreen scene buffer for post-processing
-  const scene = document.createElement('canvas');
-  scene.width = WIDTH; scene.height = HEIGHT;
-  const ctx = scene.getContext('2d'); // all game drawing happens here first
+  const scenePixel = createPixelContext(scene);
+  const ctx = scenePixel.ctx; // all game drawing happens here first
+  scenePixel.resizeToGrid(COLS, ROWS, TILE);
 
   const toastFx = createToastManager();
   const {

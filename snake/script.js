@@ -1,15 +1,18 @@
 import { createBeeper } from '../shared/audio/beeper.js';
 import { createDPad } from '../shared/input/dpad.js';
+import { createPixelContext } from '../shared/render/pixelCanvas.js';
 
 (() => {
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d', { alpha: false });
-  ctx.imageSmoothingEnabled = false;
+  const pixel = createPixelContext(canvas, { alpha: false });
+  const { ctx, fillRect: fillPixels } = pixel;
 
   // Grid config
   const COLS = 32;
   const ROWS = 24;
   const TILE = 10; // canvas is 320x240 -> 32x24 grid
+
+  pixel.resizeToGrid(COLS, ROWS, TILE);
 
   // Colors (retro green phosphor vibe)
   const COLORS = {
@@ -151,32 +154,28 @@ import { createDPad } from '../shared/input/dpad.js';
     const eye = Math.max(1, Math.floor(TILE / 4));
     const off = Math.max(1, Math.floor(TILE / 6));
     if (dir.x === 1) { // right
-      pix(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, '#021');
-      pix(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, '#021');
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
     } else if (dir.x === -1) { // left
-      pix(h.x * TILE + off, h.y * TILE + off, eye, eye, '#021');
-      pix(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
+      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, '#021');
+      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
     } else if (dir.y === 1) { // down
-      pix(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
-      pix(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
+      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
     } else { // up
-      pix(h.x * TILE + off, h.y * TILE + off, eye, eye, '#021');
-      pix(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, '#021');
+      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, '#021');
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, '#021');
     }
   }
 
   function drawFood() {
     const px = food.x * TILE; const py = food.y * TILE;
     // body
-    pix(px + 2, py + 2, TILE - 4, TILE - 4, COLORS.food);
+    fillPixels(px + 2, py + 2, TILE - 4, TILE - 4, COLORS.food);
     // stem
-    pix(px + Math.floor(TILE / 2) - 1, py + 0, 2, 3, COLORS.foodStem);
+    fillPixels(px + Math.floor(TILE / 2) - 1, py + 0, 2, 3, COLORS.foodStem);
     // highlight
-    pix(px + 2, py + 2, 2, 2, '#fff7');
-  }
-
-  function pix(x, y, w, h, color) {
-    ctx.fillStyle = color; ctx.fillRect(x, y, w, h);
+    fillPixels(px + 2, py + 2, 2, 2, '#fff7');
   }
 
   function drawGameOver() {
