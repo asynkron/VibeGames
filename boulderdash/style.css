@@ -10,9 +10,9 @@ html, body { height: 100%; background: var(--bg); color: var(--fg); }
 body { margin: 0; display: grid; place-items: center; font-family: ui-monospace, Menlo, Monaco, Consolas, "Courier New", monospace; }
 #root { position: relative; width: min(95vw, 1024px); aspect-ratio: 16 / 9; display: grid; place-items: center; filter: drop-shadow(0 20px 40px rgba(0,0,0,0.85)); }
 #game { image-rendering: pixelated; image-rendering: crisp-edges; width: 100%; height: auto; max-height: 90vh; background: #000; border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.9), inset 0 0 60px rgba(0,255,150,0.08), 0 0 24px rgba(50,255,150,0.25), 0 0 60px rgba(50,255,150,0.12); filter: contrast(1.18) saturate(1.15) brightness(1.04); }
-#hud { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 10px; }
-#hud .panel { display: flex; gap: 12px; color: #a8ffbf; text-shadow: var(--glow); font-weight: 700; font-size: clamp(10px, 2.2vw, 18px); }
-#hud .msg { align-self: center; margin-top: 8px; color: #fff9; text-shadow: 0 0 8px rgba(255,255,255,0.5), 0 0 16px rgba(50,255,150,0.35); font-size: clamp(12px, 3vw, 22px); }
+.boulderdash-hud { color: #a8ffbf; text-shadow: var(--glow); }
+.boulderdash-hud .retro-controls { font-weight: 700; font-size: clamp(10px, 2.2vw, 18px); gap: clamp(8px, 2vw, 24px); }
+.boulderdash-hud .retro-hud-message { margin-top: 8px; color: #fff9; text-shadow: 0 0 8px rgba(255,255,255,0.5), 0 0 16px rgba(50,255,150,0.35); font-size: clamp(12px, 3vw, 22px); }
 #crt { position: absolute; inset: 0; pointer-events: none; border-radius: 8px; overflow: hidden; mix-blend-mode: overlay; }
 /* Scanlines + aperture grille */
 #crt::before {
