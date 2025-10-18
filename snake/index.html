@@ -4,10 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Snake CRT</title>
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="bezel" class="bezel">
+  <div id="bezel" class="bezel crt">
     <div class="ui">
       <div class="title">SNAKE</div>
       <div class="scoreboard">
@@ -18,8 +19,9 @@
       <div class="controls">Arrows/WASD to move • Space to pause • R to restart</div>
     </div>
     <canvas id="game" width="320" height="240"></canvas>
-    <div class="crt scanlines"></div>
-    <div class="crt vignette"></div>
+    <div class="crt__glow"></div>
+    <div class="crt__scanlines"></div>
+    <div class="crt__vignette"></div>
   </div>
   <script src="script.js"></script>
 </body>

@@ -4,7 +4,7 @@ import { createAssets } from './game/assets.js';
 import { createWorld, TILE } from './game/world.js';
 import { LEVELS } from './game/levels.js';
 import { createAudio } from './game/audio.js';
-import './game/crt.js';
+import '../shared/scripts/crt-jitter.js';
 
 const canvas = document.getElementById('game');
 const hudGems = document.getElementById('hud-gems');

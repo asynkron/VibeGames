@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lode Runner (Retro CRT)</title>
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
   <link rel="stylesheet" href="./styles/crt.css" />
   <style>
     html, body {
@@ -49,8 +50,9 @@
       <div id="game-root"></div>
       <div class="hud">Lode Runner — Proto</div>
       <div class="hud-keys">Arrows: Move/Climb | Z: Dig Left | X: Dig Right | R: Restart | P: Pause | Up: Step Up</div>
-      <div class="scanlines"></div>
-      <div class="vignette"></div>
+      <div class="crt__glow"></div>
+      <div class="crt__scanlines"></div>
+      <div class="crt__vignette"></div>
     </div>
   </div>
   <script type="module" src="./src/main.js"></script>

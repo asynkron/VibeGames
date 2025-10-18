@@ -12,7 +12,7 @@ Key files:
 - game/world.js: Level parsing, rules (falling/rolling), player moves, win/lose.
 - game/levels.js: ASCII level(s). Extend by pushing to array.
 - game/audio.js: Tiny WebAudio beeps for collect/push/exit/win/die.
-- game/crt.js: Subtle flicker/jitter for CRT feel.
+- shared/scripts/crt-jitter.js: Subtle flicker/jitter for CRT feel.
 
 Known risks:
 - Physics edge cases when boulders roll; mitigated by bottom-to-top sweep and single-update per tick.

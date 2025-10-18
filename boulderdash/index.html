@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Boulder Dash (CRT)</title>
   <link rel="preconnect" href="." />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="root">
+  <div id="root" class="crt" data-crt-jitter="0.3" data-crt-jitter-axis="y">
     <canvas id="game" width="640" height="352"></canvas>
     <div id="hud">
       <div class="panel">
@@ -19,7 +20,9 @@
       </div>
       <div class="msg" id="hud-msg"></div>
     </div>
-    <div id="crt"></div>
+    <div class="crt__glow"></div>
+    <div class="crt__scanlines"></div>
+    <div class="crt__vignette"></div>
   </div>
   <script type="module" src="main.js"></script>
 </body>
