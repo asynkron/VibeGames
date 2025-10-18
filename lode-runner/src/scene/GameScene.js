@@ -247,11 +247,17 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    const onLadder = this.isOnLadder(this.player);
-    const onRope = this.isTouchingRope(this.player);
-
     const grounded = this.player.body.blocked.down === true;
     if (grounded) this.lastGroundedAt = nowTime;
+
+    const touchingLadder = this.isOnLadder(this.player);
+    const onRope = this.isTouchingRope(this.player);
+
+    // Only treat the ladder as "active" when the player is climbing or has
+    // moved off the ground. This lets you run straight past a ladder without
+    // getting snapped onto it, while still allowing climbs to begin from the
+    // floor.
+    const onLadder = touchingLadder && (!grounded || up || down);
     const justLanded = !this.wasGrounded && grounded && !onLadder && !onRope;
     if (justLanded && Math.abs(this.player.body.velocity.y) > 60) {
       this.beep(320, 0.05, 'square', 0.05);
@@ -269,19 +275,28 @@ export default class GameScene extends Phaser.Scene {
       if (up && this.tryStepUpFromLadder(this.player)) {
         // stepped up, normal gravity resumes below
       } else {
-        // Snap X to ladder center when climbing for crispness
+        // Snap X to ladder center when we're actually climbing the rungs. We
+        // still give a bit of wiggle room so horizontal inputs continue to work.
         const targetX = Math.round((this.player.x - TILE / 2) / TILE) * TILE + TILE / 2;
-        if (Math.abs(this.player.x - targetX) < 8) this.player.x = targetX;
+        if (!left && !right && Math.abs(this.player.x - targetX) < 8) {
+          this.player.x = targetX;
+        } else if (Math.abs(this.player.x - targetX) < 2) {
+          this.player.x = targetX;
+        }
         this.player.setGravityY(0);
-        this.player.setVelocityY(0);
-        if (up) this.player.setVelocityY(-170);
-        else if (down) this.player.setVelocityY(170);
+        let ladderSpeed = 0;
+        if (up) ladderSpeed = -170;
+        else if (down) ladderSpeed = 170;
+        this.player.setVelocityY(ladderSpeed);
       }
     } else if (onRope) {
-      // Hang on rope; zero gravity. Down drops.
+      // Hang on rope; zero gravity so you don't slowly slide off. Up/down let
+      // you shimmy to nearby ladders just like the classic game.
       this.player.setGravityY(0);
-      if (down) this.player.setVelocityY(160);
-      else this.player.setVelocityY(0);
+      let ropeSpeed = 0;
+      if (up) ropeSpeed = -160;
+      else if (down) ropeSpeed = 160;
+      this.player.setVelocityY(ropeSpeed);
     } else {
       this.player.setGravityY(this.physics.world.gravity.y);
       const withinCoyote = (nowTime - this.lastGroundedAt) <= this.coyoteMs;
