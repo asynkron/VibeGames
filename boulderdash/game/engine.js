@@ -1,3 +1,4 @@
+import { createDPad } from '../../shared/input/dpad.js';
 import { TILE, DIRS } from './world.js';
 
 export class GameEngine {
@@ -9,7 +10,7 @@ export class GameEngine {
     this.acc = 0;
     this.last = 0;
 
-    this.input = { up:false, down:false, left:false, right:false, wait:false, restart:false };
+    this.input = { wait: false, restart: false };
 
     this.tickRate = 1000/20; // 20 logic tps
     this.moveCooldown = 0; // regulate player move rate
@@ -17,23 +18,12 @@ export class GameEngine {
 
     this.onRestart = null;
     this.onNextLevel = null;
-
-    window.addEventListener('keydown', (e) => this.key(e, true));
-    window.addEventListener('keyup', (e) => this.key(e, false));
+    this.dpad = createDPad({ preventDefault: true, restartKeys: ['r'] });
+    this.dpad.onKeyChange([' ', 'spacebar'], (down) => { this.input.wait = down; });
+    this.dpad.onRestart(() => { this.input.restart = true; });
   }
 
   setWorld(w) { this.world = w; }
-
-  key(e, down) {
-    const k = e.key.toLowerCase();
-    if (k === 'arrowup' || k === 'w') this.input.up = down;
-    if (k === 'arrowdown' || k === 's') this.input.down = down;
-    if (k === 'arrowleft' || k === 'a') this.input.left = down;
-    if (k === 'arrowright' || k === 'd') this.input.right = down;
-    if (k === ' ') this.input.wait = down;
-    if (k === 'r' && down) this.input.restart = true;
-    if (['arrowup','w','arrowdown','s','arrowleft','a','arrowright','d',' '].includes(k)) e.preventDefault();
-  }
 
   frame(t) {
     if (!this.last) this.last = t;
@@ -85,10 +75,12 @@ export class GameEngine {
   }
 
   inputDirection() {
-    if (this.input.up && !this.input.down && !this.input.left && !this.input.right) return DIRS.UP;
-    if (this.input.down && !this.input.up && !this.input.left && !this.input.right) return DIRS.DOWN;
-    if (this.input.left && !this.input.right && !this.input.up && !this.input.down) return DIRS.LEFT;
-    if (this.input.right && !this.input.left && !this.input.up && !this.input.down) return DIRS.RIGHT;
+    const dir = this.dpad.getDirection({ exclusive: true });
+    if (!dir) return null;
+    if (dir === 'up') return DIRS.UP;
+    if (dir === 'down') return DIRS.DOWN;
+    if (dir === 'left') return DIRS.LEFT;
+    if (dir === 'right') return DIRS.RIGHT;
     return null;
   }
 }
