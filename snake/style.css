@@ -15,6 +15,21 @@ body {
 
 .bezel {
   position: relative;
+  --crt-radius: 10px;
+  --crt-scanline-spacing: 2px;
+  --crt-scanline-thickness: 1px;
+  --crt-scanline-alpha: 0.04;
+  --crt-scanline-opacity: 0.7;
+  --crt-scanline-animation: snake-scanline-flicker 2.2s steps(2, end) infinite;
+  --crt-aperture-opacity: 0.06;
+  --crt-aperture-rgb-r: 255,255,255;
+  --crt-aperture-rgb-g: 255,255,255;
+  --crt-aperture-rgb-b: 255,255,255;
+  --crt-vignette-gradient:
+    radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0.55) 100%),
+    radial-gradient(circle at 50% -20%, rgba(0,255,160,0.25), transparent 40%);
+  --crt-overlay-filter: blur(0.3px) contrast(1.06) saturate(1.1);
+  --crt-flicker-animation: snake-flicker 2.2s steps(2, end) infinite;
   width: min(95vw, 980px);
   aspect-ratio: 4/3;
   border-radius: 18px;
@@ -71,32 +86,7 @@ canvas {
   font-size: clamp(8px, 1.6vw, 12px);
 }
 
-.crt.scanlines, .crt.vignette {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-}
-
-/* Scanlines and subtle sub-pixel mask */
-.crt.scanlines {
-  background:
-    repeating-linear-gradient(to bottom, rgba(255,255,255,0.04) 0 1px, rgba(0,0,0,0.06) 1px 2px),
-    repeating-linear-gradient(to right, rgba(255,255,255,0.02) 0 1px, rgba(0,0,0,0.04) 1px 2px);
-  mix-blend-mode: overlay;
-  opacity: 0.7;
-  animation: flicker 2.2s infinite steps(2, end);
-}
-
-/* Vignette, bloom tint, and slight panel curvature feel */
-.crt.vignette {
-  background:
-    radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0.55) 100%),
-    radial-gradient(circle at 50% -20%, rgba(0,255,160,0.25), transparent 40%);
-  filter: blur(0.3px) contrast(1.06) saturate(1.1);
-}
-
-@keyframes flicker {
+@keyframes snake-flicker {
   0% { opacity: 0.6; }
   10% { opacity: 0.72; }
   20% { opacity: 0.65; }
@@ -107,5 +97,11 @@ canvas {
   70% { opacity: 0.76; }
   80% { opacity: 0.67; }
   90% { opacity: 0.73; }
+  100% { opacity: 0.7; }
+}
+
+@keyframes snake-scanline-flicker {
+  0% { opacity: 0.68; }
+  50% { opacity: 0.74; }
   100% { opacity: 0.7; }
 }

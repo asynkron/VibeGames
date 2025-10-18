@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lode Runner (Retro CRT)</title>
   <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
   <link rel="stylesheet" href="./styles/crt.css" />
   <style>
     html, body {
@@ -55,7 +56,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="bezel crt">
+    <div class="bezel crt-frame">
       <div id="game-root"></div>
       <div class="retro-hud lode-hud">
         <div class="retro-controls">
@@ -65,8 +66,7 @@
           Arrows: Move/Climb | Z: Dig Left | X: Dig Right | R: Restart | P: Pause | Up: Step Up
         </div>
       </div>
-      <div class="scanlines"></div>
-      <div class="vignette"></div>
+      <div class="crt-overlay"></div>
     </div>
   </div>
   <script type="module" src="./src/main.js"></script>
