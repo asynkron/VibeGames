@@ -2,6 +2,7 @@ import GameScene from './scene/GameScene.js';
 import { initCrtPresetHotkeys } from '../../shared/ui/crt.js';
 import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
+import { createOverlayFX } from '../../shared/fx/overlay.js';
 
 const WIDTH = 28 * 32;  // 28 cols
 const HEIGHT = 16 * 32; // 16 rows
@@ -51,14 +52,27 @@ syncScanlines(crtSettings.scanlines);
 
 if (game && game.context && typeof game.context.drawImage === 'function' && game.events) {
   const crtPost = createCrtPostProcessor({ targetContext: game.context, settings: crtSettings });
+  const overlayFx = createOverlayFX({ ctx: game.context, width: WIDTH, height: HEIGHT });
   const coreEvents = Phaser && Phaser.Core && Phaser.Core.Events ? Phaser.Core.Events : null;
   const POST_RENDER = coreEvents ? coreEvents.POST_RENDER : 'postrender';
   const DESTROY = coreEvents ? coreEvents.DESTROY : 'destroy';
 
-  const handlePostRender = () => { crtPost.render(); };
+  const handlePostRender = () => {
+    crtPost.render();
+    const w = game.scale?.width ?? WIDTH;
+    const h = game.scale?.height ?? HEIGHT;
+    overlayFx.setBounds({ width: w, height: h });
+    overlayFx.drawIris();
+  };
+  const handleIrisEvent = (config = {}) => {
+    const { type = 'in', duration, options } = config;
+    overlayFx.startIris(type, duration, options);
+  };
   game.events.on(POST_RENDER, handlePostRender);
+  game.events.on('iris-transition', handleIrisEvent);
   game.events.once(DESTROY, () => {
     game.events.off(POST_RENDER, handlePostRender);
+    game.events.off('iris-transition', handleIrisEvent);
   });
 }
 

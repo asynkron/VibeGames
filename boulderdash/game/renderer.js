@@ -1,6 +1,7 @@
 import { createPixelContext } from '../../shared/render/pixelCanvas.js';
 import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
+import { createOverlayFX } from '../../shared/fx/overlay.js';
 
 export function createRenderer(canvas, assets) {
   const pixel = createPixelContext(canvas);
@@ -30,10 +31,17 @@ export function createRenderer(canvas, assets) {
   Object.assign(crtSettings, crtControls.getSettings());
   syncScanlines(crtSettings.scanlines);
   const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
+  const overlayFx = createOverlayFX({ ctx, width: canvas.width, height: canvas.height });
+
+  const syncOverlayBounds = (world) => {
+    if (!world) return;
+    overlayFx.setBounds({ width: world.width * world.tilesize, height: world.height * world.tilesize });
+  };
 
   function draw(world) {
     const { width, height, tilesize } = world;
     pixel.resizeToGrid(width, height, tilesize);
+    syncOverlayBounds(world);
 
     // clear
     ctx.fillStyle = '#000';
@@ -60,6 +68,7 @@ export function createRenderer(canvas, assets) {
 
     // Apply CRT warp/aberration after the frame is drawn.
     crtPost.render();
+    overlayFx.drawIris();
   }
 
   function overlayText(text) {
@@ -74,5 +83,9 @@ export function createRenderer(canvas, assets) {
     });
   }
 
-  return { draw };
+  return {
+    draw,
+    startIris: overlayFx.startIris,
+    syncOverlayBounds,
+  };
 }
