@@ -1,18 +1,28 @@
 import { createPixelContext } from '../../shared/render/pixelCanvas.js';
-import { createCrtControls } from '../../shared/ui/crtControls.js';
+import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
 
 export function createRenderer(canvas, assets) {
   const pixel = createPixelContext(canvas);
   const { ctx } = pixel;
 
-  const crtSettings = { enabled: true, warp: 0.16, aberration: 0.1 };
+  const crtFrame = document.getElementById('root');
+  const syncScanlines = (amount) => {
+    if (!crtFrame) return;
+    applyScanlineIntensity(crtFrame, amount, { alphaRange: [0.05, 0.28] });
+  };
+
+  const crtSettings = { enabled: true, warp: 0.08, aberration: 0.05, scanlines: 0.45 };
   const crtControls = createCrtControls({
     storageKey: 'boulderdash_crt_settings',
     defaults: crtSettings,
-    onChange: (next) => Object.assign(crtSettings, next),
+    onChange: (next) => {
+      Object.assign(crtSettings, next);
+      syncScanlines(next.scanlines);
+    },
   });
   Object.assign(crtSettings, crtControls.getSettings());
+  syncScanlines(crtSettings.scanlines);
   const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
 
   function draw(world) {

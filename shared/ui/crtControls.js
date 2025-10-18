@@ -1,7 +1,7 @@
 // Shared CRT settings controller used across games.
 // Exposes a small slider/checkbox panel with persistence and change callbacks.
 
-const DEFAULTS = { enabled: true, warp: 0.18, aberration: 0.12 };
+const DEFAULTS = { enabled: true, warp: 0.08, aberration: 0.05, scanlines: 0.45 };
 
 function clamp01(value) {
   const v = Number.isFinite(value) ? value : 0;
@@ -21,6 +21,7 @@ function loadState(storageKey, defaults) {
     if ('enabled' in saved) state.enabled = !!saved.enabled;
     if ('warp' in saved) state.warp = clamp01(saved.warp);
     if ('aberration' in saved) state.aberration = clamp01(saved.aberration);
+    if ('scanlines' in saved) state.scanlines = clamp01(saved.scanlines);
   } catch (_) {
     // Ignore persistence errors (private mode, etc.).
   }
@@ -107,18 +108,37 @@ export function createCrtControls({
   const warp = document.createElement('input');
   warp.type = 'range';
   warp.min = '0';
-  warp.max = '1';
-  warp.step = '0.01';
+  warp.max = '0.5';
+  warp.step = '0.005';
   warp.value = String(state.warp);
   warp.style.flex = '0 0 96px';
 
   const aberration = document.createElement('input');
   aberration.type = 'range';
   aberration.min = '0';
-  aberration.max = '1';
-  aberration.step = '0.01';
+  aberration.max = '0.35';
+  aberration.step = '0.005';
   aberration.value = String(state.aberration);
   aberration.style.flex = '0 0 96px';
+
+  const scanlines = document.createElement('input');
+  scanlines.type = 'range';
+  scanlines.min = '0';
+  scanlines.max = '1';
+  scanlines.step = '0.01';
+  scanlines.value = String(state.scanlines);
+  scanlines.style.flex = '0 0 96px';
+
+  const clampFromInput = (value, input) => {
+    const minValue = Number.isFinite(Number(input.min)) ? Number(input.min) : 0;
+    const maxValue = Number.isFinite(Number(input.max)) ? Number(input.max) : 1;
+    const min = Math.min(minValue, maxValue);
+    const max = Math.max(minValue, maxValue);
+    const v = Number.isFinite(value) ? value : min;
+    if (v < min) return min;
+    if (v > max) return max;
+    return v;
+  };
 
   const enabled = document.createElement('input');
   enabled.type = 'checkbox';
@@ -126,6 +146,7 @@ export function createCrtControls({
 
   panel.appendChild(createRow('CRT Warp', warp));
   panel.appendChild(createRow('Chromatic Aber.', aberration));
+  panel.appendChild(createRow('Scanline Strength', scanlines));
 
   const toggleRow = document.createElement('div');
   toggleRow.style.display = 'flex';
@@ -155,12 +176,17 @@ export function createCrtControls({
 
   const updateState = (partial) => {
     if (partial) {
-      if ('warp' in partial) state.warp = clamp01(partial.warp);
-      if ('aberration' in partial) state.aberration = clamp01(partial.aberration);
+      if ('warp' in partial) state.warp = clampFromInput(partial.warp, warp);
+      if ('aberration' in partial) state.aberration = clampFromInput(partial.aberration, aberration);
+      if ('scanlines' in partial) state.scanlines = clampFromInput(partial.scanlines, scanlines);
       if ('enabled' in partial) state.enabled = !!partial.enabled;
     }
+    state.warp = clampFromInput(state.warp, warp);
+    state.aberration = clampFromInput(state.aberration, aberration);
+    state.scanlines = clampFromInput(state.scanlines, scanlines);
     warp.value = String(state.warp);
     aberration.value = String(state.aberration);
+    scanlines.value = String(state.scanlines);
     enabled.checked = !!state.enabled;
     persistState(storageKey, state);
     emit();
@@ -168,12 +194,13 @@ export function createCrtControls({
 
   warp.addEventListener('input', () => updateState({ warp: parseFloat(warp.value) || 0 }));
   aberration.addEventListener('input', () => updateState({ aberration: parseFloat(aberration.value) || 0 }));
+  scanlines.addEventListener('input', () => updateState({ scanlines: parseFloat(scanlines.value) || 0 }));
   enabled.addEventListener('change', () => updateState({ enabled: !!enabled.checked }));
 
   parent.appendChild(panel);
 
-  // Notify listeners with the initial state so consumers can sync immediately.
-  setTimeout(() => emit(), 0);
+  // Clamp and notify listeners immediately so consumers sync without waiting.
+  updateState();
 
   return {
     element: panel,
@@ -191,5 +218,18 @@ export function createCrtControls({
       if (panel.parentElement) panel.parentElement.removeChild(panel);
     },
   };
+}
+
+export function applyScanlineIntensity(target, intensity, {
+  opacityRange = [0, 1],
+  alphaRange = [0.04, 0.26],
+} = {}) {
+  if (!target || !target.style) return;
+  const amount = clamp01(intensity);
+  const [minOpacity, maxOpacity] = opacityRange;
+  const [minAlpha, maxAlpha] = alphaRange;
+  const lerp = (a, b) => a + (b - a) * amount;
+  target.style.setProperty('--crt-scanline-opacity', lerp(minOpacity, maxOpacity).toFixed(3));
+  target.style.setProperty('--crt-scanline-alpha', lerp(minAlpha, maxAlpha).toFixed(3));
 }
 
