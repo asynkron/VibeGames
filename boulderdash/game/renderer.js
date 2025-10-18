@@ -1,8 +1,19 @@
 import { createPixelContext } from '../../shared/render/pixelCanvas.js';
+import { createCrtControls } from '../../shared/ui/crtControls.js';
+import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
 
 export function createRenderer(canvas, assets) {
   const pixel = createPixelContext(canvas);
   const { ctx } = pixel;
+
+  const crtSettings = { enabled: true, warp: 0.16, aberration: 0.1 };
+  const crtControls = createCrtControls({
+    storageKey: 'boulderdash_crt_settings',
+    defaults: crtSettings,
+    onChange: (next) => Object.assign(crtSettings, next),
+  });
+  Object.assign(crtSettings, crtControls.getSettings());
+  const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
 
   function draw(world) {
     const { width, height, tilesize } = world;
@@ -30,6 +41,9 @@ export function createRenderer(canvas, assets) {
     if (world.state === 'dead') overlayText('CRUSHED! Press R to restart');
     else if (world.state === 'timeup') overlayText('TIME UP! Press R to restart');
     else if (world.state === 'win') overlayText('LEVEL CLEARED!');
+
+    // Apply CRT warp/aberration after the frame is drawn.
+    crtPost.render();
   }
 
   function overlayText(text) {

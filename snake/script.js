@@ -1,11 +1,22 @@
 import { createBeeper } from '../shared/audio/beeper.js';
 import { createDPad } from '../shared/input/dpad.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
+import { createCrtControls } from '../shared/ui/crtControls.js';
+import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 
 (() => {
   const canvas = document.getElementById('game');
   const pixel = createPixelContext(canvas, { alpha: false });
   const { ctx, fillRect: fillPixels } = pixel;
+
+  const crtSettings = { enabled: true, warp: 0.18, aberration: 0.12 };
+  const crtControls = createCrtControls({
+    storageKey: 'snake_crt_settings',
+    defaults: crtSettings,
+    onChange: (next) => Object.assign(crtSettings, next),
+  });
+  Object.assign(crtSettings, crtControls.getSettings());
+  const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
 
   // Grid config
   const COLS = 32;
@@ -222,6 +233,9 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
 
     if (!alive) drawGameOver();
     else if (paused) drawPaused();
+
+    // Apply CRT post-processing after drawing the frame.
+    crtPost.render();
 
     requestAnimationFrame(frame);
   }
