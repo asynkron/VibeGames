@@ -17,6 +17,7 @@ import { applyAmbientLighting } from '../shared/fx/lighting.js';
 
   const TILE = 8;
   const WIDTH = COLS * TILE; const HEIGHT = ROWS * TILE;
+  const PACMAN_RADIUS = TILE * 0.5; // keep Pac-Man closer to a full tile for a chunkier look
 
   const screenPixel = createPixelContext(canvas);
   const screen = screenPixel.ctx; // final composite target
@@ -312,8 +313,43 @@ import { applyAmbientLighting } from '../shared/fx/lighting.js';
 
   function drawScentOverlay(){ ctx.save(); ctx.globalCompositeOperation='lighter'; for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){ const s=scent[y][x]; if(s<=0) continue; const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2, r=TILE*0.6; const t=s/SCENT_MAX; const alpha=Math.min(0.02+t*0.4,0.42); const grad=ctx.createRadialGradient(cx,cy,0,cx,cy,r); grad.addColorStop(0,`rgba(160,120,255,${alpha})`); grad.addColorStop(1,'rgba(160,120,255,0)'); ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); } ctx.restore(); }
 
-  function drawPacman(){ if(pacDeath.active){ const elapsed=performance.now()-pacDeath.start; const k=clamp(elapsed/pacDeath.dur,0,1); const angle=({right:0,left:Math.PI,up:-Math.PI/2,down:Math.PI/2})[pacman.dir]||0; const r=TILE*0.45*(1-0.9*k); const mouth=Math.PI*(0.2+1.6*k); ctx.fillStyle=COLORS.pacman; ctx.beginPath(); ctx.moveTo(pacman.x,pacman.y); ctx.arc(pacman.x,pacman.y,Math.max(0.1,r), angle+mouth, angle-mouth, true); ctx.closePath(); ctx.fill(); return; }
-    const mouthOpen=Math.abs(Math.sin(performance.now()/120))*0.7+0.2; const angle=({right:0,left:Math.PI,up:-Math.PI/2,down:Math.PI/2})[pacman.dir]||0; ctx.fillStyle=COLORS.pacman; ctx.beginPath(); ctx.moveTo(pacman.x,pacman.y); ctx.arc(pacman.x,pacman.y,TILE*0.45, angle+mouthOpen, angle-mouthOpen, true); ctx.closePath(); ctx.fill(); }
+  function drawPacman(){
+    const angle = ({ right: 0, left: Math.PI, up: -Math.PI / 2, down: Math.PI / 2 })[pacman.dir] || 0;
+    if (pacDeath.active) {
+      const elapsed = performance.now() - pacDeath.start;
+      const k = clamp(elapsed / pacDeath.dur, 0, 1);
+      const radius = PACMAN_RADIUS * (1 - 0.9 * k);
+      // During the death animation the mouth progressively closes until only a dot remains.
+      const mouth = Math.PI * (0.2 + 1.6 * k);
+      ctx.fillStyle = COLORS.pacman;
+      ctx.beginPath();
+      ctx.arc(pacman.x, pacman.y, Math.max(0.1, radius), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.moveTo(pacman.x, pacman.y);
+      ctx.arc(pacman.x, pacman.y, Math.max(0.1, radius), angle + mouth, angle - mouth, true);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+    const mouthOpen = Math.abs(Math.sin(performance.now() / 120)) * 0.7 + 0.2;
+    ctx.fillStyle = COLORS.pacman;
+    ctx.beginPath();
+    ctx.arc(pacman.x, pacman.y, PACMAN_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    // Punch out the wedge so we see the maze through Pac-Man's mouth instead of filling it with yellow.
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.moveTo(pacman.x, pacman.y);
+    ctx.arc(pacman.x, pacman.y, PACMAN_RADIUS, angle + mouthOpen, angle - mouthOpen, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
 
   function drawGhost(g){ const now=performance.now(); const frightened=now<state.frightenedUntil; if(g.mode==='eyes'){ const baseX=g.x, baseY=g.y; ctx.fillStyle=COLORS.eyes; const ex=({left:-3,right:3,up:0,down:0})[g.dir]||0; const ey=({up:-2,down:2,left:0,right:0})[g.dir]||0; ctx.beginPath(); ctx.arc(baseX-4,baseY-2,2.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(baseX+4,baseY-2,2.5,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#0033aa'; ctx.beginPath(); ctx.arc(baseX-4+ex,baseY-2+ey,1.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(baseX+4+ex,baseY-2+ey,1.2,0,Math.PI*2); ctx.fill(); return; }
     const r=TILE*0.45; const baseX=g.x, baseY=g.y; let bodyColor=g.color; if(frightened){ const rem=state.frightenedUntil-now; const blink=rem>0 && rem<1500 && (Math.floor(now/125)%2===0); bodyColor=blink?'#ffffff':'#1f4bd1'; }
