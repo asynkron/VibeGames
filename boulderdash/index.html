@@ -6,10 +6,11 @@
   <title>Boulder Dash (CRT)</title>
   <link rel="preconnect" href="." />
   <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="root">
+  <div id="root" class="crt-frame">
     <canvas id="game" width="640" height="352"></canvas>
     <div id="hud" class="retro-hud boulderdash-hud">
       <div class="retro-controls">
@@ -20,7 +21,7 @@
       </div>
       <div class="retro-hud-message" id="hud-msg"></div>
     </div>
-    <div id="crt"></div>
+    <div id="crt" class="crt-overlay"></div>
   </div>
   <script type="module" src="main.js"></script>
 </body>

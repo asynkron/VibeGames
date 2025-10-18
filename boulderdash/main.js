@@ -4,7 +4,7 @@ import { createAssets } from './game/assets.js';
 import { createWorld, TILE } from './game/world.js';
 import { LEVELS } from './game/levels.js';
 import { createAudio } from './game/audio.js';
-import './game/crt.js';
+import { startCrtJitter } from '../shared/ui/crt.js';
 
 const canvas = document.getElementById('game');
 const hudGems = document.getElementById('hud-gems');
@@ -16,6 +16,7 @@ const hudMsg = document.getElementById('hud-msg');
 const assets = createAssets();
 const audio = createAudio();
 const renderer = createRenderer(canvas, assets);
+startCrtJitter({ element: document.getElementById('root'), amplitude: 0.3 });
 
 let levelIndex = 0;
 let world = createWorld(LEVELS[levelIndex]);
