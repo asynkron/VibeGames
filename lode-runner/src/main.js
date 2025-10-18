@@ -1,6 +1,6 @@
 import GameScene from './scene/GameScene.js';
 import { initCrtPresetHotkeys } from '../../shared/ui/crt.js';
-import { createCrtControls } from '../../shared/ui/crtControls.js';
+import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
 
 const WIDTH = 28 * 32;  // 28 cols
@@ -25,13 +25,23 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-const crtSettings = { enabled: true, warp: 0.15, aberration: 0.1 };
+const crtFrame = document.querySelector('.bezel.crt-frame');
+const syncScanlines = (value) => {
+  if (!crtFrame) return;
+  applyScanlineIntensity(crtFrame, value, { alphaRange: [0.05, 0.26] });
+};
+
+const crtSettings = { enabled: true, warp: 0.08, aberration: 0.05, scanlines: 0.45 };
 const crtControls = createCrtControls({
   storageKey: 'loderunner_crt_settings',
   defaults: crtSettings,
-  onChange: (next) => Object.assign(crtSettings, next),
+  onChange: (next) => {
+    Object.assign(crtSettings, next);
+    syncScanlines(next.scanlines);
+  },
 });
 Object.assign(crtSettings, crtControls.getSettings());
+syncScanlines(crtSettings.scanlines);
 
 if (game && game.context && typeof game.context.drawImage === 'function' && game.events) {
   const crtPost = createCrtPostProcessor({ targetContext: game.context, settings: crtSettings });

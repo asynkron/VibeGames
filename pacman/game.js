@@ -7,7 +7,7 @@ import { createToastManager } from '../shared/fx/toast.js';
 import { createOverlayFX } from '../shared/fx/overlay.js';
 import { drawGlowBatch, rgbaFromHex } from '../shared/fx/glow.js';
 import { applyAmbientLighting } from '../shared/fx/lighting.js';
-import { createCrtControls } from '../shared/ui/crtControls.js';
+import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 
 (() => {
@@ -42,8 +42,14 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
   } = createOverlayFX({ ctx: screen, width: WIDTH, height: HEIGHT });
 
   // Settings for lighting and glow (more settings added in later phases)
+  const crtFrame = document.querySelector('.screen.crt-frame');
+  const syncScanlines = (value) => {
+    if (!crtFrame) return;
+    applyScanlineIntensity(crtFrame, value, { alphaRange: [0.04, 0.24] });
+  };
+
   const settings = {
-    crt: { warp: 0.18, aberration: 0.12, enabled: true },
+    crt: { warp: 0.08, aberration: 0.05, scanlines: 0.45, enabled: true },
     lighting: {
       enabled: true,
       ambient: 0.55,            // base darkness over the whole scene
@@ -135,9 +141,13 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
   const crtControls = createCrtControls({
     storageKey: 'pacman_crt_settings',
     defaults: settings.crt,
-    onChange: (next) => Object.assign(settings.crt, next),
+    onChange: (next) => {
+      Object.assign(settings.crt, next);
+      syncScanlines(next.scanlines);
+    },
   });
   Object.assign(settings.crt, crtControls.getSettings());
+  syncScanlines(settings.crt.scanlines);
 
   const crtPost = createCrtPostProcessor({
     targetContext: screen,
