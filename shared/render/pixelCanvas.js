@@ -69,7 +69,12 @@ export function createPixelContext(canvas, options = {}) {
     ctx.textBaseline = baseline;
 
     const metrics = ctx.measureText(text);
-    const height = boxHeight ?? ((metrics.actualBoundingBoxAscent ?? 0) + (metrics.actualBoundingBoxDescent ?? 0) + padding * 2) || (parseInt(font, 10) + padding * 2);
+    const measuredHeight =
+      (metrics.actualBoundingBoxAscent ?? 0) +
+      (metrics.actualBoundingBoxDescent ?? 0) +
+      padding * 2;
+    const fallbackHeight = parseInt(font, 10) + padding * 2;
+    const height = boxHeight ?? (measuredHeight || fallbackHeight);
     const width = boxWidth ?? (metrics.width + padding * 2);
     const centerX = boxX ?? x;
     const centerY = boxY ?? y;

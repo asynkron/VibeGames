@@ -192,148 +192,147 @@ export default class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, COLS * TILE, ROWS * TILE);
   }
 
-    update() {
-      if (!this.player) return;
+  update() {
+    if (!this.player) return;
 
-      if (this.queueRestart) {
-        this.queueRestart = false;
-        this.scene.restart();
-        return;
-      }
-
-      if (this.queuePauseToggle) {
-        this.queuePauseToggle = false;
-        const paused = this.physics.world.isPaused;
-        this.physics.world.isPaused = !paused;
-        this.pauseText.setVisible(!paused);
-        return;
-      }
-
-      if (this.physics.world.isPaused) return;
-
-      const controls = this.controls;
-      const left = controls?.isPressed('left') ?? false;
-      const right = controls?.isPressed('right') ?? false;
-      const up = controls?.isPressed('up') ?? false;
-      const down = controls?.isPressed('down') ?? false;
-
-      const nowTime = this.time.now;
-      const upJustPressed = up && !this.prevDirections.up;
-      const upJustReleased = !up && this.prevDirections.up;
-
-      if (upJustPressed) {
-        this.jumpBufferUntil = nowTime + this.jumpBufferMs;
-      }
-
-      if (this.pendingDigDirs.length > 0) {
-        const digRequests = this.pendingDigDirs.splice(0, this.pendingDigDirs.length);
-        for (const dir of digRequests) {
-          if (nowTime - this.lastDigAt >= this.digCooldownMs) {
-            this.tryDig(dir);
-          }
-        }
-      }
-
-      const onLadder = this.isOnLadder(this.player);
-      const onRope = this.isTouchingRope(this.player);
-
-      const grounded = this.player.body.blocked.down === true;
-      if (grounded) this.lastGroundedAt = nowTime;
-      const justLanded = !this.wasGrounded && grounded && !onLadder && !onRope;
-      if (justLanded && Math.abs(this.player.body.velocity.y) > 60) {
-        this.beep(320, 0.05, 'square', 0.05);
-        this.cameras.main.shake(40, 0.003);
-      }
-
-      let accel = 1800;
-      const inAir = !grounded && !onLadder && !onRope;
-      if (inAir) accel = Math.round(accel * 0.75);
-      if (left) this.player.setAccelerationX(-accel); else if (right) this.player.setAccelerationX(accel); else this.player.setAccelerationX(0);
-      // Vertical movement logic with ladder top step-up
-
-      if (onLadder) {
-        // If pushing up at ladder top with solid/brick above, step up onto platform
-        if (up && this.tryStepUpFromLadder(this.player)) {
-          // stepped up, normal gravity resumes below
-        } else {
-          // Snap X to ladder center when climbing for crispness
-          const targetX = Math.round((this.player.x - TILE / 2) / TILE) * TILE + TILE / 2;
-          if (Math.abs(this.player.x - targetX) < 8) this.player.x = targetX;
-          this.player.setGravityY(0);
-          this.player.setVelocityY(0);
-          if (up) this.player.setVelocityY(-170);
-          else if (down) this.player.setVelocityY(170);
-        }
-      } else if (onRope) {
-        // Hang on rope; zero gravity. Down drops.
-        this.player.setGravityY(0);
-        if (down) this.player.setVelocityY(160);
-        else this.player.setVelocityY(0);
-      } else {
-        this.player.setGravityY(this.physics.world.gravity.y);
-        const withinCoyote = (nowTime - this.lastGroundedAt) <= this.coyoteMs;
-        if ((grounded || withinCoyote) && nowTime <= this.jumpBufferUntil) {
-          this.player.setVelocityY(-380);
-          this.beep(560, 0.05, 'triangle', 0.05);
-          this.jumpBufferUntil = 0;
-        }
-        if (upJustReleased && this.player.body.velocity.y < 0) {
-          this.player.setVelocityY(this.player.body.velocity.y * this.jumpCutMultiplier);
-        }
-      }
-
-      // Ground/air drag split for better feel
-      this.player.setDragX(grounded ? 1400 : 450);
-
-      // Enemy simple AI
-      this.enemies.getChildren().forEach(e => {
-        // Enemy hole stun: if enemy stands in a dug hole, trap briefly
-        const ec = Math.floor(e.x / TILE); const er = Math.floor(e.y / TILE);
-        const prevStuck = e.getData("stuckUntil") || 0;
-        if (this.map[er] && this.map[er][ec] === 'hole') {
-          if (prevStuck < nowTime) { e.setData("stuckUntil", nowTime + 2200); this.beep(180, 0.05, 'sawtooth', 0.04); }
-        }
-        if ((e.getData("stuckUntil") || 0) > nowTime) { e.setVelocity(0, 0); e.setAcceleration(0, 0); return; }
-        const dx = this.player.x - e.x;
-        const dy = this.player.y - e.y;
-        const onL = this.isOnLadder(e);
-        const vx = Math.sign(dx) * 120;
-        e.setAccelerationX(vx * 6);
-        if (onL) {
-          if (Math.abs(dx) < 20) e.setVelocityY(Math.sign(dy) * 120); else e.setVelocityY(0);
-        }
-      });
-
-      // Holes lifecycle
-      const now = this.time.now;
-      this.holes = this.holes.filter(h => {
-        if (now - h.created > 5000) {
-          const r = h.r, c = h.c;
-          if (this.map[r][c] === 'hole') {
-            this.map[r][c] = 'brick';
-            const x = c * TILE + TILE/2, y = r * TILE + TILE/2;
-            const b = this.solidLayer.create(x, y, 'brick');
-            b.setData('type', 'brick');
-          }
-          h.sprite.destroy();
-          return false;
-        }
-        return true;
-      });
-
-      // Exit spawn when all gold collected
-      if (!this.exitSpawned && this.score === this.totalGold) { this.spawnExit(); }
-
-      // Animation state
-      this.wasGrounded = grounded;
-      this.updatePlayerAnimation(onLadder, onRope);
-      this.prevDirections.up = up;
-      this.prevDirections.down = down;
-      this.prevDirections.left = left;
-      this.prevDirections.right = right;
+    if (this.queueRestart) {
+      this.queueRestart = false;
+      this.scene.restart();
+      return;
     }
 
+    if (this.queuePauseToggle) {
+      this.queuePauseToggle = false;
+      const paused = this.physics.world.isPaused;
+      this.physics.world.isPaused = !paused;
+      this.pauseText.setVisible(!paused);
+      return;
+    }
+
+    if (this.physics.world.isPaused) return;
+
+    const controls = this.controls;
+    const left = controls?.isPressed('left') ?? false;
+    const right = controls?.isPressed('right') ?? false;
+    const up = controls?.isPressed('up') ?? false;
+    const down = controls?.isPressed('down') ?? false;
+
+    const nowTime = this.time.now;
+    const upJustPressed = up && !this.prevDirections.up;
+    const upJustReleased = !up && this.prevDirections.up;
+
+    if (upJustPressed) {
+      this.jumpBufferUntil = nowTime + this.jumpBufferMs;
+    }
+
+    if (this.pendingDigDirs.length > 0) {
+      const digRequests = this.pendingDigDirs.splice(0, this.pendingDigDirs.length);
+      for (const dir of digRequests) {
+        if (nowTime - this.lastDigAt >= this.digCooldownMs) {
+          this.tryDig(dir);
+        }
+      }
+    }
+
+    const onLadder = this.isOnLadder(this.player);
+    const onRope = this.isTouchingRope(this.player);
+
+    const grounded = this.player.body.blocked.down === true;
+    if (grounded) this.lastGroundedAt = nowTime;
+    const justLanded = !this.wasGrounded && grounded && !onLadder && !onRope;
+    if (justLanded && Math.abs(this.player.body.velocity.y) > 60) {
+      this.beep(320, 0.05, 'square', 0.05);
+      this.cameras.main.shake(40, 0.003);
+    }
+
+    let accel = 1800;
+    const inAir = !grounded && !onLadder && !onRope;
+    if (inAir) accel = Math.round(accel * 0.75);
+    if (left) this.player.setAccelerationX(-accel); else if (right) this.player.setAccelerationX(accel); else this.player.setAccelerationX(0);
+    // Vertical movement logic with ladder top step-up
+
+    if (onLadder) {
+      // If pushing up at ladder top with solid/brick above, step up onto platform
+      if (up && this.tryStepUpFromLadder(this.player)) {
+        // stepped up, normal gravity resumes below
+      } else {
+        // Snap X to ladder center when climbing for crispness
+        const targetX = Math.round((this.player.x - TILE / 2) / TILE) * TILE + TILE / 2;
+        if (Math.abs(this.player.x - targetX) < 8) this.player.x = targetX;
+        this.player.setGravityY(0);
+        this.player.setVelocityY(0);
+        if (up) this.player.setVelocityY(-170);
+        else if (down) this.player.setVelocityY(170);
+      }
+    } else if (onRope) {
+      // Hang on rope; zero gravity. Down drops.
+      this.player.setGravityY(0);
+      if (down) this.player.setVelocityY(160);
+      else this.player.setVelocityY(0);
+    } else {
+      this.player.setGravityY(this.physics.world.gravity.y);
+      const withinCoyote = (nowTime - this.lastGroundedAt) <= this.coyoteMs;
+      if ((grounded || withinCoyote) && nowTime <= this.jumpBufferUntil) {
+        this.player.setVelocityY(-380);
+        this.beep(560, 0.05, 'triangle', 0.05);
+        this.jumpBufferUntil = 0;
+      }
+      if (upJustReleased && this.player.body.velocity.y < 0) {
+        this.player.setVelocityY(this.player.body.velocity.y * this.jumpCutMultiplier);
+      }
+    }
+
+    // Ground/air drag split for better feel
+    this.player.setDragX(grounded ? 1400 : 450);
+
+    // Enemy simple AI
+    this.enemies.getChildren().forEach(e => {
+      // Enemy hole stun: if enemy stands in a dug hole, trap briefly
+      const ec = Math.floor(e.x / TILE); const er = Math.floor(e.y / TILE);
+      const prevStuck = e.getData("stuckUntil") || 0;
+      if (this.map[er] && this.map[er][ec] === 'hole') {
+        if (prevStuck < nowTime) { e.setData("stuckUntil", nowTime + 2200); this.beep(180, 0.05, 'sawtooth', 0.04); }
+      }
+      if ((e.getData("stuckUntil") || 0) > nowTime) { e.setVelocity(0, 0); e.setAcceleration(0, 0); return; }
+      const dx = this.player.x - e.x;
+      const dy = this.player.y - e.y;
+      const onL = this.isOnLadder(e);
+      const vx = Math.sign(dx) * 120;
+      e.setAccelerationX(vx * 6);
+      if (onL) {
+        if (Math.abs(dx) < 20) e.setVelocityY(Math.sign(dy) * 120); else e.setVelocityY(0);
+      }
+    });
+
+    // Holes lifecycle
+    const now = this.time.now;
+    this.holes = this.holes.filter(h => {
+      if (now - h.created > 5000) {
+        const r = h.r, c = h.c;
+        if (this.map[r][c] === 'hole') {
+          this.map[r][c] = 'brick';
+          const x = c * TILE + TILE/2, y = r * TILE + TILE/2;
+          const b = this.solidLayer.create(x, y, 'brick');
+          b.setData('type', 'brick');
+        }
+        h.sprite.destroy();
+        return false;
+      }
+      return true;
+    });
+
+    // Exit spawn when all gold collected
+    if (!this.exitSpawned && this.score === this.totalGold) { this.spawnExit(); }
+
+    // Animation state
+    this.wasGrounded = grounded;
+    this.updatePlayerAnimation(onLadder, onRope);
+    this.prevDirections.up = up;
+    this.prevDirections.down = down;
+    this.prevDirections.left = left;
+    this.prevDirections.right = right;
   }
+
   async loadLevel(path) {
     return new Promise((resolve) => {
       this.load.text('level', path);
