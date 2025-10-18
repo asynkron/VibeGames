@@ -6,6 +6,7 @@ import url from 'node:url';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(process.argv[2] ?? __dirname);
 const port = Number(process.env.PORT || 5173);
+const sharedRoot = path.resolve(root, '../shared');
 
 const types = new Map([
   ['.html','text/html; charset=utf-8'],
@@ -34,14 +35,19 @@ const server = http.createServer(async (req, res) => {
     const reqUrl = new URL(req.url || '/', 'http://localhost');
     let pathname = decodeURIComponent(reqUrl.pathname);
     if (pathname.endsWith('/')) pathname += 'index.html';
-    let filePath = safeJoin(root, pathname);
+    const sharedPrefix = '/shared/';
+    const usingShared = pathname.startsWith(sharedPrefix);
+    let filePath = usingShared
+      ? safeJoin(sharedRoot, pathname.slice(sharedPrefix.length))
+      : safeJoin(root, pathname);
 
     let st;
     try { st = await stat(filePath); } catch (_) {}
 
-    if (!st || st.isDirectory()) {
+    if ((!st || st.isDirectory()) && !usingShared) {
       // Fallback to index.html for directories or missing files
       filePath = safeJoin(root, 'index.html');
+      st = await stat(filePath);
     }
 
     const data = await readFile(filePath);

@@ -1,7 +1,9 @@
-(() => {
-  'use strict';
+import { ensureUnlocked, playSequence, setMasterVolume } from '../shared/audio/beep.js';
 
-  // Canvas and contexts
+setMasterVolume(0.18);
+ensureUnlocked();
+
+// Canvas and contexts
   const canvas = document.getElementById('game');
   const screen = canvas.getContext('2d'); // final composite target
 
@@ -151,9 +153,58 @@
 
 
   // Audio manager (synth SFX)
-  const AudioMgr={ ctx:null,gain:null,muted:false,wakaFlip:false, init(){ if (this.ctx) return; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return; this.ctx=new AC(); this.gain=this.ctx.createGain(); this.gain.gain.value=0.18; this.gain.connect(this.ctx.destination); }, ensure(){ if(!this.ctx) this.init(); return !!this.ctx && !this.muted; }, playTone({freq=440,dur=0.08,type='square',gain=0.08,delay=0}){ if(!this.ensure()) return; const now=this.ctx.currentTime+delay; const o=this.ctx.createOscillator(); const g=this.ctx.createGain(); o.type=type; o.frequency.setValueAtTime(freq, now); o.connect(g); g.connect(this.gain); g.gain.setValueAtTime(0.0001, now); g.gain.linearRampToValueAtTime(gain, now+0.01); g.gain.exponentialRampToValueAtTime(0.0001, now+dur); o.start(now); o.stop(now+dur+0.05); }, pellet(){ if(!this.ensure()) return; const f=this.wakaFlip?420:520; this.wakaFlip=!this.wakaFlip; this.playTone({freq:f,dur:0.05,type:'square',gain:0.06}); }, power(){ if(!this.ensure()) return; this.playTone({freq:220,dur:0.14,type:'sawtooth',gain:0.09}); this.playTone({freq:180,dur:0.14,type:'sawtooth',gain:0.07,delay:0.05}); }, eaten(){ if(!this.ensure()) return; const base=320; this.playTone({freq:base,dur:0.08,type:'triangle',gain:0.08}); this.playTone({freq:base*1.25,dur:0.08,type:'triangle',gain:0.08,delay:0.08}); this.playTone({freq:base*1.5,dur:0.1,type:'triangle',gain:0.08,delay:0.16}); }, death(){ if(!this.ensure()) return; const seq=[520,440,360,280,220,180]; seq.forEach((f,i)=>this.playTone({freq:f,dur:0.12,type:'sine',gain:0.09,delay:i*0.1})); }, start(){ if(!this.ensure()) return; this.playTone({freq:660,dur:0.1,type:'square',gain:0.08}); this.playTone({freq:880,dur:0.16,type:'square',gain:0.08,delay:0.12}); } };
-  window.addEventListener('pointerdown', ()=>AudioMgr.init(), {once:true});
-  window.addEventListener('keydown', ()=>AudioMgr.init(), {once:true});
+  const AudioSequences = {
+    power: [
+      { freq: 220, dur: 0.14, type: 'sawtooth', gain: 0.09 },
+      { freq: 180, dur: 0.14, type: 'sawtooth', gain: 0.07, delay: 0.05 },
+    ],
+    eaten: [
+      { freq: 320, dur: 0.08, type: 'triangle', gain: 0.08 },
+      { freq: 320 * 1.25, dur: 0.08, type: 'triangle', gain: 0.08, delay: 0.08 },
+      { freq: 320 * 1.5, dur: 0.1, type: 'triangle', gain: 0.08, delay: 0.16 },
+    ],
+    death: [
+      { freq: 520, dur: 0.12, type: 'sine', gain: 0.09 },
+      { freq: 440, dur: 0.12, type: 'sine', gain: 0.09, delay: 0.1 },
+      { freq: 360, dur: 0.12, type: 'sine', gain: 0.09, delay: 0.2 },
+      { freq: 280, dur: 0.12, type: 'sine', gain: 0.09, delay: 0.3 },
+      { freq: 220, dur: 0.12, type: 'sine', gain: 0.09, delay: 0.4 },
+      { freq: 180, dur: 0.12, type: 'sine', gain: 0.09, delay: 0.5 },
+    ],
+    start: [
+      { freq: 660, dur: 0.1, type: 'square', gain: 0.08 },
+      { freq: 880, dur: 0.16, type: 'square', gain: 0.08, delay: 0.12 },
+    ],
+  };
+
+  const AudioMgr = {
+    wakaFlip: false,
+    pellet() {
+      const freq = this.wakaFlip ? 420 : 520;
+      this.wakaFlip = !this.wakaFlip;
+      ensureUnlocked();
+      playSequence([{ freq, dur: 0.05, type: 'square', gain: 0.06 }]);
+    },
+    power() {
+      ensureUnlocked();
+      playSequence(AudioSequences.power);
+    },
+    eaten() {
+      ensureUnlocked();
+      playSequence(AudioSequences.eaten);
+    },
+    death() {
+      ensureUnlocked();
+      playSequence(AudioSequences.death);
+    },
+    start() {
+      ensureUnlocked();
+      playSequence(AudioSequences.start);
+    },
+  };
+
+  window.addEventListener('pointerdown', ensureUnlocked, { once: true });
+  window.addEventListener('keydown', ensureUnlocked, { once: true });
 
   // Input
   window.addEventListener('keydown', (e) => {
@@ -416,4 +467,3 @@
 
   resetPositions(false);
   requestAnimationFrame(loop);
-})();

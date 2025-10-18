@@ -1,3 +1,5 @@
+import { ensureUnlocked, playSequence, setMasterVolume } from '../../../shared/audio/beep.js';
+
 const TILE = 32;
 const COLS = 28;
 const ROWS = 16;
@@ -36,6 +38,9 @@ export default class GameScene extends Phaser.Scene {
 
   async create() {
     this.cameras.main.setBackgroundColor(Colors.bg);
+
+    setMasterVolume(0.1);
+    ensureUnlocked();
 
     // Persisted state
     const savedIndex = this.registry.get('levelIndex');
@@ -509,14 +514,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   beep(freq = 440, dur = 0.05, type = 'square', vol = 0.06) {
-    try {
-      if (!this._actx) this._actx = new (window.AudioContext || window.webkitAudioContext)();
-      const actx = this._actx;
-      const o = actx.createOscillator();
-      const g = actx.createGain();
-      o.type = type; o.frequency.value = freq; g.gain.value = vol;
-      o.connect(g).connect(actx.destination);
-      const t = actx.currentTime; o.start(t); o.stop(t + dur);
-    } catch (_) { /* audio may be blocked until user input */ }
+    ensureUnlocked();
+    playSequence([{ freq, dur, type, gain: vol }]);
   }
 }

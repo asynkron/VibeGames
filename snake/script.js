@@ -1,5 +1,9 @@
-(() => {
-  const canvas = document.getElementById('game');
+import { ensureUnlocked, playSequence, setMasterVolume } from '../shared/audio/beep.js';
+
+setMasterVolume(0.12);
+ensureUnlocked();
+
+const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
 
@@ -23,26 +27,10 @@
   const highEl = document.getElementById('high');
   const fpsEl = document.getElementById('fps');
 
-  // Audio (bleeps), guard for user gesture policies
-  let audioCtx = null;
-  function ensureAudio() {
-    if (!audioCtx) {
-      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch { audioCtx = null; }
-    }
-  }
-  function beep(freq = 440, dur = 0.07, type = 'square', gain = 0.03) {
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t0);
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g).connect(audioCtx.destination);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.01);
+  // Audio helpers routed through the shared manager
+  function beep(freq = 440, dur = 0.07, type = 'square', gain = 0.03, delay = 0) {
+    ensureUnlocked();
+    playSequence([{ freq, dur, type, gain, delay }]);
   }
 
   // Game state
@@ -88,8 +76,8 @@
   // Inputs
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
-    if (k === ' ' || k === 'spacebar') { paused = !paused; ensureAudio(); return; }
-    if (k === 'r') { ensureAudio(); init(); return; }
+    if (k === ' ' || k === 'spacebar') { paused = !paused; ensureUnlocked(); return; }
+    if (k === 'r') { ensureUnlocked(); init(); return; }
 
     if (k === 'arrowleft' || k === 'a') setDir(-1, 0);
     else if (k === 'arrowright' || k === 'd') setDir(1, 0);
@@ -104,13 +92,13 @@
 
     // Wall collision (solid)
     if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
-      alive = false; ensureAudio(); beep(90, 0.2, 'sawtooth', 0.05); return;
+      alive = false; beep(90, 0.2, 'sawtooth', 0.05); return;
     }
 
     // Self collision
     for (let i = 0; i < snake.length; i++) {
       if (snake[i].x === head.x && snake[i].y === head.y) {
-        alive = false; ensureAudio(); beep(90, 0.2, 'sawtooth', 0.05); return;
+        alive = false; beep(90, 0.2, 'sawtooth', 0.05); return;
       }
     }
 
@@ -121,7 +109,7 @@
       scoreEl.textContent = String(score);
       if (score > high) { high = score; localStorage.setItem('snake_crt_high', String(high)); highEl.textContent = String(high); }
       food = spawnFood();
-      ensureAudio(); beep(560, 0.06, 'square', 0.03);
+      beep(560, 0.06, 'square', 0.03);
       // Optional slight speed-up over time
       if (score % 5 === 0 && stepPerSec < 20) { stepPerSec += 1; stepMs = 1000 / stepPerSec; }
     } else {
@@ -242,4 +230,3 @@
 
   init();
   requestAnimationFrame(frame);
-})();
