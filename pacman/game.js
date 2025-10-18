@@ -7,6 +7,8 @@ import { createToastManager } from '../shared/fx/toast.js';
 import { createOverlayFX } from '../shared/fx/overlay.js';
 import { drawGlowBatch, rgbaFromHex } from '../shared/fx/glow.js';
 import { applyAmbientLighting } from '../shared/fx/lighting.js';
+import { createCrtControls } from '../shared/ui/crtControls.js';
+import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 
 (() => {
   'use strict';
@@ -129,26 +131,19 @@ import { applyAmbientLighting } from '../shared/fx/lighting.js';
   function updateHUD(){ hudScore.textContent=String(state.score); hudLives.innerHTML=''; for(let i=0;i<state.lives;i++){ const s=document.createElement('span'); s.style.display='inline-block'; s.style.width='10px'; s.style.height='10px'; s.style.borderRadius='50% 50% 0 50%'; s.style.transform='rotate(45deg)'; s.style.background=COLORS.pacman; s.style.boxShadow='0 0 6px rgba(255, 225, 43, 0.6)'; hudLives.appendChild(s);} }
   updateHUD();
 
-  // Simple settings panel (UI) with sliders for CRT warp and chromatic aberration
-  ;(function setupSettingsUI(){
-    const persistKey = 'pm_settings';
-    // Load persisted
-    try{ const saved = JSON.parse(localStorage.getItem(persistKey)||'{}'); if(saved.crt){ Object.assign(settings.crt, saved.crt); } }catch{}
-    const panel = document.createElement('div');
-    panel.style.cssText = 'position:absolute; right:8px; top:8px; font:10px monospace; color:#9fd; background:rgba(0,0,0,0.45); padding:6px 8px; border:1px solid rgba(160,200,255,0.25); border-radius:6px; backdrop-filter: blur(2px); user-select:none; z-index:10;';
-    const mkRow = (label, input)=>{ const row=document.createElement('div'); row.style.marginBottom='4px'; const l=document.createElement('label'); l.textContent=label; l.style.marginRight='6px'; l.style.display='inline-block'; l.style.minWidth='90px'; row.appendChild(l); row.appendChild(input); return row; };
-    const warp = document.createElement('input'); warp.type='range'; warp.min='0'; warp.max='1'; warp.step='0.01'; warp.value=String(settings.crt.warp);
-    const ab = document.createElement('input'); ab.type='range'; ab.min='0'; ab.max='1'; ab.step='0.01'; ab.value=String(settings.crt.aberration);
-    const en = document.createElement('input'); en.type='checkbox'; en.checked = !!settings.crt.enabled;
-    panel.appendChild(mkRow('CRT Warp', warp));
-    panel.appendChild(mkRow('Chromatic Aber.', ab));
-    const enRow = document.createElement('div'); enRow.style.marginTop='2px'; const enLbl=document.createElement('label'); enLbl.textContent='Enable CRT'; enLbl.style.marginLeft='6px'; enRow.appendChild(en); enRow.appendChild(enLbl); panel.appendChild(enRow);
-    function persist(){ try{ localStorage.setItem(persistKey, JSON.stringify({crt: settings.crt})); }catch{} }
-    warp.addEventListener('input', ()=>{ settings.crt.warp = parseFloat(warp.value)||0; persist(); });
-    ab.addEventListener('input', ()=>{ settings.crt.aberration = parseFloat(ab.value)||0; persist(); });
-    en.addEventListener('change', ()=>{ settings.crt.enabled = !!en.checked; persist(); });
-    document.body.appendChild(panel);
-  })();
+  // Shared CRT controller (settings + sliders)
+  const crtControls = createCrtControls({
+    storageKey: 'pacman_crt_settings',
+    defaults: settings.crt,
+    onChange: (next) => Object.assign(settings.crt, next),
+  });
+  Object.assign(settings.crt, crtControls.getSettings());
+
+  const crtPost = createCrtPostProcessor({
+    targetContext: screen,
+    defaultSource: scene,
+    settings: settings.crt,
+  });
 
 
   // Audio manager (synth SFX)
@@ -470,18 +465,24 @@ import { applyAmbientLighting } from '../shared/fx/lighting.js';
     drawParticles();
     drawToasts(now);
 
-    // Composite to screen
-    screen.clearRect(0,0,WIDTH,HEIGHT);
-    (function(){
+    // Composite to screen with CRT warp + shockwave colour split overlays
+    {
+      const overlays = [];
       const shockInfo = getShockInfo();
-      let split=0;
-      if (shockInfo.active){
-        const t=(now-shockInfo.start)/shockInfo.duration;
-        if(t<1){ const f=1-Math.min(1,t); split = 1.6 * f; }
+      let split = 0;
+      if (shockInfo.active) {
+        const t = (now - shockInfo.start) / shockInfo.duration;
+        if (t < 1) {
+          const f = 1 - Math.min(1, t);
+          split = 1.6 * f;
+        }
       }
-      screen.drawImage(scene,0,0);
-      if (split>0.01){ const drawTinted=(dx,dy,rgba)=>{ screen.save(); screen.globalCompositeOperation='lighter'; screen.globalAlpha=0.65; screen.drawImage(scene, dx, dy); screen.globalCompositeOperation='source-atop'; screen.fillStyle=rgba; screen.fillRect(0,0,WIDTH,HEIGHT); screen.restore(); }; drawTinted(split,0,'rgba(255,0,0,0.9)'); drawTinted(-split,0,'rgba(0,255,255,0.85)'); }
-    })();
+      if (split > 0.01) {
+        overlays.push({ dx: split, tint: 'rgba(255,0,0,0.9)', alpha: 0.65 });
+        overlays.push({ dx: -split, tint: 'rgba(0,255,255,0.85)', alpha: 0.65 });
+      }
+      crtPost.render({ overlays });
+    }
     drawLighting(now);
     drawGhostGlows(now);
 
