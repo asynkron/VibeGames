@@ -463,15 +463,25 @@ export default class GameScene extends Phaser.Scene {
   }
 
   isOnLadder(sprite) {
-    let on = false;
-    this.ladderGroup.getChildren().forEach(l => { if (Phaser.Geom.Intersects.RectangleToRectangle(sprite.getBounds(), l.getBounds())) on = true; });
-    return on;
+    // Guard against the group not being ready during async scene start
+    const ladders = this.ladderGroup?.getChildren?.() ?? [];
+    for (const ladder of ladders) {
+      if (Phaser.Geom.Intersects.RectangleToRectangle(sprite.getBounds(), ladder.getBounds())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   isTouchingRope(sprite) {
-    let on = false;
-    this.ropeGroup.getChildren().forEach(r => { if (Phaser.Geom.Intersects.RectangleToRectangle(sprite.getBounds(), r.getBounds())) on = true; });
-    return on;
+    // The rope group may not exist yet if the level is still loading
+    const ropes = this.ropeGroup?.getChildren?.() ?? [];
+    for (const rope of ropes) {
+      if (Phaser.Geom.Intersects.RectangleToRectangle(sprite.getBounds(), rope.getBounds())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   tryStepUpFromLadder(sprite) {
