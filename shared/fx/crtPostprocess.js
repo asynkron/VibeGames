@@ -64,7 +64,10 @@ export function createCrtPostProcessor({
 
     targetContext.save();
     targetContext.globalAlpha = tint ? Math.max(0, Math.min(1, alpha)) : 1;
-    targetContext.globalCompositeOperation = tint ? 'lighter' : 'source-over';
+    // Use normal blending for chromatic layers so the effect does not blow out
+    // the scene brightness. The previous 'lighter' mode stacked channel copies
+    // and effectively doubled luminance even for low settings.
+    targetContext.globalCompositeOperation = 'source-over';
 
     if (warpStrength <= 0.0001) {
       targetContext.drawImage(source, dx, 0, width, height);
@@ -110,9 +113,9 @@ export function createCrtPostProcessor({
     const overlayList = Array.isArray(overlays) ? [...overlays] : [];
     if (aberration > 0.001) {
       const shift = aberration * Math.min(8, width * 0.025 + 1.5);
-      const alpha = Math.min(1, 0.35 + aberration * 0.45);
-      overlayList.push({ dx: shift, tint: 'rgba(255, 80, 80, 0.95)', alpha });
-      overlayList.push({ dx: -shift, tint: 'rgba(80, 255, 255, 0.9)', alpha });
+      const alpha = Math.min(1, 0.18 + aberration * 0.3);
+      overlayList.push({ dx: shift, tint: 'rgba(255, 80, 80, 0.85)', alpha });
+      overlayList.push({ dx: -shift, tint: 'rgba(80, 255, 255, 0.8)', alpha });
     }
 
     targetContext.save();
