@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ultima II - Browser Tribute</title>
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="crt">
+  <main class="layout">
+    <section class="screen crt-frame">
+      <canvas id="game" width="816" height="480" aria-label="Ultima II overworld"></canvas>
+      <div class="crt-overlay"></div>
+      <div class="crt-glow"></div>
+      <div id="dialogue" class="dialogue" aria-live="polite"></div>
+    </section>
+    <aside class="hud">
+      <section class="panel">
+        <h2>Avatar</h2>
+        <ul id="stats"></ul>
+      </section>
+      <section class="panel">
+        <h2>Inventory</h2>
+        <ul id="inventory"></ul>
+      </section>
+      <section class="panel">
+        <h2>Quests</h2>
+        <ul id="quests"></ul>
+      </section>
+      <section class="panel log">
+        <h2>Chronicle</h2>
+        <ul id="log"></ul>
+      </section>
+      <section class="panel help">
+        <h2>Controls</h2>
+        <p>Arrow keys / WASD: Move</p>
+        <p>T or Enter: Talk to nearby NPC</p>
+        <p>Space: Wait a turn</p>
+        <p>Esc: Close dialogue</p>
+      </section>
+    </aside>
+  </main>
+  <script src="script.js" type="module"></script>
+</body>
+</html>
