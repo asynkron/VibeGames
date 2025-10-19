@@ -105,6 +105,31 @@ const moongateNetwork = new Map([
   ['58,40', { x: 55, y: 31, name: 'Harbor of Dawn' }],
 ]);
 
+const MAP_SCALE = 4;
+const MAP_TILE_COLORS = {
+  '~': '#1e3a8a',
+  '.': '#16a34a',
+  F: '#15803d',
+  '^': '#e2e8f0',
+  C: '#f59e0b',
+  R: '#94a3b8',
+  S: '#38bdf8',
+  D: '#f97316',
+  P: '#94a3b8',
+  G: '#f472b6',
+  '#': '#1f2937',
+  ' ': '#020617',
+};
+
+const mapOverlay = document.getElementById('map-overlay');
+const mapCanvas = document.getElementById('world-map');
+const mapCtx = mapCanvas ? mapCanvas.getContext('2d') : null;
+
+if (mapCanvas) {
+  mapCanvas.width = world.width * MAP_SCALE;
+  mapCanvas.height = world.height * MAP_SCALE;
+}
+
 const itemsOnGround = [];
 const messageLog = [];
 
@@ -153,6 +178,7 @@ const gameState = {
   npcs: [],
   conversation: null,
   lastMoongate: null,
+  mapVisible: false,
 };
 
 // Item templates allow for simple cloning when loot drops or rewards are granted.
@@ -702,6 +728,90 @@ function render() {
   renderQuests();
   renderLog();
   renderDialogue();
+
+  if (gameState.mapVisible) {
+    renderWorldMap();
+  }
+}
+
+function mapColorForTile(tile) {
+  return MAP_TILE_COLORS[tile.symbol] ?? tile.color ?? '#0f172a';
+}
+
+function drawMapBase() {
+  if (!mapCtx) return;
+  for (let y = 0; y < world.height; y += 1) {
+    for (let x = 0; x < world.width; x += 1) {
+      const tile = world.tileAt(x, y);
+      mapCtx.fillStyle = mapColorForTile(tile);
+      mapCtx.fillRect(x * MAP_SCALE, y * MAP_SCALE, MAP_SCALE, MAP_SCALE);
+    }
+  }
+}
+
+function drawMapMarker(x, y, color) {
+  if (!mapCtx) return;
+  const px = x * MAP_SCALE;
+  const py = y * MAP_SCALE;
+  mapCtx.fillStyle = color;
+  mapCtx.fillRect(px, py, MAP_SCALE, MAP_SCALE);
+  mapCtx.strokeStyle = 'rgba(2, 6, 23, 0.8)';
+  mapCtx.lineWidth = 1;
+  mapCtx.strokeRect(px + 0.5, py + 0.5, MAP_SCALE - 1, MAP_SCALE - 1);
+}
+
+function renderWorldMap() {
+  if (!mapCtx) return;
+  drawMapBase();
+
+  const moongatePositions = new Set();
+  for (const [key, destination] of moongateNetwork.entries()) {
+    moongatePositions.add(key);
+    moongatePositions.add(`${destination.x},${destination.y}`);
+  }
+  for (const position of moongatePositions) {
+    const [x, y] = position.split(',').map(Number);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      drawMapMarker(x, y, '#f472b6');
+    }
+  }
+
+  for (const item of itemsOnGround) {
+    drawMapMarker(item.x, item.y, '#34d399');
+  }
+
+  for (const monster of gameState.monsters) {
+    if (!monster.alive) continue;
+    drawMapMarker(monster.x, monster.y, '#fbbf24');
+  }
+
+  for (const npc of gameState.npcs) {
+    drawMapMarker(npc.x, npc.y, '#38bdf8');
+  }
+
+  drawMapMarker(gameState.player.x, gameState.player.y, '#f8fafc');
+  mapCtx.strokeStyle = '#f8fafc';
+  mapCtx.lineWidth = 1;
+  mapCtx.strokeRect(
+    gameState.player.x * MAP_SCALE + 0.5,
+    gameState.player.y * MAP_SCALE + 0.5,
+    MAP_SCALE - 1,
+    MAP_SCALE - 1,
+  );
+}
+
+function toggleMapOverlay(force) {
+  if (!mapOverlay) return;
+  const nextState = typeof force === 'boolean' ? force : !gameState.mapVisible;
+  gameState.mapVisible = nextState;
+  if (gameState.mapVisible) {
+    renderWorldMap();
+    mapOverlay.classList.add('active');
+    mapOverlay.setAttribute('aria-hidden', 'false');
+  } else {
+    mapOverlay.classList.remove('active');
+    mapOverlay.setAttribute('aria-hidden', 'true');
+  }
 }
 
 function getCamera() {
@@ -1046,6 +1156,21 @@ function waitTurn() {
 
 function onKeyDown(event) {
   const key = event.key.toLowerCase();
+
+  if (key === 'm') {
+    toggleMapOverlay();
+    event.preventDefault();
+    return;
+  }
+
+  if (gameState.mapVisible) {
+    if (key === 'escape') {
+      toggleMapOverlay(false);
+    }
+    event.preventDefault();
+    return;
+  }
+
   const convo = gameState.conversation;
   if (convo) {
     if (key === 'escape') {
@@ -1083,12 +1208,23 @@ function onKeyDown(event) {
     case 'spacebar':
       waitTurn();
       break;
+    case 'escape':
+      toggleMapOverlay(false);
+      break;
     default:
       break;
   }
 }
 
 window.addEventListener('keydown', onKeyDown);
+
+if (mapOverlay) {
+  mapOverlay.addEventListener('click', (event) => {
+    if (event.target === mapOverlay) {
+      toggleMapOverlay(false);
+    }
+  });
+}
 
 function seedWorld() {
   spawnMonsters();

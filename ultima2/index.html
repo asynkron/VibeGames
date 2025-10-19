@@ -15,6 +15,22 @@
       <div class="crt-overlay"></div>
       <div class="crt-glow"></div>
       <div id="dialogue" class="dialogue" aria-live="polite"></div>
+      <div id="map-overlay" class="map-overlay" aria-hidden="true">
+        <div class="map-card" role="dialog" aria-label="World map">
+          <header>
+            <h3>Moon Isle Survey</h3>
+            <p>Press <span class="key">M</span> or <span class="key">Esc</span> to close</p>
+          </header>
+          <canvas id="world-map" width="320" height="320" aria-hidden="true"></canvas>
+          <ul class="legend">
+            <li><span class="marker marker-player"></span>Avatar</li>
+            <li><span class="marker marker-npc"></span>Quest givers</li>
+            <li><span class="marker marker-gate"></span>Moongates</li>
+            <li><span class="marker marker-item"></span>Key items</li>
+            <li><span class="marker marker-monster"></span>Notable foes</li>
+          </ul>
+        </div>
+      </div>
     </section>
     <aside class="hud">
       <section class="panel">
@@ -50,6 +66,7 @@
         <p>Arrow keys / WASD: Move</p>
         <p>T or Enter: Talk to nearby NPC</p>
         <p>Space: Wait a turn</p>
+        <p>M: Toggle world map</p>
         <p>Esc: Close dialogue</p>
       </section>
     </aside>
