@@ -45,6 +45,34 @@ function gem(ctx, w, h, hue) {
   ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.stroke();
 }
 
+function keyTile(ctx, w, h) {
+  ctx.fillStyle = '#14100a'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#d4b84f';
+  ctx.beginPath(); ctx.arc(w * 0.35, h * 0.55, 3.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillRect(w * 0.35, h * 0.48, w * 0.36, 2.4);
+  ctx.fillRect(w * 0.62, h * 0.55, w * 0.16, 2.4);
+  ctx.fillRect(w * 0.66, h * 0.49, 2, 3);
+  ctx.fillRect(w * 0.7, h * 0.49, 2, 3);
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.fillRect(w * 0.32, h * 0.48, 2, 2);
+}
+
+function doorClosed(ctx, w, h) {
+  ctx.fillStyle = '#3b2110'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#522e15'; ctx.fillRect(1, 1, w - 2, h - 2);
+  ctx.fillStyle = '#2a170a'; ctx.fillRect(4, 2, 2, h - 4);
+  ctx.fillRect(10, 2, 2, h - 4);
+  ctx.fillStyle = '#cfa85a'; ctx.fillRect(w - 5, h / 2 - 1, 2, 2);
+}
+
+function doorOpen(ctx, w, h) {
+  ctx.fillStyle = '#120a06'; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#5a3416'; ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, w - 2, h - 2);
+  ctx.fillStyle = '#0a0402'; ctx.fillRect(4, 4, w - 8, h - 8);
+  ctx.fillStyle = 'rgba(140,90,40,0.25)'; ctx.fillRect(2, 2, w - 4, 3);
+}
+
 function exitClosed(ctx, w, h) {
   ctx.fillStyle = '#1a1f2b'; ctx.fillRect(0,0,w,h);
   ctx.fillStyle = '#2f3d5c'; ctx.fillRect(2,2,w-4,h-4);
@@ -70,8 +98,63 @@ function playerSprite(frame) {
   return c;
 }
 
+function fireflyFrame(phase) {
+  return mkCanvas(16, 16, (ctx, w, h) => {
+    ctx.fillStyle = '#1a1406'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = phase === 0 ? '#ffe97a' : '#ffc23d';
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, 4 + (phase === 0 ? 1 : 0), 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fffdc7'; ctx.fillRect(w / 2 - 1, h / 2 - 5, 2, 2);
+    ctx.fillRect(w / 2 - 1, h / 2 + 3, 2, 2);
+  });
+}
+
+function butterflyFrame(phase) {
+  return mkCanvas(16, 16, (ctx, w, h) => {
+    ctx.fillStyle = '#051028'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#9be1ff';
+    const wingOffset = phase === 0 ? 4 : 2;
+    ctx.beginPath(); ctx.moveTo(3, 8); ctx.quadraticCurveTo(3, wingOffset, 8, 8); ctx.quadraticCurveTo(3, h - wingOffset, 3, 8); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(w - 3, 8); ctx.quadraticCurveTo(w - 3, wingOffset, 8, 8); ctx.quadraticCurveTo(w - 3, h - wingOffset, w - 3, 8); ctx.fill();
+    ctx.fillStyle = '#cbeeff'; ctx.fillRect(7, 4, 2, 8);
+    ctx.fillStyle = '#ffe1ff'; ctx.fillRect(6, 6, 1, 4);
+    ctx.fillRect(9, 6, 1, 4);
+  });
+}
+
+function explosionFrame(colors) {
+  return mkCanvas(16, 16, (ctx, w, h) => {
+    ctx.fillStyle = colors.bg; ctx.fillRect(0, 0, w, h);
+    const gradient = ctx.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+    gradient.addColorStop(0, colors.inner);
+    gradient.addColorStop(1, colors.outer);
+    ctx.fillStyle = gradient;
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, 6, 0, Math.PI * 2); ctx.fill();
+    if (colors.spark) {
+      ctx.fillStyle = colors.spark;
+      ctx.fillRect(w / 2 - 4, h / 2 - 1, 2, 2);
+      ctx.fillRect(w / 2 + 2, h / 2 - 1, 2, 2);
+    }
+  });
+}
+
 export function createAssets() {
   const cache = new Map();
+  const enemyFrames = {
+    FIREFLY: [fireflyFrame(0), fireflyFrame(1)],
+    BUTTERFLY: [butterflyFrame(0), butterflyFrame(1)],
+  };
+  const explosionFrames = {
+    FIRE: [
+      explosionFrame({ bg: '#2b1200', inner: 'rgba(255,210,120,0.85)', outer: 'rgba(120,40,0,0.4)', spark: '#ffe1a0' }),
+      explosionFrame({ bg: '#200800', inner: 'rgba(255,165,65,0.9)', outer: 'rgba(100,24,0,0.35)', spark: '#ffefc4' }),
+      explosionFrame({ bg: '#120200', inner: 'rgba(255,120,40,0.75)', outer: 'rgba(60,10,0,0.4)' }),
+    ],
+    BUTTER: [
+      explosionFrame({ bg: '#04111c', inner: 'rgba(170,240,255,0.85)', outer: 'rgba(40,120,160,0.4)', spark: '#ffffff' }),
+      explosionFrame({ bg: '#03101a', inner: 'rgba(130,220,255,0.9)', outer: 'rgba(30,90,150,0.4)', spark: '#dff6ff' }),
+      explosionFrame({ bg: '#020b14', inner: 'rgba(90,180,255,0.8)', outer: 'rgba(20,70,120,0.45)' }),
+    ],
+  };
 
   function getSprite(tile, x, y, tick) {
     const key = `${tile}`;
@@ -83,6 +166,9 @@ export function createAssets() {
     else if (tile === TILE.STEEL) c = mkCanvas(16,16,steel);
     else if (tile === TILE.BOULDER) c = mkCanvas(16,16,boulder);
     else if (tile === TILE.GEM) c = mkCanvas(16,16,(ctx,w,h)=>gem(ctx,w,h, 160));
+    else if (tile === TILE.KEY) c = mkCanvas(16,16,keyTile);
+    else if (tile === TILE.DOOR_CLOSED) c = mkCanvas(16,16,doorClosed);
+    else if (tile === TILE.DOOR_OPEN) c = mkCanvas(16,16,doorOpen);
     else if (tile === TILE.EXIT_CLOSED) c = mkCanvas(16,16,exitClosed);
     else if (tile === TILE.EXIT_OPEN) c = mkCanvas(16,16,exitOpen);
     cache.set(key, c); return c;
@@ -90,5 +176,19 @@ export function createAssets() {
 
   function player(tick) { return playerSprite(tick); }
 
-  return { getSprite, player };
+  function enemy(type, tick = 0) {
+    const frames = enemyFrames[type];
+    if (!frames) return null;
+    const index = Math.floor(tick / 6) % frames.length;
+    return frames[index];
+  }
+
+  function explosion(kind, stage = 0) {
+    const frames = explosionFrames[kind === 'BUTTER' ? 'BUTTER' : 'FIRE'];
+    if (!frames) return null;
+    const idx = Math.max(0, Math.min(frames.length - 1, Math.floor(stage)));
+    return frames[idx];
+  }
+
+  return { getSprite, player, enemy, explosion };
 }

@@ -2,12 +2,15 @@ import { sfxExplosion, sfxButterSparkle } from '../audio/sfx.js';
 
 export function queueExplosion(world,x,y,kind){
   world.explosions = world.explosions||[];
-  world.explosions.push({x,y,ttl:3,kind});
+  world.explosions.push({x,y,ttl:4,kind,age:0});
 }
 
 export function resolveExplosions(world){
   if(!world.explosions||world.explosions.length===0) return;
-  for(const ex of world.explosions){ ex.ttl--; }
+  for(const ex of world.explosions){
+    ex.age = (ex.age ?? 0) + 1;
+    ex.ttl--;
+  }
   const done = world.explosions.filter(ex=>ex.ttl<=0);
   world.explosions = world.explosions.filter(ex=>ex.ttl>0);
   for(const ex of done){
