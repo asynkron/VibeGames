@@ -44,6 +44,13 @@ body {
 }
 
 #stage {
+  /* Anchor the WebGL viewport in the top-left quadrant so the HUD can occupy the right side. */
+  inset: auto;
+  top: 18px;
+  left: 18px;
+  width: clamp(200px, calc(50% - 24px), 320px);
+  aspect-ratio: 4 / 3;
+  height: auto;
   z-index: 0;
   pointer-events: none;
 }
