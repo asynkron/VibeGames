@@ -83,6 +83,147 @@ function shuffleInPlace(arr, rnd) {
   }
 }
 
+// Quick helpers for procedural texture work on the dungeon props.
+function hexToRgb(hex) {
+  const normalized = hex.replace('#', '');
+  const bigint = parseInt(normalized.length === 3
+    ? normalized.split('').map(c => c + c).join('')
+    : normalized, 16);
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function createStoneTexture(baseHex, options = {}) {
+  const {
+    accentHex = '#3a3329',
+    noise = 0.18,
+    crackColor = 'rgba(0,0,0,0.25)',
+    crackCount = 10,
+    repeat = 4,
+    repeatY = repeat
+  } = options;
+
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const base = hexToRgb(baseHex);
+  const accent = hexToRgb(accentHex);
+
+  ctx.fillStyle = baseHex;
+  ctx.fillRect(0, 0, size, size);
+
+  const cell = 4;
+  for (let y = 0; y < size; y += cell) {
+    for (let x = 0; x < size; x += cell) {
+      const jitter = () => (Math.random() - 0.5) * 2 * 255 * noise;
+      const r = clamp(base.r + jitter(), 0, 255);
+      const g = clamp(base.g + jitter(), 0, 255);
+      const b = clamp(base.b + jitter(), 0, 255);
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.fillRect(x, y, cell, cell);
+
+      if (Math.random() < 0.22) {
+        const ar = clamp(accent.r + jitter() * 0.35, 0, 255);
+        const ag = clamp(accent.g + jitter() * 0.35, 0, 255);
+        const ab = clamp(accent.b + jitter() * 0.35, 0, 255);
+        ctx.fillStyle = `rgba(${ar}, ${ag}, ${ab}, 0.45)`;
+        ctx.fillRect(x, y, cell, cell);
+      }
+    }
+  }
+
+  ctx.strokeStyle = crackColor;
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < crackCount; i++) {
+    const startX = Math.random() * size;
+    const startY = Math.random() * size;
+    const segments = 3 + Math.floor(Math.random() * 4);
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    let px = startX;
+    let py = startY;
+    for (let s = 0; s < segments; s++) {
+      px += (Math.random() - 0.5) * 32;
+      py += (Math.random() - 0.5) * 32;
+      ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.LinearMipMapLinearFilter;
+  texture.repeat.set(repeat, repeatY);
+  texture.needsUpdate = true;
+
+  return texture;
+}
+
+function createWoodTexture(baseHex, options = {}) {
+  const {
+    accentHex = '#6e4a2b',
+    ringIntensity = 0.12,
+    repeat = 3,
+    repeatY = repeat
+  } = options;
+
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const base = hexToRgb(baseHex);
+  const accent = hexToRgb(accentHex);
+
+  ctx.fillStyle = baseHex;
+  ctx.fillRect(0, 0, size, size);
+
+  for (let y = 0; y < size; y++) {
+    const noise = Math.sin((y / size) * Math.PI * 2) * ringIntensity * 120;
+    for (let x = 0; x < size; x++) {
+      const progress = Math.sin(((x + y * 0.3) / size) * Math.PI * 2);
+      const factor = 0.5 + progress * 0.5;
+      const r = clamp(base.r * factor + accent.r * (1 - factor) + noise, 0, 255);
+      const g = clamp(base.g * factor + accent.g * (1 - factor) + noise * 0.6, 0, 255);
+      const b = clamp(base.b * factor + accent.b * (1 - factor) + noise * 0.3, 0, 255);
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    const x = Math.random() * size;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.bezierCurveTo(x + 8, size * 0.35, x - 12, size * 0.65, x + 6, size);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.LinearMipMapLinearFilter;
+  texture.repeat.set(repeat, repeatY);
+  texture.needsUpdate = true;
+
+  return texture;
+}
+
 function buildDungeon(opts) {
   const width = Math.max(8, Math.min(128, opts.width || 48));
   const height = Math.max(8, Math.min(128, opts.height || 32));
@@ -273,21 +414,24 @@ function updateMinimap(mini, state) {
 function buildScene(state) {
   const container = document.getElementById('viewport3d');
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b0d13);
-  scene.fog = new THREE.Fog(0x0b0d13, 5, 22);
+  scene.background = new THREE.Color(0x0a0c10);
+  scene.fog = new THREE.Fog(0x0a0c10, 4.5, 20);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
 
-  // Render at a deliberately reduced pixel ratio so the canvas upscales into chunky pixels.
-  const effectivePixelRatio = () => Math.max(0.45, Math.min(window.devicePixelRatio || 1, 2) * 0.55);
-  renderer.setPixelRatio(effectivePixelRatio());
-  renderer.setSize(container.clientWidth, container.clientHeight);
+  // Render into a deliberately undersized back-buffer to amplify chunky pixels when the canvas stretches.
+  const pixelScale = 0.58;
+  renderer.setPixelRatio(1);
+  renderer.setSize(container.clientWidth * pixelScale, container.clientHeight * pixelScale, false);
   container.appendChild(renderer.domElement);
+  renderer.domElement.classList.add('pixel-canvas');
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
 
   const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.05, 200);
 
-  const ambient = new THREE.AmbientLight(0xbfc4d0, 0.35);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.42);
+  const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.7);
   dirLight.position.set(5, 10, 3);
   scene.add(ambient, dirLight);
 
@@ -295,10 +439,15 @@ function buildScene(state) {
   const wallHeight = tileSize;
   const eye = tileSize * 0.55;
 
-  const wallMat = new THREE.MeshLambertMaterial({ color: 0x6f7684, emissive: 0x000000, side: THREE.DoubleSide });
-  const doorMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2e, emissive: 0x000000, side: THREE.DoubleSide });
-  const floorMat = new THREE.MeshLambertMaterial({ color: 0x151821, emissive: 0x000000, side: THREE.DoubleSide });
-  const ceilMat  = new THREE.MeshLambertMaterial({ color: 0x10131b, emissive: 0x000000, side: THREE.DoubleSide });
+  const wallTexture = createStoneTexture('#6a6154', { accentHex: '#4c4338', noise: 0.2, crackCount: 14, repeat: 3, repeatY: 2.5 });
+  const floorTexture = createStoneTexture('#2c2f33', { accentHex: '#1e2126', noise: 0.15, crackColor: 'rgba(0,0,0,0.18)', crackCount: 8, repeat: 6 });
+  const ceilingTexture = createStoneTexture('#3a3d45', { accentHex: '#2f3238', noise: 0.12, crackColor: 'rgba(0,0,0,0.12)', crackCount: 6, repeat: 4 });
+  const doorTexture = createWoodTexture('#5c3d26', { accentHex: '#7c5632', repeat: 2, repeatY: 3 });
+
+  const wallMat = new THREE.MeshLambertMaterial({ map: wallTexture, color: 0xffffff, side: THREE.DoubleSide });
+  const doorMat = new THREE.MeshLambertMaterial({ map: doorTexture, color: 0xffffff, side: THREE.DoubleSide });
+  const floorMat = new THREE.MeshLambertMaterial({ map: floorTexture, color: 0xffffff, side: THREE.DoubleSide });
+  const ceilMat  = new THREE.MeshLambertMaterial({ map: ceilingTexture, color: 0xffffff, side: THREE.DoubleSide });
 
   // Floor and ceiling
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(state.width * tileSize, state.height * tileSize), floorMat);
@@ -379,8 +528,9 @@ function buildScene(state) {
 
   function onResize() {
     const w = container.clientWidth, h = container.clientHeight;
-    renderer.setPixelRatio(effectivePixelRatio());
-    renderer.setSize(w, h);
+    renderer.setSize(w * pixelScale, h * pixelScale, false);
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
     camera.aspect = w / h; camera.updateProjectionMatrix();
   }
   window.addEventListener('resize', onResize);
