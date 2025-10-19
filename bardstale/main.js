@@ -263,8 +263,11 @@ function buildScene(state) {
   scene.background = new THREE.Color(0x0b0d13);
   scene.fog = new THREE.Fog(0x0b0d13, 5, 22);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+
+  // Render at a deliberately reduced pixel ratio so the canvas upscales into chunky pixels.
+  const effectivePixelRatio = () => Math.max(0.45, Math.min(window.devicePixelRatio || 1, 2) * 0.55);
+  renderer.setPixelRatio(effectivePixelRatio());
   renderer.setSize(container.clientWidth, container.clientHeight);
   container.appendChild(renderer.domElement);
 
@@ -363,6 +366,7 @@ function buildScene(state) {
 
   function onResize() {
     const w = container.clientWidth, h = container.clientHeight;
+    renderer.setPixelRatio(effectivePixelRatio());
     renderer.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
   }
@@ -487,12 +491,7 @@ main();
     // HUD overlay
     const overlay = document.createElement('div');
     overlay.id = 'bt3-overlay';
-    overlay.style.position = 'absolute';
-    overlay.style.left = '0'; overlay.style.right = '0'; overlay.style.bottom = '0';
-    overlay.style.background = 'rgba(0,0,0,0.65)'; overlay.style.color = '#d8d8d8';
-    overlay.style.fontFamily = 'monospace'; overlay.style.padding = '8px 12px';
-    overlay.style.maxHeight = '40vh'; overlay.style.overflowY = 'auto'; overlay.style.zIndex = '50';
-    overlay.innerHTML = '<div id="bt3-party"></div><div id="bt3-log" style="margin-top:6px; white-space:pre-wrap;"></div>';
+    overlay.innerHTML = '<div id="bt3-party"></div><div id="bt3-log"></div>';
     document.body.appendChild(overlay);
 
     function log(msg){ const el = document.getElementById('bt3-log'); if (!el) return; el.textContent += (el.textContent ? '\n' : '') + msg; el.scrollTop = el.scrollHeight; }
