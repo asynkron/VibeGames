@@ -9,16 +9,21 @@ const LEVELS = ['levels/level1.txt','levels/level2.txt','levels/level3.txt'];
 const IRIS_DURATION = 900;
 
 const Colors = {
-  bg: 0x0b0d12,
-  brick: 0x8b3a1a,
-  solid: 0x5a2a0f,
-  ladder: 0xcaa36a,
-  rope: 0xe8d8a6,
-  gold: 0xffd14d,
-  player: 0x7fe8ff,
-  playerShadow: 0x3fa3b5,
-  enemy: 0xf86b6b,
-  enemyShadow: 0xc23f3f,
+  bg: 0x14171f,
+  brick: 0xc06724,
+  brickShadow: 0x863b0d,
+  brickMortar: 0xf3b152,
+  solid: 0x3c1f0c,
+  ladder: 0xd6c18a,
+  rope: 0xe4a94c,
+  ropeShadow: 0x9f6b29,
+  gold: 0xffd864,
+  player: 0xfff5c4,
+  playerShadow: 0xe2bf75,
+  playerOutline: 0x3d2b1a,
+  enemy: 0xf58a4d,
+  enemyShadow: 0xbd4c22,
+  enemyOutline: 0x301007,
   exit: 0x58ff85,
 };
 
@@ -115,16 +120,16 @@ export default class GameScene extends Phaser.Scene {
           this.playerSpawn = { x, y };
           this.player = this.physics.add.sprite(x, y, 'player_idle');
           this.player.setCollideWorldBounds(true);
-          this.player.setMaxVelocity(320, 560);
-          this.player.setDragX(900);
+          this.player.setMaxVelocity(200, 420);
+          this.player.setDragX(600);
           // Narrower body for smoother ledges and ladder exits
           this.player.body.setSize(18, 26).setOffset(7, 6);
           this.player.play('player-idle');
         } else if (type === 'enemy') {
           const e = this.physics.add.sprite(x, y, 'enemy_idle');
           e.setCollideWorldBounds(true);
-          e.setMaxVelocity(280, 540);
-          e.setDragX(900);
+          e.setMaxVelocity(200, 420);
+          e.setDragX(620);
           e.body.setSize(18, 26).setOffset(7, 6);
           e.play('enemy-idle');
           e.setData('aiState', 'chase');
@@ -278,10 +283,26 @@ export default class GameScene extends Phaser.Scene {
       this.cameras.main.shake(40, 0.003);
     }
 
-    let accel = 1800;
+    const baseAccel = 900;
+    let accel = baseAccel;
     const inAir = !grounded && !onLadder && !onRope;
-    if (inAir) accel = Math.round(accel * 0.75);
-    if (left) this.player.setAccelerationX(-accel); else if (right) this.player.setAccelerationX(accel); else this.player.setAccelerationX(0);
+    if (inAir) accel = 600;
+
+    if (!onRope) {
+      if (left && !right) {
+        this.player.setAccelerationX(-accel);
+      } else if (right && !left) {
+        this.player.setAccelerationX(accel);
+      } else {
+        this.player.setAccelerationX(0);
+        if (Math.abs(this.player.body.velocity.x) < 8) {
+          this.player.setVelocityX(0);
+        }
+      }
+    } else {
+      this.player.setAccelerationX(0);
+    }
+
     // Vertical movement logic with ladder top step-up
 
     if (onLadder) {
@@ -299,23 +320,54 @@ export default class GameScene extends Phaser.Scene {
         }
         this.player.setGravityY(0);
         let ladderSpeed = 0;
-        if (up) ladderSpeed = -170;
-        else if (down) ladderSpeed = 170;
+        if (up && !down) ladderSpeed = -120;
+        else if (down && !up) ladderSpeed = 120;
         this.player.setVelocityY(ladderSpeed);
       }
     } else if (onRope) {
       // Hang on rope; zero gravity so you don't slowly slide off. Up/down let
-      // you shimmy to nearby ladders just like the classic game.
+      // you shimmy to nearby ladders and horizontal taps swing hand-over-hand.
+      const col = Math.floor(this.player.x / TILE);
+      const row = Math.floor(this.player.y / TILE);
+      const ropeY = row * TILE + TILE / 2;
       this.player.setGravityY(0);
-      let ropeSpeed = 0;
-      if (up) ropeSpeed = -160;
-      else if (down) ropeSpeed = 160;
-      this.player.setVelocityY(ropeSpeed);
+      if (Math.abs(this.player.y - ropeY) < 4) {
+        this.player.y = ropeY;
+      }
+
+      const ropeHorizontalSpeed = 140;
+      const below = this.tileAt(row + 1, col);
+      if (left && !right) {
+        this.player.setVelocityX(-ropeHorizontalSpeed);
+      } else if (right && !left) {
+        this.player.setVelocityX(ropeHorizontalSpeed);
+      } else {
+        this.player.setVelocityX(0);
+      }
+
+      let ropeVerticalSpeed = 0;
+      if (up && !down) {
+        ropeVerticalSpeed = -120;
+      } else if (down && !up) {
+        if (below === 'ladder' || below === 'rope') {
+          ropeVerticalSpeed = 120;
+        } else if (below !== 'brick' && below !== 'solid') {
+          // Drop from the rope when there is no support beneath.
+          this.player.setGravityY(this.physics.world.gravity.y);
+          this.player.setVelocityY(80);
+          this.player.setVelocityX(this.player.body.velocity.x * 0.9);
+        }
+      }
+      if (ropeVerticalSpeed !== 0) {
+        this.player.setVelocityY(ropeVerticalSpeed);
+      } else if (!(down && !up && below !== 'ladder' && below !== 'rope')) {
+        this.player.setVelocityY(0);
+      }
     } else {
       this.player.setGravityY(this.physics.world.gravity.y);
       const withinCoyote = (nowTime - this.lastGroundedAt) <= this.coyoteMs;
       if ((grounded || withinCoyote) && nowTime <= this.jumpBufferUntil) {
-        this.player.setVelocityY(-380);
+        this.player.setVelocityY(-320);
         this.beep(560, 0.05, 'triangle', 0.05);
         this.jumpBufferUntil = 0;
       }
@@ -325,7 +377,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Ground/air drag split for better feel
-    this.player.setDragX(grounded ? 1400 : 450);
+    this.player.setDragX(grounded ? 900 : 420);
 
     // Enemy pathfinding + animation
     this.enemies.getChildren().forEach(e => {
@@ -388,26 +440,38 @@ export default class GameScene extends Phaser.Scene {
   makeTileTextures() {
     const g = this.make.graphics({ x: 0, y: 0, add: false });
 
-    // Brick (shaded)
+    // Brick (give the segmented orange bricks from the classic game)
     g.clear();
-    g.fillStyle(Colors.brick, 1); g.fillRect(0, 0, TILE, TILE);
-    g.fillStyle(0xffffff, 0.06); g.fillRect(0, 0, TILE, 6);
-    g.lineStyle(2, 0x000000, 0.2); for (let i=8;i<TILE;i+=8) g.lineBetween(0, i, TILE, i);
+    g.fillStyle(Colors.brick, 1);
+    g.fillRect(0, 0, TILE, TILE);
+    g.fillStyle(Colors.brickShadow, 1);
+    g.fillRect(0, TILE / 2, TILE, TILE / 2);
+    g.fillStyle(0xffffff, 0.1);
+    g.fillRect(0, 0, TILE, 4);
+    g.fillStyle(Colors.brickMortar, 0.85);
+    for (let y = 10; y < TILE; y += 10) {
+      g.fillRect(0, y, TILE, 2);
+    }
+    for (let x = 6; x < TILE; x += 10) {
+      g.fillRect(x, 0, 2, TILE);
+    }
     g.generateTexture('brick', TILE, TILE);
 
-    // Solid bedrock
-    g.clear(); g.fillStyle(Colors.solid, 1); g.fillRect(0, 0, TILE, TILE);
-    g.fillStyle(0x000000, 0.15); g.fillRect(0, TILE-6, TILE, 6);
+    // Solid bedrock beneath the bricks
+    g.clear();
+    g.fillStyle(Colors.solid, 1); g.fillRect(0, 0, TILE, TILE);
+    g.fillStyle(0x000000, 0.2); g.fillRect(0, TILE-6, TILE, 6);
     g.generateTexture('solid', TILE, TILE);
 
-    // Ladder
+    // Ladder rails and rungs
     g.clear(); g.fillStyle(0x000000, 0); g.fillRect(0, 0, TILE, TILE);
     g.lineStyle(3, Colors.ladder, 1); g.strokeRect(8, 4, TILE-16, TILE-8);
     for (let y = 8; y < TILE; y += 8) { g.lineBetween(8, y, TILE-8, y); }
     g.generateTexture('ladder', TILE, TILE);
 
-    // Rope
+    // Rope with subtle drop shadow so it reads over the background
     g.clear(); g.fillStyle(0x000000, 0); g.fillRect(0, 0, TILE, TILE);
+    g.lineStyle(4, Colors.ropeShadow, 0.75); g.lineBetween(5, TILE/2 + 1, TILE-3, TILE/2 + 1);
     g.lineStyle(4, Colors.rope, 1); g.lineBetween(4, TILE/2, TILE-4, TILE/2);
     g.generateTexture('rope', TILE, TILE);
 
@@ -416,7 +480,7 @@ export default class GameScene extends Phaser.Scene {
     g.lineStyle(2, 0xffffff, 0.6); g.strokeRoundedRect(6, 10, TILE-12, TILE-20, 6);
     g.generateTexture('gold', TILE, TILE);
 
-    // Exit
+    // Exit tile
     g.clear(); g.fillStyle(Colors.exit, 1); g.fillRoundedRect(6, 6, TILE-12, TILE-12, 6);
     g.lineStyle(2, 0xffffff, 0.5); g.strokeRoundedRect(6, 6, TILE-12, TILE-12, 6);
     g.generateTexture('exit', TILE, TILE);
@@ -424,102 +488,407 @@ export default class GameScene extends Phaser.Scene {
 
   makePlayerFramesAndAnimations() {
     const g = this.make.graphics({ x: 0, y: 0, add: false });
-    const base = (fill = Colors.player, shadow = Colors.playerShadow) => {
-      // Torso
-      g.fillStyle(fill, 1); g.fillRect(11, 8, 10, 10);
-      // Head
-      g.fillRect(12, 4, 8, 4);
-      // Shadow accent
-      g.fillStyle(shadow, 0.6); g.fillRect(11, 8, 10, 2);
-    };
-    const legs = (l1x, l1y, l2x, l2y) => {
-      g.fillStyle(Colors.player, 1);
-      g.fillRect(l1x, l1y, 3, 8);
-      g.fillRect(l2x, l2y, 3, 8);
-    };
-    const arms = (ax1, ay1, ax2, ay2) => {
-      g.fillStyle(Colors.player, 1);
-      g.fillRect(ax1, ay1, 3, 6);
-      g.fillRect(ax2, ay2, 3, 6);
-    };
+    const palette = { fill: Colors.player, shadow: Colors.playerShadow, outline: Colors.playerOutline };
+    const defaultTorso = { x: 13, y: 10, w: 6, h: 11 };
+    const defaultHead = { x: 12, y: 4, w: 8, h: 6 };
 
-    function gen(key, draw) {
-      g.clear(); g.fillStyle(0x000000, 0); g.fillRect(0, 0, TILE, TILE);
-      base(); draw();
+    const drawPose = (key, config = {}) => {
+      const torso = { ...defaultTorso, ...(config.torso ?? {}) };
+      const head = { ...defaultHead, ...(config.head ?? {}) };
+      const limbs = (config.limbs ?? []).map((limb) => ({ shade: true, ...limb }));
+      const extraOutlines = config.outlines ?? [];
+      const additions = config.additions ?? [];
+
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, TILE, TILE);
+
+      const outlineRect = (rect, pad = 1) => {
+        g.fillStyle(palette.outline, 0.95);
+        g.fillRect(rect.x - pad, rect.y - pad, rect.w + pad * 2, rect.h + pad * 2);
+      };
+
+      outlineRect(torso);
+      outlineRect(head);
+      limbs.forEach((rect) => outlineRect(rect));
+      extraOutlines.forEach((rect) => outlineRect(rect.rect ?? rect, rect.pad ?? 1));
+
+      g.fillStyle(palette.fill, 1);
+      g.fillRect(torso.x, torso.y, torso.w, torso.h);
+      g.fillStyle(palette.shadow, 1);
+      g.fillRect(torso.x, torso.y + torso.h - 3, torso.w, 3);
+
+      g.fillStyle(palette.fill, 1);
+      g.fillRect(head.x, head.y, head.w, head.h);
+      g.fillStyle(palette.shadow, 1);
+      g.fillRect(head.x, head.y + head.h - 2, head.w, 2);
+
+      limbs.forEach((limb) => {
+        g.fillStyle(palette.fill, 1);
+        g.fillRect(limb.x, limb.y, limb.w, limb.h);
+        if (limb.shade) {
+          const shadeHeight = Math.min(2, limb.h);
+          g.fillStyle(palette.shadow, 1);
+          g.fillRect(limb.x, limb.y + limb.h - shadeHeight, limb.w, shadeHeight);
+        }
+      });
+
+      additions.forEach((fn) => fn(g, palette));
       g.generateTexture(key, TILE, TILE);
-    }
+    };
 
-    // Idle
-    gen('player_idle', () => { legs(12, 18, 17, 18); arms(10, 10, 21, 10); });
-    // Run cycle (4 frames)
-    gen('player_run_0', () => { legs(10, 18, 18, 20); arms(9, 10, 22, 12); });
-    gen('player_run_1', () => { legs(12, 20, 16, 18); arms(10, 12, 21, 10); });
-    gen('player_run_2', () => { legs(18, 18, 10, 20); arms(9, 12, 22, 10); });
-    gen('player_run_3', () => { legs(12, 18, 16, 20); arms(10, 10, 21, 12); });
-    // Climb (2 frames)
-    gen('player_climb_0', () => { legs(12, 18, 17, 14); arms(10, 8, 21, 12); });
-    gen('player_climb_1', () => { legs(12, 14, 17, 18); arms(10, 12, 21, 8); });
-    // Hang (rope) (2 frames)
-    gen('player_hang_0', () => { legs(12, 20, 17, 20); arms(10, 8, 21, 8); });
-    gen('player_hang_1', () => { legs(12, 20, 17, 20); arms(10, 9, 21, 9); });
+    // Idle pose keeps arms at the sides ready to sprint
+    drawPose('player_idle', {
+      limbs: [
+        { x: 12, y: 22, w: 3, h: 8 },
+        { x: 17, y: 22, w: 3, h: 8 },
+        { x: 10, y: 13, w: 3, h: 7, shade: false },
+        { x: 21, y: 13, w: 3, h: 7, shade: false },
+      ],
+    });
 
-    // Animations
+    const runFrames = [
+      {
+        key: 'player_run_0',
+        torso: { x: 12 },
+        head: { x: 11 },
+        limbs: [
+          { x: 8, y: 22, w: 4, h: 7 },
+          { x: 18, y: 19, w: 4, h: 11 },
+          { x: 6, y: 14, w: 4, h: 6, shade: false },
+          { x: 22, y: 12, w: 3, h: 7, shade: false },
+        ],
+      },
+      {
+        key: 'player_run_1',
+        limbs: [
+          { x: 10, y: 21, w: 3, h: 9 },
+          { x: 18, y: 21, w: 3, h: 9 },
+          { x: 7, y: 12, w: 3, h: 7, shade: false },
+          { x: 21, y: 14, w: 3, h: 6, shade: false },
+        ],
+      },
+      {
+        key: 'player_run_2',
+        torso: { x: 14 },
+        head: { x: 13 },
+        limbs: [
+          { x: 12, y: 19, w: 4, h: 11 },
+          { x: 20, y: 22, w: 4, h: 7 },
+          { x: 9, y: 11, w: 3, h: 7, shade: false },
+          { x: 23, y: 13, w: 3, h: 7, shade: false },
+        ],
+      },
+      {
+        key: 'player_run_3',
+        limbs: [
+          { x: 11, y: 21, w: 3, h: 9 },
+          { x: 19, y: 20, w: 3, h: 10 },
+          { x: 8, y: 13, w: 3, h: 6, shade: false },
+          { x: 22, y: 12, w: 3, h: 7, shade: false },
+        ],
+      },
+    ];
+    runFrames.forEach((frame) => drawPose(frame.key, frame));
+
+    const climbFrames = [
+      {
+        key: 'player_climb_0',
+        limbs: [
+          { x: 12, y: 20, w: 3, h: 10 },
+          { x: 17, y: 17, w: 3, h: 13 },
+          { x: 10, y: 9, w: 3, h: 9, shade: false },
+          { x: 21, y: 13, w: 3, h: 9, shade: false },
+        ],
+      },
+      {
+        key: 'player_climb_1',
+        limbs: [
+          { x: 12, y: 17, w: 3, h: 13 },
+          { x: 17, y: 22, w: 3, h: 8 },
+          { x: 10, y: 12, w: 3, h: 8, shade: false },
+          { x: 21, y: 8, w: 3, h: 10, shade: false },
+        ],
+      },
+      {
+        key: 'player_climb_2',
+        limbs: [
+          { x: 12, y: 22, w: 3, h: 8 },
+          { x: 17, y: 18, w: 3, h: 12 },
+          { x: 10, y: 13, w: 3, h: 8, shade: false },
+          { x: 21, y: 9, w: 3, h: 9, shade: false },
+        ],
+      },
+      {
+        key: 'player_climb_3',
+        limbs: [
+          { x: 12, y: 18, w: 3, h: 12 },
+          { x: 17, y: 21, w: 3, h: 9 },
+          { x: 10, y: 8, w: 3, h: 10, shade: false },
+          { x: 21, y: 12, w: 3, h: 8, shade: false },
+        ],
+      },
+    ];
+    climbFrames.forEach((frame) => drawPose(frame.key, frame));
+
+    const hangFrames = [
+      {
+        key: 'player_hang_0',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 10, y: 19, w: 4, h: 9 },
+          { x: 18, y: 19, w: 4, h: 9 },
+          { x: 6, y: 9, w: 7, h: 3, shade: false },
+          { x: 19, y: 9, w: 7, h: 3, shade: false },
+        ],
+      },
+      {
+        key: 'player_hang_1',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 11, y: 21, w: 4, h: 7 },
+          { x: 18, y: 19, w: 4, h: 9 },
+          { x: 6, y: 10, w: 7, h: 3, shade: false },
+          { x: 19, y: 8, w: 7, h: 3, shade: false },
+        ],
+      },
+      {
+        key: 'player_hang_2',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 10, y: 20, w: 4, h: 8 },
+          { x: 18, y: 21, w: 4, h: 7 },
+          { x: 6, y: 8, w: 7, h: 3, shade: false },
+          { x: 19, y: 10, w: 7, h: 3, shade: false },
+        ],
+      },
+      {
+        key: 'player_hang_3',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 11, y: 19, w: 4, h: 9 },
+          { x: 18, y: 19, w: 4, h: 9 },
+          { x: 6, y: 9, w: 7, h: 3, shade: false },
+          { x: 19, y: 9, w: 7, h: 3, shade: false },
+        ],
+      },
+    ];
+    hangFrames.forEach((frame) => drawPose(frame.key, frame));
+
     const anims = this.anims;
     if (!anims.exists('player-idle')) {
-      anims.create({ key: 'player-idle', frames: [{ key: 'player_idle' }], frameRate: 6, repeat: -1 });
-      anims.create({ key: 'player-run', frames: [ 'player_run_0','player_run_1','player_run_2','player_run_3' ].map(k => ({ key: k })), frameRate: 10, repeat: -1 });
-      anims.create({ key: 'player-climb', frames: [ 'player_climb_0','player_climb_1' ].map(k => ({ key: k })), frameRate: 6, repeat: -1 });
-      anims.create({ key: 'player-hang', frames: [ 'player_hang_0','player_hang_1' ].map(k => ({ key: k })), frameRate: 4, repeat: -1 });
+      anims.create({ key: 'player-idle', frames: [{ key: 'player_idle' }], frameRate: 4, repeat: -1 });
+      anims.create({ key: 'player-run', frames: runFrames.map((f) => ({ key: f.key })), frameRate: 8, repeat: -1 });
+      anims.create({ key: 'player-climb', frames: climbFrames.map((f) => ({ key: f.key })), frameRate: 6, repeat: -1 });
+      anims.create({ key: 'player-hang', frames: hangFrames.map((f) => ({ key: f.key })), frameRate: 6, repeat: -1 });
     }
   }
 
   makeEnemyFramesAndAnimations() {
     const g = this.make.graphics({ x: 0, y: 0, add: false });
-    const base = (fill = Colors.enemy, shadow = Colors.enemyShadow) => {
-      // Torso/head block similar to player for quick readability
-      g.fillStyle(fill, 1); g.fillRect(11, 8, 10, 10);
-      g.fillRect(12, 4, 8, 4);
-      g.fillStyle(shadow, 0.6); g.fillRect(11, 8, 10, 2);
-    };
-    const legs = (l1x, l1y, l2x, l2y) => {
-      g.fillStyle(Colors.enemy, 1);
-      g.fillRect(l1x, l1y, 3, 8);
-      g.fillRect(l2x, l2y, 3, 8);
-    };
-    const arms = (ax1, ay1, ax2, ay2) => {
-      g.fillStyle(Colors.enemy, 1);
-      g.fillRect(ax1, ay1, 3, 6);
-      g.fillRect(ax2, ay2, 3, 6);
-    };
+    const palette = { fill: Colors.enemy, shadow: Colors.enemyShadow, outline: Colors.enemyOutline };
+    const defaultTorso = { x: 13, y: 10, w: 6, h: 11 };
+    const defaultHead = { x: 12, y: 4, w: 8, h: 6 };
 
-    const gen = (key, draw) => {
-      g.clear(); g.fillStyle(0x000000, 0); g.fillRect(0, 0, TILE, TILE);
-      base(); draw();
+    const drawPose = (key, config = {}) => {
+      const torso = { ...defaultTorso, ...(config.torso ?? {}) };
+      const head = { ...defaultHead, ...(config.head ?? {}) };
+      const limbs = (config.limbs ?? []).map((limb) => ({ shade: true, ...limb }));
+      const extraOutlines = config.outlines ?? [];
+
+      g.clear();
+      g.fillStyle(0x000000, 0);
+      g.fillRect(0, 0, TILE, TILE);
+
+      const outlineRect = (rect, pad = 1) => {
+        g.fillStyle(palette.outline, 0.9);
+        g.fillRect(rect.x - pad, rect.y - pad, rect.w + pad * 2, rect.h + pad * 2);
+      };
+
+      outlineRect(torso);
+      outlineRect(head);
+      limbs.forEach((rect) => outlineRect(rect));
+      extraOutlines.forEach((rect) => outlineRect(rect.rect ?? rect, rect.pad ?? 1));
+
+      g.fillStyle(palette.fill, 1);
+      g.fillRect(torso.x, torso.y, torso.w, torso.h);
+      g.fillStyle(palette.shadow, 1);
+      g.fillRect(torso.x, torso.y + torso.h - 3, torso.w, 3);
+
+      g.fillStyle(palette.fill, 1);
+      g.fillRect(head.x, head.y, head.w, head.h);
+      g.fillStyle(palette.shadow, 1);
+      g.fillRect(head.x, head.y + head.h - 2, head.w, 2);
+
+      limbs.forEach((limb) => {
+        g.fillStyle(palette.fill, 1);
+        g.fillRect(limb.x, limb.y, limb.w, limb.h);
+        if (limb.shade) {
+          const shadeHeight = Math.min(2, limb.h);
+          g.fillStyle(palette.shadow, 1);
+          g.fillRect(limb.x, limb.y + limb.h - shadeHeight, limb.w, shadeHeight);
+        }
+      });
+
       g.generateTexture(key, TILE, TILE);
     };
 
-    gen('enemy_idle', () => { legs(12, 18, 17, 18); arms(10, 10, 21, 10); });
-    gen('enemy_run_0', () => { legs(10, 18, 18, 20); arms(9, 10, 22, 12); });
-    gen('enemy_run_1', () => { legs(12, 20, 16, 18); arms(10, 12, 21, 10); });
-    gen('enemy_run_2', () => { legs(18, 18, 10, 20); arms(9, 12, 22, 10); });
-    gen('enemy_run_3', () => { legs(12, 18, 16, 20); arms(10, 10, 21, 12); });
-    gen('enemy_climb_0', () => { legs(12, 18, 17, 14); arms(10, 8, 21, 12); });
-    gen('enemy_climb_1', () => { legs(12, 14, 17, 18); arms(10, 12, 21, 8); });
-    gen('enemy_hang_0', () => { legs(12, 20, 17, 20); arms(10, 8, 21, 8); });
-    gen('enemy_hang_1', () => { legs(12, 20, 17, 20); arms(10, 9, 21, 9); });
+    drawPose('enemy_idle', {
+      limbs: [
+        { x: 12, y: 22, w: 3, h: 8 },
+        { x: 17, y: 22, w: 3, h: 8 },
+        { x: 10, y: 13, w: 3, h: 7, shade: false },
+        { x: 21, y: 13, w: 3, h: 7, shade: false },
+      ],
+    });
+
+    const runFrames = [
+      {
+        key: 'enemy_run_0',
+        torso: { x: 12 },
+        head: { x: 11 },
+        limbs: [
+          { x: 8, y: 22, w: 4, h: 7 },
+          { x: 18, y: 19, w: 4, h: 11 },
+          { x: 6, y: 14, w: 4, h: 6, shade: false },
+          { x: 22, y: 12, w: 3, h: 7, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_run_1',
+        limbs: [
+          { x: 10, y: 21, w: 3, h: 9 },
+          { x: 18, y: 21, w: 3, h: 9 },
+          { x: 7, y: 12, w: 3, h: 7, shade: false },
+          { x: 21, y: 14, w: 3, h: 6, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_run_2',
+        torso: { x: 14 },
+        head: { x: 13 },
+        limbs: [
+          { x: 12, y: 19, w: 4, h: 11 },
+          { x: 20, y: 22, w: 4, h: 7 },
+          { x: 9, y: 11, w: 3, h: 7, shade: false },
+          { x: 23, y: 13, w: 3, h: 7, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_run_3',
+        limbs: [
+          { x: 11, y: 21, w: 3, h: 9 },
+          { x: 19, y: 20, w: 3, h: 10 },
+          { x: 8, y: 13, w: 3, h: 6, shade: false },
+          { x: 22, y: 12, w: 3, h: 7, shade: false },
+        ],
+      },
+    ];
+    runFrames.forEach((frame) => drawPose(frame.key, frame));
+
+    const climbFrames = [
+      {
+        key: 'enemy_climb_0',
+        limbs: [
+          { x: 12, y: 20, w: 3, h: 10 },
+          { x: 17, y: 17, w: 3, h: 13 },
+          { x: 10, y: 9, w: 3, h: 9, shade: false },
+          { x: 21, y: 13, w: 3, h: 9, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_climb_1',
+        limbs: [
+          { x: 12, y: 17, w: 3, h: 13 },
+          { x: 17, y: 22, w: 3, h: 8 },
+          { x: 10, y: 12, w: 3, h: 8, shade: false },
+          { x: 21, y: 8, w: 3, h: 10, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_climb_2',
+        limbs: [
+          { x: 12, y: 22, w: 3, h: 8 },
+          { x: 17, y: 18, w: 3, h: 12 },
+          { x: 10, y: 13, w: 3, h: 8, shade: false },
+          { x: 21, y: 9, w: 3, h: 9, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_climb_3',
+        limbs: [
+          { x: 12, y: 18, w: 3, h: 12 },
+          { x: 17, y: 21, w: 3, h: 9 },
+          { x: 10, y: 8, w: 3, h: 10, shade: false },
+          { x: 21, y: 12, w: 3, h: 8, shade: false },
+        ],
+      },
+    ];
+    climbFrames.forEach((frame) => drawPose(frame.key, frame));
+
+    const hangFrames = [
+      {
+        key: 'enemy_hang_0',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 10, y: 19, w: 4, h: 9 },
+          { x: 18, y: 19, w: 4, h: 9 },
+          { x: 6, y: 9, w: 7, h: 3, shade: false },
+          { x: 19, y: 9, w: 7, h: 3, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_hang_1',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 11, y: 21, w: 4, h: 7 },
+          { x: 18, y: 19, w: 4, h: 9 },
+          { x: 6, y: 10, w: 7, h: 3, shade: false },
+          { x: 19, y: 8, w: 7, h: 3, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_hang_2',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 10, y: 20, w: 4, h: 8 },
+          { x: 18, y: 21, w: 4, h: 7 },
+          { x: 6, y: 8, w: 7, h: 3, shade: false },
+          { x: 19, y: 10, w: 7, h: 3, shade: false },
+        ],
+      },
+      {
+        key: 'enemy_hang_3',
+        torso: { y: 9 },
+        head: { y: 3 },
+        limbs: [
+          { x: 11, y: 19, w: 4, h: 9 },
+          { x: 18, y: 19, w: 4, h: 9 },
+          { x: 6, y: 9, w: 7, h: 3, shade: false },
+          { x: 19, y: 9, w: 7, h: 3, shade: false },
+        ],
+      },
+    ];
+    hangFrames.forEach((frame) => drawPose(frame.key, frame));
 
     const anims = this.anims;
     if (!anims.exists('enemy-idle')) {
-      anims.create({ key: 'enemy-idle', frames: [{ key: 'enemy_idle' }], frameRate: 6, repeat: -1 });
-      anims.create({ key: 'enemy-run', frames: [ 'enemy_run_0','enemy_run_1','enemy_run_2','enemy_run_3' ].map(k => ({ key: k })), frameRate: 10, repeat: -1 });
-      anims.create({ key: 'enemy-climb', frames: [ 'enemy_climb_0','enemy_climb_1' ].map(k => ({ key: k })), frameRate: 6, repeat: -1 });
-      anims.create({ key: 'enemy-hang', frames: [ 'enemy_hang_0','enemy_hang_1' ].map(k => ({ key: k })), frameRate: 4, repeat: -1 });
+      anims.create({ key: 'enemy-idle', frames: [{ key: 'enemy_idle' }], frameRate: 4, repeat: -1 });
+      anims.create({ key: 'enemy-run', frames: runFrames.map((f) => ({ key: f.key })), frameRate: 7, repeat: -1 });
+      anims.create({ key: 'enemy-climb', frames: climbFrames.map((f) => ({ key: f.key })), frameRate: 5, repeat: -1 });
+      anims.create({ key: 'enemy-hang', frames: hangFrames.map((f) => ({ key: f.key })), frameRate: 5, repeat: -1 });
     }
   }
 
   updatePlayerAnimation(onLadder, onRope) {
     const vx = this.player.body.velocity.x;
-    const vy = this.player.body.velocity.y;
     const grounded = this.player.body.blocked.down;
 
     // Flip by direction
@@ -529,7 +898,7 @@ export default class GameScene extends Phaser.Scene {
       this.player.anims.play('player-climb', true);
     } else if (onRope) {
       this.player.anims.play('player-hang', true);
-    } else if (grounded && Math.abs(vx) > 30) {
+    } else if (grounded && Math.abs(vx) > 18) {
       this.player.anims.play('player-run', true);
     } else {
       this.player.anims.play('player-idle', true);
@@ -544,7 +913,7 @@ export default class GameScene extends Phaser.Scene {
       enemy.anims.play('enemy-climb', true);
     } else if (onRope) {
       enemy.anims.play('enemy-hang', true);
-    } else if (grounded && Math.abs(vx) > 30) {
+    } else if (grounded && Math.abs(vx) > 18) {
       enemy.anims.play('enemy-run', true);
     } else {
       enemy.anims.play('enemy-idle', true);
@@ -601,7 +970,7 @@ export default class GameScene extends Phaser.Scene {
 
     const targetX = desiredTile.c * TILE + TILE / 2;
     const targetY = desiredTile.r * TILE + TILE / 2;
-    const accel = onRope ? 900 : 1500;
+    const accel = onRope ? 520 : 840;
     const dx = targetX - enemy.x;
 
     if (onLadder) {
@@ -612,18 +981,24 @@ export default class GameScene extends Phaser.Scene {
       enemy.setGravityY(0);
       const dy = targetY - enemy.y;
       const climbDir = Math.abs(dy) > 6 ? Math.sign(dy) : 0;
-      enemy.setVelocityY(climbDir * 150);
+      enemy.setVelocityY(climbDir * 110);
       enemy.setAccelerationX(0);
       if (Math.abs(dx) > 6 && climbDir === 0) {
         enemy.setAccelerationX(Math.sign(dx) * accel);
       }
     } else if (onRope) {
       enemy.setGravityY(0);
+      const ropeY = Math.floor(enemy.y / TILE) * TILE + TILE / 2;
+      if (Math.abs(enemy.y - ropeY) < 4) {
+        enemy.y = ropeY;
+      }
       enemy.setVelocityY(0);
+      enemy.setAccelerationX(0);
+      const ropeSpeed = 130;
       if (Math.abs(dx) > 6) {
-        enemy.setAccelerationX(Math.sign(dx) * accel);
+        enemy.setVelocityX(Math.sign(dx) * ropeSpeed);
       } else {
-        enemy.setAccelerationX(0);
+        enemy.setVelocityX(0);
       }
     } else {
       enemy.setGravityY(this.physics.world.gravity.y);
