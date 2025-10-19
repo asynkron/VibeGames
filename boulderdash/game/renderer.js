@@ -2,6 +2,10 @@ import { createPixelContext } from '../../shared/render/pixelCanvas.js';
 import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
 import { createOverlayFX } from '../../shared/fx/overlay.js';
+import {
+  DEFAULT_SCANLINE_ALPHA_RANGE,
+  createDefaultCrtSettings,
+} from '../../shared/config/display.js';
 
 export function createRenderer(canvas, assets) {
   const pixel = createPixelContext(canvas);
@@ -38,19 +42,13 @@ export function createRenderer(canvas, assets) {
   const crtFrame = document.getElementById('root');
   const syncScanlines = (amount) => {
     if (!crtFrame) return;
-    applyScanlineIntensity(crtFrame, amount, { alphaRange: [0.05, 0.28] });
+    applyScanlineIntensity(crtFrame, amount, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
   };
 
-  const crtSettings = {
-    enabled: true,
-    warp: 0.08,
-    aberration: 0.05,
-    aberrationOpacity: 0.45,
-    scanlines: 0.45,
-  };
+  const crtSettings = createDefaultCrtSettings();
   const crtControls = createCrtControls({
     storageKey: 'boulderdash_crt_settings',
-    defaults: crtSettings,
+    defaults: createDefaultCrtSettings(),
     onChange: (next) => {
       Object.assign(crtSettings, next);
       syncScanlines(next.scanlines);

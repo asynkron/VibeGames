@@ -9,6 +9,11 @@ import { drawGlowBatch, rgbaFromHex } from '../shared/fx/glow.js';
 import { applyAmbientLighting } from '../shared/fx/lighting.js';
 import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
+import {
+  DEFAULT_TILE_SIZE,
+  DEFAULT_SCANLINE_ALPHA_RANGE,
+  createDefaultCrtSettings,
+} from '../shared/config/display.js';
 
 (() => {
   'use strict';
@@ -17,7 +22,7 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
   const canvas = document.getElementById('game');
   const scene = document.createElement('canvas');
 
-  const TILE = 8;
+  const TILE = DEFAULT_TILE_SIZE;
   const WIDTH = COLS * TILE; const HEIGHT = ROWS * TILE;
   const PACMAN_RADIUS = TILE * 0.5; // keep Pac-Man closer to a full tile for a chunkier look
 
@@ -45,17 +50,11 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
   const crtFrame = document.querySelector('.screen.crt-frame');
   const syncScanlines = (value) => {
     if (!crtFrame) return;
-    applyScanlineIntensity(crtFrame, value, { alphaRange: [0.04, 0.24] });
+    applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
   };
 
   const settings = {
-    crt: {
-      warp: 0.08,
-      aberration: 0.05,
-      aberrationOpacity: 0.45,
-      scanlines: 0.45,
-      enabled: true,
-    },
+    crt: createDefaultCrtSettings(),
     lighting: {
       enabled: true,
       ambient: 0.55,            // base darkness over the whole scene

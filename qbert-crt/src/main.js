@@ -4,6 +4,11 @@ import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtCo
 import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
 import { createOverlayFX } from '../../shared/fx/overlay.js';
 import { initCrtPresetHotkeys } from '../../shared/ui/crt.js';
+import {
+  DEFAULT_SCANLINE_ALPHA_RANGE,
+  DEFAULT_FONT_STACK,
+  createDefaultCrtSettings,
+} from '../../shared/config/display.js';
 
 // Q*bert CRT - Pixel-locked CRT overlay, integer scaling, Pause/Help, persisted prefs
 
@@ -23,16 +28,10 @@ const overlayFx = createOverlayFX({ ctx, width: W, height: H });
 const { startShockwave, drawShockwave, screenFlash, drawFlash, startIris, drawIris, setBounds: setOverlayBounds } = overlayFx;
 setOverlayBounds({ width: W, height: H });
 
-// Use a crisp monospace stack so canvas text matches the higher-res cube rendering.
-const CANVAS_FONT_STACK = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+// Use the shared monospace stack so canvas text lines up with other games.
+const CANVAS_FONT_STACK = DEFAULT_FONT_STACK;
 
-const defaultCrtSettings = {
-  enabled: true,
-  warp: 0.08,
-  aberration: 0.05,
-  aberrationOpacity: 0.45,
-  scanlines: 0.42,
-};
+const defaultCrtSettings = createDefaultCrtSettings();
 const crtSettings = { ...defaultCrtSettings };
 let maskOn = true;
 let scanOn = true;
@@ -46,11 +45,11 @@ const defaultApertureOpacity = (() => {
 const syncScanlines = (value) => {
   const target = screen || bezel;
   if (!target) return;
-  applyScanlineIntensity(target, value, { alphaRange: [0.05, 0.24] });
+  applyScanlineIntensity(target, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
 };
 const crtControls = createCrtControls({
   storageKey: 'qbert_crt_settings',
-  defaults: defaultCrtSettings,
+  defaults: createDefaultCrtSettings(),
   onChange: (next) => {
     Object.assign(crtSettings, next);
     syncScanlines(next.scanlines);

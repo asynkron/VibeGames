@@ -1,13 +1,11 @@
 // Shared CRT settings controller used across games.
 // Exposes a small slider/checkbox panel with persistence and change callbacks.
+import {
+  DEFAULT_SCANLINE_ALPHA_RANGE,
+  createDefaultCrtSettings,
+} from '../config/display.js';
 
-const DEFAULTS = {
-  enabled: true,
-  warp: 0.08,
-  aberration: 0.05,
-  aberrationOpacity: 0.45,
-  scanlines: 0.45,
-};
+const DEFAULTS = Object.freeze(createDefaultCrtSettings());
 
 function clamp01(value) {
   const v = Number.isFinite(value) ? value : 0;
@@ -248,7 +246,7 @@ export function createCrtControls({
 
 export function applyScanlineIntensity(target, intensity, {
   opacityRange = [0, 1],
-  alphaRange = [0.04, 0.26],
+  alphaRange = DEFAULT_SCANLINE_ALPHA_RANGE,
 } = {}) {
   if (!target || !target.style) return;
   const amount = clamp01(intensity);
