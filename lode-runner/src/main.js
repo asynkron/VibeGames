@@ -26,7 +26,7 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-const crtFrame = document.querySelector('.bezel.crt-frame');
+const crtFrame = document.querySelector('.screen.crt-frame');
 const syncScanlines = (value) => {
   if (!crtFrame) return;
   applyScanlineIntensity(crtFrame, value, { alphaRange: [0.05, 0.26] });

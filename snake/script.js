@@ -10,7 +10,7 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
   const pixel = createPixelContext(canvas, { alpha: false });
   const { ctx, fillRect: fillPixels } = pixel;
 
-  const crtFrame = document.querySelector('.bezel.crt-frame');
+  const crtFrame = document.querySelector('.screen.crt-frame');
   const syncScanlines = (value) => {
     if (!crtFrame) return;
     applyScanlineIntensity(crtFrame, value, { alphaRange: [0.05, 0.28] });
@@ -45,12 +45,16 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
 
   // Colors (retro green phosphor vibe)
   const COLORS = {
-    bg: '#00140a',
-    grid: 'rgba(20,70,40,0.12)',
-    snake: '#4cff4c',
-    snakeHead: '#9aff9a',
-    food: '#ff4c4c',
-    foodStem: '#2fbf71'
+    bg: '#000312',
+    grid: 'rgba(18, 32, 78, 0.16)',
+    snake: '#ffe12b',
+    snakeHead: '#fff59a',
+    snakeEye: '#0a1230',
+    food: '#ff7b1f',
+    foodStem: '#ffd05a',
+    terrainBase: '#0b1030',
+    terrainTop: '#1f33ff',
+    terrainHighlight: 'rgba(98, 149, 255, 0.45)'
   };
 
   // HUD elements
@@ -65,6 +69,8 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
   const eatTone = beeper.createPreset({ freq: 560, dur: 0.06, type: 'square', gain: 0.03 });
 
   // Game state
+  const { mask: terrainMask, tiles: terrainTiles } = buildTerrain(); // fixed obstacles + drawing helpers
+
   let snake, dir, nextDir, food, score, high, alive, paused;
   let lastTime = 0, acc = 0;
   let stepPerSec = 12; // ticks per second
@@ -73,7 +79,7 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
 
   function init() {
     const startLen = 4;
-    const startX = Math.floor(COLS / 3);
+    const startX = Math.floor(COLS * 0.25);
     const startY = Math.floor(ROWS / 2);
     snake = Array.from({ length: startLen }, (_, i) => ({
       x: startX - i,
@@ -95,6 +101,7 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
     while (true) {
       const x = (Math.random() * COLS) | 0;
       const y = (Math.random() * ROWS) | 0;
+      if (terrainMask[y][x]) continue;
       if (!snake || !snake.some(s => s.x === x && s.y === y)) return { x, y };
     }
   }
@@ -124,6 +131,13 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
 
     // Wall collision (solid)
     if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+      alive = false;
+      crashTone();
+      startIris('out', 900);
+      return;
+    }
+
+    if (terrainMask[head.y][head.x]) {
       alive = false;
       crashTone();
       startIris('out', 900);
@@ -175,6 +189,23 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
     ctx.stroke();
   }
 
+  function drawTerrain() {
+    // Render fixed obstacles so they read like Pac-Man style maze walls
+    for (const { x, y } of terrainTiles) {
+      const px = x * TILE;
+      const py = y * TILE;
+      fillPixels(px, py, TILE, TILE, COLORS.terrainBase);
+      fillPixels(px + 1, py + 1, TILE - 2, TILE - 2, COLORS.terrainTop);
+      fillPixels(
+        px + 2,
+        py + 1,
+        Math.max(1, TILE - 4),
+        Math.max(1, Math.floor(TILE / 4)),
+        COLORS.terrainHighlight
+      );
+    }
+  }
+
   function drawSnake() {
     // Body
     for (let i = snake.length - 1; i >= 1; i--) {
@@ -190,17 +221,17 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
     const eye = Math.max(1, Math.floor(TILE / 4));
     const off = Math.max(1, Math.floor(TILE / 6));
     if (dir.x === 1) { // right
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, '#021');
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
     } else if (dir.x === -1) { // left
-      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, '#021');
-      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
+      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
+      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
     } else if (dir.y === 1) { // down
-      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, '#021');
+      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
     } else { // up
-      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, '#021');
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, '#021');
+      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
+      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
     }
   }
 
@@ -226,14 +257,14 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
 
   function drawLabel(text, cx, cy, color) {
     ctx.save();
-    ctx.font = '10px \"Press Start 2P\", monospace';
+    ctx.font = 'bold 10px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#00140a';
+    ctx.fillStyle = 'rgba(0, 5, 20, 0.85)';
     ctx.fillRect(cx - 80, cy - 10, 160, 20);
     ctx.fillStyle = color;
-    ctx.shadowColor = 'rgba(80,255,160,0.6)';
-    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(110, 190, 255, 0.6)';
+    ctx.shadowBlur = 10;
     ctx.fillText(text, cx, cy);
     ctx.restore();
   }
@@ -253,6 +284,7 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
 
     // Draw
     drawBG();
+    drawTerrain();
     drawFood();
     drawSnake();
 
@@ -269,4 +301,52 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
 
   init();
   requestAnimationFrame(frame);
+
+  function buildTerrain() {
+    // Pre-compute a symmetrical set of blocked tiles to mimic a Pac-Man maze layout
+    const mask = Array.from({ length: ROWS }, () => new Uint8Array(COLS));
+    const tiles = [];
+
+    const mark = (x, y) => {
+      if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return;
+      if (mask[y][x]) return;
+      mask[y][x] = 1;
+      tiles.push({ x, y });
+    };
+
+    const addRect = (x, y, w, h) => {
+      for (let iy = 0; iy < h; iy++) {
+        for (let ix = 0; ix < w; ix++) {
+          mark(x + ix, y + iy);
+        }
+      }
+    };
+
+    const mirrorRect = (x, y, w, h) => {
+      addRect(x, y, w, h);
+      addRect(COLS - x - w, y, w, h);
+    };
+
+    const mid = Math.floor(COLS / 2);
+    const midY = Math.floor(ROWS / 2);
+
+    addRect(mid - 1, 3, 2, 4);
+    addRect(mid - 1, ROWS - 7, 2, 4);
+
+    mirrorRect(4, 4, 3, 5);
+    mirrorRect(4, ROWS - 9, 3, 5);
+    mirrorRect(10, 8, 2, 4);
+    mirrorRect(10, ROWS - 12, 2, 4);
+    mirrorRect(2, midY - 2, 2, 4);
+
+    addRect(mid - 6, midY - 5, 4, 2);
+    addRect(mid + 2, midY - 5, 4, 2);
+    addRect(mid - 6, midY + 3, 4, 2);
+    addRect(mid + 2, midY + 3, 4, 2);
+
+    addRect(mid - 2, midY - 1, 4, 1);
+    addRect(mid - 2, midY + 2, 4, 1);
+
+    return { mask, tiles };
+  }
 })();

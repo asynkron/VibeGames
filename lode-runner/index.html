@@ -6,67 +6,24 @@
   <title>Lode Runner (Retro CRT)</title>
   <link rel="stylesheet" href="../shared/styles/hud.css" />
   <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
   <link rel="stylesheet" href="./styles/crt.css" />
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      background: #101014;
-      color: #cfcfcf;
-      font-family: monospace;
-    }
-    .wrap {
-      display: grid;
-      place-items: center;
-      height: 100%;
-    }
-    .bezel {
-      position: relative;
-      width: 960px; /* 30 cols x 32 px = 960 */
-      max-width: 95vw;
-      aspect-ratio: 15 / 9;
-      box-shadow: 0 0 60px #0a0a0a inset, 0 0 80px #000;
-      border-radius: 18px;
-      background: radial-gradient(120% 100% at 50% 10%, #0b0d12, #050608 60%, #030306);
-      padding: 12px;
-    }
-    #game-root {
-      width: 100%;
-      height: 100%;
-      image-rendering: pixelated;
-      position: relative;
-      overflow: hidden;
-      border-radius: 10px;
-    }
-    .lode-hud {
-      color: #9fe7ff;
-      text-shadow: 0 0 4px #69d0ff77;
-      font-size: 14px;
-    }
-    .lode-hud .retro-controls {
-      justify-content: flex-start;
-    }
-    .lode-hud .retro-hud-footer {
-      justify-content: flex-start;
-      font-size: 13px;
-      opacity: 0.9;
-    }
-  </style>
+  <link rel="stylesheet" href="./styles/theme.css" />
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
 </head>
 <body>
-  <div class="wrap">
-    <div class="bezel crt-frame">
-      <div id="game-root"></div>
-      <div class="retro-hud lode-hud">
-        <div class="retro-controls">
-          <span>Lode Runner — Proto</span>
-        </div>
-        <div class="retro-hud-footer">
-          Arrows: Move/Climb | Z: Dig Left | X: Dig Right | R: Restart | P: Pause | Up: Step Up
-        </div>
+  <div class="screen lode-screen crt-frame">
+    <div id="game-root" data-screen-canvas="true"></div>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud lode-hud">
+      <div class="retro-controls">
+        <span class="title">Lode Runner</span>
+        <span class="subtitle">Proto build</span>
       </div>
-      <div class="crt-overlay"></div>
+      <div class="retro-hud-footer">
+        Arrows: Move/Climb · Z: Dig Left · X: Dig Right · R: Restart · P: Pause · Up: Step Up
+      </div>
     </div>
   </div>
   <script type="module" src="./src/main.js"></script>

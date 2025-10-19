@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Boulder Dash (CRT)</title>
-  <link rel="preconnect" href="." />
   <link rel="stylesheet" href="../shared/styles/hud.css" />
   <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="root" class="crt-frame">
+  <div id="root" class="screen boulderdash-screen crt-frame">
     <canvas id="game" width="640" height="352"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
     <div id="hud" class="retro-hud boulderdash-hud">
       <div class="retro-controls">
         <span id="hud-level">L1</span>
@@ -21,9 +23,8 @@
       </div>
       <div class="retro-hud-message" id="hud-msg"></div>
     </div>
-    <div id="crt" class="crt-overlay"></div>
   </div>
   <script type="module" src="main.js"></script>
-</body>
   <script type="module" src="game/init-ui.js"></script>
+</body>
 </html>
