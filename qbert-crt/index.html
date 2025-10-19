@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Q*bert CRT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div class="frame">
+    <div class="bezel crt">
+      <canvas id="game" width="512" height="384"></canvas>
+      <canvas id="crt" width="512" height="384"></canvas>
+
+      <div class="hud">
+        <div class="hud-left">
+          <div id="score">SCORE: 000000</div>
+          <div id="round">ROUND: 1</div>
+        </div>
+        <div class="hud-right">
+          <div id="lives">LIVES: 3</div>
+        </div>
+      </div>
+      <div class="instruction">
+        Arrows/WASD/IJKL move • Enter start • F=Fullscreen • M=Mask • N=Scanlines • G=Gradients • Z=Depth • P=Pause • H=Help
+      </div>
+
+      <div id="help" class="overlay-ui hidden">
+        <div class="panel">
+          <div class="title">Controls</div>
+          <div>Move: Arrows / WASD / IJKL (diagonals)</div>
+          <div>Start/Continue: Enter</div>
+          <div>Fullscreen: F</div>
+          <div>CRT Mask: M</div>
+          <div>Scanlines: N</div>
+          <div>Gradients: G (cycle)</div>
+          <div>Cube Depth: Z (cycle)</div>
+          <div>Pause/Resume: P</div>
+          <div>Help: H</div>
+          <div class="hint">Press H to close</div>
+        </div>
+      </div>
+
+      <div class="overlay-vignette"></div>
+    </div>
+  </div>
+  <noscript>This game requires JavaScript.</noscript>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
