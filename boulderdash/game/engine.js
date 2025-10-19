@@ -66,6 +66,12 @@ export class GameEngine {
     }
 
     const event = w.update(dt);
+    if (w.flushEvents) {
+      const queued = w.flushEvents();
+      if (this.onEvent) {
+        for (const evt of queued) this.onEvent(evt.type, evt.payload);
+      }
+    }
     if (event && this.onEvent) this.onEvent(event.type, event.payload);
 
     if (w.state === 'win' && this.onNextLevel) {

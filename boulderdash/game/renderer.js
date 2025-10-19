@@ -104,11 +104,34 @@ export function createRenderer(canvas, assets) {
       }
     }
 
+    if (world.enemies && world.enemies.length) {
+      for (const e of world.enemies) {
+        const sprite = assets.enemy(e.type, world.tick);
+        if (!sprite) continue;
+        const screenX = e.x * tileSize + offsetX;
+        const screenY = e.y * tileSize + offsetY;
+        if (screenX + tileSize < 0 || screenY + tileSize < 0 || screenX >= viewWidth || screenY >= viewHeight) continue;
+        pixel.drawSprite(sprite, screenX, screenY, tileSize, tileSize);
+      }
+    }
+
     // draw player
     const p = assets.player(world.tick);
     const playerScreenX = world.player.x * tileSize + offsetX;
     const playerScreenY = world.player.y * tileSize + offsetY;
     pixel.drawSprite(p, playerScreenX, playerScreenY, tileSize, tileSize);
+
+    if (world.explosions && world.explosions.length) {
+      for (const ex of world.explosions) {
+        const stage = Math.max(0, (ex.age ?? 0) - 1);
+        const sprite = assets.explosion(ex.kind, stage);
+        if (!sprite) continue;
+        const screenX = ex.x * tileSize + offsetX;
+        const screenY = ex.y * tileSize + offsetY;
+        if (screenX + tileSize < 0 || screenY + tileSize < 0 || screenX >= viewWidth || screenY >= viewHeight) continue;
+        pixel.drawSprite(sprite, screenX, screenY, tileSize, tileSize);
+      }
+    }
 
     // status overlays
     if (world.state === 'dead') overlayText('CRUSHED! Press R to restart');
