@@ -51,7 +51,7 @@ Update (lighting + enemies)
 - Collision model: crawlers and recolorers share top-face grid for collisions; drawn offset on side faces for the look. Future work could move them onto true side grids.
 
 Update (bigger + crisper)
-- Canvas now scales to ~95% of viewport with 4:3 aspect via CSS; game appears much larger.
+- Canvas now relies on CSS sizing (`width: min(96vw, 1180px)` with a 4:3 aspect) so it opens large by default like the other games without any JS resize helpers.
 - Removed outline strokes and rim highlight from cube rendering to avoid anti-aliased fuzzy edges when scaled.
 - Strengthened per-face gradients so lighting is clearly visible on the top/side faces.
 - Aperture mask opacity reduced to lower shimmer.
@@ -74,4 +74,4 @@ Update (pixel-locked CRT + UX)
 
 Update (default viewport scale)
 - Removed the fullscreen hotkey; the playfield now opens at an enlarged viewport-friendly size.
-- Scaling now uses the maximum 4:3 fit within 95% of the viewport (no integer rounding) so Q*bert matches the footprint of the other games.
+- Scaling now biases toward the largest 4:3 fit the viewport allows (still leaving a tiny gutter) so Q*bert matches the footprint of the other games while feeling extra chunky.
