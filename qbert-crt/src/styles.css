@@ -19,8 +19,11 @@ body {
   background: radial-gradient(1200px 800px at 50% 30%, #101016 0%, #0a0a0d 60%, #050507 100%);
   display: grid;
   place-items: center;
-  font-family: 'Press Start 2P', system-ui, monospace;
+  font-family: var(--screen-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   color: #cde3d9;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .frame {

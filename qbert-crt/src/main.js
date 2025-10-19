@@ -23,6 +23,9 @@ const overlayFx = createOverlayFX({ ctx, width: W, height: H });
 const { startShockwave, drawShockwave, screenFlash, drawFlash, startIris, drawIris, setBounds: setOverlayBounds } = overlayFx;
 setOverlayBounds({ width: W, height: H });
 
+// Use a crisp monospace stack so canvas text matches the higher-res cube rendering.
+const CANVAS_FONT_STACK = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
 const defaultCrtSettings = {
   enabled: true,
   warp: 0.08,
@@ -460,7 +463,7 @@ function drawBubble(dt) {
   }
   ctx.fillStyle = '#ffffff';
   const fontSize = pxRound(8, 6);
-  ctx.font = `${fontSize}px "Press Start 2P", monospace`;
+  ctx.font = `${fontSize}px ${CANVAS_FONT_STACK}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText('@!#?@!', bubble.x - px(14), bubble.y);
@@ -632,7 +635,13 @@ window.addEventListener('resize', applyPixelScale);
 applyPixelScale();
 
 // Round/score helpers
-function drawCenteredText(text, y) { ctx.fillStyle = COLORS.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '12px "Press Start 2P", monospace'; ctx.fillText(text, W/2, y); }
+function drawCenteredText(text, y) {
+  ctx.fillStyle = COLORS.text;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `12px ${CANVAS_FONT_STACK}`;
+  ctx.fillText(text, W / 2, y);
+}
 function grantExtraLifeIfNeeded() { if (score >= nextLifeAt) { lives += 1; nextLifeAt += 8000; safeBeep(1000, 0.12, 'triangle', 0.03); } }
 
 // Main loop
