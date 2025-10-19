@@ -225,7 +225,7 @@ function createWoodTexture(baseHex, options = {}) {
   return texture;
 }
 
-function createHudRenderer(canvas) {
+function createHudRenderer(canvas, stageElement) {
   const pixel = createPixelContext(canvas, { alpha: true });
   const ctx = pixel.ctx;
   const state = {
@@ -238,14 +238,9 @@ function createHudRenderer(canvas) {
   let buttonZones = [];
 
   const PANEL_MARGIN = 18;
-  const INFO_PANEL_WIDTH = 240;
-  // Place the log on the right so the stage can occupy the newly opened top-left corner.
-  const INFO_PANEL = {
-    x: SCREEN_WIDTH - PANEL_MARGIN - INFO_PANEL_WIDTH,
-    y: PANEL_MARGIN,
-    width: INFO_PANEL_WIDTH,
-    height: 210,
-  };
+  const INFO_PANEL_DEFAULT_WIDTH = 240;
+  const INFO_PANEL_MIN_WIDTH = 180;
+  const INFO_PANEL_HEIGHT = 210;
   const PARTY_PANEL = {
     x: PANEL_MARGIN,
     y: SCREEN_HEIGHT / 2 - 6,
@@ -304,6 +299,56 @@ function createHudRenderer(canvas) {
     ctx.restore();
   }
 
+  function measureStageBounds() {
+    // Convert the DOM position of the 3D stage into HUD canvas coordinates so we
+    // can anchor overlay panels to its right edge.
+    if (!stageElement) {
+      const fallback = PANEL_MARGIN + 320;
+      return {
+        left: PANEL_MARGIN,
+        right: fallback,
+        top: PANEL_MARGIN,
+        bottom: fallback,
+      };
+    }
+    const hudRect = canvas.getBoundingClientRect();
+    const stageRect = stageElement.getBoundingClientRect();
+    if (!hudRect.width || !hudRect.height) {
+      const fallback = PANEL_MARGIN + 320;
+      return {
+        left: PANEL_MARGIN,
+        right: fallback,
+        top: PANEL_MARGIN,
+        bottom: fallback,
+      };
+    }
+    const scaleX = canvas.width / hudRect.width;
+    const scaleY = canvas.height / hudRect.height;
+    return {
+      left: (stageRect.left - hudRect.left) * scaleX,
+      right: (stageRect.right - hudRect.left) * scaleX,
+      top: (stageRect.top - hudRect.top) * scaleY,
+      bottom: (stageRect.bottom - hudRect.top) * scaleY,
+    };
+  }
+
+  function computeInfoPanel(stageBounds) {
+    const x = Math.round(stageBounds.right);
+    const availableWidth = Math.max(0, SCREEN_WIDTH - PANEL_MARGIN - x);
+    const width = Math.max(0,
+      Math.max(
+        Math.min(INFO_PANEL_DEFAULT_WIDTH, availableWidth),
+        Math.min(INFO_PANEL_MIN_WIDTH, availableWidth)
+      )
+    );
+    return {
+      x,
+      y: PANEL_MARGIN,
+      width,
+      height: INFO_PANEL_HEIGHT,
+    };
+  }
+
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     buttonZones = [];
@@ -313,37 +358,46 @@ function createHudRenderer(canvas) {
     ctx.textBaseline = 'top';
     ctx.fillStyle = TEXT_COLOR;
 
-    drawPanel(INFO_PANEL);
-    const logX = INFO_PANEL.x + 12;
-    const logY = INFO_PANEL.y + 16;
-    const maxWidth = INFO_PANEL.width - 24;
+    const stageBounds = measureStageBounds();
+    const infoPanel = computeInfoPanel(stageBounds);
+    drawPanel(infoPanel);
+
+    const logX = infoPanel.x + 12;
+    const logTop = infoPanel.y + 16;
+    const maxWidth = Math.max(0, infoPanel.width - 24);
     const lineHeight = 10;
+    const logHeight = Math.max(60, infoPanel.height - 94);
+    const logBottom = logTop + logHeight;
     const flattened = [];
     for (let i = 0; i < state.log.length; i++) {
       const message = state.log[i];
       const lines = wrapLine(message, maxWidth);
       for (let j = 0; j < lines.length; j++) flattened.push(lines[j]);
     }
-    const availableLogHeight = INFO_PANEL.height - (logY - INFO_PANEL.y) - 12;
-    const maxVisible = Math.max(1, Math.floor(availableLogHeight / lineHeight));
+    const maxVisible = Math.max(1, Math.floor(logHeight / lineHeight));
     const visible = flattened.slice(-maxVisible);
+    const startY = Math.max(logTop, logBottom - visible.length * lineHeight);
     for (let i = 0; i < visible.length; i++) {
-      ctx.fillText(visible[i], logX, logY + i * lineHeight);
+      ctx.fillText(visible[i], logX, startY + i * lineHeight);
     }
 
-    let actionY = logY + Math.max(visible.length, 1) * lineHeight + 4;
-    if (state.prompt) {
+    let actionY = logBottom + 6;
+    const panelBottom = infoPanel.y + infoPanel.height - 10;
+    if (state.prompt && actionY <= panelBottom) {
       ctx.fillStyle = ACCENT_COLOR;
       ctx.fillText(state.prompt, logX, actionY);
       ctx.fillStyle = TEXT_COLOR;
       actionY += lineHeight + 2;
     }
 
-    for (let i = 0; i < state.buttons.length; i++) {
+    const buttonStride = lineHeight + 6;
+    const availableButtonSpace = Math.max(0, panelBottom - actionY + 4);
+    const maxButtons = Math.max(0, Math.floor(availableButtonSpace / buttonStride));
+    for (let i = 0; i < state.buttons.length && i < maxButtons; i++) {
       const btn = state.buttons[i];
-      const bx = INFO_PANEL.x + 10;
-      const by = actionY + i * (lineHeight + 6);
-      const bw = INFO_PANEL.width - 20;
+      const bx = infoPanel.x + 10;
+      const by = actionY + i * buttonStride;
+      const bw = Math.max(0, infoPanel.width - 20);
       const bh = lineHeight + 6;
       ctx.save();
       ctx.fillStyle = 'rgba(70, 50, 30, 0.85)';
@@ -416,18 +470,21 @@ function createHudRenderer(canvas) {
     }
   });
 
-  window.addEventListener('keydown', (event) => {
-    if (!state.buttons.length) return;
-    const digit = parseInt(event.key, 10);
-    if (Number.isInteger(digit) && digit >= 1 && digit <= state.buttons.length) {
-      event.preventDefault();
-      const btn = state.buttons[digit - 1];
-      triggerButton(btn);
-    }
-  });
-
   if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
     document.fonts.ready.then(render).catch(() => render());
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', render);
+    window.addEventListener('keydown', (event) => {
+      if (!state.buttons.length) return;
+      const digit = parseInt(event.key, 10);
+      if (Number.isInteger(digit) && digit >= 1 && digit <= state.buttons.length) {
+        event.preventDefault();
+        const btn = state.buttons[digit - 1];
+        triggerButton(btn);
+      }
+    });
   }
 
   render();
@@ -459,14 +516,15 @@ function createHudRenderer(canvas) {
 
 function setupEncounterBillboard(camera) {
   const group = new THREE.Group();
-  group.position.set(0, 0.35, -1.35);
+  const billboardDistance = 1.2;
+  group.position.set(0, 0, -billboardDistance);
 
-  const geometry = new THREE.PlaneGeometry(1.3, 1.3);
+  const geometry = new THREE.PlaneGeometry(1, 1);
   const material = new THREE.MeshBasicMaterial({
     transparent: true,
     opacity: 0,
     depthTest: false,
-    depthWrite: false
+    depthWrite: false,
   });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -474,8 +532,8 @@ function setupEncounterBillboard(camera) {
   group.add(mesh);
   camera.add(group);
 
-  const loader = new THREE.TextureLoader();
   let currentTexture = null;
+  let currentUrl = '';
 
   function disposeTexture() {
     if (currentTexture) {
@@ -484,28 +542,104 @@ function setupEncounterBillboard(camera) {
     }
   }
 
-  function applyTexture(tex) {
+  function updateBillboardSize() {
+    // Scale the billboard so the textured quad fully covers the active viewport.
+    const distance = Math.abs(group.position.z);
+    const vertical = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const horizontal = vertical * (camera.aspect || 1);
+    mesh.scale.set(horizontal, vertical, 1);
+  }
+
+  function createProcessedTexture(image) {
+    // Downscale the source art to 256px width, crop a square, and center it for a full-viewport texture.
+    const targetSize = 256;
+    const scale = targetSize / image.width;
+    const scaledHeight = Math.max(1, Math.round(image.height * scale));
+
+    const temp = document.createElement('canvas');
+    temp.width = targetSize;
+    temp.height = scaledHeight;
+    const tctx = temp.getContext('2d');
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(image, 0, 0, targetSize, scaledHeight);
+
+    const output = document.createElement('canvas');
+    output.width = output.height = targetSize;
+    const octx = output.getContext('2d');
+    octx.imageSmoothingEnabled = false;
+    const cropHeight = Math.min(targetSize, scaledHeight);
+    const cropY = Math.max(0, Math.floor((scaledHeight - cropHeight) / 2));
+    const destY = cropHeight < targetSize ? Math.floor((targetSize - cropHeight) / 2) : 0;
+    octx.clearRect(0, 0, targetSize, targetSize);
+    octx.drawImage(temp, 0, cropY, targetSize, cropHeight, 0, destY, targetSize, cropHeight);
+
+    const texture = new THREE.CanvasTexture(output);
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  function applyTexture(texture) {
     disposeTexture();
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    currentTexture = tex;
-    material.map = tex;
+    currentTexture = texture;
+    material.map = texture;
     material.opacity = 1;
   }
 
+  function loadImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  async function showImage(url) {
+    try {
+      const img = await loadImage(url);
+      if (currentUrl !== url) return;
+      const texture = createProcessedTexture(img);
+      applyTexture(texture);
+      updateBillboardSize();
+    } catch (err) {
+      if (currentUrl === url) {
+        material.opacity = 0;
+        material.map = null;
+        disposeTexture();
+      }
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    const resizeHandler = () => window.requestAnimationFrame(updateBillboardSize);
+    window.addEventListener('resize', resizeHandler);
+  }
+
+  updateBillboardSize();
+
   return {
     show(url) {
-      loader.load(url, applyTexture, undefined, () => {
-        material.opacity = 0;
-      });
+      if (!url) {
+        this.hide();
+        return;
+      }
+      currentUrl = url;
+      showImage(url);
     },
     hide() {
+      currentUrl = '';
       material.opacity = 0;
       material.map = null;
       disposeTexture();
-    }
+    },
+    sync() {
+      updateBillboardSize();
+    },
   };
 }
 
@@ -774,13 +908,15 @@ function main() {
   cells[state.y][state.x].visited = true;
 
   const hudCanvas = document.getElementById('hud');
-  const hud = hudCanvas ? createHudRenderer(hudCanvas) : null;
+  const stageElement = document.getElementById('stage');
+  const hud = hudCanvas ? createHudRenderer(hudCanvas, stageElement) : null;
   if (typeof window !== 'undefined') {
     window.__bt3_hud = hud;
   }
 
   const g = buildScene(state);
   const encounterBillboard = setupEncounterBillboard(g.camera);
+  if (encounterBillboard?.sync) encounterBillboard.sync();
   if (typeof window !== 'undefined') {
     window.__bt3_encounterBillboard = encounterBillboard;
   }
@@ -900,12 +1036,13 @@ main();
 
     // Local pixel art placeholders so the encounter billboard can load without external fetches.
     const MONSTER_ART = {
-      rat: 'assets/monsters/rat.png',
-      skeleton: 'assets/monsters/skeleton.png'
+      rat: 'assets/monsters/serpent.png',
+      skeleton: 'assets/monsters/knight.png',
+      default: 'assets/monsters/monster.png'
     };
 
     const billboard = (typeof window !== 'undefined' && window.__bt3_encounterBillboard) ? window.__bt3_encounterBillboard : null;
-    function showEncounterArt(species){ if (!billboard) return; const path = MONSTER_ART[species]; if (path) billboard.show(path); else billboard.hide(); }
+    function showEncounterArt(species){ if (!billboard) return; const path = MONSTER_ART[species] || MONSTER_ART.default; if (path) billboard.show(path); else billboard.hide(); }
     function hideEncounterArt(){ if (billboard) billboard.hide(); }
 
     const DB = {

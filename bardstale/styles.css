@@ -49,8 +49,7 @@ body {
   top: 18px;
   left: 18px;
   width: clamp(200px, calc(50% - 24px), 320px);
-  aspect-ratio: 4 / 3;
-  height: auto;
+  aspect-ratio: 1 / 1;
   z-index: 0;
   pointer-events: none;
 }
