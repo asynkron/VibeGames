@@ -34,6 +34,11 @@ Update 2025-10-15 (display):
 - Stronger CRT: darker scanlines, RGB aperture grille stripes, enhanced vignette/glow, increased HUD glow.
 - All tunable via style.css variables and gradients.
 
+Update 2025-10-16 (camera & scale):
+- Renderer now keeps the player centered with a scrolling camera that pans across oversized maps.
+- Screen pixels render at 2× scale so tiles and sprites appear larger while preserving crisp edges.
+- Overlay bounds follow the fixed viewport rather than the full map for consistent iris transitions.
+
 Update 2025-10-15 (levels + progression):
 - Gems quota now computed from reachable tiles via flood fill at level load; trapped gems no longer block exit opening.
 - New default level “Open Cavern” with rooms that have doorways for fair access.
