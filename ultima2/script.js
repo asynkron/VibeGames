@@ -23,44 +23,87 @@ const TILES = {
   'R': { name: 'Ruins', color: '#64748b', passable: true },
   'S': { name: 'Sanctum', color: '#0ea5e9', passable: true },
   'D': { name: 'Desert', color: '#92400e', passable: true },
+  'P': { name: 'Harbor', color: '#334155', passable: true },
+  'G': { name: 'Moongate', color: '#f472b6', passable: true },
   '#': { name: 'Wall', color: '#1f2937', passable: false },
   ' ': { name: 'Void', color: '#020617', passable: false },
 };
 
 // The overworld layout features a central island with a castle hub,
 // surrounding forests, and shoreline settlements so the Avatar spawns on walkable land.
-const mapText = `~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~^^^^^^~~~~~~~~~~^^^^^^~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~^^^^^^~~~~~~~~~~^^^^^^~~~~~~~~~~~~~~
-~~~~~~~^^^^^~~~~~~~~~~~~~~~FFF^^^^^^~~~~~~^^^^^~~~~
-~~~~~~~^^^^^~~~~~~~~~~~~~~FFFF^^^^~~~~~~~^^^^^~~~~~
-~~~~~~~^^^^^~~~~~CCCC~~~~~FFFF~~~~~~RRR~~~~~~~~~~~~
-~~~~~~~^^^^^~~~~~C..C~~~~~~~~~~~~~~~RRR~~~~~~~~~~~~
-~~~~~~~^^^^^~~~~~C..C~~~~~~~~~~~~~~~RRR~~~~^^^^~~~~
-~~~~~~~^^^^^~~~~~CCCC~~~~~~~FFFF~~~~~~~~~~~^^^^~~~~
-~~~~~~~^^^^^~~~~~~~.........F~~~~~~~~~~~~~~^^^^~~~~
-~~~~~~~^^^^^~~~~...............~~~~~~~~~~~D..D~~~~~
-~~~~~~~^^^^^~~~F...............F~~~~~~~DDD....D~~~~
-~~~~~~~~~~~~~~FF...........RRR.F.F~~~~~DDD....D~~~~
-~~~~~~~~~~~~~~FF...C..CCC..RRR.F.F~~~~~DDD....D~~~~
-~~~~~~~~~~~~~~FF...C..C.C..RRR.F.F~~~~~~~~....~~~~~
-~~~~~~~~~~~~~~FF...C..CC.......F.F~~~~~~~S.........
-~~~~~~~~~~~~~~FF....DDDD............~~~~~S.........
-~~~~~~~~~~~~~~~F....DDDD.........S..~~~~~S.........
-~~~~~~~CCCC~~~~~....DDDDDDD..FFFFS..~~~~~S.........
-~~~~~~~C..C~~~~~~~~.........~~...S..~~~~~S.........
-~~~~~~~C..C~~~~~~~~~^^^^^~~~~~......~~~~~S.........
-~~~~~~~CCCC~~~~~~~~~^^^^^~~~~~~~FFFF~~~~~S.........
-~~~~~~~~~~~~~~~^^^^^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~FFFF~~~~~~~~~~~~~~~CCCC~~~~~FFFF~~~~~~~~~~~~
-~~~~~~~FFFF~~~~~~~~~~~~~~~C..C~~~~~FFFF~~~~~~~~~~~~
-~~~~~~~FFFF~~~~~~~~~~~~~~~C..C~~~~~FFFF~~~~~~~~~~~~
-~~~~~~~~~~~~~~~^^^^^~~~~~~CCCC~~~~~FFFF~~~~~^^^^~~~
-~~~~~~~~~~~~~~~^^^^^~~~~~~~~~~~~~~~~~~~~~~~~^^^^~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^~~~~~~~~~~~~~~`;
+const mapText = `
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^FF^FF^FF^FF^FF^FF^F~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^..................^~~~~
+~~~~~~~~~~~~~~~~~~~~...^^^^^^^^^...~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~F..................F~~~~
+~~~~~~~~~~~~~~~~~~~~...............~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~F..................F~~~~
+~~~~~~~~~~~~~~~~~~~~...............~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^..................^~~~~
+~~~~~~~~~~~~~~~~~~~~.......R.......~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~F.....G....S.......F~~~~
+~~~~~~~~~~~~~~~~~~~~..........C....~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~F...........R......F~~~~
+~~~~~~~~~~~~~~~~~~~~...............~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^..................^~~~~
+~~~~~~~~~~~~~~~~~~~~...............~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~F.....R............F~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~F..................F~~~~
+~~~~~~~~~~~~~~~~~~FFFFFFFFFF.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF~~~~~~^...DDDD.DDDDD.....^~~~~
+~~~~~~~~~~~~~~~~~~F........................................F~~~~~~F..................F~~~~
+~~~~~~~~FFFFFFFFFFF........................................F~~~~~~F...DDDDDDDDDD.....F~~~~
+~~~~~~~~FFFFFFFFFFF........................................F~~~~~~^...DDDDDDDDDD.....^~~~~
+~~~~~~~~FFFFFFFFFFF.....^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^.....F~~~~~~F..................F~~~~
+~~~~~~~~FFFFFFFFFFF.......^^^^^^^^^^^^^^^^^^^^^^^^^^.......F~~~~~~^FF^FF^FF^FF^FF^FF^F~~~~
+~~~~~~~~FFFFFFFFFFF.........^^^^^^^^^^^^^^^^^^^^^^.........F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF...............................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^....................R...R...R..........F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^.......................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^..........F..FDDDD.F..F..F..F..........F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^.......................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^..............CCCC.............RPPPP...F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^..............CCCC.................G...F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^..................................C....F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^......C..........................R.....F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~F...............DDDD.......C.............F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~F........................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~F........................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~F...........F..F..F..F..F..F..F..........F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~..........................R......................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~.DDDDDDDD........................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~.DDDDDDDD.......................................GF~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~.DDDDDDDS........................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~.DDDRDDDD.....G..................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~.DDDDDDDD........................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~.DGDDDSDD.FFFFFFFFFFFF.FFFFFFFFFFFFFFFFFFFFFFFFFFF~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~..F...F...DDDD.~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~.F...F...FDDDD.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~F...F...F......~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~...F...F..~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~..F...F...~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~.F...F...F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~^~~~^~~~^~~~^~~~^~~~^~~~^~
+~~~~~F...F...F.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~...F...F..~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~..F...F...~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~.F...F...F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~.~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`;
+
 
 const world = createWorld(mapText);
+
+const moongateNetwork = new Map([
+  ['55,31', { x: 72, y: 13, name: 'Moonrise Glade' }],
+  ['72,13', { x: 24, y: 42, name: 'Causeway of Winds' }],
+  ['24,42', { x: 12, y: 44, name: 'Sunken Dunes' }],
+  ['12,44', { x: 58, y: 40, name: 'Southwatch Causeway' }],
+  ['58,40', { x: 55, y: 31, name: 'Harbor of Dawn' }],
+]);
 
 const itemsOnGround = [];
 const messageLog = [];
@@ -84,22 +127,32 @@ const gameState = {
     name: 'Avatar',
     glyph: '@',
     color: '#f8fafc',
-    x: 23,
-    y: 15,
+    x: 35,
+    y: 31,
     hp: 18,
     maxHp: 18,
     attack: 5,
+    level: 4,
+    experience: 1200,
+    strength: 13,
+    dexterity: 11,
+    intelligence: 10,
+    constitution: 12,
     gold: 25,
     inventory: [],
+    spells: ['Light', 'Blink', 'Flame Bolt'],
+    scrolls: ['Rune of Return', 'Chart of the Silver Sky'],
+    potions: ['Healing Draught', 'Nightshade Tonic'],
     quests: {
       lostChart: { status: 'not started' },
       herbGarden: { status: 'not started', collected: 0 },
     },
-    spawn: { x: 23, y: 15 },
+    spawn: { x: 35, y: 31 },
   },
   monsters: [],
   npcs: [],
   conversation: null,
+  lastMoongate: null,
 };
 
 // Item templates allow for simple cloning when loot drops or rewards are granted.
@@ -205,6 +258,24 @@ function pickupItemsAt(x, y) {
   renderQuests();
 }
 
+function useMoongateIfPresent() {
+  const { player } = gameState;
+  const key = `${player.x},${player.y}`;
+  const destination = moongateNetwork.get(key);
+  if (!destination) {
+    gameState.lastMoongate = null;
+    return false;
+  }
+  if (gameState.lastMoongate === key) {
+    return false;
+  }
+  gameState.lastMoongate = key;
+  player.x = destination.x;
+  player.y = destination.y;
+  addMessage(`The moongate shimmers and carries you to ${destination.name}. Step through again to follow the ley-line.`);
+  return true;
+}
+
 function spawnMonsters() {
   const monsterTemplates = [
     {
@@ -216,8 +287,8 @@ function spawnMonsters() {
       attack: 3,
       biography: 'Sky-scouring corsairs who pillage astral charts to sell to off-worlders.',
       loot: ['starChart', 'rustyCutlass'],
-      x: 31,
-      y: 11,
+      x: 53,
+      y: 31,
     },
     {
       id: 'shadowStalker',
@@ -228,8 +299,8 @@ function spawnMonsters() {
       attack: 2,
       biography: 'A remnant of Mondain\'s armies, now haunting the sanctum at twilight.',
       loot: ['moonHerb'],
-      x: 37,
-      y: 16,
+      x: 76,
+      y: 15,
     },
     {
       id: 'lunarWisp',
@@ -240,8 +311,8 @@ function spawnMonsters() {
       attack: 1,
       biography: 'Luminescent spirits drawn to the ruins in search of forgotten vows.',
       loot: ['moonHerb'],
-      x: 30,
-      y: 12,
+      x: 24,
+      y: 35,
     },
   ];
 
@@ -259,8 +330,8 @@ function spawnNPCs() {
       name: 'Captain Mirna',
       glyph: 'M',
       color: '#f8fafc',
-      x: 18,
-      y: 7,
+      x: 36,
+      y: 31,
       biography: 'Former Royal Navy navigator of Sosaria, now guarding the tides at Moon Isle.',
       dialogue: {
         start(state) {
@@ -338,8 +409,8 @@ function spawnNPCs() {
       name: 'Elowen the Verdant',
       glyph: 'E',
       color: '#bbf7d0',
-      x: 37,
-      y: 18,
+      x: 74,
+      y: 16,
       biography: 'A young druid apprenticed in the sanctum, sworn to heal the scars of Mondain\'s war.',
       dialogue: {
         start(state) {
@@ -453,7 +524,8 @@ function movePlayer(dx, dy) {
   }
   player.x = nx;
   player.y = ny;
-  pickupItemsAt(nx, ny);
+  useMoongateIfPresent();
+  pickupItemsAt(player.x, player.y);
   tickWorld();
 }
 
@@ -624,6 +696,9 @@ function render() {
 
   renderStats();
   renderInventory();
+  renderSpellbook();
+  renderScrolls();
+  renderPotions();
   renderQuests();
   renderLog();
   renderDialogue();
@@ -682,6 +757,12 @@ function drawTile(screenX, screenY, tile) {
       break;
     case 'D':
       drawDesert(px, py);
+      break;
+    case 'P':
+      drawHarbor(px, py);
+      break;
+    case 'G':
+      drawMoongate(px, py);
       break;
     case '#':
       drawWall(px, py);
@@ -752,6 +833,40 @@ function drawDesert(px, py) {
   ctx.fillRect(px + 6, py + 4, TILE_SIZE / 3, 4);
 }
 
+function drawHarbor(px, py) {
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(px + 4, py + TILE_SIZE - 8, TILE_SIZE - 8, 4);
+  ctx.strokeStyle = '#facc15';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(px + 4, py + 6);
+  ctx.lineTo(px + TILE_SIZE - 4, py + 6);
+  ctx.moveTo(px + 4, py + 10);
+  ctx.lineTo(px + TILE_SIZE - 4, py + 10);
+  ctx.stroke();
+}
+
+function drawMoongate(px, py) {
+  const cx = px + TILE_SIZE / 2;
+  const cy = py + TILE_SIZE / 2;
+  ctx.strokeStyle = 'rgba(244, 114, 182, 0.85)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, TILE_SIZE / 3, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(14, 165, 233, 0.75)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, TILE_SIZE / 4.2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(192, 132, 252, 0.25)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, TILE_SIZE / 5.2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawWall(px, py) {
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
@@ -761,12 +876,26 @@ function drawWall(px, py) {
 }
 
 function drawPlayerSprite(player, px, py) {
-  ctx.fillStyle = player.color;
+  const cx = px + TILE_SIZE / 2;
+  const cy = py + TILE_SIZE / 2;
+  ctx.strokeStyle = player.color;
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE / 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#020617';
-  ctx.fillRect(px + TILE_SIZE / 2 - 3, py + TILE_SIZE / 2 + 4, 6, 8);
+  ctx.arc(cx, cy - TILE_SIZE / 3.2, TILE_SIZE / 5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - TILE_SIZE / 6);
+  ctx.lineTo(cx, cy + TILE_SIZE / 4);
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx - TILE_SIZE / 4, cy + TILE_SIZE / 12);
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + TILE_SIZE / 4, cy + TILE_SIZE / 12);
+  ctx.moveTo(cx, cy + TILE_SIZE / 4);
+  ctx.lineTo(cx - TILE_SIZE / 6, cy + TILE_SIZE / 2.6);
+  ctx.moveTo(cx, cy + TILE_SIZE / 4);
+  ctx.lineTo(cx + TILE_SIZE / 6, cy + TILE_SIZE / 2.6);
+  ctx.stroke();
 }
 
 function drawNPCSprite(npc, px, py) {
@@ -801,7 +930,13 @@ function renderStats() {
   const list = document.getElementById('stats');
   const { player } = gameState;
   list.innerHTML = `
+    <li>Level: ${player.level}</li>
+    <li>Experience: ${player.experience}</li>
     <li>HP: ${player.hp} / ${player.maxHp}</li>
+    <li>STR: ${player.strength}</li>
+    <li>DEX: ${player.dexterity}</li>
+    <li>INT: ${player.intelligence}</li>
+    <li>CON: ${player.constitution}</li>
     <li>Attack: ${player.attack}</li>
     <li>Gold: ${player.gold}</li>
     <li>Position: (${player.x}, ${player.y})</li>
@@ -817,6 +952,36 @@ function renderInventory() {
   list.innerHTML = gameState.player.inventory
     .map((item) => `<li>${item.name}</li>`)
     .join('');
+}
+
+function renderSpellbook() {
+  const list = document.getElementById('spells');
+  const spells = gameState.player.spells || [];
+  if (!spells.length) {
+    list.innerHTML = '<li><em>No spells prepared</em></li>';
+    return;
+  }
+  list.innerHTML = spells.map((spell) => `<li>${spell}</li>`).join('');
+}
+
+function renderScrolls() {
+  const list = document.getElementById('scrolls');
+  const scrolls = gameState.player.scrolls || [];
+  if (!scrolls.length) {
+    list.innerHTML = '<li><em>No scrolls</em></li>';
+    return;
+  }
+  list.innerHTML = scrolls.map((scroll) => `<li>${scroll}</li>`).join('');
+}
+
+function renderPotions() {
+  const list = document.getElementById('potions');
+  const potions = gameState.player.potions || [];
+  if (!potions.length) {
+    list.innerHTML = '<li><em>No potions</em></li>';
+    return;
+  }
+  list.innerHTML = potions.map((potion) => `<li>${potion}</li>`).join('');
 }
 
 function renderQuests() {
@@ -928,13 +1093,13 @@ window.addEventListener('keydown', onKeyDown);
 function seedWorld() {
   spawnMonsters();
   spawnNPCs();
-  placeItem('moonHerb', 27, 12);
-  placeItem('moonHerb', 28, 12);
-  placeItem('moonHerb', 29, 12);
-  placeItem('moonHerb', 31, 13);
-  placeItem('moonHerb', 33, 13);
-  addMessage('You arrive on Moon Isle as the tides recede.');
-  addMessage('Find Captain Mirna in the castle and speak with her.');
+  placeItem('moonHerb', 73, 16);
+  placeItem('moonHerb', 75, 19);
+  placeItem('moonHerb', 24, 35);
+  placeItem('moonHerb', 21, 42);
+  placeItem('moonHerb', 18, 43);
+  addMessage('You arrive on the vastly expanded Moon Isle as the tides recede.');
+  addMessage('Speak with Captain Mirna in the castle, then seek the harbor moongate to reach distant shores.');
   render();
 }
 
