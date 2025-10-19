@@ -600,7 +600,10 @@ function applyPixelScale() {
   const vw = window.innerWidth * 0.95;
   const vh = window.innerHeight * 0.95;
   const maxW = Math.min(vw, (vh * 4) / 3);
-  const scale = Math.max(1, maxW / W);
+  const baseScale = Math.max(1, maxW / W);
+  // Pixels should render at 2x their previous display size while keeping
+  // integer scaling to avoid smoothing, so clamp to at least double.
+  const scale = Math.max(2, Math.round(baseScale));
   const cssW = Math.round(W * scale);
   const cssH = Math.round(H * scale);
   canvas.style.width = cssW + 'px';
