@@ -237,10 +237,23 @@ function createHudRenderer(canvas) {
   };
   let buttonZones = [];
 
-  const INFO_PANEL = { x: 18, y: 18, width: 240, height: 210 };
-  const PARTY_PANEL = { x: 18, y: SCREEN_HEIGHT / 2 - 6, width: SCREEN_WIDTH - 36, height: SCREEN_HEIGHT / 2 - 32 };
-  const TITLE_FONT = '18px "Press Start 2P", "VT323", monospace';
-  const TEXT_FONT = '14px "Press Start 2P", "VT323", monospace';
+  const PANEL_MARGIN = 18;
+  const INFO_PANEL_WIDTH = 240;
+  // Place the log on the right so the stage can occupy the newly opened top-left corner.
+  const INFO_PANEL = {
+    x: SCREEN_WIDTH - PANEL_MARGIN - INFO_PANEL_WIDTH,
+    y: PANEL_MARGIN,
+    width: INFO_PANEL_WIDTH,
+    height: 210,
+  };
+  const PARTY_PANEL = {
+    x: PANEL_MARGIN,
+    y: SCREEN_HEIGHT / 2 - 6,
+    width: SCREEN_WIDTH - PANEL_MARGIN * 2,
+    height: SCREEN_HEIGHT / 2 - 32,
+  };
+  const TITLE_FONT = '9px "Press Start 2P", "VT323", monospace';
+  const TEXT_FONT = '7px "Press Start 2P", "VT323", monospace';
   const TEXT_COLOR = '#f7efd6';
   const ACCENT_COLOR = '#f4d28a';
   const PANEL_BG = 'rgba(18, 16, 22, 0.86)';
@@ -300,35 +313,36 @@ function createHudRenderer(canvas) {
     ctx.textBaseline = 'top';
     ctx.fillStyle = TEXT_COLOR;
 
-    drawPanel(INFO_PANEL, 'ADVENTURER LOG');
+    drawPanel(INFO_PANEL);
     const logX = INFO_PANEL.x + 12;
-    const logY = INFO_PANEL.y + 38;
+    const logY = INFO_PANEL.y + 16;
     const maxWidth = INFO_PANEL.width - 24;
-    const lineHeight = 18;
+    const lineHeight = 10;
     const flattened = [];
-    const start = Math.max(0, state.log.length - 18);
-    for (let i = start; i < state.log.length; i++) {
+    for (let i = 0; i < state.log.length; i++) {
       const message = state.log[i];
       const lines = wrapLine(message, maxWidth);
       for (let j = 0; j < lines.length; j++) flattened.push(lines[j]);
     }
-    const visible = flattened.slice(-8);
+    const availableLogHeight = INFO_PANEL.height - (logY - INFO_PANEL.y) - 12;
+    const maxVisible = Math.max(1, Math.floor(availableLogHeight / lineHeight));
+    const visible = flattened.slice(-maxVisible);
     for (let i = 0; i < visible.length; i++) {
       ctx.fillText(visible[i], logX, logY + i * lineHeight);
     }
 
-    let actionY = logY + Math.max(visible.length, 1) * lineHeight + 8;
+    let actionY = logY + Math.max(visible.length, 1) * lineHeight + 4;
     if (state.prompt) {
       ctx.fillStyle = ACCENT_COLOR;
       ctx.fillText(state.prompt, logX, actionY);
       ctx.fillStyle = TEXT_COLOR;
-      actionY += lineHeight + 4;
+      actionY += lineHeight + 2;
     }
 
     for (let i = 0; i < state.buttons.length; i++) {
       const btn = state.buttons[i];
       const bx = INFO_PANEL.x + 10;
-      const by = actionY + i * (lineHeight + 10);
+      const by = actionY + i * (lineHeight + 6);
       const bw = INFO_PANEL.width - 20;
       const bh = lineHeight + 6;
       ctx.save();
@@ -338,13 +352,13 @@ function createHudRenderer(canvas) {
       ctx.lineWidth = 1.5;
       ctx.strokeRect(bx, by, bw, bh);
       ctx.restore();
-      ctx.fillText(`[${i + 1}] ${btn.label}`, bx + 10, by + 4);
+      ctx.fillText(`[${i + 1}] ${btn.label}`, bx + 8, by + 3);
       buttonZones.push({ x: bx, y: by, width: bw, height: bh, onSelect: btn.onSelect });
     }
 
     drawPanel(PARTY_PANEL, `PARTY — GOLD ${state.gold}`);
-    const headerY = PARTY_PANEL.y + 38;
-    const rowHeight = 20;
+    const headerY = PARTY_PANEL.y + 26;
+    const rowHeight = 12;
     const cols = [
       { title: 'NAME', x: PARTY_PANEL.x + 12 },
       { title: 'CLASS', x: PARTY_PANEL.x + 180 },
