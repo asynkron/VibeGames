@@ -1,0 +1,47 @@
+:root {
+  --vp-w: 480px;
+  --vp-h: 360px;
+  --bg: #0e0f13;
+  --stone: #6f7684;
+  --stone-dark: #3a3f49;
+  --wood: #6b4a2e;
+  --accent: #2dd4bf;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: #0a0b0f; color: #d7dbe6; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+
+.bt3-ui { max-width: 1100px; margin: 12px auto; padding: 8px; }
+.top { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; }
+
+.viewport3d {
+  position: relative;
+  width: var(--vp-w);
+  height: var(--vp-h);
+  background: radial-gradient(120% 120% at 50% 0%, #1b1e27 0%, #11141b 60%, #0b0d13 100%);
+  border: 1px solid #20242f;
+  box-shadow: 0 0 0 2px #08090d inset, 0 10px 25px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.viewport3d canvas { display: block; width: 100%; height: 100%; }
+
+.minimap { min-width: 280px; min-height: 200px; padding: 8px; background: #0c0e14; border: 1px solid #20242f; }
+.bottom { margin-top: 10px; font-size: 12px; color: #aab0c0; }
+.controls { margin-bottom: 6px; }
+
+/* Minimap grid */
+.minimap .grid { display: grid; gap: 1px; background: #12151d; padding: 1px; }
+.minimap .cell { width: 12px; height: 12px; background: #0d1016; position: relative; }
+.minimap .cell.visited { background: #171b25; }
+.minimap .cell.current { outline: 2px solid var(--accent); outline-offset: -2px; }
+.minimap .cell .facing { position: absolute; inset: 2px; background: var(--accent); clip-path: polygon(50% 0%, 0% 100%, 100% 100%); opacity: 0.9; }
+.minimap .cell.wall-n { border-top: 2px solid #556; }
+.minimap .cell.wall-e { border-right: 2px solid #556; }
+.minimap .cell.wall-s { border-bottom: 2px solid #556; }
+.minimap .cell.wall-w { border-left: 2px solid #556; }
+.minimap .cell.door-n { border-top: 2px dashed #778; }
+.minimap .cell.door-e { border-right: 2px dashed #778; }
+.minimap .cell.door-s { border-bottom: 2px dashed #778; }
+.minimap .cell.door-w { border-left: 2px dashed #778; }
+.minimap .cell:hover::after { content: attr(data-pos); position: absolute; left: 14px; top: -2px; font-size: 10px; color: #99a3b8; background: rgba(0,0,0,0.6); padding: 2px 4px; border-radius: 3px; }
+/* BT3 HUD overlay */
+#bt3-overlay { border-top: 1px solid #444; box-shadow: 0 -2px 8px rgba(0,0,0,0.5); }

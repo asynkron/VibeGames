@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bard's Tale 3D (Three.js)</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bt3-ui">
+    <div class="top">
+      <div id="viewport3d" class="viewport3d" aria-label="3D dungeon viewport"></div>
+      <div id="minimap" class="minimap" aria-label="Minimap"></div>
+    </div>
+    <div class="bottom">
+      <div class="controls">Use Arrow Keys to move/turn. Smooth transitions enabled. Doors are passable.</div>
+      <details class="help"><summary>Help</summary>
+        <ul>
+          <li>Now rendered in real 3D with Three.js to keep the classic vibe but with smooth motion.</li>
+          <li>Serve this over HTTP for module imports (example: npx http-server .).</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
