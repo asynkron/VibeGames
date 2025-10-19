@@ -92,11 +92,22 @@ let state = STATE.Splash;
 
 // Pyramid config
 const PYR_ROWS = 7;
-const TILE_W = 32;
-const TILE_H = 18; // top rhombus height
-let FACE_H = 12;   // depth (can change)
+const TILE_W = 44;
+const TILE_H = 24; // top rhombus height
+let FACE_H = 16;   // depth (can change)
 let PYR_TOP_X = W / 2;
-let PYR_TOP_Y = 34;
+let PYR_TOP_Y = 0;
+
+function rowStepY() {
+  return (TILE_H / 2) + FACE_H;
+}
+
+function updatePyramidAnchor(offset = 0) {
+  const totalHeight = (PYR_ROWS - 1) * rowStepY() + TILE_H + FACE_H;
+  PYR_TOP_Y = Math.round((H - totalHeight) / 2 + (TILE_H / 2) + offset);
+}
+
+updatePyramidAnchor();
 
 const tileScale = TILE_W / BASE_TILE_W;
 const px = (value) => value * tileScale;
@@ -113,12 +124,16 @@ let lightIdx = 1;
 
 // Depth presets (Z cycles)
 const DEPTH_PRESETS = [
-  { faceH: 12, topY: 34 },
-  { faceH: 14, topY: 30 },
-  { faceH: 16, topY: 26 }
+  { faceH: 16 },
+  { faceH: 19 },
+  { faceH: 22 }
 ];
 let depthIdx = 0;
-function applyDepthPreset(i) { const p = DEPTH_PRESETS[i]; FACE_H = p.faceH; PYR_TOP_Y = p.topY; }
+function applyDepthPreset(i) {
+  const p = DEPTH_PRESETS[i];
+  FACE_H = p.faceH;
+  updatePyramidAnchor(p.offset || 0);
+}
 function applyLightingPreset(i) { LIGHT = { ...LIGHT_PRESETS[i] }; }
 
 // Visual toggles and persisted prefs
@@ -208,7 +223,7 @@ function setHelp(visible) { helpOn = visible; if (helpEl) helpEl.classList.toggl
 
 // Math helpers
 function fmtScore(s) { return s.toString().padStart(6, '0'); }
-function rcToXY(r, c) { const stepY = (TILE_H / 2) + FACE_H; const x = PYR_TOP_X + (c - (r - c)) * (TILE_W / 2); const y = PYR_TOP_Y + r * stepY; return { x, y }; }
+function rcToXY(r, c) { const stepY = rowStepY(); const x = PYR_TOP_X + (c - (r - c)) * (TILE_W / 2); const y = PYR_TOP_Y + r * stepY; return { x, y }; }
 function shade(hex, factor) { const m = /^#?([a-fA-F0-9]{6})$/.exec(hex); if (!m) return hex; const n = parseInt(m[1], 16); const r = Math.min(255, Math.max(0, Math.round(((n >> 16) & 255) * factor))); const g = Math.min(255, Math.max(0, Math.round(((n >> 8) & 255) * factor))); const b = Math.min(255, Math.max(0, Math.round((n & 255) * factor))); const to2 = (v)=>v.toString(16).padStart(2,'0'); return `#${to2(r)}${to2(g)}${to2(b)}`; }
 function topColorForStage(stage) { const arr = cfg.colors; const idx = Math.min(stage, arr.length - 1); return arr[idx]; }
 
