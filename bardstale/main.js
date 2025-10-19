@@ -515,132 +515,64 @@ function createHudRenderer(canvas, stageElement) {
   };
 }
 
-function setupEncounterBillboard(camera) {
-  const group = new THREE.Group();
-  const billboardDistance = 1.2;
-  group.position.set(0, 0, -billboardDistance);
+function setupEncounterBillboard(stageElement) {
+  if (!stageElement) return null;
 
-  const geometry = new THREE.PlaneGeometry(1, 1);
-  const material = new THREE.MeshBasicMaterial({
-    transparent: true,
-    opacity: 0,
-    depthTest: false,
-    depthWrite: false,
-  });
+  const container = document.createElement('div');
+  container.className = 'encounter-art';
+  container.setAttribute('aria-hidden', 'true');
 
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.renderOrder = 50;
-  group.add(mesh);
-  camera.add(group);
+  const img = document.createElement('img');
+  img.decoding = 'async';
+  img.loading = 'lazy';
+  img.alt = '';
+  container.appendChild(img);
 
-  let currentTexture = null;
+  stageElement.appendChild(container);
+
   let currentUrl = '';
+  let loadToken = 0;
 
-  function disposeTexture() {
-    if (currentTexture) {
-      currentTexture.dispose();
-      currentTexture = null;
+  function hide() {
+    currentUrl = '';
+    loadToken += 1;
+    container.classList.remove('is-visible');
+    img.onload = null;
+    img.onerror = null;
+    img.removeAttribute('src');
+  }
+
+  function show(url) {
+    if (!url) {
+      hide();
+      return;
     }
-  }
 
-  function updateBillboardSize() {
-    // Scale the billboard so the textured quad fully covers the active viewport.
-    const distance = Math.abs(group.position.z);
-    const vertical = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    const horizontal = vertical * (camera.aspect || 1);
-    mesh.scale.set(horizontal, vertical, 1);
-  }
-
-  function createProcessedTexture(image) {
-    // Downscale the source art to 256px width, crop a square, and center it for a full-viewport texture.
-    const targetSize = 256;
-    const scale = targetSize / image.width;
-    const scaledHeight = Math.max(1, Math.round(image.height * scale));
-
-    const temp = document.createElement('canvas');
-    temp.width = targetSize;
-    temp.height = scaledHeight;
-    const tctx = temp.getContext('2d');
-    tctx.imageSmoothingEnabled = false;
-    tctx.drawImage(image, 0, 0, targetSize, scaledHeight);
-
-    const output = document.createElement('canvas');
-    output.width = output.height = targetSize;
-    const octx = output.getContext('2d');
-    octx.imageSmoothingEnabled = false;
-    const cropHeight = Math.min(targetSize, scaledHeight);
-    const cropY = Math.max(0, Math.floor((scaledHeight - cropHeight) / 2));
-    const destY = cropHeight < targetSize ? Math.floor((targetSize - cropHeight) / 2) : 0;
-    octx.clearRect(0, 0, targetSize, targetSize);
-    octx.drawImage(temp, 0, cropY, targetSize, cropHeight, 0, destY, targetSize, cropHeight);
-
-    const texture = new THREE.CanvasTexture(output);
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    texture.generateMipmaps = false;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    return texture;
-  }
-
-  function applyTexture(texture) {
-    disposeTexture();
-    currentTexture = texture;
-    material.map = texture;
-    material.opacity = 1;
-  }
-
-  function loadImage(url) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = url;
-    });
-  }
-
-  async function showImage(url) {
-    try {
-      const img = await loadImage(url);
-      if (currentUrl !== url) return;
-      const texture = createProcessedTexture(img);
-      applyTexture(texture);
-      updateBillboardSize();
-    } catch (err) {
-      if (currentUrl === url) {
-        material.opacity = 0;
-        material.map = null;
-        disposeTexture();
-      }
+    if (currentUrl === url && img.complete && img.naturalWidth > 0) {
+      container.classList.add('is-visible');
+      return;
     }
-  }
 
-  if (typeof window !== 'undefined') {
-    const resizeHandler = () => window.requestAnimationFrame(updateBillboardSize);
-    window.addEventListener('resize', resizeHandler);
-  }
+    const token = ++loadToken;
+    currentUrl = url;
+    container.classList.remove('is-visible');
 
-  updateBillboardSize();
+    img.onload = () => {
+      if (token !== loadToken || currentUrl !== url) return;
+      container.classList.add('is-visible');
+    };
+    img.onerror = () => {
+      if (token !== loadToken) return;
+      hide();
+    };
+
+    img.src = url;
+  }
 
   return {
-    show(url) {
-      if (!url) {
-        this.hide();
-        return;
-      }
-      currentUrl = url;
-      showImage(url);
-    },
-    hide() {
-      currentUrl = '';
-      material.opacity = 0;
-      material.map = null;
-      disposeTexture();
-    },
-    sync() {
-      updateBillboardSize();
-    },
+    show,
+    hide,
+    sync() {},
   };
 }
 
@@ -916,7 +848,7 @@ function main() {
   }
 
   const g = buildScene(state);
-  const encounterBillboard = setupEncounterBillboard(g.camera);
+  const encounterBillboard = setupEncounterBillboard(stageElement);
   if (encounterBillboard?.sync) encounterBillboard.sync();
   if (typeof window !== 'undefined') {
     window.__bt3_encounterBillboard = encounterBillboard;
