@@ -51,6 +51,14 @@
   border-radius: inherit;
 }
 
+.crt-glow {
+  z-index: 9;
+}
+
+.crt-overlay {
+  z-index: 10;
+}
+
 /* Combined scanline + aperture grille + vignette/noise overlay */
 .crt-overlay {
   overflow: hidden;
