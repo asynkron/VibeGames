@@ -39,7 +39,7 @@ export function createWorld(levelDef) {
   });
 
   const { width, height, data: t } = grid;
-  const tilesize = 8;
+  const tilesize = 16; // doubled so sprites render at their native 16px resolution
   // falling marks tiles that were falling in the previous tick
   let falling = new Uint8Array(width*height);
   // Compute reachable gems from player position (flood fill over passable tiles)
