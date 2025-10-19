@@ -17,9 +17,16 @@ export const SampleDB: Database = {
     { id: 'songbook', name: 'Songbook', type: ItemType.Instrument, weight: 1, cost: 10, weapon: null, armor: null, usable: null, slot: 'Instrument', maxStack: 1 },
     { id: 'healing_potion', name: 'Healing Potion', type: ItemType.Consumable, weight: 1, cost: 25, weapon: null, armor: null, usable: { healsHp: 10, restoresSp: 0, cureStatus: '' }, slot: 'Accessory', maxStack: 5 },
   ],
+  // Mirror the runtime demo roster so downstream systems see the same depth-scaled difficulty curve.
   monsters: [
-    { id: 'rat', name: 'Giant Rat', stats: { hpMin: 3, hpMax: 6, armorClass: 8, toHit: 0, damageMin: 1, damageMax: 3, magicResist: 0 }, canCastSpells: false, specialAbility: '', fleeChance: 20 },
-    { id: 'skeleton', name: 'Skeleton', stats: { hpMin: 6, hpMax: 10, armorClass: 7, toHit: 1, damageMin: 2, damageMax: 5, magicResist: 10 }, canCastSpells: false, specialAbility: '', fleeChance: 10 },
+    { id: 'serpent', name: 'Cavern Serpent', stats: { hpMin: 5, hpMax: 9, armorClass: 9, toHit: 0, damageMin: 1, damageMax: 4, magicResist: 5 }, canCastSpells: false, specialAbility: '', fleeChance: 25 },
+    { id: 'hobbit', name: 'Trickster Halfling', stats: { hpMin: 6, hpMax: 11, armorClass: 8, toHit: 1, damageMin: 2, damageMax: 5, magicResist: 10 }, canCastSpells: false, specialAbility: 'Backstab', fleeChance: 20 },
+    { id: 'hobgoblin', name: 'Tunnel Hobgoblin', stats: { hpMin: 9, hpMax: 14, armorClass: 7, toHit: 2, damageMin: 3, damageMax: 6, magicResist: 12 }, canCastSpells: false, specialAbility: 'War Cry', fleeChance: 10 },
+    { id: 'skeleton', name: 'Restless Skeleton', stats: { hpMin: 7, hpMax: 12, armorClass: 7, toHit: 1, damageMin: 2, damageMax: 6, magicResist: 15 }, canCastSpells: false, specialAbility: 'Bone Chill', fleeChance: 5 },
+    { id: 'knight', name: 'Banished Knight', stats: { hpMin: 12, hpMax: 20, armorClass: 5, toHit: 3, damageMin: 4, damageMax: 8, magicResist: 18 }, canCastSpells: false, specialAbility: 'Shield Bash', fleeChance: 0 },
+    { id: 'monk', name: 'Ashen Monk', stats: { hpMin: 10, hpMax: 16, armorClass: 6, toHit: 2, damageMin: 3, damageMax: 7, magicResist: 20 }, canCastSpells: false, specialAbility: 'Stunning Palm', fleeChance: 5 },
+    { id: 'mage', name: 'Arcane Adept', stats: { hpMin: 9, hpMax: 13, armorClass: 8, toHit: 2, damageMin: 3, damageMax: 8, magicResist: 25 }, canCastSpells: true, specialAbility: 'Fire Bolt', fleeChance: 15 },
+    { id: 'enchantress', name: 'Storm Enchantress', stats: { hpMin: 10, hpMax: 15, armorClass: 7, toHit: 3, damageMin: 4, damageMax: 9, magicResist: 30 }, canCastSpells: true, specialAbility: 'Chain Lightning', fleeChance: 10 },
   ]
 };
 
@@ -92,10 +99,36 @@ export function getMonster(speciesId: string): MonsterSpecies {
 export function roll(min: number, max: number): number { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
 export function generateEncounter(depth: number): Encounter {
+  // Keep parity with the runtime demo encounter table so tests reflect game balance tweaks.
+  const tables = [
+    { maxDepth: 1, options: [ { species: 'serpent', min: 2, max: 4 }, { species: 'hobbit', min: 1, max: 3 } ] },
+    { maxDepth: 2, options: [ { species: 'hobgoblin', min: 2, max: 4 }, { species: 'skeleton', min: 1, max: 3 } ] },
+    { maxDepth: 3, options: [ { species: 'monk', min: 1, max: 2 }, { species: 'knight', min: 1, max: 2 } ] },
+    { maxDepth: Number.POSITIVE_INFINITY, options: [ { species: 'mage', min: 1, max: 2 }, { species: 'enchantress', min: 1, max: 2 } ] },
+  ];
+  const tier = tables.find(t => depth <= t.maxDepth) || tables[tables.length - 1];
+  const picks = tier.options.slice();
+  for (let i = picks.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = picks[i];
+    picks[i] = picks[j];
+    picks[j] = tmp;
+  }
   const groups: MonsterGroup[] = [];
-  const base = depth <= 1 ? 'rat' : 'skeleton';
-  groups.push({ speciesId: base, count: roll(1, 4) });
-  return { id: 'enc_' + Math.random().toString(36).slice(2), locationId: 'loc_demo', difficulty: depth, surpriseParty: false, surpriseMonsters: false, canFlee: true, groups };
+  const groupCount = Math.min(picks.length, roll(1, 2));
+  for (let i = 0; i < groupCount; i++) {
+    const choice = picks[i];
+    groups.push({ speciesId: choice.species, count: roll(choice.min, choice.max) });
+  }
+  return {
+    id: 'enc_' + Math.random().toString(36).slice(2),
+    locationId: 'loc_demo',
+    difficulty: depth,
+    surpriseParty: false,
+    surpriseMonsters: false,
+    canFlee: depth <= 3,
+    groups,
+  };
 }
 
 export function startCombat(enc: Encounter, party: Party, characters: Character[]): CombatState {

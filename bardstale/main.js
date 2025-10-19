@@ -1037,8 +1037,14 @@ main();
 
     // Local pixel art placeholders so the encounter billboard can load without external fetches.
     const MONSTER_ART = {
-      rat: 'assets/monsters/serpent.png',
-      skeleton: 'assets/monsters/knight.png',
+      serpent: 'assets/monsters/serpent.png',
+      hobbit: 'assets/monsters/hobbit.png',
+      hobgoblin: 'assets/monsters/hobgoblin.png',
+      skeleton: 'assets/monsters/skeleton.png',
+      knight: 'assets/monsters/knight.png',
+      monk: 'assets/monsters/monk.png',
+      mage: 'assets/monsters/mage.png',
+      enchantress: 'assets/monsters/female-mage.png',
       default: 'assets/monsters/monster.png'
     };
 
@@ -1053,9 +1059,16 @@ main();
         songbook: { id: 'songbook', name: 'Songbook', slot: 'Instrument', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 0, weight: 1 },
         potion_small: { id: 'potion_small', name: 'Healing Potion', slot: 'Consumable', heals: 10, weight: 1 },
       },
+      // Monster definitions roughly escalate per dungeon depth tier so the encounter table below can scale difficulty.
       monsters: {
-        rat: { id: 'rat', name: 'Giant Rat', hpMin: 3, hpMax: 6, ac: 8, toHit: 0, dmgMin: 1, dmgMax: 3, magicRes: 0 },
-        skeleton: { id: 'skeleton', name: 'Skeleton', hpMin: 6, hpMax: 10, ac: 7, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 10 },
+        serpent: { id: 'serpent', name: 'Cavern Serpent', hpMin: 5, hpMax: 9, ac: 9, toHit: 0, dmgMin: 1, dmgMax: 4, magicRes: 5 },
+        hobbit: { id: 'hobbit', name: 'Trickster Halfling', hpMin: 6, hpMax: 11, ac: 8, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 10 },
+        hobgoblin: { id: 'hobgoblin', name: 'Tunnel Hobgoblin', hpMin: 9, hpMax: 14, ac: 7, toHit: 2, dmgMin: 3, dmgMax: 6, magicRes: 12 },
+        skeleton: { id: 'skeleton', name: 'Restless Skeleton', hpMin: 7, hpMax: 12, ac: 7, toHit: 1, dmgMin: 2, dmgMax: 6, magicRes: 15 },
+        knight: { id: 'knight', name: 'Banished Knight', hpMin: 12, hpMax: 20, ac: 5, toHit: 3, dmgMin: 4, dmgMax: 8, magicRes: 18 },
+        monk: { id: 'monk', name: 'Ashen Monk', hpMin: 10, hpMax: 16, ac: 6, toHit: 2, dmgMin: 3, dmgMax: 7, magicRes: 20 },
+        mage: { id: 'mage', name: 'Arcane Adept', hpMin: 9, hpMax: 13, ac: 8, toHit: 2, dmgMin: 3, dmgMax: 8, magicRes: 25 },
+        enchantress: { id: 'enchantress', name: 'Storm Enchantress', hpMin: 10, hpMax: 15, ac: 7, toHit: 3, dmgMin: 4, dmgMax: 9, magicRes: 30 },
       }
     };
 
@@ -1092,8 +1105,27 @@ main();
       hud.setParty({ gold: party.gold, members });
     }
 
-    function generateEncounter(depth){ const groups=[]; if(depth<=1) groups.push({ species:'rat', count: roll(1,4)}); else groups.push({ species:'skeleton', count: roll(1,3)}); return { id:'enc_'+Math.random().toString(36).slice(2), groups, canFlee:true }; }
-    function makeMon(specId, idx){ const sp=DB.monsters[specId]; const hp=roll(sp.hpMin, sp.hpMax); return { id: specId+'_'+idx, name: sp.name, hpCurrent: hp, hpMax: hp, ac: sp.ac, toHit: sp.toHit, dmgMin: sp.dmgMin, dmgMax: sp.dmgMax, alive: true }; }
+    function generateEncounter(depth){
+      // Depth bands loosely theme encounters around the available monster portraits.
+      const tables = [
+        { maxDepth: 1, options: [ { species: 'serpent', min: 2, max: 4 }, { species: 'hobbit', min: 1, max: 3 } ] },
+        { maxDepth: 2, options: [ { species: 'hobgoblin', min: 2, max: 4 }, { species: 'skeleton', min: 1, max: 3 } ] },
+        { maxDepth: 3, options: [ { species: 'monk', min: 1, max: 2 }, { species: 'knight', min: 1, max: 2 } ] },
+        { maxDepth: Infinity, options: [ { species: 'mage', min: 1, max: 2 }, { species: 'enchantress', min: 1, max: 2 } ] },
+      ];
+      const tier = tables.find(t => depth <= t.maxDepth) || tables[tables.length - 1];
+      const picks = tier.options.slice();
+      for(let i=picks.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [picks[i],picks[j]]=[picks[j],picks[i]]; }
+      const groupCount = Math.min(picks.length, roll(1, 2));
+      const groups = [];
+      for(let i=0;i<groupCount;i++){
+        const entry = picks[i];
+        const count = roll(entry.min, entry.max);
+        groups.push({ species: entry.species, count });
+      }
+      return { id:'enc_'+Math.random().toString(36).slice(2), groups, canFlee: depth <= 3 };
+    }
+    function makeMon(specId, idx){ const key=DB.monsters[specId]?specId:'serpent'; const sp=DB.monsters[key]; const hp=roll(sp.hpMin, sp.hpMax); return { id: key+'_'+idx, name: sp.name, hpCurrent: hp, hpMax: hp, ac: sp.ac, toHit: sp.toHit, dmgMin: sp.dmgMin, dmgMax: sp.dmgMax, alive: true }; }
     function startCombat(enc){
       const monsters=[];
       for(let g=0;g<enc.groups.length;g++){
