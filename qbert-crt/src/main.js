@@ -447,24 +447,10 @@ function spawnRecolorer() { recolorers.push({ r: 0, c: 0, t: 0 }); }
 function updateRecolorers(dt) { recolorTimer -= dt; if (recolorTimer <= 0) { spawnRecolorer(); recolorTimer = 7 + Math.random() * 3; } for (let i = recolorers.length - 1; i >= 0; i--) { const rc = recolorers[i]; rc.t += dt * 1.8; if (rc.t >= 1) { rc.t = 0; const choice = Math.random() < 0.5 ? 0 : 1; const nr = rc.r + 1; const nc = rc.c + choice; if (nr >= PYR_ROWS || nc > nr) { recolorers.splice(i, 1); continue; } rc.r = nr; rc.c = nc; const tile = tiles[nr][nc]; if (tile.stage > 0) tile.stage -= 1; } if (state === STATE.Playing && q.alive && rc.r === q.r && rc.c === q.c) { score += 300; safeBeep(720, 0.09, 'square', 0.03); recolorers.splice(i, 1); } } }
 
 // Background & scaling
+// Viewport sizing now mirrors the other games: CSS stretches the canvas to
+// `min(96vw, 1180px)` with a fixed 4:3 aspect so we no longer need a JS resize
+// helper here.
 function drawBackground() { ctx.fillStyle = COLORS.bg; ctx.fillRect(0, 0, W, H); }
-
-function applyPixelScale() {
-  const vw = window.innerWidth * 0.95;
-  const vh = window.innerHeight * 0.95;
-  const maxW = Math.min(vw, vh * 4 / 3);
-  const scale = Math.max(1, maxW / W);
-  const cssW = W * scale;
-  const cssH = H * scale;
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  if (screen) {
-    screen.style.width = cssW + 'px';
-    screen.style.height = cssH + 'px';
-  }
-}
-window.addEventListener('resize', applyPixelScale);
-applyPixelScale();
 
 // Round/score helpers
 function drawCenteredText(text, y) { ctx.fillStyle = COLORS.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '12px "Press Start 2P", monospace'; ctx.fillText(text, W/2, y); }
