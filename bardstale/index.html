@@ -3,38 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bard's Tale 3D (Three.js)</title>
+  <title>Bard's Tale CRT</title>
   <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="bt3-ui">
-    <div class="bt3-panels">
-      <div class="viewport-stack crt-frame">
-        <div id="viewport3d" class="viewport3d" aria-label="3D dungeon viewport"></div>
-        <div class="crt-overlay"></div>
-        <div class="crt-glow"></div>
-        <div class="bezel-label">BARD'S TALE</div>
-      </div>
-      <aside class="sidebar">
-        <div class="panel-title">Auto-Map</div>
-        <div id="minimap" class="minimap" aria-label="Minimap"></div>
-        <div class="legend">
-          <div class="legend-item"><span class="legend-cell wall"></span>Wall</div>
-          <div class="legend-item"><span class="legend-cell door"></span>Door</div>
-          <div class="legend-item"><span class="legend-cell you"></span>You</div>
-        </div>
-      </aside>
-    </div>
-    <div class="bottom">
-      <div class="controls">Arrow Keys: Turn or stride. Smooth steps keep the party intact. Doors swing when you push.</div>
-      <details class="help"><summary>Adventurer Notes</summary>
-        <ul>
-          <li>Now rendered in real 3D with Three.js—serve over HTTP for module imports (example: <code>npx http-server .</code>).</li>
-          <li>Encounters trigger as you move. Watch the party stats in the HUD.</li>
-        </ul>
-      </details>
-    </div>
+  <div id="screen" class="screen crt-frame">
+    <div id="stage" data-screen-canvas="true"></div>
+    <canvas id="hud" width="640" height="480" data-screen-canvas="true" aria-label="Bard's Tale interface"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
   </div>
   <script type="module" src="./main.js"></script>
 </body>

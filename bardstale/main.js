@@ -1,7 +1,8 @@
-// Bard's Tale–style 3D with procedural dungeon and minimap fix.
+// Bard's Tale–style 3D with procedural dungeon and CRT HUD rendered via shared pixel canvas helpers.
 // Serve over HTTP (e.g., npx http-server .)
 
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { createPixelContext } from '../shared/render/pixelCanvas.js';
 
 const DIR = { N: 0, E: 1, S: 2, W: 3 };
 const DX = [0, 1, 0, -1];
@@ -224,6 +225,224 @@ function createWoodTexture(baseHex, options = {}) {
   return texture;
 }
 
+function createHudRenderer(canvas) {
+  const pixel = createPixelContext(canvas, { alpha: true });
+  const ctx = pixel.ctx;
+  const state = {
+    log: [],
+    party: [],
+    gold: 0,
+    prompt: '',
+    buttons: [],
+  };
+  let buttonZones = [];
+
+  const INFO_PANEL = { x: 18, y: 18, width: 240, height: 210 };
+  const PARTY_PANEL = { x: 18, y: SCREEN_HEIGHT / 2 - 6, width: SCREEN_WIDTH - 36, height: SCREEN_HEIGHT / 2 - 32 };
+  const TITLE_FONT = '18px "Press Start 2P", "VT323", monospace';
+  const TEXT_FONT = '14px "Press Start 2P", "VT323", monospace';
+  const TEXT_COLOR = '#f7efd6';
+  const ACCENT_COLOR = '#f4d28a';
+  const PANEL_BG = 'rgba(18, 16, 22, 0.86)';
+  const PANEL_BORDER = '#6a4f31';
+  const PANEL_SHADOW = 'rgba(0, 0, 0, 0.65)';
+
+  function wrapLine(text, maxWidth) {
+    const words = text.split(/\s+/g);
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+      const test = current ? current + ' ' + word : word;
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  function drawPanel({ x, y, width, height }, title) {
+    ctx.save();
+    ctx.fillStyle = PANEL_BG;
+    ctx.shadowColor = PANEL_SHADOW;
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+    ctx.fillRect(x, y, width, height);
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = PANEL_BORDER;
+    ctx.strokeRect(x, y, width, height);
+    if (title) {
+      ctx.fillStyle = ACCENT_COLOR;
+      ctx.font = TITLE_FONT;
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+      ctx.fillText(title, x + 12, y + 10);
+      ctx.strokeStyle = 'rgba(244, 210, 138, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 10, y + 34);
+      ctx.lineTo(x + width - 10, y + 34);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    buttonZones = [];
+
+    ctx.save();
+    ctx.font = TEXT_FONT;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = TEXT_COLOR;
+
+    drawPanel(INFO_PANEL, 'ADVENTURER LOG');
+    const logX = INFO_PANEL.x + 12;
+    const logY = INFO_PANEL.y + 38;
+    const maxWidth = INFO_PANEL.width - 24;
+    const lineHeight = 18;
+    const flattened = [];
+    const start = Math.max(0, state.log.length - 18);
+    for (let i = start; i < state.log.length; i++) {
+      const message = state.log[i];
+      const lines = wrapLine(message, maxWidth);
+      for (let j = 0; j < lines.length; j++) flattened.push(lines[j]);
+    }
+    const visible = flattened.slice(-8);
+    for (let i = 0; i < visible.length; i++) {
+      ctx.fillText(visible[i], logX, logY + i * lineHeight);
+    }
+
+    let actionY = logY + Math.max(visible.length, 1) * lineHeight + 8;
+    if (state.prompt) {
+      ctx.fillStyle = ACCENT_COLOR;
+      ctx.fillText(state.prompt, logX, actionY);
+      ctx.fillStyle = TEXT_COLOR;
+      actionY += lineHeight + 4;
+    }
+
+    for (let i = 0; i < state.buttons.length; i++) {
+      const btn = state.buttons[i];
+      const bx = INFO_PANEL.x + 10;
+      const by = actionY + i * (lineHeight + 10);
+      const bw = INFO_PANEL.width - 20;
+      const bh = lineHeight + 6;
+      ctx.save();
+      ctx.fillStyle = 'rgba(70, 50, 30, 0.85)';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = 'rgba(255, 216, 160, 0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, by, bw, bh);
+      ctx.restore();
+      ctx.fillText(`[${i + 1}] ${btn.label}`, bx + 10, by + 4);
+      buttonZones.push({ x: bx, y: by, width: bw, height: bh, onSelect: btn.onSelect });
+    }
+
+    drawPanel(PARTY_PANEL, `PARTY — GOLD ${state.gold}`);
+    const headerY = PARTY_PANEL.y + 38;
+    const rowHeight = 20;
+    const cols = [
+      { title: 'NAME', x: PARTY_PANEL.x + 12 },
+      { title: 'CLASS', x: PARTY_PANEL.x + 180 },
+      { title: 'LVL', x: PARTY_PANEL.x + 270 },
+      { title: 'HP', x: PARTY_PANEL.x + 320 },
+      { title: 'AC', x: PARTY_PANEL.x + 400 },
+      { title: 'TO-HIT', x: PARTY_PANEL.x + 450 },
+      { title: 'STATUS', x: PARTY_PANEL.x + 540 },
+    ];
+    ctx.fillStyle = ACCENT_COLOR;
+    for (const col of cols) {
+      ctx.fillText(col.title, col.x, headerY);
+    }
+    ctx.fillStyle = TEXT_COLOR;
+    for (let i = 0; i < state.party.length; i++) {
+      const row = state.party[i];
+      const y = headerY + 6 + (i + 1) * rowHeight;
+      ctx.fillText(row.name, cols[0].x, y);
+      ctx.fillText(row.classType, cols[1].x, y);
+      ctx.fillText(String(row.level), cols[2].x, y);
+      ctx.fillText(`${row.hpCurrent}/${row.hpMax}`, cols[3].x, y);
+      ctx.fillText(String(row.ac), cols[4].x, y);
+      ctx.fillText(String(row.toHit), cols[5].x, y);
+      ctx.fillText(row.alive ? '' : 'DEAD', cols[6].x, y);
+    }
+
+    ctx.restore();
+  }
+
+  function pointerToCanvas(event) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  }
+
+  function triggerButton(btn) {
+    if (typeof btn?.onSelect === 'function') {
+      btn.onSelect();
+    }
+  }
+
+  canvas.addEventListener('click', (event) => {
+    if (!state.buttons.length) return;
+    const { x, y } = pointerToCanvas(event);
+    for (const zone of buttonZones) {
+      if (x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height) {
+        event.preventDefault();
+        triggerButton(zone);
+        break;
+      }
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (!state.buttons.length) return;
+    const digit = parseInt(event.key, 10);
+    if (Number.isInteger(digit) && digit >= 1 && digit <= state.buttons.length) {
+      event.preventDefault();
+      const btn = state.buttons[digit - 1];
+      triggerButton(btn);
+    }
+  });
+
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(render).catch(() => render());
+  }
+
+  render();
+
+  return {
+    appendLog(message) {
+      state.log.push(message);
+      if (state.log.length > 64) state.log.splice(0, state.log.length - 64);
+      render();
+    },
+    setParty(data) {
+      state.party = Array.isArray(data?.members) ? data.members.slice() : [];
+      state.gold = data?.gold ?? state.gold;
+      render();
+    },
+    setActions({ prompt = '', buttons = [] } = {}) {
+      state.prompt = prompt;
+      state.buttons = buttons;
+      render();
+    },
+    clearActions() {
+      state.prompt = '';
+      state.buttons = [];
+      render();
+    },
+    redraw: render,
+  };
+}
+
 function setupEncounterBillboard(camera) {
   const group = new THREE.Group();
   group.position.set(0, 0.35, -1.35);
@@ -392,79 +611,11 @@ function yawForDir(dir) {
   }
 }
 
-function buildMinimap(root, state) {
-  const grid = document.createElement('div');
-  grid.className = 'grid';
-
-  const viewRadius = 4; // show a focused window around the player
-  const viewSize = viewRadius * 2 + 1;
-
-  // Compute cell size to fit container width and keep the window readable
-  const cw = root.clientWidth || 220;
-  const cell = Math.max(8, Math.min(18, Math.floor((cw - 16) / viewSize)));
-
-  grid.style.gridTemplateColumns = `repeat(${viewSize}, ${cell}px)`;
-  grid.style.gridTemplateRows = `repeat(${viewSize}, ${cell}px)`;
-
-  const cells = [];
-  for (let y = 0; y < viewSize; y++) {
-    cells[y] = [];
-    for (let x = 0; x < viewSize; x++) {
-      const c = document.createElement('div');
-      c.className = 'cell';
-      c.style.width = `${cell}px`;
-      c.style.height = `${cell}px`;
-      grid.appendChild(c);
-      cells[y][x] = c;
-    }
-  }
-  root.innerHTML = '';
-  root.appendChild(grid);
-
-  // Single movable facing arrow to avoid trails
-  const arrow = document.createElement('div');
-  arrow.className = 'facing';
-
-  return { grid, cells, arrow, radius: viewRadius };
-}
-
-function updateMinimap(mini, state) {
-  // Render only the square window defined when the minimap was built.
-  const radius = mini.radius;
-  const size = radius * 2 + 1;
-  for (let vy = 0; vy < size; vy++) {
-    for (let vx = 0; vx < size; vx++) {
-      const el = mini.cells[vy][vx];
-      el.className = 'cell';
-      const mapX = state.x + (vx - radius);
-      const mapY = state.y + (vy - radius);
-      if (!inBounds(mapX, mapY, state.width, state.height)) {
-        el.classList.add('void');
-        el.dataset.pos = '—';
-        continue;
-      }
-      el.dataset.pos = `${mapX},${mapY}`;
-      const cell = state.cells[mapY][mapX];
-      if (cell.visited) el.classList.add('visited');
-      if (cell.n === WALL.WALL) el.classList.add('wall-n');
-      if (cell.e === WALL.WALL) el.classList.add('wall-e');
-      if (cell.s === WALL.WALL) el.classList.add('wall-s');
-      if (cell.w === WALL.WALL) el.classList.add('wall-w');
-      if (cell.n === WALL.DOOR) el.classList.add('door-n');
-      if (cell.e === WALL.DOOR) el.classList.add('door-e');
-      if (cell.s === WALL.DOOR) el.classList.add('door-s');
-      if (cell.w === WALL.DOOR) el.classList.add('door-w');
-    }
-  }
-  const cur = mini.cells[radius][radius];
-  cur.classList.add('current');
-  const rot = state.dir === DIR.N ? 0 : state.dir === DIR.E ? 90 : state.dir === DIR.S ? 180 : 270;
-  mini.arrow.style.transform = `rotate(${rot}deg)`;
-  if (mini.arrow.parentElement !== cur) cur.appendChild(mini.arrow);
-}
+const SCREEN_WIDTH = 640;
+const SCREEN_HEIGHT = 480;
 
 function buildScene(state) {
-  const container = document.getElementById('viewport3d');
+  const stage = document.getElementById('stage');
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0c10);
   scene.fog = new THREE.Fog(0x0a0c10, 4.5, 20);
@@ -474,13 +625,12 @@ function buildScene(state) {
   // Render into a deliberately undersized back-buffer to amplify chunky pixels when the canvas stretches.
   const pixelScale = 0.58;
   renderer.setPixelRatio(1);
-  renderer.setSize(container.clientWidth * pixelScale, container.clientHeight * pixelScale, false);
-  container.appendChild(renderer.domElement);
+  stage.appendChild(renderer.domElement);
   renderer.domElement.classList.add('pixel-canvas');
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
 
-  const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.05, 200);
+  const camera = new THREE.PerspectiveCamera(60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
 
   const ambient = new THREE.AmbientLight(0xbcb6a8, 0.42);
   const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.7);
@@ -579,15 +729,20 @@ function buildScene(state) {
   player.add(camera);
 
   function onResize() {
-    const w = container.clientWidth, h = container.clientHeight;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const w = Math.max(1, rect.width || SCREEN_WIDTH);
+    const h = Math.max(1, rect.height || SCREEN_HEIGHT);
     renderer.setSize(w * pixelScale, h * pixelScale, false);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
-    camera.aspect = w / h; camera.updateProjectionMatrix();
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
   }
+  onResize();
   window.addEventListener('resize', onResize);
 
-  return { container, scene, renderer, camera, player };
+  return { stage, scene, renderer, camera, player };
 }
 
 function parseOptsFromURL() {
@@ -604,7 +759,12 @@ function main() {
   const state = { width, height, cells, x: start.x, y: start.y, dir: start.dir, seed };
   cells[state.y][state.x].visited = true;
 
-  const mini = buildMinimap(document.getElementById('minimap'), state);
+  const hudCanvas = document.getElementById('hud');
+  const hud = hudCanvas ? createHudRenderer(hudCanvas) : null;
+  if (typeof window !== 'undefined') {
+    window.__bt3_hud = hud;
+  }
+
   const g = buildScene(state);
   const encounterBillboard = setupEncounterBillboard(g.camera);
   if (typeof window !== 'undefined') {
@@ -679,7 +839,6 @@ function main() {
       if (t >= 1) {
         const __wasMove = anim && anim.type === 'move';
         anim = null;
-        updateMinimap(mini, state);
         if (__wasMove && typeof window !== 'undefined' && window.__bt3_onStepComplete) { try { window.__bt3_onStepComplete(1); } catch(e){} }
         if (keyQueued) {
           const k = keyQueued; keyQueued = null;
@@ -695,7 +854,6 @@ function main() {
     requestAnimationFrame(step);
   }
 
-  updateMinimap(mini, state);
   requestAnimationFrame(step);
 }
 
@@ -710,20 +868,21 @@ main();
 
   onReady(function() {
     if (typeof window !== 'undefined') window.__bt3_isCombatActive = false;
-    // HUD overlay
-    const overlay = document.createElement('div');
-    overlay.id = 'bt3-overlay';
-    overlay.innerHTML = '<div id="bt3-party"></div><div id="bt3-actions" class="hidden"></div><div id="bt3-log"></div>';
-    document.body.appendChild(overlay);
 
-    const partyEl = overlay.querySelector('#bt3-party');
-    const actionsEl = overlay.querySelector('#bt3-actions');
-    const logEl = overlay.querySelector('#bt3-log');
+    function createFallbackHud() {
+      return {
+        appendLog(message) { console.log('[BT3]', message); },
+        setParty() {},
+        setActions() {},
+        clearActions() {},
+        redraw() {},
+      };
+    }
 
-    function log(msg){ if (!logEl) return; logEl.textContent += (logEl.textContent ? '\n' : '') + msg; logEl.scrollTop = logEl.scrollHeight; }
-    function setPartyView(html){ if (partyEl) partyEl.innerHTML = html; }
-    function clearActions(){ if (!actionsEl) return; actionsEl.innerHTML = ''; actionsEl.classList.add('hidden'); }
-    function renderActionPrompt(html){ if (!actionsEl) return; actionsEl.innerHTML = html; actionsEl.classList.remove('hidden'); }
+    const hud = (typeof window !== 'undefined' && window.__bt3_hud) ? window.__bt3_hud : createFallbackHud();
+
+    function log(msg) { hud.appendLog(msg); }
+    function clearActions() { hud.clearActions(); }
 
     // Local pixel art placeholders so the encounter billboard can load without external fetches.
     const MONSTER_ART = {
@@ -767,7 +926,19 @@ main();
     function charToHit(c){ let th=c.base.toHit; if(c.equip.weapon){ const d=DB.items[c.equip.weapon]; th+= (d.toHit||0);} return th; }
     function charDamage(c){ let min=1+c.base.dmgBonus, max=6+c.base.dmgBonus; if(c.equip.weapon){ const w=DB.items[c.equip.weapon]; min=Math.max(min, w.minDamage||min); max=Math.max(max, w.maxDamage||max);} return {min,max}; }
 
-    function renderParty(){ const rows=[]; for(let i=0;i<party.members.length;i++){ const c=party.members[i]; rows.push(`${c.name} L${c.level}  HP ${c.hpCurrent}/${c.hpMax}  AC ${charAC(c)}  TH ${charToHit(c)} ${c.alive?'':'(DEAD)'}`);} setPartyView(rows.join(' | ')); }
+    function renderParty(){
+      const members = party.members.map((c) => ({
+        name: c.name,
+        classType: c.classType,
+        level: c.level,
+        hpCurrent: c.hpCurrent,
+        hpMax: c.hpMax,
+        ac: charAC(c),
+        toHit: charToHit(c),
+        alive: c.alive,
+      }));
+      hud.setParty({ gold: party.gold, members });
+    }
 
     function generateEncounter(depth){ const groups=[]; if(depth<=1) groups.push({ species:'rat', count: roll(1,4)}); else groups.push({ species:'skeleton', count: roll(1,3)}); return { id:'enc_'+Math.random().toString(36).slice(2), groups, canFlee:true }; }
     function makeMon(specId, idx){ const sp=DB.monsters[specId]; const hp=roll(sp.hpMin, sp.hpMax); return { id: specId+'_'+idx, name: sp.name, hpCurrent: hp, hpMax: hp, ac: sp.ac, toHit: sp.toHit, dmgMin: sp.dmgMin, dmgMax: sp.dmgMax, alive: true }; }
@@ -833,25 +1004,29 @@ main();
       if(!actor || !actor.alive){ st.selectionIndex+=1; promptAction(st); return; }
       const aliveMonsters = st.monsters.filter(m=>m.alive);
       if(aliveMonsters.length===0){ clearActions(); resolveActions(st); return; }
-      const targetOptions = aliveMonsters.map(m=>`<option value="${m.id}">${m.name} (${m.hpCurrent} HP)</option>`).join('');
       const canFlee = !!st.encounter.canFlee;
-      const html = `\n        <div class="bt3-actions__prompt">Round ${st.round}: ${actor.name}, choose action</div>\n        <label class="bt3-actions__target">Target <select id="bt3-target-select">${targetOptions}</select></label>\n        <div class="bt3-actions__buttons">\n          <button type="button" data-action="attack">Attack</button>\n          ${canFlee ? '<button type="button" data-action="flee">Flee</button>' : ''}\n        </div>\n      `;
-      renderActionPrompt(html);
-      if(!actionsEl) return;
-      const attackBtn = actionsEl.querySelector('[data-action="attack"]');
-      if(attackBtn){ attackBtn.onclick = () => {
-        const sel = actionsEl.querySelector('#bt3-target-select');
-        const targetId = sel ? sel.value : '';
-        st.pendingActions.push({ type:'attack', actorId: actor.id, targetId });
-        st.selectionIndex += 1;
-        promptAction(st);
-      }; }
-      const fleeBtn = actionsEl.querySelector('[data-action="flee"]');
-      if(fleeBtn){ fleeBtn.onclick = () => {
-        st.pendingActions.push({ type:'flee', actorId: actor.id });
-        st.selectionIndex += 1;
-        promptAction(st);
-      }; }
+      const buttons = aliveMonsters.map((monster) => {
+        const targetId = monster.id;
+        return {
+          label: `Attack ${monster.name} (${monster.hpCurrent} HP)`,
+          onSelect: () => {
+            st.pendingActions.push({ type:'attack', actorId: actor.id, targetId });
+            st.selectionIndex += 1;
+            promptAction(st);
+          },
+        };
+      });
+      if (canFlee) {
+        buttons.push({
+          label: 'Flee',
+          onSelect: () => {
+            st.pendingActions.push({ type:'flee', actorId: actor.id });
+            st.selectionIndex += 1;
+            promptAction(st);
+          },
+        });
+      }
+      hud.setActions({ prompt: `Round ${st.round}: ${actor.name}`, buttons });
     }
 
     function resolveActions(st){
