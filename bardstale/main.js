@@ -238,9 +238,9 @@ function createHudRenderer(canvas, stageElement) {
   let buttonZones = [];
 
   const PANEL_MARGIN = 18;
-  const INFO_PANEL_DEFAULT_WIDTH = 240;
   const INFO_PANEL_MIN_WIDTH = 180;
-  const INFO_PANEL_HEIGHT = 210;
+  const INFO_PANEL_MIN_HEIGHT = 180;
+  const INFO_PANEL_GAP = 12;
   const PARTY_PANEL = {
     x: PANEL_MARGIN,
     y: SCREEN_HEIGHT / 2 - 6,
@@ -303,7 +303,7 @@ function createHudRenderer(canvas, stageElement) {
     // Convert the DOM position of the 3D stage into HUD canvas coordinates so we
     // can anchor overlay panels to its right edge.
     if (!stageElement) {
-      const fallback = PANEL_MARGIN + 320;
+      const fallback = PANEL_MARGIN + 220;
       return {
         left: PANEL_MARGIN,
         right: fallback,
@@ -314,7 +314,7 @@ function createHudRenderer(canvas, stageElement) {
     const hudRect = canvas.getBoundingClientRect();
     const stageRect = stageElement.getBoundingClientRect();
     if (!hudRect.width || !hudRect.height) {
-      const fallback = PANEL_MARGIN + 320;
+      const fallback = PANEL_MARGIN + 220;
       return {
         left: PANEL_MARGIN,
         right: fallback,
@@ -333,19 +333,20 @@ function createHudRenderer(canvas, stageElement) {
   }
 
   function computeInfoPanel(stageBounds) {
-    const x = Math.round(stageBounds.right);
+    const x = Math.round(stageBounds.right + INFO_PANEL_GAP);
     const availableWidth = Math.max(0, SCREEN_WIDTH - PANEL_MARGIN - x);
-    const width = Math.max(0,
-      Math.max(
-        Math.min(INFO_PANEL_DEFAULT_WIDTH, availableWidth),
-        Math.min(INFO_PANEL_MIN_WIDTH, availableWidth)
-      )
-    );
+    let width = INFO_PANEL_MIN_WIDTH;
+    if (availableWidth > 0) {
+      width = availableWidth;
+    }
+    width = Math.max(0, width);
+    const stageHeight = Math.max(0, stageBounds.bottom - stageBounds.top);
+    const height = Math.max(INFO_PANEL_MIN_HEIGHT, stageHeight);
     return {
       x,
       y: PANEL_MARGIN,
       width,
-      height: INFO_PANEL_HEIGHT,
+      height,
     };
   }
 
@@ -360,10 +361,10 @@ function createHudRenderer(canvas, stageElement) {
 
     const stageBounds = measureStageBounds();
     const infoPanel = computeInfoPanel(stageBounds);
-    drawPanel(infoPanel);
+    drawPanel(infoPanel, 'ADVENTURE LOG');
 
     const logX = infoPanel.x + 12;
-    const logTop = infoPanel.y + 16;
+    const logTop = infoPanel.y + 42; // Skip the title band to keep log lines aligned under the header.
     const maxWidth = Math.max(0, infoPanel.width - 24);
     const lineHeight = 10;
     const logHeight = Math.max(60, infoPanel.height - 94);
@@ -410,7 +411,7 @@ function createHudRenderer(canvas, stageElement) {
       buttonZones.push({ x: bx, y: by, width: bw, height: bh, onSelect: btn.onSelect });
     }
 
-    drawPanel(PARTY_PANEL, `PARTY — GOLD ${state.gold}`);
+    drawPanel(PARTY_PANEL, `ROSTER — GOLD ${state.gold}`);
     const headerY = PARTY_PANEL.y + 26;
     const rowHeight = 12;
     const cols = [
