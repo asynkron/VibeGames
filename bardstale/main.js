@@ -224,6 +224,58 @@ function createWoodTexture(baseHex, options = {}) {
   return texture;
 }
 
+function setupEncounterBillboard(camera) {
+  const group = new THREE.Group();
+  group.position.set(0, 0.35, -1.35);
+
+  const geometry = new THREE.PlaneGeometry(1.3, 1.3);
+  const material = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.renderOrder = 50;
+  group.add(mesh);
+  camera.add(group);
+
+  const loader = new THREE.TextureLoader();
+  let currentTexture = null;
+
+  function disposeTexture() {
+    if (currentTexture) {
+      currentTexture.dispose();
+      currentTexture = null;
+    }
+  }
+
+  function applyTexture(tex) {
+    disposeTexture();
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    currentTexture = tex;
+    material.map = tex;
+    material.opacity = 1;
+  }
+
+  return {
+    show(url) {
+      loader.load(url, applyTexture, undefined, () => {
+        material.opacity = 0;
+      });
+    },
+    hide() {
+      material.opacity = 0;
+      material.map = null;
+      disposeTexture();
+    }
+  };
+}
+
 function buildDungeon(opts) {
   const width = Math.max(8, Math.min(128, opts.width || 48));
   const height = Math.max(8, Math.min(128, opts.height || 32));
@@ -554,6 +606,10 @@ function main() {
 
   const mini = buildMinimap(document.getElementById('minimap'), state);
   const g = buildScene(state);
+  const encounterBillboard = setupEncounterBillboard(g.camera);
+  if (typeof window !== 'undefined') {
+    window.__bt3_encounterBillboard = encounterBillboard;
+  }
 
   // Animation state
   let anim = null; // {type:'move'|'turn', start, duration, fromPos:{x,z}, toPos:{x,z}, fromYaw, toYaw}
@@ -570,6 +626,7 @@ function main() {
 
   function startMove(dirSign) { // +1 forward, -1 backward
     if (anim) return;
+    if (typeof window !== 'undefined' && window.__bt3_isCombatActive) return;
     const dirToUse = (dirSign === 1) ? state.dir : backOf(state.dir);
     const ok = dirSign === 1 ? canMoveForward() : canMoveBackward();
     if (!ok) return;
@@ -587,6 +644,7 @@ function main() {
 
   function startTurn(left) {
     if (anim) return;
+    if (typeof window !== 'undefined' && window.__bt3_isCombatActive) return;
     const fromYaw = g.player.rotation.y;
     state.dir = left ? leftOf(state.dir) : rightOf(state.dir);
     const toYawIdeal = yawForDir(state.dir);
@@ -651,14 +709,31 @@ main();
   function roll(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
   onReady(function() {
+    if (typeof window !== 'undefined') window.__bt3_isCombatActive = false;
     // HUD overlay
     const overlay = document.createElement('div');
     overlay.id = 'bt3-overlay';
-    overlay.innerHTML = '<div id="bt3-party"></div><div id="bt3-log"></div>';
+    overlay.innerHTML = '<div id="bt3-party"></div><div id="bt3-actions" class="hidden"></div><div id="bt3-log"></div>';
     document.body.appendChild(overlay);
 
-    function log(msg){ const el = document.getElementById('bt3-log'); if (!el) return; el.textContent += (el.textContent ? '\n' : '') + msg; el.scrollTop = el.scrollHeight; }
-    function setPartyView(html){ const el = document.getElementById('bt3-party'); if (el) el.innerHTML = html; }
+    const partyEl = overlay.querySelector('#bt3-party');
+    const actionsEl = overlay.querySelector('#bt3-actions');
+    const logEl = overlay.querySelector('#bt3-log');
+
+    function log(msg){ if (!logEl) return; logEl.textContent += (logEl.textContent ? '\n' : '') + msg; logEl.scrollTop = logEl.scrollHeight; }
+    function setPartyView(html){ if (partyEl) partyEl.innerHTML = html; }
+    function clearActions(){ if (!actionsEl) return; actionsEl.innerHTML = ''; actionsEl.classList.add('hidden'); }
+    function renderActionPrompt(html){ if (!actionsEl) return; actionsEl.innerHTML = html; actionsEl.classList.remove('hidden'); }
+
+    // Local pixel art placeholders so the encounter billboard can load without external fetches.
+    const MONSTER_ART = {
+      rat: 'assets/monsters/rat.png',
+      skeleton: 'assets/monsters/skeleton.png'
+    };
+
+    const billboard = (typeof window !== 'undefined' && window.__bt3_encounterBillboard) ? window.__bt3_encounterBillboard : null;
+    function showEncounterArt(species){ if (!billboard) return; const path = MONSTER_ART[species]; if (path) billboard.show(path); else billboard.hide(); }
+    function hideEncounterArt(){ if (billboard) billboard.hide(); }
 
     const DB = {
       items: {
@@ -696,7 +771,20 @@ main();
 
     function generateEncounter(depth){ const groups=[]; if(depth<=1) groups.push({ species:'rat', count: roll(1,4)}); else groups.push({ species:'skeleton', count: roll(1,3)}); return { id:'enc_'+Math.random().toString(36).slice(2), groups, canFlee:true }; }
     function makeMon(specId, idx){ const sp=DB.monsters[specId]; const hp=roll(sp.hpMin, sp.hpMax); return { id: specId+'_'+idx, name: sp.name, hpCurrent: hp, hpMax: hp, ac: sp.ac, toHit: sp.toHit, dmgMin: sp.dmgMin, dmgMax: sp.dmgMax, alive: true }; }
-    function startCombat(enc){ const monsters=[]; for(let g=0;g<enc.groups.length;g++){ const grp=enc.groups[g]; for(let n=0;n<grp.count;n++) monsters.push(makeMon(grp.species, (g+1)+'_'+(n+1))); } log(`Encounter! ${monsters.length} ${(monsters.length===1?'foe':'foes')} appear.`); return { round:1, party: party.members.map(c=>c), monsters, activeSide:'Party', ended:false, winner:'' }; }
+    function startCombat(enc){
+      const monsters=[];
+      for(let g=0;g<enc.groups.length;g++){
+        const grp=enc.groups[g];
+        for(let n=0;n<grp.count;n++) monsters.push(makeMon(grp.species, (g+1)+'_'+(n+1)));
+      }
+      const leadSpecies = enc.groups[0] ? enc.groups[0].species : '';
+      showEncounterArt(leadSpecies);
+      if (typeof window !== 'undefined') window.__bt3_isCombatActive = true;
+      log(`Encounter! ${monsters.length} ${(monsters.length===1?'foe':'foes')} appear.`);
+      log('Awaiting party commands...');
+      clearActions();
+      return { round:1, party: party.members.map(c=>c), monsters, encounter: enc, pendingActions: [], selectionOrder: [], selectionIndex: 0, ended:false, winner:'', fled:false };
+    }
 
     function firstAlive(list){ for(let i=0;i<list.length;i++){ if(list[i].alive) return list[i]; } return null; }
     function hasAlive(list){ for(let i=0;i<list.length;i++){ if(list[i].alive) return true; } return false; }
@@ -704,11 +792,149 @@ main();
     function attackChar(att, def){ const d=charDamage(att); const hitRoll=Math.floor(Math.random()*20)+1; const hit=(hitRoll + charToHit(att)) >= def.ac; if(hit){ const dmg=roll(d.min,d.max); def.hpCurrent-=dmg; if(def.hpCurrent<=0){ def.hpCurrent=0; def.alive=false; } log(`${att.name} hits ${def.name} for ${dmg}.`);} else { log(`${att.name} misses ${def.name}.`);} }
     function attackMonster(att, def){ const hitRoll=Math.floor(Math.random()*20)+1; const hit=(hitRoll + att.toHit) >= charAC(def); if(hit){ const dmg=roll(att.dmgMin, att.dmgMax); def.hpCurrent-=dmg; if(def.hpCurrent<=0){ def.hpCurrent=0; def.alive=false; } log(`${att.name} hits ${def.name} for ${dmg}.`);} else { log(`${att.name} misses ${def.name}.`);} }
 
-    function stepCombat(st){ if(st.ended) return st; if(st.activeSide==='Party'){ for(let i=0;i<st.party.length;i++){ const c=st.party[i]; if(!c.alive) continue; const tgt=firstAlive(st.monsters); if(!tgt) break; attackChar(c,tgt);} if(!hasAlive(st.monsters)){ st.ended=true; st.winner='Party'; return st; } st.activeSide='Monsters'; return st; } else { for(let i=0;i<st.monsters.length;i++){ const m=st.monsters[i]; if(!m.alive) continue; const tgt=firstAlive(st.party); if(!tgt) break; attackMonster(m,tgt);} if(!hasAlive(st.party)){ st.ended=true; st.winner='Monsters'; return st; } st.activeSide='Party'; st.round+=1; return st; } }
-    function distributeLoot(st){ if(st.winner!=='Party') return; const gold=roll(5,20); party.gold+=gold; log(`Loot: ${gold} gold.`); if(Math.random()<0.2){ addItem(party.members[0],'potion_small',1); log('Found a Healing Potion.'); } }
+    function concludeCombat(st){
+      if(st.__concluded) return;
+      st.__concluded = true;
+      hideEncounterArt();
+      if (typeof window !== 'undefined') window.__bt3_isCombatActive = false;
+      log(`Combat ends. Winner: ${st.winner}.`);
+      if(st.winner==='Party' && !st.fled){
+        const gold=roll(5,20);
+        party.gold+=gold;
+        log(`Loot: ${gold} gold.`);
+        if(Math.random()<0.2){ addItem(party.members[0],'potion_small',1); log('Found a Healing Potion.'); }
+      }
+      clearActions();
+      inCombat = false;
+      combatState = null;
+      renderParty();
+    }
+
+    function beginPlayerPhase(st){
+      if(st.ended) return;
+      const order=[];
+      for(let i=0;i<st.party.length;i++){ const c=st.party[i]; if(c.alive) order.push({ index:i, id:c.id }); }
+      st.selectionOrder = order;
+      st.selectionIndex = 0;
+      st.pendingActions = [];
+      log(`-- Round ${st.round} --`);
+      renderParty();
+      if(order.length===0){
+        resolveActions(st);
+        return;
+      }
+      promptAction(st);
+    }
+
+    function promptAction(st){
+      const entry = st.selectionOrder[st.selectionIndex];
+      if(!entry){ clearActions(); resolveActions(st); return; }
+      const actor = st.party[entry.index];
+      if(!actor || !actor.alive){ st.selectionIndex+=1; promptAction(st); return; }
+      const aliveMonsters = st.monsters.filter(m=>m.alive);
+      if(aliveMonsters.length===0){ clearActions(); resolveActions(st); return; }
+      const targetOptions = aliveMonsters.map(m=>`<option value="${m.id}">${m.name} (${m.hpCurrent} HP)</option>`).join('');
+      const canFlee = !!st.encounter.canFlee;
+      const html = `\n        <div class="bt3-actions__prompt">Round ${st.round}: ${actor.name}, choose action</div>\n        <label class="bt3-actions__target">Target <select id="bt3-target-select">${targetOptions}</select></label>\n        <div class="bt3-actions__buttons">\n          <button type="button" data-action="attack">Attack</button>\n          ${canFlee ? '<button type="button" data-action="flee">Flee</button>' : ''}\n        </div>\n      `;
+      renderActionPrompt(html);
+      if(!actionsEl) return;
+      const attackBtn = actionsEl.querySelector('[data-action="attack"]');
+      if(attackBtn){ attackBtn.onclick = () => {
+        const sel = actionsEl.querySelector('#bt3-target-select');
+        const targetId = sel ? sel.value : '';
+        st.pendingActions.push({ type:'attack', actorId: actor.id, targetId });
+        st.selectionIndex += 1;
+        promptAction(st);
+      }; }
+      const fleeBtn = actionsEl.querySelector('[data-action="flee"]');
+      if(fleeBtn){ fleeBtn.onclick = () => {
+        st.pendingActions.push({ type:'flee', actorId: actor.id });
+        st.selectionIndex += 1;
+        promptAction(st);
+      }; }
+    }
+
+    function resolveActions(st){
+      clearActions();
+      if(st.ended) return;
+      for(let i=0;i<st.pendingActions.length;i++){
+        const act = st.pendingActions[i];
+        const actor = st.party.find(c=>c.id===act.actorId);
+        if(!actor || !actor.alive) continue;
+        if(act.type==='flee'){
+          if(!st.encounter.canFlee){ log(`${actor.name} cannot flee!`); continue; }
+          const success = Math.random() < 0.55;
+          if(success){
+            log(`${actor.name} signals a retreat! The party escapes.`);
+            st.ended = true;
+            st.winner = 'Party';
+            st.fled = true;
+            concludeCombat(st);
+            return;
+          } else {
+            log(`${actor.name} fails to escape!`);
+          }
+        } else if(act.type==='attack'){
+          let tgt = st.monsters.find(m=>m.id===act.targetId && m.alive);
+          if(!tgt) tgt = firstAlive(st.monsters);
+          if(!tgt){ log(`${actor.name} has no foe to strike.`); continue; }
+          attackChar(actor, tgt);
+          renderParty();
+        }
+      }
+      if(!hasAlive(st.monsters)){
+        st.ended = true;
+        st.winner = 'Party';
+        concludeCombat(st);
+        renderParty();
+        return;
+      }
+      const aliveParty = st.party.filter(c=>c.alive);
+      if(aliveParty.length===0){
+        st.ended = true;
+        st.winner = 'Monsters';
+        concludeCombat(st);
+        renderParty();
+        return;
+      }
+      for(let i=0;i<st.monsters.length;i++){
+        const m = st.monsters[i];
+        if(!m.alive) continue;
+        const tgt = firstAlive(st.party);
+        if(!tgt) break;
+        attackMonster(m, tgt);
+        renderParty();
+        if(!hasAlive(st.party)) break;
+      }
+      if(!hasAlive(st.party)){
+        st.ended = true;
+        st.winner = 'Monsters';
+        concludeCombat(st);
+        renderParty();
+        return;
+      }
+      st.round += 1;
+      renderParty();
+      setTimeout(()=>beginPlayerPhase(st), 250);
+    }
 
     let stepsSinceEncounter=0; let inCombat=false; let combatState=null;
-    function maybeEncounter(depth){ if(inCombat) return; stepsSinceEncounter+=1; const threshold=Math.max(2, 6 - Math.min(depth,4)); if(stepsSinceEncounter>=threshold){ const chance=0.25 + 0.05*depth; if(Math.random()<chance){ const enc=generateEncounter(depth); combatState=startCombat(enc); inCombat=true; stepsSinceEncounter=0; renderParty(); const tick=()=>{ if(!inCombat) return; combatState=stepCombat(combatState); renderParty(); if(combatState.ended){ log(`Combat ends. Winner: ${combatState.winner}.`); distributeLoot(combatState); inCombat=false; renderParty(); return; } setTimeout(tick, 350); }; setTimeout(tick, 350); } } }
+    function maybeEncounter(depth){
+      if(inCombat) return;
+      stepsSinceEncounter+=1;
+      const threshold=Math.max(2, 6 - Math.min(depth,4));
+      if(stepsSinceEncounter>=threshold){
+        const chance=0.25 + 0.05*depth;
+        if(Math.random()<chance){
+          const enc=generateEncounter(depth);
+          combatState=startCombat(enc);
+          inCombat=true;
+          stepsSinceEncounter=0;
+          renderParty();
+          setTimeout(()=>beginPlayerPhase(combatState), 200);
+        }
+      }
+    }
 
     window.__bt3_onStepComplete = function(depth){ const d=(typeof depth==='number' && depth>0) ? depth : 1; maybeEncounter(d); };
 

@@ -374,6 +374,68 @@ body::before {
   white-space: pre-wrap;
 }
 
+.hidden {
+  display: none !important;
+}
+
+#bt3-actions {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(18, 16, 14, 0.9);
+  border: 2px solid rgba(154, 123, 83, 0.55);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.65);
+  display: grid;
+  gap: 8px;
+  font-size: 0.62rem;
+}
+
+.bt3-actions__prompt {
+  color: var(--bt3-accent);
+}
+
+.bt3-actions__target {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#bt3-actions select {
+  background: rgba(10, 9, 8, 0.95);
+  color: var(--bt3-text);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: 'Press Start 2P', 'VT323', monospace;
+  font-size: 0.58rem;
+  padding: 4px 6px;
+}
+
+.bt3-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+#bt3-actions button {
+  font-family: 'Press Start 2P', 'VT323', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  padding: 6px 12px;
+  border: 2px solid rgba(224, 199, 130, 0.6);
+  background: linear-gradient(180deg, rgba(64, 58, 52, 0.95), rgba(26, 22, 20, 0.95));
+  color: var(--bt3-text);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+#bt3-actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+}
+
+#bt3-actions button:active {
+  transform: translateY(0);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6);
+}
+
 @media (max-width: 960px) {
   .bt3-panels {
     grid-template-columns: 1fr;
