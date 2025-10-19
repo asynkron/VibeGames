@@ -59,7 +59,6 @@ Update (bigger + crisper)
 Update (controls + resolution)
 - Internal canvas resolution increased to 512x384 for smoother gradients.
 - Live controls:
-  - F: fullscreen toggle
   - M: toggle aperture mask
   - N: toggle scanlines
   - G: cycle gradient intensity (3 presets)
@@ -68,7 +67,11 @@ Update (controls + resolution)
 
 Update (pixel-locked CRT + UX)
 - Replaced CSS scanlines/mask with a pixel-locked overlay canvas (#crt) drawn at 512x384 and upscaled with nearest-neighbor. Eliminates shimmer.
-- Integer pixel scaling: both canvases scale to an integer multiple of 512x384 based on viewport, ensuring crisp edges.
+- Pixel scaling: both canvases render at 512x384 and upscale with nearest-neighbor for crisp edges.
 - New controls: P pause/resume, H help overlay. M/N now toggle the JS overlay layers.
 - Preferences persisted (localStorage): maskOn, scanOn, gradient preset, depth preset.
 - Files touched: index.html (added #crt and Help overlay), styles.css (stacked canvases), main.js (overlay drawing, scaling, persistence, pause/help).
+
+Update (default viewport scale)
+- Removed the fullscreen hotkey; the playfield now opens at an enlarged viewport-friendly size.
+- Scaling now uses the maximum 4:3 fit within 95% of the viewport (no integer rounding) so Q*bert matches the footprint of the other games.
