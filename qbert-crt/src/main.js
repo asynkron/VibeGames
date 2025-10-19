@@ -16,6 +16,9 @@ pixel.disableSmoothing();
 const W = canvas.width;  // 512
 const H = canvas.height; // 384
 
+// Derived helpers for scaling sprite details when we tweak the base tile size.
+const BASE_TILE_W = 28;
+
 const overlayFx = createOverlayFX({ ctx, width: W, height: H });
 const { startShockwave, drawShockwave, screenFlash, drawFlash, startIris, drawIris, setBounds: setOverlayBounds } = overlayFx;
 setOverlayBounds({ width: W, height: H });
@@ -89,11 +92,15 @@ let state = STATE.Splash;
 
 // Pyramid config
 const PYR_ROWS = 7;
-const TILE_W = 28;
-const TILE_H = 16; // top rhombus height
-let FACE_H = 10;   // depth (can change)
+const TILE_W = 32;
+const TILE_H = 18; // top rhombus height
+let FACE_H = 12;   // depth (can change)
 let PYR_TOP_X = W / 2;
-let PYR_TOP_Y = 26;
+let PYR_TOP_Y = 34;
+
+const tileScale = TILE_W / BASE_TILE_W;
+const px = (value) => value * tileScale;
+const pxRound = (value, min = 1) => Math.max(min, Math.round(px(value)));
 
 // Lighting presets (G cycles)
 const LIGHT_PRESETS = [
@@ -105,7 +112,11 @@ let LIGHT = { ...LIGHT_PRESETS[1] };
 let lightIdx = 1;
 
 // Depth presets (Z cycles)
-const DEPTH_PRESETS = [ { faceH: 10, topY: 26 }, { faceH: 12, topY: 22 }, { faceH: 14, topY: 18 } ];
+const DEPTH_PRESETS = [
+  { faceH: 12, topY: 34 },
+  { faceH: 14, topY: 30 },
+  { faceH: 16, topY: 26 }
+];
 let depthIdx = 0;
 function applyDepthPreset(i) { const p = DEPTH_PRESETS[i]; FACE_H = p.faceH; PYR_TOP_Y = p.topY; }
 function applyLightingPreset(i) { LIGHT = { ...LIGHT_PRESETS[i] }; }
@@ -202,15 +213,33 @@ function shade(hex, factor) { const m = /^#?([a-fA-F0-9]{6})$/.exec(hex); if (!m
 function topColorForStage(stage) { const arr = cfg.colors; const idx = Math.min(stage, arr.length - 1); return arr[idx]; }
 
 function flashImpact(strength = 0.22, duration = 220) { screenFlash({ strength, duration }); }
-function shockAtRC(r, c, options = {}) { const p = rcToXY(r, c); startShockwave(p.x, p.y, { duration: 520, innerRadius: 12, expandTo: 320, ...options }); }
-function triggerLifeLossFx(r, c) { flashImpact(0.26, 260); shockAtRC(r, c, { duration: 640, innerRadius: 10 }); }
+function shockAtRC(r, c, options = {}) {
+  const p = rcToXY(r, c);
+  startShockwave(p.x, p.y, {
+    duration: 520,
+    innerRadius: px(12),
+    expandTo: px(320),
+    ...options,
+  });
+}
+function triggerLifeLossFx(r, c) {
+  flashImpact(0.26, 260);
+  shockAtRC(r, c, { duration: 640, innerRadius: px(10) });
+}
 function triggerDiskFx(disk, extra = {}) {
   if (!disk) return;
   const anchorRC = disk.side === 'L' ? { r: disk.row, c: 0 } : { r: disk.row, c: disk.row };
   const p = rcToXY(anchorRC.r, anchorRC.c);
-  const ax = disk.side === 'L' ? p.x - TILE_W/2 - 6 : p.x + TILE_W/2 + 6;
-  const ay = p.y + 2;
-  startShockwave(ax, ay, { duration: 560, innerRadius: 8, expandTo: 240, ...extra });
+  const ax = disk.side === 'L'
+    ? p.x - TILE_W / 2 - px(6)
+    : p.x + TILE_W / 2 + px(6);
+  const ay = p.y + px(2);
+  startShockwave(ax, ay, {
+    duration: 560,
+    innerRadius: px(8),
+    expandTo: px(240),
+    ...extra,
+  });
 }
 
 // Rendering
@@ -235,12 +264,89 @@ function drawCube(x, y, stage) {
   ctx.beginPath(); ctx.moveTo(top.x, top.y); ctx.lineTo(right.x, right.y); ctx.lineTo(bottom.x, bottom.y); ctx.lineTo(left.x, left.y); ctx.closePath(); ctx.fillStyle = gt; ctx.fill();
 }
 function drawPyramid() { for (let r = 0; r < tiles.length; r++) { for (let c = 0; c < tiles[r].length; c++) { const p = rcToXY(r, c); drawCube(p.x, p.y, tiles[r][c].stage); } } }
-function drawDisk(d) { if (!d.active) return; const anchorRC = d.side === 'L' ? { r: d.row, c: 0 } : { r: d.row, c: d.row }; const p = rcToXY(anchorRC.r, anchorRC.c); const ax = d.side === 'L' ? p.x - TILE_W/2 - 6 : p.x + TILE_W/2 + 6; const ay = p.y + 2; ctx.strokeStyle = '#4ad2bb'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ax, ay - 2); ctx.lineTo(ax, ay + 5); ctx.stroke(); ctx.fillStyle = COLORS.disk; ctx.beginPath(); ctx.ellipse(ax, ay, 6, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#6fead9'; ctx.beginPath(); ctx.ellipse(ax, ay, 6, 3, 0, 0, Math.PI * 2); ctx.stroke(); }
-function drawQbertAt(x, y) { ctx.fillStyle = COLORS.qbert; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = COLORS.qbertShade; ctx.beginPath(); ctx.arc(x + 2, y + 2, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = COLORS.qbert; ctx.beginPath(); ctx.ellipse(x + 6, y, 4, 2, 0, 0, Math.PI * 2); ctx.fill(); }
-function drawQbert() { const p = rcToXY(q.r, q.c); const jumpOffset = Math.sin(q.jumping * Math.PI) * 6; const x = p.x; const y = p.y - 6 - jumpOffset; if (q.invuln > 0 && Math.floor(perfNow * 20) % 2 === 0) { ctx.globalAlpha = 0.6; } drawQbertAt(x, y); if (q.invuln > 0) ctx.globalAlpha = 1; }
-function drawCoily() { if (!coily) return; const p = rcToXY(coily.r, coily.c); if (coily.mode === 'ball') { ctx.fillStyle = COLORS.coily; ctx.beginPath(); ctx.arc(p.x, p.y - 4, 4, 0, Math.PI * 2); ctx.fill(); } else { ctx.fillStyle = COLORS.coily; ctx.beginPath(); ctx.arc(p.x, p.y - 5, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(p.x - 2, p.y - 8, 1, 1); ctx.fillRect(p.x + 1, p.y - 8, 1, 1); } }
-function drawCrawler(cr) { const p = rcToXY(cr.r, cr.c); const offX = cr.side === 'L' ? -TILE_W/3 : TILE_W/3; const offY = FACE_H / 2; ctx.fillStyle = COLORS.crawler; ctx.beginPath(); ctx.arc(p.x + offX, p.y + offY - 4, 4, 0, Math.PI * 2); ctx.fill(); }
-function drawRecolorer(rc) { const p = rcToXY(rc.r, rc.c); ctx.fillStyle = COLORS.recolor; ctx.beginPath(); ctx.arc(p.x, p.y - 4, 3, 0, Math.PI * 2); ctx.fill(); }
+function drawDisk(d) {
+  if (!d.active) return;
+  const anchorRC = d.side === 'L' ? { r: d.row, c: 0 } : { r: d.row, c: d.row };
+  const p = rcToXY(anchorRC.r, anchorRC.c);
+  const ax = d.side === 'L'
+    ? p.x - TILE_W / 2 - px(6)
+    : p.x + TILE_W / 2 + px(6);
+  const ay = p.y + px(2);
+  ctx.strokeStyle = '#4ad2bb';
+  ctx.lineWidth = pxRound(1, 1);
+  ctx.beginPath();
+  ctx.moveTo(ax, ay - px(2));
+  ctx.lineTo(ax, ay + px(5));
+  ctx.stroke();
+  ctx.fillStyle = COLORS.disk;
+  ctx.beginPath();
+  ctx.ellipse(ax, ay, px(6), px(3), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#6fead9';
+  ctx.beginPath();
+  ctx.ellipse(ax, ay, px(6), px(3), 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+function drawQbertAt(x, y) {
+  ctx.fillStyle = COLORS.qbert;
+  ctx.beginPath();
+  ctx.arc(x, y, px(6), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = COLORS.qbertShade;
+  ctx.beginPath();
+  ctx.arc(x + px(2), y + px(2), px(4), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = COLORS.qbert;
+  ctx.beginPath();
+  ctx.ellipse(x + px(6), y, px(4), px(2), 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+function drawQbert() {
+  const p = rcToXY(q.r, q.c);
+  const jumpOffset = Math.sin(q.jumping * Math.PI) * px(6);
+  const x = p.x;
+  const y = p.y - px(6) - jumpOffset;
+  if (q.invuln > 0 && Math.floor(perfNow * 20) % 2 === 0) {
+    ctx.globalAlpha = 0.6;
+  }
+  drawQbertAt(x, y);
+  if (q.invuln > 0) ctx.globalAlpha = 1;
+}
+function drawCoily() {
+  if (!coily) return;
+  const p = rcToXY(coily.r, coily.c);
+  if (coily.mode === 'ball') {
+    ctx.fillStyle = COLORS.coily;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - px(4), px(4), 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = COLORS.coily;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - px(5), px(5), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    const eyeSize = pxRound(1, 1);
+    ctx.fillRect(p.x - px(2), p.y - px(8), eyeSize, eyeSize);
+    ctx.fillRect(p.x + px(1), p.y - px(8), eyeSize, eyeSize);
+  }
+}
+function drawCrawler(cr) {
+  const p = rcToXY(cr.r, cr.c);
+  const offX = cr.side === 'L' ? -TILE_W / 3 : TILE_W / 3;
+  const offY = FACE_H / 2;
+  ctx.fillStyle = COLORS.crawler;
+  ctx.beginPath();
+  ctx.arc(p.x + offX, p.y + offY - px(4), px(4), 0, Math.PI * 2);
+  ctx.fill();
+}
+function drawRecolorer(rc) {
+  const p = rcToXY(rc.r, rc.c);
+  ctx.fillStyle = COLORS.recolor;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y - px(4), px(3), 0, Math.PI * 2);
+  ctx.fill();
+}
 
 // Round helpers
 function resetRound() { tiles = makePyramid(PYR_ROWS); cfg = levelConfig(round); disks = makeDisksForRound(round); q.r = StartPos.r; q.c = StartPos.c; q.jumping = 0; q.alive = true; q.invuln = 0; q.riding = null; hazards = []; hazardTimer = 1.0 + Math.random(); coily = null; coilyTimer = 3 + Math.random() * 2; crawlers = []; crawlerTimer = 4.5 + Math.random() * 2.5; recolorers = []; recolorTimer = 6.5 + Math.random() * 2.5; }
@@ -252,13 +358,21 @@ function startDiskRide(diskIndex) {
   if (!d || !d.active) return false;
   const anchorRC = d.side === 'L' ? { r: d.row, c: 0 } : { r: d.row, c: d.row };
   const p = rcToXY(anchorRC.r, anchorRC.c);
-  const ax = d.side === 'L' ? p.x - TILE_W / 2 - 6 : p.x + TILE_W / 2 + 6;
-  const ay = p.y + 2 - 6;
+  const ax = d.side === 'L'
+    ? p.x - TILE_W / 2 - px(6)
+    : p.x + TILE_W / 2 + px(6);
+  const ay = p.y + px(2) - px(6);
   const end = rcToXY(StartPos.r, StartPos.c);
-  q.riding = { from: { x: ax, y: ay }, to: { x: end.x, y: end.y - 10 }, t: 0, duration: 1.2, diskIndex };
+  q.riding = {
+    from: { x: ax, y: ay },
+    to: { x: end.x, y: end.y - px(10) },
+    t: 0,
+    duration: 1.2,
+    diskIndex,
+  };
   state = STATE.RidingDisk;
   q.invuln = 2.0;
-  triggerDiskFx(d, { innerRadius: 6 });
+  triggerDiskFx(d, { innerRadius: px(6) });
   startIris('in', 640);
   if (coily && coily.mode === 'snake') {
     coily = null;
@@ -304,8 +418,38 @@ function tryMoveQbert(dr, dc) { const nr = q.r + dr, nc = q.c + dc; if (nr < 0 |
 function handleInput() { if (state === STATE.Playing && q.jumping === 0) { if (input.ul) { tryMoveQbert(-1, -1); return; } if (input.ur) { tryMoveQbert(-1, 0); return; } if (input.dr) { tryMoveQbert(1, 1); return; } if (input.dl) { tryMoveQbert(1, 0); return; } } }
 
 // Profanity bubble
-let bubble = null; function profanityPop(r, c) { const p = rcToXY(r, c); bubble = { x: p.x + 10, y: p.y - 16, t: 1.2 }; }
-function drawBubble(dt) { if (!bubble) return; bubble.t -= dt; if (bubble.t <= 0) { bubble = null; return; } ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.strokeStyle = '#ffffff'; if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bubble.x - 18, bubble.y - 10, 40, 18, 3); ctx.fill(); ctx.stroke(); } else { ctx.fillRect(bubble.x - 18, bubble.y - 10, 40, 18); ctx.strokeRect(bubble.x - 18, bubble.y - 10, 40, 18); } ctx.fillStyle = '#ffffff'; ctx.font = '8px "Press Start 2P", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('@!#?@!', bubble.x - 14, bubble.y); }
+let bubble = null;
+function profanityPop(r, c) {
+  const p = rcToXY(r, c);
+  bubble = { x: p.x + px(10), y: p.y - px(16), t: 1.2 };
+}
+function drawBubble(dt) {
+  if (!bubble) return;
+  bubble.t -= dt;
+  if (bubble.t <= 0) { bubble = null; return; }
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.strokeStyle = '#ffffff';
+  const width = px(40);
+  const height = px(18);
+  const radius = pxRound(3, 2);
+  const left = bubble.x - width / 2;
+  const top = bubble.y - height / 2;
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(left, top, width, height, radius);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillRect(left, top, width, height);
+    ctx.strokeRect(left, top, width, height);
+  }
+  ctx.fillStyle = '#ffffff';
+  const fontSize = pxRound(8, 6);
+  ctx.font = `${fontSize}px "Press Start 2P", monospace`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('@!#?@!', bubble.x - px(14), bubble.y);
+}
 
 // Hazards & enemies
 function spawnHazard() { hazards.push({ r: 0, c: 0, t: 0 }); }
@@ -393,7 +537,7 @@ function updateCoily(dt) {
       coily = null;
       score += 500;
       flashImpact(0.18, 240);
-      shockAtRC(fallPos.r, fallPos.c, { duration: 520, innerRadius: 8 });
+      shockAtRC(fallPos.r, fallPos.c, { duration: 520, innerRadius: px(8) });
       safeBeep(820, 0.11, 'triangle', 0.03);
     } else {
       coily.r = nr;
@@ -447,10 +591,27 @@ function spawnRecolorer() { recolorers.push({ r: 0, c: 0, t: 0 }); }
 function updateRecolorers(dt) { recolorTimer -= dt; if (recolorTimer <= 0) { spawnRecolorer(); recolorTimer = 7 + Math.random() * 3; } for (let i = recolorers.length - 1; i >= 0; i--) { const rc = recolorers[i]; rc.t += dt * 1.8; if (rc.t >= 1) { rc.t = 0; const choice = Math.random() < 0.5 ? 0 : 1; const nr = rc.r + 1; const nc = rc.c + choice; if (nr >= PYR_ROWS || nc > nr) { recolorers.splice(i, 1); continue; } rc.r = nr; rc.c = nc; const tile = tiles[nr][nc]; if (tile.stage > 0) tile.stage -= 1; } if (state === STATE.Playing && q.alive && rc.r === q.r && rc.c === q.c) { score += 300; safeBeep(720, 0.09, 'square', 0.03); recolorers.splice(i, 1); } } }
 
 // Background & scaling
-// Viewport sizing now mirrors the other games: CSS stretches the canvas to
-// `min(96vw, 1180px)` with a fixed 4:3 aspect so we no longer need a JS resize
-// helper here.
 function drawBackground() { ctx.fillStyle = COLORS.bg; ctx.fillRect(0, 0, W, H); }
+
+// Keep the canvas footprint similar to the original setup so it never
+// overwhelms smaller screens. We keep the same 4:3 fit as before but let the
+// browser resize via CSS widths that we control here.
+function applyPixelScale() {
+  const vw = window.innerWidth * 0.95;
+  const vh = window.innerHeight * 0.95;
+  const maxW = Math.min(vw, (vh * 4) / 3);
+  const scale = Math.max(1, maxW / W);
+  const cssW = Math.round(W * scale);
+  const cssH = Math.round(H * scale);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  if (screen) {
+    screen.style.width = cssW + 'px';
+    screen.style.height = cssH + 'px';
+  }
+}
+window.addEventListener('resize', applyPixelScale);
+applyPixelScale();
 
 // Round/score helpers
 function drawCenteredText(text, y) { ctx.fillStyle = COLORS.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '12px "Press Start 2P", monospace'; ctx.fillText(text, W/2, y); }
@@ -481,7 +642,13 @@ function loop(ts) {
         updateHazards(dt); updateCoily(dt); updateCrawlers(dt); updateRecolorers(dt);
       }
       drawPyramid(); disks.forEach(drawDisk);
-      hazards.forEach(h => { const p = rcToXY(h.r, h.c); ctx.fillStyle = COLORS.hazard; ctx.beginPath(); ctx.arc(p.x, p.y - 4, 4, 0, Math.PI * 2); ctx.fill(); });
+      hazards.forEach(h => {
+        const p = rcToXY(h.r, h.c);
+        ctx.fillStyle = COLORS.hazard;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - px(4), px(4), 0, Math.PI * 2);
+        ctx.fill();
+      });
       drawCoily(); crawlers.forEach(drawCrawler); recolorers.forEach(drawRecolorer); drawQbert();
       if (!paused && allAtTarget()) {
         score += 500;
@@ -498,13 +665,25 @@ function loop(ts) {
     case STATE.RidingDisk: {
       const r = q.riding; if (!paused) r.t += dt; const t = Math.min(1, r.t / r.duration); const x = r.from.x + (r.to.x - r.from.x) * t; const y = r.from.y + (r.to.y - r.from.y) * t; drawPyramid(); disks.forEach(drawDisk); drawCoily(); crawlers.forEach(drawCrawler); recolorers.forEach(drawRecolorer); drawQbertAt(x, y); if (!paused && t >= 1) { q.r = StartPos.r; q.c = StartPos.c; q.riding = null; q.invuln = 1.2; const d = disks[r.diskIndex]; if (d) d.active = false; score += 250; flashImpact(0.18, 200); state = STATE.Playing; } if (!paused) grantExtraLifeIfNeeded(); if (paused) drawCenteredText('PAUSED', 40); break; }
     case STATE.LifeLost:
-      drawPyramid(); disks.forEach(drawDisk); hazards.forEach(h => { const p = rcToXY(h.r, h.c); ctx.fillStyle = COLORS.hazard; ctx.beginPath(); ctx.arc(p.x, p.y - 4, 4, 0, Math.PI * 2); ctx.fill(); }); drawCoily(); crawlers.forEach(drawCrawler); recolorers.forEach(drawRecolorer);
+      drawPyramid();
+      disks.forEach(drawDisk);
+      hazards.forEach(h => {
+        const p = rcToXY(h.r, h.c);
+        ctx.fillStyle = COLORS.hazard;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y - px(4), px(4), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      drawCoily();
+      crawlers.forEach(drawCrawler);
+      recolorers.forEach(drawRecolorer);
       drawCenteredText('OOPS!', 144); drawCenteredText('PRESS ENTER', 176);
       drawBubble(dt);
       if (input.start) { q.alive = true; q.invuln = 1.5; q.r = StartPos.r; q.c = StartPos.c; q.jumping = 0; state = STATE.Playing; startIris('in', 620); }
       break;
     case STATE.RoundWon:
-      drawPyramid(); disks.forEach(drawDisk);
+      drawPyramid();
+      disks.forEach(drawDisk);
       drawCenteredText('ROUND CLEAR!', 144); drawCenteredText('PRESS ENTER', 176);
       if (input.start) { resetRound(); roundIntroT = 1.0; state = STATE.RoundIntro; startIris('in', 600); }
       break;
