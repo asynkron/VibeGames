@@ -1,9 +1,12 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-const TILE_SIZE = 16;
-const COLUMNS = Math.floor(canvas.width / TILE_SIZE);
-const ROWS = Math.floor(canvas.height / TILE_SIZE);
+const TILE_SIZE = 32;
+const VIEW_COLS = Math.floor(canvas.width / TILE_SIZE);
+const VIEW_ROWS = Math.floor(canvas.height / TILE_SIZE);
+
+canvas.width = VIEW_COLS * TILE_SIZE;
+canvas.height = VIEW_ROWS * TILE_SIZE;
 
 ctx.imageSmoothingEnabled = false;
 ctx.textAlign = 'center';
@@ -55,7 +58,7 @@ const mapText = `~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^~~~~~~~~~~~~~~
 ~~~~~~~~~~~~~~~^^^^^~~~~~~~~~~~~~~~~~~~~~~~~^^^^~~~
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^~~~~~~~~~~~~~~`;
 
-const world = createWorld(mapText, COLUMNS, ROWS);
+const world = createWorld(mapText);
 
 const itemsOnGround = [];
 const messageLog = [];
@@ -133,14 +136,16 @@ const itemTemplates = {
   },
 };
 
-function createWorld(text, width, height) {
-  const rows = text.split('\n').slice(0, height);
+function createWorld(text) {
+  const rows = text.trim().split('\n');
+  const height = rows.length;
+  const width = rows.reduce((max, line) => Math.max(max, line.length), 0);
   const data = [];
   for (let y = 0; y < height; y += 1) {
-    const line = rows[y] ?? ''.padEnd(width, '~');
+    const line = rows[y] ?? '';
     for (let x = 0; x < width; x += 1) {
-      const ch = line[x] ?? '~';
-      const tile = TILES[ch] ?? TILES['~'];
+      const ch = line[x] ?? '.';
+      const tile = TILES[ch] ?? TILES['.'];
       data.push({
         symbol: ch,
         ...tile,
@@ -152,7 +157,7 @@ function createWorld(text, width, height) {
     height,
     data,
     tileAt(x, y) {
-      if (x < 0 || y < 0 || x >= width || y >= height) return { passable: false, color: '#000' };
+      if (x < 0 || y < 0 || x >= width || y >= height) return { symbol: ' ', passable: false, color: '#020617', name: 'void' };
       return data[y * width + x];
     },
   };
@@ -582,22 +587,39 @@ function resolveConversationOption(index) {
 
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (let y = 0; y < world.height; y += 1) {
-    for (let x = 0; x < world.width; x += 1) {
-      drawTile(x, y, world.tileAt(x, y));
+  const camera = getCamera();
+
+  for (let sy = 0; sy < VIEW_ROWS; sy += 1) {
+    const worldY = camera.y + sy;
+    for (let sx = 0; sx < VIEW_COLS; sx += 1) {
+      const worldX = camera.x + sx;
+      drawTile(sx, sy, world.tileAt(worldX, worldY));
     }
   }
+
+  const project = (entity) => ({
+    screenX: (entity.x - camera.x) * TILE_SIZE,
+    screenY: (entity.y - camera.y) * TILE_SIZE,
+  });
+
   for (const item of itemsOnGround) {
-    drawGlyph(item.glyph, item.color, item.x, item.y);
+    if (!isInView(item, camera)) continue;
+    const { screenX, screenY } = project(item);
+    drawItemSprite(item, screenX, screenY);
   }
   for (const monster of gameState.monsters) {
-    if (!monster.alive) continue;
-    drawGlyph(monster.glyph, monster.color, monster.x, monster.y);
+    if (!monster.alive || !isInView(monster, camera)) continue;
+    const { screenX, screenY } = project(monster);
+    drawMonsterSprite(monster, screenX, screenY);
   }
   for (const npc of gameState.npcs) {
-    drawGlyph(npc.glyph, npc.color, npc.x, npc.y);
+    if (!isInView(npc, camera)) continue;
+    const { screenX, screenY } = project(npc);
+    drawNPCSprite(npc, screenX, screenY);
   }
-  drawGlyph(gameState.player.glyph, gameState.player.color, gameState.player.x, gameState.player.y);
+  const { screenX: playerX, screenY: playerY } = project(gameState.player);
+  drawPlayerSprite(gameState.player, playerX, playerY);
+
   renderStats();
   renderInventory();
   renderQuests();
@@ -605,16 +627,172 @@ function render() {
   renderDialogue();
 }
 
-function drawTile(x, y, tile) {
-  ctx.fillStyle = tile.color;
-  ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
-  ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE + TILE_SIZE - 2, TILE_SIZE, 2);
+function getCamera() {
+  const { player } = gameState;
+  const halfCols = Math.floor(VIEW_COLS / 2);
+  const halfRows = Math.floor(VIEW_ROWS / 2);
+  let camX = player.x - halfCols;
+  let camY = player.y - halfRows;
+  camX = Math.max(0, Math.min(world.width - VIEW_COLS, camX));
+  camY = Math.max(0, Math.min(world.height - VIEW_ROWS, camY));
+  return { x: camX, y: camY };
 }
 
-function drawGlyph(glyph, color, x, y) {
-  ctx.fillStyle = color;
-  ctx.fillText(glyph, x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2 + 1);
+function isInView(entity, camera) {
+  return (
+    entity.x >= camera.x - 1 &&
+    entity.x <= camera.x + VIEW_COLS &&
+    entity.y >= camera.y - 1 &&
+    entity.y <= camera.y + VIEW_ROWS
+  );
+}
+
+function drawTile(screenX, screenY, tile) {
+  const px = screenX * TILE_SIZE;
+  const py = screenY * TILE_SIZE;
+  ctx.lineWidth = 1;
+  ctx.fillStyle = tile.color;
+  ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.fillRect(px, py, TILE_SIZE, 4);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+  ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 4);
+
+  switch (tile.symbol) {
+    case '~':
+      drawWave(px, py);
+      break;
+    case 'F':
+      drawTrees(px, py);
+      break;
+    case '^':
+      drawMountain(px, py);
+      break;
+    case 'C':
+      drawCastle(px, py);
+      break;
+    case 'R':
+      drawRuins(px, py);
+      break;
+    case 'S':
+      drawSanctum(px, py);
+      break;
+    case 'D':
+      drawDesert(px, py);
+      break;
+    case '#':
+      drawWall(px, py);
+      break;
+    default:
+      break;
+  }
+}
+
+function drawWave(px, py) {
+  ctx.strokeStyle = 'rgba(148, 197, 255, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(px + 4, py + TILE_SIZE - 6);
+  ctx.quadraticCurveTo(px + TILE_SIZE / 2, py + TILE_SIZE - 10, px + TILE_SIZE - 4, py + TILE_SIZE - 6);
+  ctx.stroke();
+}
+
+function drawTrees(px, py) {
+  ctx.fillStyle = '#166534';
+  ctx.fillRect(px + 6, py + 4, 6, 12);
+  ctx.fillRect(px + TILE_SIZE - 12, py + 6, 7, 11);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px + 8, py + 14, 2, 6);
+  ctx.fillRect(px + TILE_SIZE - 10, py + 16, 2, 4);
+}
+
+function drawMountain(px, py) {
+  ctx.fillStyle = '#cbd5f5';
+  ctx.beginPath();
+  ctx.moveTo(px + TILE_SIZE / 2, py + 6);
+  ctx.lineTo(px + 4, py + TILE_SIZE - 4);
+  ctx.lineTo(px + TILE_SIZE - 4, py + TILE_SIZE - 4);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawCastle(px, py) {
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(px + 6, py + 8, TILE_SIZE - 12, TILE_SIZE - 10);
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(px + TILE_SIZE / 2 - 3, py + 14, 6, 8);
+  ctx.fillRect(px + 6, py + 8, 4, 6);
+  ctx.fillRect(px + TILE_SIZE - 10, py + 8, 4, 6);
+}
+
+function drawRuins(px, py) {
+  ctx.fillStyle = '#cbd5f5';
+  ctx.fillRect(px + 5, py + TILE_SIZE - 10, TILE_SIZE - 10, 4);
+  ctx.fillStyle = '#facc15';
+  ctx.fillRect(px + 6, py + TILE_SIZE - 14, 3, 4);
+  ctx.fillRect(px + TILE_SIZE - 10, py + TILE_SIZE - 16, 3, 6);
+}
+
+function drawSanctum(px, py) {
+  ctx.fillStyle = '#0ea5e9';
+  ctx.beginPath();
+  ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE / 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(14, 165, 233, 0.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawDesert(px, py) {
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.35)';
+  ctx.fillRect(px + 2, py + 10, TILE_SIZE - 4, 6);
+  ctx.fillRect(px + 6, py + 4, TILE_SIZE / 3, 4);
+}
+
+function drawWall(px, py) {
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+}
+
+function drawPlayerSprite(player, px, py) {
+  ctx.fillStyle = player.color;
+  ctx.beginPath();
+  ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE / 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#020617';
+  ctx.fillRect(px + TILE_SIZE / 2 - 3, py + TILE_SIZE / 2 + 4, 6, 8);
+}
+
+function drawNPCSprite(npc, px, py) {
+  ctx.fillStyle = npc.color;
+  ctx.beginPath();
+  ctx.moveTo(px + TILE_SIZE / 2, py + 6);
+  ctx.lineTo(px + TILE_SIZE - 6, py + TILE_SIZE - 6);
+  ctx.lineTo(px + 6, py + TILE_SIZE - 6);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawMonsterSprite(monster, px, py) {
+  ctx.fillStyle = monster.color;
+  ctx.fillRect(px + 6, py + 6, TILE_SIZE - 12, TILE_SIZE - 12);
+  ctx.fillStyle = '#020617';
+  ctx.fillRect(px + 10, py + 10, 4, 4);
+  ctx.fillRect(px + TILE_SIZE - 14, py + 10, 4, 4);
+}
+
+function drawItemSprite(item, px, py) {
+  ctx.fillStyle = item.color;
+  ctx.beginPath();
+  ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE / 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
 function renderStats() {
