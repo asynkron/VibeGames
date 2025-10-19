@@ -1037,15 +1037,15 @@ main();
 
     // Local pixel art placeholders so the encounter billboard can load without external fetches.
     const MONSTER_ART = {
-      serpent: 'assets/monsters/serpent.png',
-      hobbit: 'assets/monsters/hobbit.png',
-      hobgoblin: 'assets/monsters/hobgoblin.png',
-      skeleton: 'assets/monsters/skeleton.png',
-      knight: 'assets/monsters/knight.png',
-      monk: 'assets/monsters/monk.png',
-      mage: 'assets/monsters/mage.png',
-      enchantress: 'assets/monsters/female-mage.png',
-      default: 'assets/monsters/monster.png'
+      serpent: './assets/monsters/serpent.png',
+      hobbit: './assets/monsters/hobbit.png',
+      hobgoblin: './assets/monsters/hobgoblin.png',
+      skeleton: './assets/monsters/skeleton.png',
+      knight: './assets/monsters/knight.png',
+      monk: './assets/monsters/monk.png',
+      mage: './assets/monsters/mage.png',
+      enchantress: './assets/monsters/female-mage.png',
+      default: './assets/monsters/monster.png'
     };
 
     const billboard = (typeof window !== 'undefined' && window.__bt3_encounterBillboard) ? window.__bt3_encounterBillboard : null;
