@@ -1,5 +1,6 @@
 // Shared helper for working with low-resolution, pixel-perfect canvas scenes.
 // Keeps image smoothing disabled and centralizes common grid-based helpers.
+import { DEFAULT_OVERLAY_FONT } from '../config/display.js';
 export function createPixelContext(canvas, options = {}) {
   const ctx = canvas.getContext('2d', options);
   disableSmoothing(ctx);
@@ -53,7 +54,7 @@ export function createPixelContext(canvas, options = {}) {
     x = canvas.width / 2,
     y = canvas.height / 2,
     padding = 12,
-    font = 'bold 16px monospace',
+    font = DEFAULT_OVERLAY_FONT,
     fillStyle = 'rgba(0,0,0,0.55)',
     textFill = '#fff',
     align = 'center',

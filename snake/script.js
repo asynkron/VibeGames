@@ -4,6 +4,11 @@ import { createPixelContext } from '../shared/render/pixelCanvas.js';
 import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtControls.js';
 import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 import { createOverlayFX } from '../shared/fx/overlay.js';
+import {
+  DEFAULT_TILE_SIZE,
+  DEFAULT_SCANLINE_ALPHA_RANGE,
+  createDefaultCrtSettings,
+} from '../shared/config/display.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -13,19 +18,13 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
   const crtFrame = document.querySelector('.screen.crt-frame');
   const syncScanlines = (value) => {
     if (!crtFrame) return;
-    applyScanlineIntensity(crtFrame, value, { alphaRange: [0.05, 0.28] });
+    applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
   };
 
-  const crtSettings = {
-    enabled: true,
-    warp: 0.08,
-    aberration: 0.05,
-    aberrationOpacity: 0.45,
-    scanlines: 0.5,
-  };
+  const crtSettings = createDefaultCrtSettings();
   const crtControls = createCrtControls({
     storageKey: 'snake_crt_settings',
-    defaults: crtSettings,
+    defaults: createDefaultCrtSettings(),
     onChange: (next) => {
       Object.assign(crtSettings, next);
       syncScanlines(next.scanlines);
@@ -38,7 +37,7 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
   // Grid config
   const COLS = 32;
   const ROWS = 24;
-  const TILE = 10; // canvas is 320x240 -> 32x24 grid
+  const TILE = DEFAULT_TILE_SIZE; // shared pixel density across games
 
   pixel.resizeToGrid(COLS, ROWS, TILE);
   const { startIris, drawIris, setBounds } = createOverlayFX({ ctx, width: canvas.width, height: canvas.height });
