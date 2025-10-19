@@ -234,6 +234,7 @@ body::before {
 }
 
 .minimap .cell.visited { background: rgba(49, 33, 60, 0.95); }
+.minimap .cell.void { background: rgba(12, 8, 15, 0.65); opacity: 0.6; }
 .minimap .cell.current { outline: 2px solid var(--bt3-accent); outline-offset: -2px; }
 .minimap .cell .facing {
   position: absolute;

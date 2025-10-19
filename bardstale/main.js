@@ -203,20 +203,22 @@ function buildMinimap(root, state) {
   const grid = document.createElement('div');
   grid.className = 'grid';
 
-  // Compute cell size to fit container width (cap at 12px)
-  const cw = root.clientWidth || 320;
-  const cell = Math.max(4, Math.min(12, Math.floor((cw - 16) / state.width)));
+  const viewRadius = 4; // show a focused window around the player
+  const viewSize = viewRadius * 2 + 1;
 
-  grid.style.gridTemplateColumns = `repeat(${state.width}, ${cell}px)`;
-  grid.style.gridTemplateRows = `repeat(${state.height}, ${cell}px)`;
+  // Compute cell size to fit container width and keep the window readable
+  const cw = root.clientWidth || 220;
+  const cell = Math.max(8, Math.min(18, Math.floor((cw - 16) / viewSize)));
+
+  grid.style.gridTemplateColumns = `repeat(${viewSize}, ${cell}px)`;
+  grid.style.gridTemplateRows = `repeat(${viewSize}, ${cell}px)`;
 
   const cells = [];
-  for (let y = 0; y < state.height; y++) {
+  for (let y = 0; y < viewSize; y++) {
     cells[y] = [];
-    for (let x = 0; x < state.width; x++) {
+    for (let x = 0; x < viewSize; x++) {
       const c = document.createElement('div');
       c.className = 'cell';
-      c.dataset.pos = `${x},${y}`;
       c.style.width = `${cell}px`;
       c.style.height = `${cell}px`;
       grid.appendChild(c);
@@ -230,15 +232,26 @@ function buildMinimap(root, state) {
   const arrow = document.createElement('div');
   arrow.className = 'facing';
 
-  return { grid, cells, arrow };
+  return { grid, cells, arrow, radius: viewRadius };
 }
 
 function updateMinimap(mini, state) {
-  for (let y = 0; y < state.height; y++) {
-    for (let x = 0; x < state.width; x++) {
-      const el = mini.cells[y][x];
+  // Render only the square window defined when the minimap was built.
+  const radius = mini.radius;
+  const size = radius * 2 + 1;
+  for (let vy = 0; vy < size; vy++) {
+    for (let vx = 0; vx < size; vx++) {
+      const el = mini.cells[vy][vx];
       el.className = 'cell';
-      const cell = state.cells[y][x];
+      const mapX = state.x + (vx - radius);
+      const mapY = state.y + (vy - radius);
+      if (!inBounds(mapX, mapY, state.width, state.height)) {
+        el.classList.add('void');
+        el.dataset.pos = '—';
+        continue;
+      }
+      el.dataset.pos = `${mapX},${mapY}`;
+      const cell = state.cells[mapY][mapX];
       if (cell.visited) el.classList.add('visited');
       if (cell.n === WALL.WALL) el.classList.add('wall-n');
       if (cell.e === WALL.WALL) el.classList.add('wall-e');
@@ -250,7 +263,7 @@ function updateMinimap(mini, state) {
       if (cell.w === WALL.DOOR) el.classList.add('door-w');
     }
   }
-  const cur = mini.cells[state.y][state.x];
+  const cur = mini.cells[radius][radius];
   cur.classList.add('current');
   const rot = state.dir === DIR.N ? 0 : state.dir === DIR.E ? 90 : state.dir === DIR.S ? 180 : 270;
   mini.arrow.style.transform = `rotate(${rot}deg)`;
