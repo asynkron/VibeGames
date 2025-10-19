@@ -1,19 +1,17 @@
-# 28x16 grid. Legend:
-# X brick, = solid ground, L ladder, - rope, . empty, G gold, E enemy, P player
-# Outer border is solid ground/brick to keep entities inside in this prototype.
+# 28x16 grid. Classic inspired layout
 ============================
-=..........G..............=
-=..XXXX..........XXXX.....=
-=..X..X....L.....X..X..G..=
-=..X..X....L.....X..X.....=
-=..X..XXXXXLXXXXX..XX..XXXX=
-=..X.........-...........X=
-=..X....G....-...G.......X=
-=..XXXXXXX...-...XXXXXXX.X=
-=........L...L...........=
-=..G.....L...L.....G.....=
-=........L---L...........=
-=..XXXXXXL...LXXXXXX.....=
-=..P.....L...L.....E.....=
-=..........G.............=
+=..G....---....G....E......=
+=.XXXXXXX..X...X..XXXXXXX..=
+=.X.....X..X...X..X.....X..=
+=.X.G..LX--X.L.X--XL..G.X..=
+=.XXXXX.X..X.L.X..X.XXXXX..=
+=.....L.X..X.L.X..X.L...E..=
+=.G..EL.XXXXL.LXXXX.L..G...=
+=.XXXXX.....L.L.....XXXXX..=
+=.....L---L.L.L---L....E...=
+=.XXXXL...L.X.X...LXXXXXX..=
+=.X..GL.E.L.X.X.L.ELG..X...=
+=.X..L...L.XPX.L...L..X....=
+=.X..L---L.XXXXL---L..X.E..=
+=.E..L...L......L...L..E...=
 ============================
