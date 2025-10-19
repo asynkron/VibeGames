@@ -280,7 +280,6 @@ addEventListener('keydown', (e) => {
     case 'ArrowLeft': case 'a': case 'A': case 'j': case 'J': input.dl = true; break;
     case 'Enter': input.start = true; break;
     // Visual controls
-    case 'f': case 'F': toggleFullscreen(); break;
     case 'm': case 'M': toggleCrtEnabled(); break;
     case 'n': case 'N': toggleScanlines(); break;
     case 'g': case 'G': lightIdx = (lightIdx + 1) % LIGHT_PRESETS.length; applyLightingPreset(lightIdx); savePrefs(); break;
@@ -298,16 +297,6 @@ addEventListener('keyup', (e) => {
     case 'Enter': input.start = false; break;
   }
 });
-
-function toggleFullscreen() {
-  const target = bezel || document.documentElement;
-  const doc = document;
-  if (!doc.fullscreenElement && target) {
-    (target.requestFullscreen || target.webkitRequestFullscreen || target.msRequestFullscreen)?.call(target);
-  } else {
-    (doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen)?.call(doc);
-  }
-}
 
 // Moves & collisions
 function tryDiskFromEdge(r, c, dr, dc) { if (c === 0 && (c + dc) < 0) { const idx = disks.findIndex(d => d.active && d.side === 'L' && d.row === r); if (idx !== -1) return idx; } if (c === r && (c + dc) > r) { const idx = disks.findIndex(d => d.active && d.side === 'R' && d.row === r); if (idx !== -1) return idx; } return -1; }
@@ -464,7 +453,7 @@ function applyPixelScale() {
   const vw = window.innerWidth * 0.95;
   const vh = window.innerHeight * 0.95;
   const maxW = Math.min(vw, vh * 4 / 3);
-  const scale = Math.max(1, Math.floor(maxW / W));
+  const scale = Math.max(1, maxW / W);
   const cssW = W * scale;
   const cssH = H * scale;
   canvas.style.width = cssW + 'px';
