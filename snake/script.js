@@ -303,7 +303,9 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
   requestAnimationFrame(frame);
 
   function buildTerrain() {
-    // Pre-compute a symmetrical set of blocked tiles to mimic a Pac-Man maze layout
+    // Build a light-touch obstacle layout so the arena stays mostly open.
+    // This prevents unavoidable deaths at spawn while keeping a few landmarks
+    // for visual interest and pathing variety.
     const mask = Array.from({ length: ROWS }, () => new Uint8Array(COLS));
     const tiles = [];
 
@@ -322,30 +324,19 @@ import { createOverlayFX } from '../shared/fx/overlay.js';
       }
     };
 
-    const mirrorRect = (x, y, w, h) => {
-      addRect(x, y, w, h);
-      addRect(COLS - x - w, y, w, h);
-    };
-
-    const mid = Math.floor(COLS / 2);
+    const midX = Math.floor(COLS / 2);
     const midY = Math.floor(ROWS / 2);
 
-    addRect(mid - 1, 3, 2, 4);
-    addRect(mid - 1, ROWS - 7, 2, 4);
+    // Small center diamond
+    addRect(midX - 1, midY - 1, 2, 2);
 
-    mirrorRect(4, 4, 3, 5);
-    mirrorRect(4, ROWS - 9, 3, 5);
-    mirrorRect(10, 8, 2, 4);
-    mirrorRect(10, ROWS - 12, 2, 4);
-    mirrorRect(2, midY - 2, 2, 4);
+    // Two short vertical pillars placed far from the spawn lane (left side)
+    addRect(4, 6, 1, 4);
+    addRect(4, ROWS - 10, 1, 4);
 
-    addRect(mid - 6, midY - 5, 4, 2);
-    addRect(mid + 2, midY - 5, 4, 2);
-    addRect(mid - 6, midY + 3, 4, 2);
-    addRect(mid + 2, midY + 3, 4, 2);
-
-    addRect(mid - 2, midY - 1, 4, 1);
-    addRect(mid - 2, midY + 2, 4, 1);
+    // Mirror the pillars on the right for symmetry
+    addRect(COLS - 5, 6, 1, 4);
+    addRect(COLS - 5, ROWS - 10, 1, 4);
 
     return { mask, tiles };
   }
