@@ -27,6 +27,18 @@ const Colors = {
   exit: 0x58ff85,
 };
 
+// Centralised guard movement tuning so we can easily keep the AI logic readable
+// while dialing overall speed. Values chosen to slow enemies dramatically compared
+// to the previous prototype pace.
+const ENEMY_TUNING = {
+  maxSpeedX: 120,
+  dragX: 520,
+  accelGround: 420,
+  accelRope: 260,
+  climbSpeed: 60,
+  ropeSpeed: 70,
+};
+
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super('game');
@@ -128,8 +140,8 @@ export default class GameScene extends Phaser.Scene {
         } else if (type === 'enemy') {
           const e = this.physics.add.sprite(x, y, 'enemy_idle');
           e.setCollideWorldBounds(true);
-          e.setMaxVelocity(200, 420);
-          e.setDragX(620);
+          e.setMaxVelocity(ENEMY_TUNING.maxSpeedX, 420);
+          e.setDragX(ENEMY_TUNING.dragX);
           e.body.setSize(18, 26).setOffset(7, 6);
           e.play('enemy-idle');
           e.setData('aiState', 'chase');
@@ -970,7 +982,7 @@ export default class GameScene extends Phaser.Scene {
 
     const targetX = desiredTile.c * TILE + TILE / 2;
     const targetY = desiredTile.r * TILE + TILE / 2;
-    const accel = onRope ? 520 : 840;
+    const accel = onRope ? ENEMY_TUNING.accelRope : ENEMY_TUNING.accelGround;
     const dx = targetX - enemy.x;
 
     if (onLadder) {
@@ -981,7 +993,7 @@ export default class GameScene extends Phaser.Scene {
       enemy.setGravityY(0);
       const dy = targetY - enemy.y;
       const climbDir = Math.abs(dy) > 6 ? Math.sign(dy) : 0;
-      enemy.setVelocityY(climbDir * 110);
+      enemy.setVelocityY(climbDir * ENEMY_TUNING.climbSpeed);
       enemy.setAccelerationX(0);
       if (Math.abs(dx) > 6 && climbDir === 0) {
         enemy.setAccelerationX(Math.sign(dx) * accel);
@@ -994,7 +1006,7 @@ export default class GameScene extends Phaser.Scene {
       }
       enemy.setVelocityY(0);
       enemy.setAccelerationX(0);
-      const ropeSpeed = 130;
+      const ropeSpeed = ENEMY_TUNING.ropeSpeed;
       if (Math.abs(dx) > 6) {
         enemy.setVelocityX(Math.sign(dx) * ropeSpeed);
       } else {
