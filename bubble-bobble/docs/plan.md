@@ -1,51 +1,49 @@
-# Bubble Bobble — Build Plan
+# Bubble Bobble Tribute – Build Plan
 
 Goals
-- Faithful feel: single-screen platforming, blow bubbles, trap/popup enemies, fruit chains, EXTEND letters, water/air currents in later rounds.
-- 80s arcade CRT vibe: scanlines, vignette, glow, subtle warp; adjustable via shared controls.
+- Single-screen platformer with classic 80s arcade vibes and CRT effects.
+- Core loop: blow bubbles → capture enemies → pop for points/pickups → clear round.
+- Tight 60 FPS on modern browsers; inputs feel snappy.
 
-Stack
-- No-build static HTML/JS/CSS.
-- Shared libs reused: ../shared/ui/crtControls.js, ../shared/fx/crtPostprocess.js, ../shared/ui/crt.js, ../shared/config/display.js
+Stack reuse
+- Styles: ../shared/styles/crt.css, ../shared/styles/screen.css, ../shared/styles/hud.css
+- CRT UI/FX: ../shared/ui/crtControls.js, ../shared/ui/crt.js, ../shared/fx/crtPostprocess.js, ../shared/config/display.js
 
-Project layout
-- index.html — canvas + CRT overlays
-- style.css — CRT tuning + layout
-- main.js — game bootstrap and loop
-- assets/sprites — PNG sprite sheets (players, enemies, bubbles, pickups)
-- assets/levels — JSON tilemaps (platform layout, spawn points, currents)
+Milestones
+1) Foundation (DONE)
+   - Project scaffold, index/style, CRT panel+postprocess, level01 tilemap, movement+jump, bubbles.
+2) Enemies + Capture (DONE)
+   - Patrol on platforms, capture enemies in bubbles, pop to spawn pickups, scoring.
+3) Rendering & Art Pipeline
+   - Sprite sheets (player, enemies, bubbles, pickups); draw order rules; simple animations.
+   - Palette and CRT-tuned colors; background/backplate.
+4) Game Feel & Mechanics
+   - Bubble ride and tap pop; refined jump curve; semi-solids; better edge/wrap logic.
+   - Enemy variants: timing for escape; simple AI patterns; EXTEND letters as a later addition.
+5) Audio
+   - SFX (jump, bubble, pop, pickup, enemy escape) and background loop; volume/preset controls.
+6) Rounds & UI
+   - Level set (5–10 rounds initially); round intro/intermission cards; score/lives UI.
+   - Basic game over, continue, and attract mode loop.
+7) Two-Player
+   - Add 2P controls/state; on-screen indicators; shared scoring rules.
+8) Polish & Performance
+   - CRT tuning presets; sprite batching/dirty rects if needed; collision edge cases; QA pass.
 
-Phases
-1) Scaffold + CRT wiring (done)
-2) Core renderer
-   - Tilemap renderer (8x8 or 16x16 tiles), parallax backplate optional
-   - Sprite system (frame animation, flip, palette tint)
-   - HUD: score, high score, lives, round, credits
-3) Player + input
-   - Movement (walk, slip on edges), one-button bubble breath (cooldown)
-   - Collisions: AABB vs tiles; semi-solid platforms; drop-through via down+press
-4) Bubbles
-   - Spawn with inertia; float upward; stick under platforms; lifetime then pop
-   - Trap enemies on hit; pop to convert to pickups; chain pops
-5) Enemies
-   - Basic patrol and chase behaviors; escape from bubbles after timer
-   - Variants: different speeds and aggression
-6) Pickups + scoring
-   - Fruit gems spawning from popped enemies; chain/combos; end-of-round EXTEND letters
-7) Rounds + progression
-   - Level JSON: platform layout, spawn points, currents, timing
-   - Round intro card; intermissions after milestones
-8) Audio
-   - SFX (bubble, pop, pickup, enemy burst); short music loops; respect browser autoplay
-9) CRT polish + performance
-   - Presets via shared panel; barrel warp and scanline strength tuning
-   - Ensure 60 FPS on modern browsers; reduce overdraw; coalesce draw calls
+Acceptance criteria (Phase 3–5)
+- Smooth 60 FPS on a typical laptop; no major frame drops.
+- Player: responsive movement, bubble ride works, pop timing intuitive.
+- At least 2 enemy types, capture+escape timings feel fair.
+- 5+ rounds, with working round progression and basic cards.
+- Basic SFX/music toggles; no audio glitches.
 
-Risks / mitigations
-- Collision tuning for semi-solid platforms: use conservative penetration resolution
-- Overdraw with glow/warp: keep post-process resolution at canvas res; avoid extra layers
-- Input latency: fixed timestep update; queue inputs per frame
+Risks & mitigations
+- Overdraw with CRT and sprites → minimize full-canvas effects; use simple postprocess; consider dirty regions.
+- Collision edge cases on semi-solids → add tests for tile boundaries; clamp positions post-resolve.
+- Input latency → avoid heavy GC; limit allocations per frame.
+- Legal/IP → keep title as “Bubble Bobble Tribute”; original assets not used.
 
-Milestone criteria
-- MVP: 10 rounds, 2 enemy types, bubble capture/pop loop, fruit scoring, lives, simple intermission
-- 1.0: full pickup set, multiple enemy types, EXTEND, currents, more rounds
+Next steps (immediate)
+- Implement Phase 3: sprite sheet pipeline and replace placeholders.
+- Add simple sound manager and SFX stubs.
+- Prepare 3–5 additional levels and a minimal round progression.

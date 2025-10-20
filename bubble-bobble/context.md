@@ -6,7 +6,7 @@ Purpose
 Key files
 - index.html: Canvas host + shared CRT overlays + shared HUD styles
 - style.css: CRT tuning + layout
-- main.js: Game bootstrap, CRT wiring, tilemap/physics/bubbles shell
+- main.js: Game bootstrap; CRT wiring; tilemap; player physics; enemies; bubble capture/escape; pickups and scoring
 - assets/levels/level01.js: First level (JS module to avoid file:// CORS)
 - docs/plan.md: Detailed phased build plan
 
@@ -16,18 +16,21 @@ Tech/Stack
 - Static HTML/JS; canvas rendering with post-processed CRT.
 
 Current status
-- MVP shell: level tiles rendered; basic player movement + jump with AABB collisions; bubbles float and stick under platforms; CRT panel and F1/F2 presets wired.
+- Level tiles rendered; player movement + jump with AABB collisions
+- Enemies patrol and can be trapped in bubbles; bubble pops convert to pickups; enemy escapes if bubble times out
+- Pickups fall and are collectible; score increments
+- CRT panel and F1/F2 presets wired
 
 Planned Systems (next)
-- Rendering: sprite art for Bub/Bob and enemies; animated tiles; backplate
-- Input: refine feel and add ride-bubble rules
-- Physics: semi-solids, bubble ride/tap pop, enemy capture & escape
-- Actors: enemies with simple patrol and capture timers; pickups
-- Levels: expand level set; add round intro/intermission cards
-- Audio: add SFX/music via shared audio helpers
+- Rendering: replace placeholders with sprites; animated tiles; background/backplate
+- Input: bubble ride; tap pop; refinement of movement curves
+- Physics: semi-solids, better edge detection, vertical wrap (if desired)
+- Actors: more enemy types; capture timers and behaviors; EXTEND letters
+- Levels: expand set; round intro/intermission cards; currents in later rounds
+- Audio: SFX/music via shared helpers
 
 Known Risks
-- CRT effect performance; sprite layering with bubbles; bubble timing; semi-solid collisions
+- CRT performance under heavy overdraw; sprite layering with bubbles; timing nuances for capture and pop; semi-solid/platform edge cases
 
 Next
-- Implement Phase 2–3 from docs/plan.md (renderer + player refinements), then bubble capture loop and a first enemy.
+- Add simple sprite rendering pipeline (sprite sheets); first audio stubs; expand to a few rounds
