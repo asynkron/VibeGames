@@ -404,6 +404,20 @@ function createHudRenderer(canvas, stageElement) {
   const PANEL_BG = colors.panelBackground;
   const PANEL_BORDER = colors.panelBorder;
   const PANEL_SHADOW = colors.panelShadow;
+  // The 3D viewport occupies a fixed square in the top-left HUD quadrant.
+  const VIEWPORT_SIZE = Math.round(SCREEN_HEIGHT / 2 - PANEL_MARGIN);
+  const VIEWPORT_RECT = Object.freeze({
+    x: PANEL_MARGIN,
+    y: PANEL_MARGIN,
+    width: VIEWPORT_SIZE,
+    height: VIEWPORT_SIZE,
+  });
+  const VIEWPORT_BOUNDS = Object.freeze({
+    left: VIEWPORT_RECT.x,
+    right: VIEWPORT_RECT.x + VIEWPORT_RECT.width,
+    top: VIEWPORT_RECT.y,
+    bottom: VIEWPORT_RECT.y + VIEWPORT_RECT.height,
+  });
 
   function wrapLine(text, maxWidth) {
     const words = text.split(/\s+/g);
@@ -450,36 +464,59 @@ function createHudRenderer(canvas, stageElement) {
   }
 
   function measureStageBounds() {
-    // Convert the DOM position of the 3D stage into HUD canvas coordinates so we
-    // can anchor overlay panels to its right edge.
-    if (!stageElement) {
-      const fallback = PANEL_MARGIN + 220;
-      return {
-        left: PANEL_MARGIN,
-        right: fallback,
-        top: PANEL_MARGIN,
-        bottom: fallback,
-      };
-    }
+    // Keep the 3D viewport anchored to the HUD slot defined by VIEWPORT_RECT.
+    // We compute the desired rectangle in HUD coordinates and then project it
+    // into DOM space so the WebGL stage lines up with the painted HUD frame.
+    if (!stageElement) return VIEWPORT_BOUNDS;
+
     const hudRect = canvas.getBoundingClientRect();
-    const stageRect = stageElement.getBoundingClientRect();
-    if (!hudRect.width || !hudRect.height) {
-      const fallback = PANEL_MARGIN + 220;
-      return {
-        left: PANEL_MARGIN,
-        right: fallback,
-        top: PANEL_MARGIN,
-        bottom: fallback,
-      };
+    if (!hudRect.width || !hudRect.height) return VIEWPORT_BOUNDS;
+
+    const scaleX = hudRect.width / SCREEN_WIDTH;
+    const scaleY = hudRect.height / SCREEN_HEIGHT;
+    const width = (VIEWPORT_BOUNDS.right - VIEWPORT_BOUNDS.left) * scaleX;
+    const height = (VIEWPORT_BOUNDS.bottom - VIEWPORT_BOUNDS.top) * scaleY;
+
+    stageElement.style.left = `${VIEWPORT_BOUNDS.left * scaleX}px`;
+    stageElement.style.top = `${VIEWPORT_BOUNDS.top * scaleY}px`;
+    stageElement.style.width = `${width}px`;
+    stageElement.style.height = `${height}px`;
+    stageElement.style.maxWidth = 'none';
+    stageElement.style.maxHeight = 'none';
+    stageElement.style.minWidth = '0px';
+    stageElement.style.minHeight = '0px';
+
+    return VIEWPORT_BOUNDS;
+  }
+
+  function drawViewportFrame(bounds) {
+    const width = Math.max(0, bounds.right - bounds.left);
+    const height = Math.max(0, bounds.bottom - bounds.top);
+    if (!width || !height) return;
+
+    const outerX = bounds.left - 2;
+    const outerY = bounds.top - 2;
+    const outerWidth = width + 4;
+    const outerHeight = height + 4;
+    const innerPadding = 6;
+    const innerWidth = Math.max(0, width - innerPadding * 2);
+    const innerHeight = Math.max(0, height - innerPadding * 2);
+
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = PANEL_BORDER;
+    ctx.strokeRect(outerX + 0.5, outerY + 0.5, outerWidth - 1, outerHeight - 1);
+    if (innerWidth >= 1 && innerHeight >= 1) {
+      ctx.strokeStyle = 'rgba(244, 210, 138, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(
+        bounds.left + innerPadding + 0.5,
+        bounds.top + innerPadding + 0.5,
+        innerWidth - 1,
+        innerHeight - 1,
+      );
     }
-    const scaleX = canvas.width / hudRect.width;
-    const scaleY = canvas.height / hudRect.height;
-    return {
-      left: (stageRect.left - hudRect.left) * scaleX,
-      right: (stageRect.right - hudRect.left) * scaleX,
-      top: (stageRect.top - hudRect.top) * scaleY,
-      bottom: (stageRect.bottom - hudRect.top) * scaleY,
-    };
+    ctx.restore();
   }
 
   function computeInfoPanel(stageBounds) {
@@ -510,6 +547,7 @@ function createHudRenderer(canvas, stageElement) {
     ctx.fillStyle = TEXT_COLOR;
 
     const stageBounds = measureStageBounds();
+    drawViewportFrame(stageBounds);
     const infoPanel = computeInfoPanel(stageBounds);
     drawPanel(infoPanel, 'ADVENTURE LOG');
 
