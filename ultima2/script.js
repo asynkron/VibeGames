@@ -6,14 +6,13 @@ const viewportElement = document.querySelector('.viewport');
 
 const TILE_SIZE = 32;
 const BASE_SPRITE_SIZE = 16;
-const VIEW_COLS = 25;
-const VIEW_ROWS = 15;
-const CANVAS_WIDTH = VIEW_COLS * TILE_SIZE;
-const CANVAS_HEIGHT = VIEW_ROWS * TILE_SIZE;
+// The logical canvas size defines how many tiles can be rendered at once.
+const BASE_CANVAS_WIDTH = 640;
+const BASE_CANVAS_HEIGHT = 480;
 
 const resolutionManager = createCanvasResolutionManager(canvas, {
-  logicalWidth: CANVAS_WIDTH,
-  logicalHeight: CANVAS_HEIGHT,
+  logicalWidth: BASE_CANVAS_WIDTH,
+  logicalHeight: BASE_CANVAS_HEIGHT,
   onPixelRatioChange(ratio) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.imageSmoothingEnabled = false;
@@ -21,6 +20,14 @@ const resolutionManager = createCanvasResolutionManager(canvas, {
 });
 
 resolutionManager.sync();
+
+const logicalWidth = resolutionManager.logicalWidth;
+const logicalHeight = resolutionManager.logicalHeight;
+// Derive how many world tiles fit into the viewport instead of relying on magic numbers.
+const VIEW_COLS = Math.floor(logicalWidth / TILE_SIZE);
+const VIEW_ROWS = Math.floor(logicalHeight / TILE_SIZE);
+const CANVAS_WIDTH = VIEW_COLS * TILE_SIZE;
+const CANVAS_HEIGHT = VIEW_ROWS * TILE_SIZE;
 
 const VIEWPORT_ASPECT = CANVAS_WIDTH / CANVAS_HEIGHT;
 // Render with the modern colorized tiles while keeping sprite coordinates consistent.
