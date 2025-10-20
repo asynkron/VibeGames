@@ -1103,6 +1103,18 @@ function buildScene(state) {
   player.rotation.y = yawForDir(state.dir);
   scene.add(player);
 
+  // Warm point light that follows the party to mimic a handheld torch.
+  const torchAnchor = new THREE.Object3D();
+  const torchOffset = { x: 0.28, y: eye - 0.08, z: -0.32 };
+  torchAnchor.position.set(torchOffset.x, torchOffset.y, torchOffset.z);
+  torchAnchor.userData.baseOffset = torchOffset;
+  const torch = new THREE.PointLight(0xffc87a, 1.55, 7.5, 2.2);
+  torch.castShadow = false;
+  torch.userData.baseIntensity = torch.intensity;
+  torch.userData.baseDistance = torch.distance;
+  torchAnchor.add(torch);
+  player.add(torchAnchor);
+
   camera.position.set(0, eye, 0);
   player.add(camera);
 
@@ -1121,7 +1133,7 @@ function buildScene(state) {
   onResize();
   window.addEventListener('resize', onResize);
 
-  return { stage, scene, renderer, camera, player };
+  return { stage, scene, renderer, camera, player, torch, torchAnchor };
 }
 
 function parseOptsFromURL() {
@@ -1158,6 +1170,8 @@ function main() {
   // Animation state
   let anim = null; // {type:'move'|'turn', start, duration, fromPos:{x,z}, toPos:{x,z}, fromYaw, toYaw}
   let keyQueued = null;
+  let lastFrameTime = performance.now();
+  let torchPhase = Math.random() * Math.PI * 2;
 
   function canMoveForward() {
     const ft = getWall(cells, width, height, state.x, state.y, state.dir);
@@ -1230,6 +1244,8 @@ function main() {
 
   function step() {
     const now = performance.now();
+    const dt = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
 
     if (anim) {
       const t = Math.min(1, (now - anim.start) / anim.duration);
@@ -1252,6 +1268,21 @@ function main() {
           else if (k === 'F') startMove(+1);
           else if (k === 'B') startMove(-1);
         }
+      }
+    }
+
+    if (g.torch) {
+      // Flicker intensity and anchor wobble with a blend of low/high frequency noise.
+      torchPhase += dt * 5.2;
+      const spark = Math.sin(torchPhase) * 0.18 + (Math.random() - 0.5) * 0.1;
+      const baseIntensity = g.torch.userData.baseIntensity;
+      const baseDistance = g.torch.userData.baseDistance;
+      g.torch.intensity = clamp(baseIntensity + spark, baseIntensity * 0.65, baseIntensity * 1.35);
+      g.torch.distance = clamp(baseDistance + spark * 1.8, baseDistance * 0.75, baseDistance * 1.2);
+      if (g.torchAnchor?.userData?.baseOffset) {
+        const b = g.torchAnchor.userData.baseOffset;
+        g.torchAnchor.position.x = b.x + Math.sin(torchPhase * 2.4) * 0.035;
+        g.torchAnchor.position.y = b.y + Math.cos(torchPhase * 3.1) * 0.018;
       }
     }
 
