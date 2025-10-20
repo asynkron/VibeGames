@@ -1026,8 +1026,9 @@ function buildScene(state) {
   const eye = tileSize * 0.55;
 
   const wallTexture = loadTexture('./assets/monsters/green-wall.png');
-  const floorTexture = createStoneTexture('#2c2f33', { accentHex: '#1e2126', noise: 0.15, crackColor: 'rgba(0,0,0,0.18)', crackCount: 8, repeat: 6 });
-  const ceilingTexture = createStoneTexture('#3a3d45', { accentHex: '#2f3238', noise: 0.12, crackColor: 'rgba(0,0,0,0.12)', crackCount: 6, repeat: 4 });
+  // Darken the generated floor/ceiling so the viewport stays subordinate to the HUD colors.
+  const floorTexture = createStoneTexture('#1b1916', { accentHex: '#25211c', noise: 0.1, crackColor: 'rgba(0,0,0,0.2)', crackCount: 8, repeat: 6 });
+  const ceilingTexture = createStoneTexture('#24201b', { accentHex: '#1a1712', noise: 0.1, crackColor: 'rgba(0,0,0,0.16)', crackCount: 6, repeat: 4 });
   const doorTexture = loadTexture('./assets/monsters/green-wall-door.png');
 
   const wallMat = new THREE.MeshLambertMaterial({ map: wallTexture, color: 0xffffff, side: THREE.DoubleSide });
