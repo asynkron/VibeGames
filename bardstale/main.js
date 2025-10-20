@@ -707,8 +707,8 @@ function createHudRenderer(canvas, stageElement) {
     }
 
     let actionY = Math.min(logBottomLimit, startY + visible.length * lineHeight) + layout.buttonVerticalSpacing;
-    const panelBottom = infoPanel.y + infoPanel.height - layout.infoPanelFooterPadding;
-    if (state.prompt && actionY <= panelBottom) {
+    const infoPanelBottom = infoPanel.y + infoPanel.height - layout.infoPanelFooterPadding;
+    if (state.prompt && actionY <= infoPanelBottom) {
       ctx.fillStyle = ACCENT_COLOR;
       ctx.fillText(state.prompt, logX, actionY);
       ctx.fillStyle = TEXT_COLOR;
@@ -716,7 +716,7 @@ function createHudRenderer(canvas, stageElement) {
     }
 
     const buttonStride = lineHeight + layout.buttonVerticalSpacing;
-    const availableButtonSpace = Math.max(0, panelBottom - actionY + 4);
+    const availableButtonSpace = Math.max(0, infoPanelBottom - actionY + 4);
     const maxButtons = Math.max(0, Math.floor(availableButtonSpace / buttonStride));
     for (let i = 0; i < state.buttons.length && i < maxButtons; i++) {
       const btn = state.buttons[i];
@@ -742,7 +742,7 @@ function createHudRenderer(canvas, stageElement) {
     ctx.fillText('MEMBERS', PARTY_PANEL.x + 12, headerY);
     ctx.fillStyle = TEXT_COLOR;
 
-    const panelBottom = PARTY_PANEL.y + PARTY_PANEL.height - layout.partyPanelFooterPadding;
+    const partyPanelBottom = PARTY_PANEL.y + PARTY_PANEL.height - layout.partyPanelFooterPadding;
     const rowPadding = 6;
     const lineSpacing = lineHeight + 2;
     let rowTop = headerY + layout.partyPanelRowOffset + lineHeight;
@@ -753,7 +753,7 @@ function createHudRenderer(canvas, stageElement) {
       if (row.attributes) lineCount += 1;
       if (statusLine) lineCount += 1;
       const rowHeight = rowPadding * 2 + lineCount * lineHeight + Math.max(0, lineCount - 1) * 2;
-      if (rowTop + rowHeight > panelBottom) {
+      if (rowTop + rowHeight > partyPanelBottom) {
         break;
       }
       if (row.id && row.id === state.activeCharacterId) {
