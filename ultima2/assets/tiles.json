@@ -1,0 +1,74 @@
+{
+    "tile-set": {
+        "columns": 9,
+        "rows": 6,
+        "classic-start-row": 0,
+        "modern-start-row": 7
+    },
+    "row1": [
+        "water",
+        "grass",
+        "forest",
+        "mountains",
+        "castle",
+        "castle-flag-red",
+        "castle-flag-blue",
+        "castle-flag-green",
+        "castle-flag-white"
+    ],
+    "row2": [
+        "mountain-entrance",
+        "swordsman",
+        "swordsman-attack",
+        "horse",
+        "wagon",
+        "ship",
+        "submarine",
+        "spaceship",
+        "unknown"
+    ],
+    "row3": [
+        "portal",
+        "sea-serpent",
+        "sea-serpent-attack",
+        "kraken",
+        "kraken-attack",
+        "leviathan",
+        "leviathan-attack",
+        "warship",
+        "warship-attack"
+    ],
+    "row4": [
+        "fighter",
+        "fighter-attack",
+        "golem",
+        "golem-attack",
+        "orc",
+        "orc-attack",
+        "knight",
+        "knight-attack",
+        "unknown"
+    ],
+    "row5": [
+        "rogue",
+        "rogue-attack",
+        "goblin",
+        "goblin-attack",
+        "skeleton",
+        "skeleton-attack",
+        "archer",
+        "archer-attack",
+        "unknown"
+    ],
+    "row6": [
+        "knight-green",
+        "knight-green-attack",
+        "knight-red",
+        "knight-red-attack",
+        "shield-blue",
+        "shield-red",
+        "bull-head",
+        "bull-head-alt",
+        "unused"
+    ]
+}
