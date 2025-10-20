@@ -1122,10 +1122,13 @@ function buildScene(state) {
 
   const camera = new THREE.PerspectiveCamera(60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
 
-  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.42);
-  const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.7);
-  dirLight.position.set(5, 10, 3);
-  scene.add(ambient, dirLight);
+  // Fill the maze with a soft base light so darker corners remain readable.
+  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.65);
+  // Hemisphere light lifts the vertical surfaces without over-exposing the floor.
+  const hemiLight = new THREE.HemisphereLight(0xd9d0c0, 0x111318, 0.4);
+  const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.5);
+  dirLight.position.set(3.5, 4.5, 2.5);
+  scene.add(ambient, hemiLight, dirLight);
 
   const tileSize = 1.0;
   const wallHeight = tileSize;
