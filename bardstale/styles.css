@@ -35,23 +35,12 @@ body {
   isolation: isolate;
   width: 100vw;
   height: 100vh;
-  /* Share the stage size with anything that needs to align to it. */
-  --stage-size: clamp(240px, min(48vw, 48vh), 540px);
+  /* Stage sizing/alignment is driven from the HUD renderer. */
 }
 
 #stage {
   position: absolute;
-  /* Anchor the WebGL viewport in the top-left 3×3 block of the layout. */
-  top: var(--ui-margin);
-  left: var(--ui-margin);
   display: block;
-  width: var(--stage-size);
-  height: var(--stage-size);
-  min-width: 200px;
-  min-height: 200px;
-  max-width: calc(100% - var(--ui-margin) * 2);
-  max-height: calc(100% - var(--ui-margin) * 2);
-  aspect-ratio: 1 / 1;
   z-index: 1;
   pointer-events: none;
 }
