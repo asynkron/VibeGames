@@ -1,13 +1,18 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+const viewportElement = document.querySelector('.viewport');
 
 const TILE_SIZE = 32;
 const BASE_SPRITE_SIZE = 16;
-const VIEW_COLS = Math.floor(canvas.width / TILE_SIZE);
-const VIEW_ROWS = Math.floor(canvas.height / TILE_SIZE);
+const VIEW_COLS = 25;
+const VIEW_ROWS = 15;
 
 canvas.width = VIEW_COLS * TILE_SIZE;
 canvas.height = VIEW_ROWS * TILE_SIZE;
+
+const VIEWPORT_ASPECT = canvas.width / canvas.height;
+// Render with the modern colorized tiles while keeping sprite coordinates consistent.
+const TILESET_VARIANT = 'modern';
 
 ctx.imageSmoothingEnabled = false;
 ctx.textAlign = 'center';
@@ -32,7 +37,13 @@ function loadImage(src) {
 
 function buildSpriteAtlas(metadata) {
   const tileSet = metadata['tile-set'] ?? {};
-  const classicStartRow = tileSet['classic-start-row'] ?? 0;
+  const classicStartRow = Number.isFinite(tileSet['classic-start-row'])
+    ? Number(tileSet['classic-start-row'])
+    : 0;
+  const modernStartRow = Number.isFinite(tileSet['modern-start-row'])
+    ? Number(tileSet['modern-start-row'])
+    : classicStartRow;
+  const selectedStartRow = TILESET_VARIANT === 'modern' ? modernStartRow : classicStartRow;
   spriteSize = tileSet['tile-size'] ?? BASE_SPRITE_SIZE;
   spriteAtlas.clear();
   // Each row entry in the metadata corresponds to both classic and modern
@@ -43,7 +54,7 @@ function buildSpriteAtlas(metadata) {
     .sort(([a], [b]) => parseInt(a.slice(3), 10) - parseInt(b.slice(3), 10));
   for (const [rowKey, names] of rowEntries) {
     const rowIndex = parseInt(rowKey.slice(3), 10) - 1;
-    const actualRow = classicStartRow + rowIndex;
+    const actualRow = selectedStartRow + rowIndex;
     names.forEach((name, column) => {
       if (!name) return;
       spriteAtlas.set(name, {
@@ -73,6 +84,43 @@ function drawSprite(name, px, py) {
   return true;
 }
 
+// Keep the CRT viewport scaled inside its frame without distorting pixels.
+function resizeViewport() {
+  if (!viewportElement) return;
+  const screen = viewportElement.parentElement;
+  if (!screen) return;
+  const styles = window.getComputedStyle(screen);
+  const paddingX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+  const paddingY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+  const availableWidth = Math.max(0, screen.clientWidth - paddingX);
+  const availableHeight = Math.max(0, screen.clientHeight - paddingY);
+  if (availableWidth === 0 || availableHeight === 0) return;
+  const widthFromHeight = availableHeight * VIEWPORT_ASPECT;
+  const heightFromWidth = availableWidth / VIEWPORT_ASPECT;
+  let renderWidth;
+  let renderHeight;
+  if (widthFromHeight <= availableWidth) {
+    renderWidth = widthFromHeight;
+    renderHeight = availableHeight;
+  } else {
+    renderWidth = availableWidth;
+    renderHeight = heightFromWidth;
+  }
+  viewportElement.style.width = `${Math.floor(renderWidth)}px`;
+  viewportElement.style.height = `${Math.floor(renderHeight)}px`;
+}
+
+let resizeScheduled = false;
+
+function scheduleViewportResize() {
+  if (resizeScheduled) return;
+  resizeScheduled = true;
+  window.requestAnimationFrame(() => {
+    resizeScheduled = false;
+    resizeViewport();
+  });
+}
+
 // Palette tuned for monochrome tiles reminiscent of the Apple II palette.
 const TILES = {
   '.': { name: 'Grassland', color: '#14532d', passable: true, sprite: 'grass' },
@@ -82,8 +130,8 @@ const TILES = {
   'C': { name: 'Castle', color: '#78350f', passable: true, sprite: 'castle' },
   'R': { name: 'Ruins', color: '#64748b', passable: true, sprite: 'mountain-entrance' },
   'S': { name: 'Sanctum', color: '#0ea5e9', passable: true, sprite: 'castle-flag-green' },
-  'D': { name: 'Desert', color: '#92400e', passable: true, sprite: 'unknown' },
-  'P': { name: 'Harbor', color: '#334155', passable: true, sprite: 'ship' },
+  'D': { name: 'Desert', color: '#b45309', passable: true },
+  'P': { name: 'Harbor', color: '#1f2937', passable: true },
   'G': { name: 'Moongate', color: '#f472b6', passable: true, sprite: 'portal' },
   '#': { name: 'Wall', color: '#1f2937', passable: false, sprite: 'shield-blue' },
   ' ': { name: 'Void', color: '#020617', passable: false },
@@ -122,7 +170,7 @@ const mapText = `
 ~~~~~~~~FFFF.FFFFF^^.......................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ~~~~~~~~FFFF.FFFFF^^..........F..FDDDD.F..F..F..F..........F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ~~~~~~~~FFFF.FFFFF^^.......................................F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~FFFF.FFFFF^^..............CCCC.............RPPPP...F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~FFFF.FFFFF^^..............CCCC.............RPPP~...F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ~~~~~~~~FFFF.FFFFF^^..............CCCC.................G...F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ~~~~~~~~FFFF.FFFFF^^..................................C....F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ~~~~~~~~FFFF.FFFFF^^......C..........................R.....F~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -174,8 +222,8 @@ const MAP_TILE_COLORS = {
   C: '#f59e0b',
   R: '#94a3b8',
   S: '#38bdf8',
-  D: '#f97316',
-  P: '#94a3b8',
+  D: '#c2410c',
+  P: '#475569',
   G: '#f472b6',
   '#': '#1f2937',
   ' ': '#020617',
@@ -1146,6 +1194,8 @@ function onKeyDown(event) {
 }
 
 window.addEventListener('keydown', onKeyDown);
+window.addEventListener('resize', scheduleViewportResize);
+scheduleViewportResize();
 
 if (mapOverlay) {
   mapOverlay.addEventListener('click', (event) => {
@@ -1156,6 +1206,7 @@ if (mapOverlay) {
 }
 
 function seedWorld() {
+  resizeViewport();
   spawnMonsters();
   spawnNPCs();
   placeItem('moonHerb', 73, 16);
