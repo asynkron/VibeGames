@@ -983,6 +983,8 @@ function yawForDir(dir) {
 
 const SCREEN_WIDTH = UI_SETTINGS.resolution.width;
 const SCREEN_HEIGHT = UI_SETTINGS.resolution.height;
+// Render the 3D viewport to a fixed low-resolution buffer so the browser upscales it.
+const VIEWPORT_RENDER_SIZE = 256;
 
 function buildScene(state) {
   const stage = document.getElementById('stage');
@@ -991,12 +993,12 @@ function buildScene(state) {
   scene.fog = new THREE.Fog(0x0a0c10, 4.5, 20);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-  const pixelScale = 0.58;
   renderer.setPixelRatio(1);
   stage.appendChild(renderer.domElement);
   renderer.domElement.classList.add('pixel-canvas');
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
+  renderer.domElement.style.imageRendering = 'pixelated';
 
   const camera = new THREE.PerspectiveCamera(60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
 
@@ -1101,7 +1103,8 @@ function buildScene(state) {
     const rect = stage.getBoundingClientRect();
     const w = Math.max(1, rect.width || SCREEN_WIDTH);
     const h = Math.max(1, rect.height || SCREEN_HEIGHT);
-    renderer.setSize(w * pixelScale, h * pixelScale, false);
+    // Keep the camera aspect tied to the DOM size while rendering to a fixed buffer.
+    renderer.setSize(VIEWPORT_RENDER_SIZE, VIEWPORT_RENDER_SIZE, false);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
     camera.aspect = w / h;
