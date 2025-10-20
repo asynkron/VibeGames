@@ -13,85 +13,19 @@ ctx.textAlign = 'center';
 ctx.textBaseline = 'middle';
 ctx.font = '14px "IBM Plex Mono", "Courier New", monospace';
 
-// Atlas bookkeeping so we can draw named tiles from the sprite sheet.
-const tileSprites = new Map();
-let spriteSheetImage = null;
-let assetsReady = false;
-
-async function loadAssets() {
-  const [metadata, image] = await Promise.all([
-    fetch('assets/tiles.json').then((response) => {
-      if (!response.ok) {
-        throw new Error(`Failed to load tileset metadata: ${response.status}`);
-      }
-      return response.json();
-    }),
-    new Promise((resolve, reject) => {
-      const imageElement = new Image();
-      imageElement.onload = () => resolve(imageElement);
-      imageElement.onerror = () => reject(new Error('Failed to load sprite sheet image.'));
-      imageElement.src = 'assets/ultima.png';
-    }),
-  ]);
-
-  buildTileAtlas(metadata);
-  spriteSheetImage = image;
-  assetsReady = true;
-}
-
-function buildTileAtlas(metadata) {
-  tileSprites.clear();
-  const tileSet = metadata['tile-set'];
-  if (!tileSet) return;
-  const columns = tileSet.columns ?? 0;
-  const rowsPerSet = tileSet.rows ?? 0;
-  const modernStartRow = tileSet['modern-start-row'] ?? 0;
-
-  for (let rowIndex = 0; rowIndex < rowsPerSet; rowIndex += 1) {
-    const names = metadata[`row${rowIndex + 1}`] ?? [];
-    for (let colIndex = 0; colIndex < columns; colIndex += 1) {
-      const name = names[colIndex];
-      if (!name) continue;
-      // Offset rows so we index into the modern artwork packed below the classic set.
-      tileSprites.set(name, {
-        sx: colIndex * TILE_SIZE,
-        sy: (modernStartRow + rowIndex) * TILE_SIZE,
-      });
-    }
-  }
-}
-
-function drawSprite(name, px, py) {
-  if (!name || !spriteSheetImage) return false;
-  const sprite = tileSprites.get(name);
-  if (!sprite) return false;
-  ctx.drawImage(
-    spriteSheetImage,
-    sprite.sx,
-    sprite.sy,
-    TILE_SIZE,
-    TILE_SIZE,
-    px,
-    py,
-    TILE_SIZE,
-    TILE_SIZE,
-  );
-  return true;
-}
-
 // Palette tuned for monochrome tiles reminiscent of the Apple II palette.
 const TILES = {
-  '.': { name: 'Grassland', color: '#14532d', passable: true, sprite: 'grass' },
-  '~': { name: 'Ocean', color: '#1d4ed8', passable: false, sprite: 'water' },
-  'F': { name: 'Forest', color: '#166534', passable: true, movementCost: 2, sprite: 'forest' },
-  '^': { name: 'Mountain', color: '#475569', passable: false, sprite: 'mountains' },
-  'C': { name: 'Castle', color: '#78350f', passable: true, sprite: 'castle' },
-  'R': { name: 'Ruins', color: '#64748b', passable: true, sprite: 'mountain-entrance' },
-  'S': { name: 'Sanctum', color: '#0ea5e9', passable: true, sprite: 'castle-flag-white' },
-  'D': { name: 'Desert', color: '#92400e', passable: true, sprite: 'unknown' },
-  'P': { name: 'Harbor', color: '#334155', passable: true, sprite: 'ship' },
-  'G': { name: 'Moongate', color: '#f472b6', passable: true, sprite: 'portal' },
-  '#': { name: 'Wall', color: '#1f2937', passable: false, sprite: 'unused' },
+  '.': { name: 'Grassland', color: '#14532d', passable: true },
+  '~': { name: 'Ocean', color: '#1d4ed8', passable: false },
+  'F': { name: 'Forest', color: '#166534', passable: true, movementCost: 2 },
+  '^': { name: 'Mountain', color: '#475569', passable: false },
+  'C': { name: 'Castle', color: '#78350f', passable: true },
+  'R': { name: 'Ruins', color: '#64748b', passable: true },
+  'S': { name: 'Sanctum', color: '#0ea5e9', passable: true },
+  'D': { name: 'Desert', color: '#92400e', passable: true },
+  'P': { name: 'Harbor', color: '#334155', passable: true },
+  'G': { name: 'Moongate', color: '#f472b6', passable: true },
+  '#': { name: 'Wall', color: '#1f2937', passable: false },
   ' ': { name: 'Void', color: '#020617', passable: false },
 };
 
@@ -218,7 +152,6 @@ const gameState = {
     name: 'Avatar',
     glyph: '@',
     color: '#f8fafc',
-    sprite: 'knight-green',
     x: 35,
     y: 31,
     hp: 18,
@@ -256,7 +189,6 @@ const itemTemplates = {
     glyph: '*',
     color: '#22c55e',
     description: 'A luminous herb prized by druids for its restorative oils.',
-    sprite: 'shield-blue',
   },
   starChart: {
     id: 'starChart',
@@ -264,7 +196,6 @@ const itemTemplates = {
     glyph: '✶',
     color: '#facc15',
     description: 'A vellum map of the heavens, plotted by Captain Mirna.',
-    sprite: 'spaceship',
   },
   rustyCutlass: {
     id: 'rustyCutlass',
@@ -272,7 +203,6 @@ const itemTemplates = {
     glyph: '/',
     color: '#f97316',
     description: 'A pirate blade, better served as scrap than a weapon.',
-    sprite: 'swordsman-attack',
   },
   druidicCharm: {
     id: 'druidicCharm',
@@ -280,7 +210,6 @@ const itemTemplates = {
     glyph: '☘',
     color: '#34d399',
     description: 'A charm that hums with gentle forest magic. Adds +1 attack.',
-    sprite: 'shield-red',
     onAcquire(state) {
       state.player.attack += 1;
       addMessage('You feel your strikes guided by the wilds (+1 attack).');
@@ -380,7 +309,6 @@ function spawnMonsters() {
       name: 'Moon Pirate',
       glyph: 'P',
       color: '#fbbf24',
-      sprite: 'rogue',
       hp: 9,
       attack: 3,
       biography: 'Sky-scouring corsairs who pillage astral charts to sell to off-worlders.',
@@ -393,7 +321,6 @@ function spawnMonsters() {
       name: 'Shadow Stalker',
       glyph: 'S',
       color: '#c084fc',
-      sprite: 'goblin',
       hp: 7,
       attack: 2,
       biography: 'A remnant of Mondain\'s armies, now haunting the sanctum at twilight.',
@@ -406,7 +333,6 @@ function spawnMonsters() {
       name: 'Lunar Wisp',
       glyph: 'W',
       color: '#a5b4fc',
-      sprite: 'skeleton',
       hp: 5,
       attack: 1,
       biography: 'Luminescent spirits drawn to the ruins in search of forgotten vows.',
@@ -430,7 +356,6 @@ function spawnNPCs() {
       name: 'Captain Mirna',
       glyph: 'M',
       color: '#f8fafc',
-      sprite: 'swordsman',
       x: 36,
       y: 31,
       biography: 'Former Royal Navy navigator of Sosaria, now guarding the tides at Moon Isle.',
@@ -510,7 +435,6 @@ function spawnNPCs() {
       name: 'Elowen the Verdant',
       glyph: 'E',
       color: '#bbf7d0',
-      sprite: 'archer',
       x: 74,
       y: 16,
       biography: 'A young druid apprenticed in the sanctum, sworn to heal the scars of Mondain\'s war.',
@@ -762,7 +686,6 @@ function resolveConversationOption(index) {
 }
 
 function render() {
-  if (!assetsReady) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const camera = getCamera();
 
@@ -914,9 +837,6 @@ function isInView(entity, camera) {
 function drawTile(screenX, screenY, tile) {
   const px = screenX * TILE_SIZE;
   const py = screenY * TILE_SIZE;
-  if (drawSprite(tile.sprite, px, py)) return;
-
-  // Fall back to the painted tiles so the game still renders if the atlas lookup fails.
   ctx.lineWidth = 1;
   ctx.fillStyle = tile.color;
   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
@@ -1066,7 +986,6 @@ function drawWall(px, py) {
 }
 
 function drawPlayerSprite(player, px, py) {
-  if (drawSprite(player.sprite, px, py)) return;
   const cx = px + TILE_SIZE / 2;
   const cy = py + TILE_SIZE / 2;
   ctx.strokeStyle = player.color;
@@ -1090,7 +1009,6 @@ function drawPlayerSprite(player, px, py) {
 }
 
 function drawNPCSprite(npc, px, py) {
-  if (drawSprite(npc.sprite, px, py)) return;
   ctx.fillStyle = npc.color;
   ctx.beginPath();
   ctx.moveTo(px + TILE_SIZE / 2, py + 6);
@@ -1101,7 +1019,6 @@ function drawNPCSprite(npc, px, py) {
 }
 
 function drawMonsterSprite(monster, px, py) {
-  if (drawSprite(monster.sprite, px, py)) return;
   ctx.fillStyle = monster.color;
   ctx.fillRect(px + 6, py + 6, TILE_SIZE - 12, TILE_SIZE - 12);
   ctx.fillStyle = '#020617';
@@ -1110,7 +1027,6 @@ function drawMonsterSprite(monster, px, py) {
 }
 
 function drawItemSprite(item, px, py) {
-  if (drawSprite(item.sprite, px, py)) return;
   ctx.fillStyle = item.color;
   ctx.beginPath();
   ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, TILE_SIZE / 4, 0, Math.PI * 2);
@@ -1323,14 +1239,4 @@ function seedWorld() {
   render();
 }
 
-async function init() {
-  try {
-    await loadAssets();
-    seedWorld();
-  } catch (error) {
-    console.error(error);
-    addMessage('The sprites failed to load. Please refresh the page to try again.');
-  }
-}
-
-init();
+seedWorld();
