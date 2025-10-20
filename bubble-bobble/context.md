@@ -33,3 +33,6 @@ Next (suggested)
 - Replace SVG placeholders with pixel-art sprites and simple frame-based animations
 - Semi-solids, edge/wrap refinements; more enemy types; EXTEND letters
 - Round cards polish; attract mode; score/lives UI art; mix controls
+
+Recent fixes
+- Enemy spawns align to top of nearest platform (solid/semi-solid) and search downward from the spawn tile to avoid spawning inside tiles.

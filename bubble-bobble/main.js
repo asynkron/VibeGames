@@ -38,25 +38,31 @@ function groundAt(tx, ty) { const t = tileTypeAt(tx, ty); return t === 1 || t ==
 const keys = { left: false, right: false, up: false, down: false, shoot: false };
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  switch (e.key) {
+  const k = e.key;
+  const c = e.code;
+  switch (k) {
     case 'ArrowLeft': case 'a': case 'A': keys.left = true; break;
     case 'ArrowRight': case 'd': case 'D': keys.right = true; break;
     case 'ArrowUp': case 'w': case 'W': keys.up = true; break;
     case 'ArrowDown': case 's': case 'S': keys.down = true; break;
-    case ' ': keys.shoot = true; break;
-    case 'm': case 'M': toggleMusicMute(); break;
-    case 'p': case 'P': running = !running; setMusicPaused(!running); if (running) requestAnimationFrame(loop); break;
-    case 'Enter': case 'r': case 'R': if (gameState === 'gameOver') restartGame(); break;
+    case ' ': case 'Spacebar': keys.shoot = true; break;
+    default: if (c === 'Space') keys.shoot = true; break;
   }
+  if (k === 'm' || k === 'M') toggleMusicMute();
+  if (k === 'p' || k === 'P') { running = !running; setMusicPaused(!running); if (running) requestAnimationFrame(loop); }
+  if ((k === 'Enter' || k === 'r' || k === 'R') && gameState === 'gameOver') restartGame();
 });
 addEventListener('keyup', (e) => {
-  switch (e.key) {
+  const k = e.key;
+  const c = e.code;
+  switch (k) {
     case 'ArrowLeft': case 'a': case 'A': keys.left = false; break;
     case 'ArrowRight': case 'd': case 'D': keys.right = false; break;
     case 'ArrowUp': case 'w': case 'W': keys.up = false; break;
     case 'ArrowDown': case 's': case 'S': keys.down = false; break;
-    case ' ': keys.shoot = false; break;
+    case ' ': case 'Spacebar': keys.shoot = false; break;
   }
+  if (c === 'Space') keys.shoot = false;
 });
 
 // World state
@@ -86,7 +92,7 @@ function moveAndCollide(p, dt) {
   }
   p.x = newX;
 
-  // Horizontal wrap (player and enemies will use same helper)
+  // Horizontal wrap
   wrapEntity(p);
 
   // Vertical
@@ -124,14 +130,42 @@ function wrapEntity(e) {
   else if (e.x > W) e.x = 0;
 }
 
-function spawnBubble(px, py, dir) { bubbles.push({ x: px, y: py, r: 5, vx: dir * 30, vy: -60, life: 2.4, carrying: null }); }
-function spawnEnemy(tx, ty, dir) { const w=12,h=14; const x = tx * TS + (TS - w) / 2; const y = ty * TS - h; enemies.push({ x,y,w,h,vx: dir*ENEMY_SPEED,vy:0,onGround:false,state:'walk' }); }
+function spawnBubbleFromPlayer() {
+  const r = 5;
+  // Place the bubble clearly in front of the player to avoid instant overlap
+  const dx = (player.dir > 0 ? (player.w / 2 + r + 4) : -(player.w / 2 + r + 4));
+  const px = player.x + player.w / 2 + dx;
+  const py = player.y + player.h / 2 - 2;
+  bubbles.push({ x: px, y: py, r, vx: player.dir * 34, vy: -60, life: 2.6, carrying: null, spawnGrace: 0.2 });
+}
+
+function spawnEnemy(tx, ty, dir) {
+  const w = 12, h = 14;
+  // Find a ground row to stand on: prefer the provided tile if it is ground/semi-solid,
+  // else check the tile below, else search downward to the first platform.
+  let groundRow = -1;
+  const t = tileTypeAt(tx, ty);
+  if (t === 1 || t === 2) {
+    groundRow = ty;
+  } else if (groundAt(tx, ty + 1)) {
+    groundRow = ty + 1;
+  } else {
+    for (let r = ty + 1; r < ROWS; r++) {
+      if (groundAt(tx, r)) { groundRow = r; break; }
+    }
+  }
+  if (groundRow < 0) groundRow = ROWS - 1;
+  const x = tx * TS + (TS - w) / 2;
+  const yTop = groundRow * TS;
+  const y = yTop - h - 0.001;
+  enemies.push({ x, y, w, h, vx: (dir >= 0 ? 1 : -1) * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk' });
+}
 function spawnPickup(x, y) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.random()*30-15), vy: -120, life: 7.0 }); }
 
 // Level/round management
 let roundIndex = 0; // 0-based
 let gameState = 'roundIntro'; // 'roundIntro' | 'playing' | 'roundClear' | 'gameOver'
-let stateTimer = 1.5;
+let stateTimer = 0.9; // shorter intro so testing is snappier
 
 function applyLevel(idx) {
   const L = LEVELS[idx % LEVELS.length];
@@ -151,13 +185,13 @@ function loseLife() {
     if (world.score > world.hi) { world.hi = world.score; try { localStorage.setItem('bbt_high_score', String(world.hi)); } catch {} }
     gameState = 'gameOver'; stateTimer = 0.0; setMusicPaused(true);
   } else {
-    gameState = 'roundIntro'; stateTimer = 1.2; applyLevel(roundIndex);
+    gameState = 'roundIntro'; stateTimer = 0.9; applyLevel(roundIndex);
   }
 }
 
 function restartGame() {
   world.score = 0; world.lives = 3; roundIndex = 0; world.round = 1; setMusicPaused(false);
-  applyLevel(roundIndex); gameState = 'roundIntro'; stateTimer = 1.2;
+  applyLevel(roundIndex); gameState = 'roundIntro'; stateTimer = 0.9;
 }
 
 function update(dt) {
@@ -178,7 +212,7 @@ function update(dt) {
   player.vy += GRAV * dt;
   if (keys.up && player.canJump) { player.vy = JUMP_VY; player.canJump = false; playJump(); if (player.ridingBubble >= 0) player.ridingBubble = -1; }
   if (player.shootCooldown > 0) player.shootCooldown -= dt;
-  if (keys.shoot && player.shootCooldown <= 0) { spawnBubble(player.x + player.w/2 + player.dir * 6, player.y + 4, player.dir); player.shootCooldown = BUBBLE_CD; playBubble(); }
+  if (keys.shoot && player.shootCooldown <= 0) { spawnBubbleFromPlayer(); player.shootCooldown = BUBBLE_CD; playBubble(); }
 
   moveAndCollide(player, dt);
 
@@ -201,7 +235,7 @@ function update(dt) {
 
   // Bubbles
   for (let i = bubbles.length - 1; i >= 0; i--) {
-    const b = bubbles[i]; b.life -= dt;
+    const b = bubbles[i]; b.life -= dt; if (b.spawnGrace && b.spawnGrace > 0) b.spawnGrace = Math.max(0, b.spawnGrace - dt);
     if (!b.carrying) { b.vy = Math.min(b.vy + (-40)*dt, -20); b.vx *= 0.995; }
     else { b.vy = Math.min(b.vy + (-30)*dt, -15); b.vx *= 0.992; b.carrying.x = b.x - b.carrying.w/2; b.carrying.y = b.y - b.carrying.h/2; }
     b.x += b.vx * dt;
@@ -212,17 +246,20 @@ function update(dt) {
       if (hit) { b.vy = 0; b.y = (ty + 1) * TS + b.r + 0.001; } else { b.y = nextY; }
     } else { b.y = nextY; }
 
-    // Decide ride vs pop
-    const playerCenterX = player.x + player.w / 2;
-    const approachingFromAbove = player.vy > 0 && (player.y + player.h) <= b.y && (b.y - (player.y + player.h)) < 6;
-    const horizontallyAligned = Math.abs(playerCenterX - b.x) < (b.r + player.w * 0.5);
-
+    // Player vs bubble
     if (rectCircleIntersects(player.x, player.y, player.w, player.h, b.x, b.y, b.r)) {
+      const playerCenterX = player.x + player.w / 2;
+      const approachingFromAbove = player.vy > 0 && (player.y + player.h) <= b.y && (b.y - (player.y + player.h)) < 6;
+      const horizontallyAligned = Math.abs(playerCenterX - b.x) < (b.r + player.w * 0.5);
       if (approachingFromAbove && horizontallyAligned) {
-        player.ridingBubble = i; player.onGround = true; player.canJump = true; player.vy = 0; player.y = b.y - player.h - 1; continue;
+        // Ride: snap to top of bubble, don't pop
+        player.ridingBubble = i; player.onGround = true; player.canJump = true; player.vy = 0; player.y = b.y - player.h - 1;
+      } else if (!b.spawnGrace || b.spawnGrace <= 0) {
+        // Pop only if grace elapsed
+        if (b.carrying) { spawnPickup(b.x - 4, b.y - 4); }
+        playPop(); bubbles.splice(i, 1); if (player.ridingBubble === i) player.ridingBubble = -1;
       }
-      if (b.carrying) { spawnPickup(b.x - 4, b.y - 4); }
-      playPop(); bubbles.splice(i, 1); if (player.ridingBubble === i) player.ridingBubble = -1; continue;
+      continue;
     }
 
     if (b.life <= 0) {
@@ -269,9 +306,9 @@ function update(dt) {
   if (gameState === 'playing') {
     const anyActiveEnemies = enemies.length > 0;
     const anyCarrying = bubbles.some(b => !!b.carrying);
-    if (!anyActiveEnemies && !anyCarrying) { gameState = 'roundClear'; stateTimer = 2.0; }
+    if (!anyActiveEnemies && !anyCarrying) { gameState = 'roundClear'; stateTimer = 1.6; }
   } else if (gameState === 'roundClear') {
-    stateTimer -= dt; if (stateTimer <= 0) { roundIndex = (roundIndex + 1) % LEVELS.length; world.round = roundIndex + 1; applyLevel(roundIndex); gameState = 'roundIntro'; stateTimer = 1.2; }
+    stateTimer -= dt; if (stateTimer <= 0) { roundIndex = (roundIndex + 1) % LEVELS.length; world.round = roundIndex + 1; applyLevel(roundIndex); gameState = 'roundIntro'; stateTimer = 0.9; }
   }
 }
 
