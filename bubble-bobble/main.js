@@ -12,13 +12,16 @@ const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('2D context not available');
 ctx.imageSmoothingEnabled = false;
 // Backdrop (C64-style 8x8 pattern + tile shadows)
-const BACKDROP_8 = { canvas: document.createElement('canvas'), ctx: null, dirty: true, roundSeed: 0 };
+const BACKDROP_8 = {  canvas: document.createElement('canvas'), ctx: null, dirty: true, roundSeed: 0, paletteIndex: 0 };
+const BACKDROP_PALETTES = ['#142850','#0f3057','#2a4b7c','#4d648d','#6e7f9a','#8aa2a9','#a3c6c4','#b8d8d8','#dce2f0'];
 function initBackdropCanvas() { BACKDROP_8.canvas.width = canvas.width; BACKDROP_8.canvas.height = canvas.height; BACKDROP_8.ctx = BACKDROP_8.canvas.getContext('2d'); if (BACKDROP_8.ctx) BACKDROP_8.ctx.imageSmoothingEnabled = false; }
 function seededRand(seed) { let x = Math.imul((seed|0) ^ 0x9e3779b1, 0x85ebca6b) >>> 0; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 0xFFFFFFFF; }; }
 function pickPastel(rand) { const pals = ['#142850','#0f3057','#2a4b7c','#4d648d','#6e7f9a','#8aa2a9','#a3c6c4','#b8d8d8','#dce2f0']; return pals[Math.floor(rand()*pals.length)]; }
-function drawC64BackdropPattern(ctx,w,h,seed) { const rand = seededRand(seed); const base = pickPastel(rand); ctx.fillStyle = base; ctx.fillRect(0,0,w,h); const CHAR=8; ctx.globalAlpha = 0.08; ctx.fillStyle = '#ffffff'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 0.05; ctx.fillStyle = '#000000'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) continue; ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 1; }
-function drawTileShadows(ctx) { if (!Array.isArray(TILES)) return; const ts=TS|0; if (ts<=0) return; for (let ty=0; ty<ROWS; ty++){ for (let tx=0; tx<COLS; tx++){ const t = tileTypeAt(tx,ty); if (t===0) continue; const px=Math.floor(tx*ts), py=Math.floor(ty*ts); if (t===1){ ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(px + ts, py + 2, 2, ts - 4); ctx.fillRect(px + 2, py + ts, ts - 2, 2); ctx.fillRect(px + ts - 1, py + ts - 1, 3, 3); } else if (t===2){ ctx.fillStyle='rgba(0,0,0,0.14)'; ctx.fillRect(px + 1, py + 1, ts - 2, 2); ctx.fillRect(px + ts, py + 1, 1, 2); } } } }
+function drawC64BackdropPattern(ctx,w,h,seed) { const rand = seededRand(seed); const base = (typeof BACKDROP_8 !== 'undefined' && BACKDROP_8 && typeof BACKDROP_8.paletteIndex === 'number') ? (BACKDROP_PALETTES[(BACKDROP_8.paletteIndex>>>0)%BACKDROP_PALETTES.length] || pickPastel(rand)) : pickPastel(rand); ctx.fillStyle = base; ctx.fillRect(0,0,w,h); const CHAR=8; ctx.globalAlpha = 0.08; ctx.fillStyle = '#ffffff'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 0.05; ctx.fillStyle = '#000000'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) continue; ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 1; }
+function drawTileShadows(ctx) { if (!Array.isArray(TILES)) return; const ts=TS|0; if (ts<=0) return; for (let ty=0; ty<ROWS; ty++){ for (let tx=0; tx<COLS; tx++){ const t = tileTypeAt(tx,ty); if (t===0) continue; const px=Math.floor(tx*ts), py=Math.floor(ty*ts); if (t===1){ ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px + ts, py + 2, 2, ts - 4); ctx.fillRect(px + 2, py + ts, ts - 2, 2); ctx.fillRect(px + ts - 1, py + ts - 1, 4, 4); } else if (t===2){ ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(px + 1, py + 1, ts - 2, 2); ctx.fillRect(px + ts, py + 1, 1, 2); } } } }
 function rebuildBackdrop(roundSeed) { if (!BACKDROP_8.ctx) initBackdropCanvas(); const b=BACKDROP_8.ctx; if(!b) return; BACKDROP_8.roundSeed=(roundSeed|0); drawC64BackdropPattern(b, BACKDROP_8.canvas.width, BACKDROP_8.canvas.height, BACKDROP_8.roundSeed); drawTileShadows(b); BACKDROP_8.dirty=false; }
+
+function drawC64Border(ctx){ const w=canvas.width,h=canvas.height,b=12; ctx.fillStyle='#0b0f1a'; ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b); ctx.fillRect(0,0,b,h); ctx.fillRect(w-b,0,b,h); }
 
 const crtFrame = document.querySelector('.screen.crt-frame');
 const crtSettings = createDefaultCrtSettings();
@@ -42,6 +45,20 @@ function tileTypeAt(tx, ty) { return inBounds(tx, ty) ? TILES[tileIndex(tx, ty)]
 function solidAt(tx, ty) { return tileTypeAt(tx, ty) === 1; }
 function groundAt(tx, ty) { const t = tileTypeAt(tx, ty); return t === 1 || t === 2; }
 
+
+// 8x8 migration helpers (expand each 16px tile into 2x2 of 8px tiles)
+const TILE_MIGRATION = { mode: '8' }; // '8' or '16'
+function expandTilesTo8(srcTiles, cols, rows) {
+  const dstCols = cols * 2, dstRows = rows * 2;
+  const out = new Array(dstCols * dstRows);
+  for (let ty=0; ty<rows; ty++){ for(let tx=0; tx<cols; tx++){ const t = srcTiles[ty*cols+tx]; const dx = tx*2, dy = ty*2;
+      out[(dy)*dstCols + (dx)] = t;
+      out[(dy)*dstCols + (dx+1)] = t;
+      out[(dy+1)*dstCols + (dx)] = t;
+      out[(dy+1)*dstCols + (dx+1)] = t;
+  } }
+  return { tiles: out, cols: dstCols, rows: dstRows };
+}
 // Input
 const keys = { left: false, right: false, up: false, down: false, shoot: false };
 addEventListener('keydown', (e) => {
@@ -153,8 +170,7 @@ function spawnBubbleFromPlayer() {
 
 function spawnEnemy(tx, ty, dir) {
   const w = 12, h = 14;
-  // Find a ground row to stand on: prefer the provided tile if it is ground/semi-solid,
-  // else check the tile below, else search downward to the first platform.
+  // Find a ground row to stand on
   let groundRow = -1;
   const t = tileTypeAt(tx, ty);
   if (t === 1 || t === 2) {
@@ -162,9 +178,7 @@ function spawnEnemy(tx, ty, dir) {
   } else if (groundAt(tx, ty + 1)) {
     groundRow = ty + 1;
   } else {
-    for (let r = ty + 1; r < ROWS; r++) {
-      if (groundAt(tx, r)) { groundRow = r; break; }
-    }
+    for (let r = ty + 1; r < ROWS; r++) { if (groundAt(tx, r)) { groundRow = r; break; } }
   }
   if (groundRow < 0) groundRow = ROWS - 1;
   const x = tx * TS + (TS - w) / 2;
@@ -172,6 +186,7 @@ function spawnEnemy(tx, ty, dir) {
   const y = yTop - h - 0.001;
   enemies.push({ x, y, w, h, vx: (dir >= 0 ? 1 : -1) * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk', type: 'walker', animTime: 0, animFrame: 0 });
 }
+
 function spawnJumper(tx, ty, dir) {
   const w = 12, h = 14;
   let groundRow = -1; const t = tileTypeAt(tx, ty);
@@ -180,6 +195,7 @@ function spawnJumper(tx, ty, dir) {
   const x = tx * TS + (TS - w) / 2; const yTop = groundRow * TS; const y = yTop - h - 0.001;
   enemies.push({ x, y, w, h, vx: (dir >= 0 ? 1 : -1) * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk', type: 'jumper', animTime: 0, animFrame: 0, jumpCd: 0 });
 }
+
 function spawnPickup(x, y) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.random()*30-15), vy: -120, life: 7.0, kind: 'fruit' }); }
 
 function spawnLetter(x, y, letter) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.random()*24-12), vy: -100, life: 9.0, kind: 'letter', ch: letter }); }
@@ -189,17 +205,23 @@ let roundIndex = 0; // 0-based
 let gameState = 'roundIntro'; // 'roundIntro' | 'playing' | 'roundClear' | 'gameOver'
 let stateTimer = 0.9; // shorter intro so testing is snappier
 
-function applyLevel(idx) {
+
   const L = LEVELS[idx % LEVELS.length];
   TS = L.tileSize; COLS = L.width; ROWS = L.height; TILES = L.tiles;
   // reset world actors
   bubbles.length = 0; enemies.length = 0; pickups.length = 0;
   // player spawn
-  player.x = (L.playerSpawn.x + 0.1) * TS; player.y = (L.playerSpawn.y + 0.1) * TS;
+  player.x = (TILE_MIGRATION.mode==='8'?2:1)*(L.playerSpawn.x + 0.1) * TS;/*ts8*/ player.y = (TILE_MIGRATION.mode==='8'?2:1)*(L.playerSpawn.y + 0.1) * TS;/*ts8*/
   player.vx = 0; player.vy = 0; player.dir = 1; player.onGround = false; player.canJump = false; player.shootCooldown = 0; player.ridingBubble = -1;
   // enemies from level
   if (Array.isArray(L.enemySpawns)) {
-    for (const sp of L.enemySpawns) { dispatchSpawn(sp); }
+    for (const sp of L.enemySpawns) { dispatchSpawn(sp);
+  // 8x8 migration stage: expand map and switch TS when enabled
+  if (TILE_MIGRATION.mode === '8') {
+    const _cols = COLS, _rows = ROWS, _tiles = TILES;
+    const ex = expandTilesTo8(_tiles, _cols, _rows);
+    COLS = ex.cols; ROWS = ex.rows; TILES = ex.tiles; TS = 8;
+  } else { TS = 16; }
   BACKDROP_8.dirty = true;
 
   }
@@ -426,11 +448,12 @@ function render() {
   // Backdrop
   if (BACKDROP_8.dirty) rebuildBackdrop(world.round || 1);
   if (BACKDROP_8.ctx) ctx.drawImage(BACKDROP_8.canvas, 0, 0);
+  drawC64Border(ctx);
 
   drawBackground();
   drawTiles(); drawBubbles(); drawEnemies(); drawPickups(); drawPlayer();
   ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textBaseline = 'top';
-  ctx.fillText(`SCORE ${world.score}`, 8, 8); ctx.fillText(`HI ${world.hi}`, 110, 8); ctx.fillText(`LIVES ${world.lives}`, 8, 20); ctx.fillText(`ROUND ${world.round}`, 160, 8); ctx.fillText('M: music  P: pause', 8, 32);
+  ctx.fillText(`SCORE ${world.score}`, 8, 8); ctx.fillText(`HI ${world.hi}`, 110, 8); ctx.fillText(`LIVES ${world.lives}`, 8, 20); ctx.fillText(`ROUND ${world.round}`, 160, 8); ctx.fillText('M: music  P: pause  B: palette', 8, 32);
   if (gameState === 'roundIntro') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(`ROUND ${world.round}`, canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
   if (gameState === 'roundClear') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('ROUND CLEAR!', canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
   if (gameState === 'gameOver') { ctx.fillStyle = 'rgba(255,180,180,0.95)'; ctx.font = 'bold 16px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10); ctx.font = '12px monospace'; ctx.fillText('Press Enter to Restart', canvas.width/2, canvas.height/2 + 12); ctx.textAlign = 'left'; }
@@ -443,7 +466,11 @@ function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now;
 async function init() { SPR = await loadSprites(); applyLevel(roundIndex); world.round = roundIndex + 1; requestAnimationFrame(loop); }
 init();
 
-function dispatchSpawn(sp){
-  if (sp.type==='jumper') return spawnJumper(sp.tx, sp.ty, sp.dir||1);
-  return spawnEnemy(sp.tx, sp.ty, sp.dir||1);
+function dispatchSpawn(sp) {
+  const dir = (sp.dir || 1);
+  const tx = (TILE_MIGRATION && TILE_MIGRATION.mode === '8' ? sp.tx * 2 : sp.tx);
+  const ty = (TILE_MIGRATION && TILE_MIGRATION.mode === '8' ? sp.ty * 2 : sp.ty);
+  if (sp.type==='jumper') return spawnJumper(tx, ty, dir);
+  return spawnEnemy(tx, ty, dir);
 }
+
