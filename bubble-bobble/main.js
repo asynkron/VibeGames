@@ -3,6 +3,8 @@ import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 import { initCrtPresetHotkeys } from '../shared/ui/crt.js';
 import { DEFAULT_SCANLINE_ALPHA_RANGE, createDefaultCrtSettings } from '../shared/config/display.js';
 import { LEVEL_01 } from './assets/levels/level01.js';
+import { loadSprites, drawSprite } from './sprites.js';
+import { playJump, playBubble, playPop, playPickup, playCapture, primeOnFirstKeydown } from './audio.js';
 
 // Canvas + CRT setup
 const canvas = document.getElementById('game');
@@ -25,6 +27,9 @@ Object.assign(crtSettings, crtControls.getSettings());
 syncScanlines(crtSettings.scanlines);
 const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
 initCrtPresetHotkeys({ storageKey: 'bubble_crt_preset', target: document.documentElement });
+
+// Prime audio on gesture
+primeOnFirstKeydown(window);
 
 // Level
 const TS = LEVEL_01.tileSize;
@@ -92,7 +97,6 @@ const ENEMY_SPEED = 40;  // px/s
 const PICKUP_SCORE = 100;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-function aabb(x, y, w, h) { return { x, y, w, h }; }
 function rectIntersects(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
 }
@@ -181,8 +185,8 @@ function spawnPickup(x, y) {
 }
 
 // Initial enemies
-spawnEnemy(10, 13, -1); // near floor
-spawnEnemy(6, 7, 1);    // mid-left platform region
+spawnEnemy(10, 13, -1);
+spawnEnemy(6, 7, 1);
 
 function update(dt) {
   world.tick++;
@@ -206,6 +210,7 @@ function update(dt) {
   if (keys.up && player.canJump) {
     player.vy = JUMP_VY;
     player.canJump = false;
+    playJump();
   }
 
   // Shoot bubble
@@ -213,6 +218,7 @@ function update(dt) {
   if (keys.shoot && player.shootCooldown <= 0) {
     spawnBubble(player.x + player.w / 2 + player.dir * 6, player.y + 4, player.dir);
     player.shootCooldown = BUBBLE_CD;
+    playBubble();
   }
 
   // Move + collide player
@@ -285,6 +291,7 @@ function update(dt) {
       if (b.carrying) {
         spawnPickup(b.x - 4, b.y - 4);
       }
+      playPop();
       bubbles.splice(i, 1);
       continue;
     }
@@ -319,6 +326,7 @@ function update(dt) {
         b.carrying = e;
         b.life = Math.max(b.life, 4.0); // longer life while carrying
         b.vx *= 0.7; b.vy *= 0.7;
+        playCapture();
         break;
       }
     }
@@ -350,6 +358,7 @@ function update(dt) {
     // Collect by player
     if (rectIntersects(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) {
       world.score += PICKUP_SCORE;
+      playPickup();
       pickups.splice(i, 1);
       continue;
     }
@@ -374,50 +383,66 @@ function drawTiles() {
   }
 }
 
+let SPR = null; // loaded sprites
+
 function drawPlayer() {
-  ctx.fillStyle = '#7ff';
-  ctx.fillRect(Math.floor(player.x), Math.floor(player.y), player.w, player.h);
-  ctx.fillStyle = '#013';
-  const eyeX = Math.floor(player.x + (player.dir > 0 ? player.w - 4 : 2));
-  ctx.fillRect(eyeX, Math.floor(player.y + 3), 2, 2);
+  if (SPR && SPR.player) {
+    drawSprite(ctx, SPR.player, Math.floor(player.x), Math.floor(player.y), player.w, player.h);
+  } else {
+    ctx.fillStyle = '#7ff';
+    ctx.fillRect(Math.floor(player.x), Math.floor(player.y), player.w, player.h);
+  }
 }
 
 function drawEnemies() {
   for (const e of enemies) {
-    ctx.fillStyle = '#f55';
-    ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h);
-    // simple eye to show direction via velocity
-    ctx.fillStyle = '#300';
-    const dir = e.vx >= 0 ? 1 : -1;
-    const eyeX = Math.floor(e.x + (dir > 0 ? e.w - 4 : 2));
-    ctx.fillRect(eyeX, Math.floor(e.y + 3), 2, 2);
+    if (SPR && SPR.enemy) {
+      drawSprite(ctx, SPR.enemy, Math.floor(e.x), Math.floor(e.y), e.w, e.h);
+    } else {
+      ctx.fillStyle = '#f55';
+      ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h);
+    }
   }
 }
 
 function drawBubbles() {
   for (const b of bubbles) {
     const alpha = Math.max(0.2, Math.min(1, b.life / 2.4));
-    ctx.strokeStyle = `rgba(180,255,255,${alpha})`;
-    ctx.fillStyle = `rgba(90,200,220,${alpha * 0.25})`;
-    ctx.beginPath();
-    ctx.arc(Math.floor(b.x), Math.floor(b.y), b.r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
+    if (SPR && SPR.bubble) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      drawSprite(ctx, SPR.bubble, Math.floor(b.x - b.r), Math.floor(b.y - b.r), b.r * 2, b.r * 2);
+      ctx.restore();
+    } else {
+      ctx.strokeStyle = `rgba(180,255,255,${alpha})`;
+      ctx.fillStyle = `rgba(90,200,220,${alpha * 0.25})`;
+      ctx.beginPath();
+      ctx.arc(Math.floor(b.x), Math.floor(b.y), b.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
     if (b.carrying) {
       const e = b.carrying;
-      ctx.fillStyle = 'rgba(255,120,120,0.6)';
-      ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h);
+      if (SPR && SPR.enemy) {
+        drawSprite(ctx, SPR.enemy, Math.floor(e.x), Math.floor(e.y), e.w, e.h);
+      } else {
+        ctx.fillStyle = 'rgba(255,120,120,0.6)';
+        ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h);
+      }
     }
   }
 }
 
 function drawPickups() {
   for (const p of pickups) {
-    ctx.fillStyle = '#ffda6b';
-    ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.w, p.h);
-    ctx.strokeStyle = 'rgba(100,50,0,0.4)';
-    ctx.strokeRect(Math.floor(p.x) + 0.5, Math.floor(p.y) + 0.5, p.w - 1, p.h - 1);
+    if (SPR && SPR.pickup) {
+      drawSprite(ctx, SPR.pickup, Math.floor(p.x), Math.floor(p.y), p.w, p.h);
+    } else {
+      ctx.fillStyle = '#ffda6b';
+      ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.w, p.h);
+      ctx.strokeStyle = 'rgba(100,50,0,0.4)';
+      ctx.strokeRect(Math.floor(p.x) + 0.5, Math.floor(p.y) + 0.5, p.w - 1, p.h - 1);
+    }
   }
 }
 
@@ -456,4 +481,11 @@ function loop(now) {
   render();
   if (running) requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+
+async function init() {
+  // Load sprites first
+  SPR = await loadSprites();
+  requestAnimationFrame(loop);
+}
+
+init();
