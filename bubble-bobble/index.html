@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bubble Bobble (CRT)</title>
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="../shared/styles/hud.css" />  <link rel="stylesheet" href="style.css" />
+  <meta name="color-scheme" content="dark light" />
+</head>
+<body>
+  <div class="screen bubble-screen crt-frame">
+    <canvas id="game" width="256" height="224" aria-label="Bubble Bobble"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud bubble-hud">
+      <div class="retro-controls">
+        <span class="title">BUBBLE BOBBLE</span>
+        <span class="score">SCORE <span id="score">0</span></span>
+        <span class="round">ROUND <span id="round">1</span></span>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
