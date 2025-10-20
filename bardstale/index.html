@@ -3,18 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bard's Tale CRT</title>
-  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <title>Bard's Tale</title>
   <link rel="stylesheet" href="../shared/styles/screen.css" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <div id="screen" class="screen">
     <div id="stage" data-screen-canvas="true"></div>
-    <div id="hud-frame" class="crt-frame" data-screen-canvas="true">
+    <div id="hud-frame" data-screen-canvas="true">
       <canvas id="hud" data-screen-canvas="true" aria-label="Bard's Tale interface"></canvas>
-      <div class="crt-overlay"></div>
-      <div class="crt-glow"></div>
     </div>
   </div>
   <script type="module" src="./main.js"></script>
