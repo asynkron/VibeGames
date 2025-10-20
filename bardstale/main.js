@@ -1019,6 +1019,9 @@ function buildScene(state) {
   const ambient = new THREE.AmbientLight(0xbcb6a8, 0.42);
   const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.7);
   dirLight.position.set(5, 10, 3);
+  // Warm point light that travels with the party to evoke a hand-held torch.
+  const torchLight = new THREE.PointLight(0xffc880, 1.45, 7.5, 2.2);
+  torchLight.position.set(0.25, eye - 0.05, 0.18);
   scene.add(ambient, dirLight);
 
   const tileSize = 1.0;
@@ -1101,6 +1104,7 @@ function buildScene(state) {
   const player = new THREE.Object3D();
   player.position.set(state.x + 0.5, 0, state.y + 0.5);
   player.rotation.y = yawForDir(state.dir);
+  player.add(torchLight);
   scene.add(player);
 
   camera.position.set(0, eye, 0);
@@ -1121,7 +1125,7 @@ function buildScene(state) {
   onResize();
   window.addEventListener('resize', onResize);
 
-  return { stage, scene, renderer, camera, player };
+  return { stage, scene, renderer, camera, player, torch: torchLight };
 }
 
 function parseOptsFromURL() {
@@ -1147,6 +1151,10 @@ function main() {
   }
 
   const g = buildScene(state);
+  const torchBaseIntensity = g.torch?.intensity ?? 0;
+  const torchBaseDistance = g.torch?.distance ?? 0;
+  const torchBasePosition = g.torch ? g.torch.position.clone() : null;
+  const torchFlickerSeed = Math.random() * Math.PI * 2;
   const minimap = createMinimapOverlay(screenElement, state);
   if (minimap) minimap.update();
   const encounterBillboard = setupEncounterBillboard(stageElement, hud);
@@ -1253,6 +1261,19 @@ function main() {
           else if (k === 'B') startMove(-1);
         }
       }
+    }
+
+    if (g.torch && torchBasePosition) {
+      const flickerWave = Math.sin(now * 0.004 + torchFlickerSeed) * 0.12
+        + Math.sin(now * 0.009 + torchFlickerSeed * 1.7) * 0.08;
+      const subtleJitter = Math.sin(now * 0.018 + torchFlickerSeed * 3.1) * 0.02;
+      g.torch.intensity = torchBaseIntensity + flickerWave * 0.9;
+      g.torch.distance = torchBaseDistance + flickerWave * 2.4;
+      g.torch.position.set(
+        torchBasePosition.x + Math.sin(now * 0.006 + torchFlickerSeed * 0.8) * 0.05,
+        torchBasePosition.y + Math.sin(now * 0.008 + torchFlickerSeed * 1.2) * 0.03,
+        torchBasePosition.z + subtleJitter * 0.4,
+      );
     }
 
     g.renderer.render(g.scene, g.camera);
