@@ -1,3 +1,5 @@
+import { createCanvasResolutionManager } from '../shared/render/hudCanvas.js';
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const viewportElement = document.querySelector('.viewport');
@@ -6,11 +8,21 @@ const TILE_SIZE = 32;
 const BASE_SPRITE_SIZE = 16;
 const VIEW_COLS = 25;
 const VIEW_ROWS = 15;
+const CANVAS_WIDTH = VIEW_COLS * TILE_SIZE;
+const CANVAS_HEIGHT = VIEW_ROWS * TILE_SIZE;
 
-canvas.width = VIEW_COLS * TILE_SIZE;
-canvas.height = VIEW_ROWS * TILE_SIZE;
+const resolutionManager = createCanvasResolutionManager(canvas, {
+  logicalWidth: CANVAS_WIDTH,
+  logicalHeight: CANVAS_HEIGHT,
+  onPixelRatioChange(ratio) {
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+  },
+});
 
-const VIEWPORT_ASPECT = canvas.width / canvas.height;
+resolutionManager.sync();
+
+const VIEWPORT_ASPECT = CANVAS_WIDTH / CANVAS_HEIGHT;
 // Render with the modern colorized tiles while keeping sprite coordinates consistent.
 const TILESET_VARIANT = 'modern';
 
@@ -117,6 +129,7 @@ function scheduleViewportResize() {
   resizeScheduled = true;
   window.requestAnimationFrame(() => {
     resizeScheduled = false;
+    resolutionManager.sync();
     resizeViewport();
   });
 }
@@ -800,7 +813,8 @@ function resolveConversationOption(index) {
 }
 
 function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  resolutionManager.sync();
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   const camera = getCamera();
 
   for (let sy = 0; sy < VIEW_ROWS; sy += 1) {

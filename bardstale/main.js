@@ -3,6 +3,7 @@
 
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
+import { createCanvasResolutionManager, projectLogicalRect } from '../shared/render/hudCanvas.js';
 import {
   UI_SETTINGS,
   createPartyPanelRect,
@@ -398,32 +399,21 @@ function createHudRenderer(canvas, stageElement) {
   const logicalWidth = SCREEN_WIDTH;
   const logicalHeight = SCREEN_HEIGHT;
 
-  canvas.style.width = '100%';
-  canvas.style.height = '100%';
-
   const pixel = createPixelContext(canvas, { alpha: true });
   const ctx = pixel.ctx;
 
-  let pixelRatio = 1;
-  function syncCanvasResolution() {
-    const desiredRatio = (typeof window !== 'undefined' && window.devicePixelRatio)
-      ? Math.min(4, Math.max(1, window.devicePixelRatio))
-      : 1;
-    const targetWidth = Math.round(logicalWidth * desiredRatio);
-    const targetHeight = Math.round(logicalHeight * desiredRatio);
-    const sizeChanged = canvas.width !== targetWidth || canvas.height !== targetHeight;
-    if (sizeChanged) {
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-    }
-    if (sizeChanged || pixelRatio !== desiredRatio) {
-      // Keep the drawing commands in 640x480 logical space while giving the
-      // browser enough backing pixels to render crisp fonts when the HUD is
-      // scaled up to the full window.
-      ctx.setTransform(desiredRatio, 0, 0, desiredRatio, 0, 0);
+  const resolutionManager = createCanvasResolutionManager(canvas, {
+    logicalWidth,
+    logicalHeight,
+    onPixelRatioChange(ratio) {
+      // Keep drawing commands in logical space while providing crisp backing pixels.
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       pixel.disableSmoothing();
-      pixelRatio = desiredRatio;
-    }
+    },
+  });
+
+  function syncCanvasResolution() {
+    resolutionManager.sync();
   }
 
   syncCanvasResolution();
@@ -560,27 +550,13 @@ function createHudRenderer(canvas, stageElement) {
 
   function measureStageBounds() {
     // Keep the 3D viewport anchored to the HUD slot defined by VIEWPORT_RECT.
-    // We compute the desired rectangle in HUD coordinates and then project it
-    // into DOM space so the WebGL stage lines up with the painted HUD frame.
-    if (!stageElement) return VIEWPORT_BOUNDS;
-
-    const hudRect = canvas.getBoundingClientRect();
-    if (!hudRect.width || !hudRect.height) return VIEWPORT_BOUNDS;
-
-    const scaleX = hudRect.width / SCREEN_WIDTH;
-    const scaleY = hudRect.height / SCREEN_HEIGHT;
-    const width = (VIEWPORT_BOUNDS.right - VIEWPORT_BOUNDS.left) * scaleX;
-    const height = (VIEWPORT_BOUNDS.bottom - VIEWPORT_BOUNDS.top) * scaleY;
-
-    stageElement.style.left = `${VIEWPORT_BOUNDS.left * scaleX}px`;
-    stageElement.style.top = `${VIEWPORT_BOUNDS.top * scaleY}px`;
-    stageElement.style.width = `${width}px`;
-    stageElement.style.height = `${height}px`;
-    stageElement.style.maxWidth = 'none';
-    stageElement.style.maxHeight = 'none';
-    stageElement.style.minWidth = '0px';
-    stageElement.style.minHeight = '0px';
-
+    // Project the logical rectangle into DOM space so the WebGL stage lines up
+    // with the painted HUD frame while returning the logical bounds for drawing.
+    projectLogicalRect(canvas, VIEWPORT_BOUNDS, {
+      logicalWidth,
+      logicalHeight,
+      targetElement: stageElement,
+    });
     return VIEWPORT_BOUNDS;
   }
 
