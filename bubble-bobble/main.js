@@ -62,9 +62,11 @@ function expandTilesTo8(srcTiles, cols, rows) {
 }
 // Input
 const keys = { left: false, right: false, up: false, down: false, shoot: false };
+let SHOW_OVERLAY = false;
 addEventListener('keydown', (e) => {
   const k = e.key; if (k === 't' || k === 'T') { TILE_MIGRATION.mode = (TILE_MIGRATION.mode === '8' ? '16' : '8'); applyLevel(roundIndex); return; }
   if (e.repeat) return;
+  if (k === 'o' || k === 'O') { SHOW_OVERLAY = !SHOW_OVERLAY; return; }
   const c = e.code;
   switch (k) {
     case 'ArrowLeft': case 'a': case 'A': keys.left = true; break;
@@ -455,7 +457,7 @@ function render() {
   drawBackground();
   drawTiles(); drawBubbles(); drawEnemies(); drawPickups(); drawPlayer();
   ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textBaseline = 'top';
-  ctx.fillText(`SCORE ${world.score}`, 8, 8); ctx.fillText(`HI ${world.hi}`, 110, 8); ctx.fillText(`LIVES ${world.lives}`, 8, 20); ctx.fillText(`ROUND ${world.round}`, 160, 8); ctx.fillText('M: music  P: pause  B: palette', 8, 32);
+  ctx.fillText(`SCORE ${world.score}`, 8, 8); ctx.fillText(`HI ${world.hi}`, 110, 8); ctx.fillText(`LIVES ${world.lives}`, 8, 20); ctx.fillText(`ROUND ${world.round}`, 160, 8); ctx.fillText('M: music  P: pause  B: palette  T: tiles  O: overlay', 8, 32);
   if (gameState === 'roundIntro') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(`ROUND ${world.round}`, canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
   if (gameState === 'roundClear') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('ROUND CLEAR!', canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
   if (gameState === 'gameOver') { ctx.fillStyle = 'rgba(255,180,180,0.95)'; ctx.font = 'bold 16px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10); ctx.font = '12px monospace'; ctx.fillText('Press Enter to Restart', canvas.width/2, canvas.height/2 + 12); ctx.textAlign = 'left'; }
@@ -465,6 +467,7 @@ function render() {
 let running = true; let last = performance.now();
 function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); render(); if (running) requestAnimationFrame(loop); }
 
+  if (SHOW_OVERLAY) drawOverlay(ctx);
 async function init() { SPR = await loadSprites(); applyLevel(roundIndex); world.round = roundIndex + 1; requestAnimationFrame(loop); }
 init();
 
@@ -476,3 +479,20 @@ function dispatchSpawn(sp) {
   return spawnEnemy(tx, ty, dir);
 }
 
+function drawOverlay(ctx) {
+  try {
+    ctx.save();
+    ctx.font = '10px monospace';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    const boxW = 190, boxH = 96; ctx.fillRect(4,4,boxW,boxH);
+    ctx.fillStyle = '#0f0';
+    let y = 6; const line = (s)=>{ ctx.fillText(s, 8, y); y += 12; };
+    line(`TS=${TS} COLS=${COLS} ROWS=${ROWS}`);
+    line(`mode=${TILE_MIGRATION.mode} round=${world.round} idx=${roundIndex}`);
+    line(`px=${(player.x|0)} py=${(player.y|0)}`);
+    line(`vx=${player.vx.toFixed(1)} vy=${player.vy.toFixed(1)}`);
+    line(`enemies=${enemies.length} bubbles=${bubbles.length}`);
+    ctx.restore();
+  } catch {}
+}
