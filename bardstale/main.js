@@ -820,16 +820,11 @@ function createHudRenderer(canvas, stageElement) {
     ctx.fillStyle = TEXT_COLOR;
 
     const partyPanelBottom = PARTY_PANEL.y + PARTY_PANEL.height - layout.partyPanelFooterPadding;
-    const rowPadding = 6;
-    const lineSpacing = lineHeight + 2;
+    const rowPadding = 4;
     let rowTop = headerY + layout.partyPanelRowOffset + lineHeight;
     for (let i = 0; i < state.party.length; i++) {
       const row = state.party[i];
-      const statusLine = row.alive ? (row.statusText || '') : 'DEAD';
-      let lineCount = 2;
-      if (row.attributes) lineCount += 1;
-      if (statusLine) lineCount += 1;
-      const rowHeight = rowPadding * 2 + lineCount * lineHeight + Math.max(0, lineCount - 1) * 2;
+      const rowHeight = rowPadding * 2 + lineHeight;
       if (rowTop + rowHeight > partyPanelBottom) {
         break;
       }
@@ -840,22 +835,12 @@ function createHudRenderer(canvas, stageElement) {
         ctx.restore();
       }
       const textX = PARTY_PANEL.x + 18;
-      let textY = rowTop + rowPadding;
-      ctx.fillStyle = ACCENT_COLOR;
-      ctx.fillText(`${row.name} — ${row.classType} (Lv ${row.level})`, textX, textY);
+      const textY = rowTop + rowPadding + lineHeight;
+      const status = row.alive
+        ? (row.statusText ? ` — ${row.statusText}` : '')
+        : ' — DEAD';
       ctx.fillStyle = TEXT_COLOR;
-      textY += lineSpacing;
-      ctx.fillText(`HP ${row.hpCurrent}/${row.hpMax}   SP ${row.spCurrent}/${row.spMax}   AC ${row.ac}   Hit ${row.toHit}   DMG ${row.damageMin}-${row.damageMax}`, textX, textY);
-      textY += lineSpacing;
-      if (row.attributes) {
-        const attrs = row.attributes;
-        const attrLine = `STR ${attrs.strength}  INT ${attrs.intelligence}  DEX ${attrs.dexterity}  CON ${attrs.constitution}  LCK ${attrs.luck}`;
-        ctx.fillText(attrLine, textX, textY);
-        textY += lineSpacing;
-      }
-      if (statusLine) {
-        ctx.fillText(statusLine, textX, textY);
-      }
+      ctx.fillText(`${row.name}  ${row.classType} Lv ${row.level}  AC ${row.ac}  HP ${row.hpCurrent}/${row.hpMax}${status}`, textX, textY);
       rowTop += rowHeight;
     }
 
