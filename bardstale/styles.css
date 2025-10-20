@@ -56,6 +56,10 @@ body {
   pointer-events: none;
 }
 
+#stage.is-encountering .pixel-canvas {
+  display: none;
+}
+
 #hud-frame {
   position: absolute;
   inset: 0;
