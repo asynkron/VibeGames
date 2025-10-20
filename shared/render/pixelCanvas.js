@@ -3,40 +3,15 @@
 import { DEFAULT_OVERLAY_FONT } from '../config/display.js';
 export function createPixelContext(canvas, options = {}) {
   const ctx = canvas.getContext('2d', options);
-
-  let smoothingEnabled = false;
-
-  function setSmoothing(target, enabled) {
-    if (!target) return;
-    smoothingEnabled = !!enabled;
-    if ('imageSmoothingEnabled' in target) target.imageSmoothingEnabled = smoothingEnabled;
-    if ('mozImageSmoothingEnabled' in target) target.mozImageSmoothingEnabled = smoothingEnabled;
-    if ('webkitImageSmoothingEnabled' in target) target.webkitImageSmoothingEnabled = smoothingEnabled;
-    if ('msImageSmoothingEnabled' in target) target.msImageSmoothingEnabled = smoothingEnabled;
-  }
+  disableSmoothing(ctx);
 
   function disableSmoothing(target) {
-    setSmoothing(target, false);
+    if (!target) return;
+    if ('imageSmoothingEnabled' in target) target.imageSmoothingEnabled = false;
+    if ('mozImageSmoothingEnabled' in target) target.mozImageSmoothingEnabled = false;
+    if ('webkitImageSmoothingEnabled' in target) target.webkitImageSmoothingEnabled = false;
+    if ('msImageSmoothingEnabled' in target) target.msImageSmoothingEnabled = false;
   }
-
-  function enableSmoothing(target) {
-    setSmoothing(target, true);
-  }
-
-  function withSmoothing(enabled, callback) {
-    const previous = smoothingEnabled;
-    setSmoothing(ctx, enabled);
-    try {
-      if (typeof callback === 'function') {
-        return callback();
-      }
-      return undefined;
-    } finally {
-      setSmoothing(ctx, previous);
-    }
-  }
-
-  disableSmoothing(ctx);
 
   function resizeToGrid(cols, rows, tileSize) {
     const width = Math.round(cols * tileSize);
@@ -127,8 +102,5 @@ export function createPixelContext(canvas, options = {}) {
     forEachTile,
     overlayText,
     disableSmoothing: () => disableSmoothing(ctx),
-    enableSmoothing: () => enableSmoothing(ctx),
-    setSmoothing: (enabled) => setSmoothing(ctx, enabled),
-    withSmoothing,
   };
 }
