@@ -52,3 +52,4 @@ Recent fixes
 - Migration: fixed TS=8 stage (clean applyLevel order, spawn headers, scaling centralized in dispatchSpawn).
 - Controls: added T toggle to switch 16↔8 and re-apply current level (no gameplay changes).
 - Debug: overlay (O) shows TS/COLS/ROWS/mode/round/player pos/vel and counts; HUD shows T (tiles) and O (overlay).
+- Debug: ensured overlay draws each frame by moving call into loop() before rAF.

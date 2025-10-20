@@ -465,9 +465,8 @@ function render() {
 }
 
 let running = true; let last = performance.now();
-function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); render(); if (running) requestAnimationFrame(loop); }
+function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); render(); if (SHOW_OVERLAY) drawOverlay(ctx); if (running) requestAnimationFrame(loop); }
 
-  if (SHOW_OVERLAY) drawOverlay(ctx);
 async function init() { SPR = await loadSprites(); applyLevel(roundIndex); world.round = roundIndex + 1; requestAnimationFrame(loop); }
 init();
 
