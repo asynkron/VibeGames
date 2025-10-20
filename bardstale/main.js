@@ -416,6 +416,44 @@ function createHudRenderer(canvas, stageElement) {
   };
   let buttonZones = [];
   const portraitCache = new Map();
+  const scaledImageCache = new WeakMap();
+
+  // Cache scaled versions of HUD images so the main canvas only ever blits
+  // pre-sized buffers (keeps the 640x480 HUD crisp while allowing high-quality resizes).
+  function getScaledImage(image, width, height) {
+    if (!image) return null;
+    const targetWidth = Math.max(1, Math.round(width));
+    const targetHeight = Math.max(1, Math.round(height));
+    if (!targetWidth || !targetHeight) return null;
+
+    let sizeCache = scaledImageCache.get(image);
+    if (!sizeCache) {
+      sizeCache = new Map();
+      scaledImageCache.set(image, sizeCache);
+    }
+
+    const key = `${targetWidth}x${targetHeight}`;
+    const cached = sizeCache.get(key);
+    if (cached) return cached;
+
+    const buffer = document.createElement('canvas');
+    buffer.width = targetWidth;
+    buffer.height = targetHeight;
+    const bufferCtx = buffer.getContext('2d');
+    if (!bufferCtx) {
+      sizeCache.set(key, buffer);
+      return buffer;
+    }
+
+    if ('imageSmoothingEnabled' in bufferCtx) bufferCtx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in bufferCtx) bufferCtx.imageSmoothingQuality = 'high';
+
+    bufferCtx.clearRect(0, 0, targetWidth, targetHeight);
+    bufferCtx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    sizeCache.set(key, buffer);
+    return buffer;
+  }
 
   const { fonts, colors, layout } = UI_SETTINGS;
   const PANEL_MARGIN = layout.panelMargin;
@@ -601,19 +639,22 @@ function createHudRenderer(canvas, stageElement) {
     ctx.fillRect(innerX, innerY, innerWidth, innerHeight);
 
     if (artState.isVisible && artState.image) {
-      pixel.disableSmoothing();
       const img = artState.image;
       const scale = Math.min(innerWidth / img.width, innerHeight / img.height);
       const drawWidth = Math.max(1, Math.round(img.width * scale));
       const drawHeight = Math.max(1, Math.round(img.height * scale));
       const drawX = innerX + Math.round((innerWidth - drawWidth) / 2);
       const drawY = innerY + Math.round((innerHeight - drawHeight) / 2);
+      const scaled = getScaledImage(img, drawWidth, drawHeight);
 
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-      ctx.shadowBlur = 12;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+      if (scaled) {
+        pixel.disableSmoothing();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.drawImage(scaled, drawX, drawY);
+      }
     }
 
     ctx.restore();
@@ -665,7 +706,11 @@ function createHudRenderer(canvas, stageElement) {
       if (portrait) {
         const px = infoPanel.x + logMargin;
         const py = contentTop;
-        ctx.drawImage(portrait, px, py, portraitDisplaySize, portraitDisplaySize);
+        const scaledPortrait = getScaledImage(portrait, portraitDisplaySize, portraitDisplaySize);
+        if (scaledPortrait) {
+          pixel.disableSmoothing();
+          ctx.drawImage(scaledPortrait, px, py);
+        }
         ctx.strokeStyle = 'rgba(244, 210, 138, 0.4)';
         ctx.lineWidth = 2;
         ctx.strokeRect(px - 1, py - 1, portraitDisplaySize + 2, portraitDisplaySize + 2);
