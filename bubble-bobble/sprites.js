@@ -25,3 +25,32 @@ export function drawSprite(ctx, img, x, y, w, h) {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(img, Math.floor(x), Math.floor(y), w, h);
 }
+
+
+export function drawPlayer(ctx, p){
+  ctx.save();
+  ctx.translate(Math.floor(p.x)+Math.floor(p.w/2), Math.floor(p.y)+Math.floor(p.h));
+  ctx.scale(p.dir<0?-1:1,1);
+  const frame=p.animFrame||0;
+  const bob = frame?1:0;
+  ctx.translate(0, -p.h + bob);
+  ctx.fillStyle = '#7bd';
+  ctx.fillRect(-p.w/2, 0, p.w, p.h);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-p.w/2+2, 4, 3, 3);
+  ctx.restore();
+}
+
+export function drawEnemy(ctx, e){
+  ctx.save();
+  ctx.translate(Math.floor(e.x)+Math.floor(e.w/2), Math.floor(e.y)+Math.floor(e.h));
+  ctx.scale(e.vx<0?-1:1,1);
+  const frame=e.animFrame||0;
+  const bob = frame?1:0;
+  ctx.translate(0, -e.h + bob);
+  ctx.fillStyle = e.type==='jumper' ? '#e66' : '#db7';
+  ctx.fillRect(-e.w/2, 0, e.w, e.h);
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0, 4, 3, 3);
+  ctx.restore();
+}

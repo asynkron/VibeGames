@@ -68,8 +68,12 @@ addEventListener('keyup', (e) => {
 // World state
 const world = { tick: 0, score: 0, round: 1, lives: 3, hi: 0 };
 try { const saved = localStorage.getItem('bbt_high_score'); if (saved) world.hi = Math.max(0, parseInt(saved, 10) || 0); } catch {}
+const EXTEND = ['E','X','T','E','N','D'];
+let extendCollected = [false,false,false,false,false,false];
+function extendReset(){ extendCollected = [false,false,false,false,false,false]; updateExtendHUD(); }
+function updateExtendHUD(){ const ids=['L_E','L_X','L_T','L_E2','L_N','L_D']; for (let i=0;i<6;i++){ const el=document.getElementById(ids[i]); if (el) el.style.opacity = extendCollected[i] ? '1' : '0.25'; } }
 
-const player = { x: 0, y: 0, w: 12, h: 14, vx: 0, vy: 0, dir: 1, onGround: false, canJump: false, shootCooldown: 0, ridingBubble: -1 };
+const player = { x: 0, y: 0, w: 12, h: 14, vx: 0, vy: 0, dir: 1, onGround: false, canJump: false, shootCooldown: 0, ridingBubble: -1  , animTime: 0, animFrame: 0 };
 const bubbles = []; const enemies = []; const pickups = [];
 
 // Tunables
@@ -158,9 +162,19 @@ function spawnEnemy(tx, ty, dir) {
   const x = tx * TS + (TS - w) / 2;
   const yTop = groundRow * TS;
   const y = yTop - h - 0.001;
-  enemies.push({ x, y, w, h, vx: (dir >= 0 ? 1 : -1) * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk' });
+  enemies.push({ x, y, w, h, vx: (dir >= 0 ? 1 : -1) * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk', type: 'walker', animTime: 0, animFrame: 0 });
 }
-function spawnPickup(x, y) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.random()*30-15), vy: -120, life: 7.0 }); }
+function spawnJumper(tx, ty, dir) {
+  const w = 12, h = 14;
+  let groundRow = -1; const t = tileTypeAt(tx, ty);
+  if (t === 1 || t === 2) groundRow = ty; else if (groundAt(tx, ty + 1)) groundRow = ty + 1; else { for (let r = ty + 1; r < ROWS; r++) { if (groundAt(tx, r)) { groundRow = r; break; } } }
+  if (groundRow < 0) groundRow = ROWS - 1;
+  const x = tx * TS + (TS - w) / 2; const yTop = groundRow * TS; const y = yTop - h - 0.001;
+  enemies.push({ x, y, w, h, vx: (dir >= 0 ? 1 : -1) * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk', type: 'jumper', animTime: 0, animFrame: 0, jumpCd: 0 });
+}
+function spawnPickup(x, y) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.random()*30-15), vy: -120, life: 7.0, kind: 'fruit' }); }
+
+function spawnLetter(x, y, letter) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.random()*24-12), vy: -100, life: 9.0, kind: 'letter', ch: letter }); }
 
 // Level/round management
 let roundIndex = 0; // 0-based
@@ -174,9 +188,11 @@ function applyLevel(idx) {
   bubbles.length = 0; enemies.length = 0; pickups.length = 0;
   // player spawn
   player.x = (L.playerSpawn.x + 0.1) * TS; player.y = (L.playerSpawn.y + 0.1) * TS;
-  player.vx = player.vy = 0; player.dir = 1; player.onGround = false; player.canJump = false; player.shootCooldown = 0; player.ridingBubble = -1;
+  player.vx = 0; player.vy = 0; player.dir = 1; player.onGround = false; player.canJump = false; player.shootCooldown = 0; player.ridingBubble = -1;
   // enemies from level
-  if (Array.isArray(L.enemySpawns)) { for (const s of L.enemySpawns) spawnEnemy(s.tx, s.ty, s.dir >= 0 ? 1 : -1); }
+  if (Array.isArray(L.enemySpawns)) {
+    for (const sp of L.enemySpawns) { dispatchSpawn(sp); }
+  }
 }
 
 function loseLife() {
@@ -191,6 +207,7 @@ function loseLife() {
 
 function restartGame() {
   world.score = 0; world.lives = 3; roundIndex = 0; world.round = 1; setMusicPaused(false);
+  extendReset();
   applyLevel(roundIndex); gameState = 'roundIntro'; stateTimer = 0.9;
 }
 
@@ -221,6 +238,14 @@ function update(dt) {
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
       if (e.state === 'walk') {
+        // Jumper AI: chase horizontally; hop when grounded on cooldown
+        if (e.type === 'jumper') {
+          const ex = e.x + e.w/2, px = player.x + player.w/2;
+          e.vx = (px > ex ? 1 : -1) * ENEMY_SPEED * 1.1;
+          e.jumpCd = (typeof e.jumpCd === 'number') ? e.jumpCd : 0;
+          if (e.onGround && e.jumpCd <= 0) { e.vy = -160; e.onGround = false; e.jumpCd = 1.1 + Math.random()*0.6; }
+          else if (!e.onGround) { e.jumpCd = Math.max(0, e.jumpCd - dt); }
+        }
         e.vy += GRAV * dt; const prevVx = e.vx; moveAndCollide(e, dt); wrapEntity(e);
         if (e.onGround) {
           const frontX = e.x + (e.vx >= 0 ? e.w + 1 : -1);
@@ -232,6 +257,9 @@ function update(dt) {
       }
     }
   }
+  // ANIM TICK
+  player.animTime += dt; if (player.onGround && Math.abs(player.vx)>1) { player.animFrame = Math.floor((player.animTime*10)%2); } else { player.animFrame = 0; }
+  for (let i=0;i<enemies.length;i++){ const e=enemies[i]; e.animTime += dt; e.animFrame = Math.floor((e.animTime*8)%2); }
 
   // Bubbles
   for (let i = bubbles.length - 1; i >= 0; i--) {
@@ -256,11 +284,17 @@ function update(dt) {
         player.ridingBubble = i; player.onGround = true; player.canJump = true; player.vy = 0; player.y = b.y - player.h - 1;
       } else if (!b.spawnGrace || b.spawnGrace <= 0) {
         // Pop only if grace elapsed
-        if (b.carrying) { spawnPickup(b.x - 4, b.y - 4); }
+        if (b.carrying) {
+          const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }
+          if (missing.length>0) { const idx = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[idx]); }
+          else { spawnPickup(b.x - 4, b.y - 4); }
+        }
         playPop(); bubbles.splice(i, 1); if (player.ridingBubble === i) player.ridingBubble = -1;
       }
       continue;
     }
+
+  
 
     if (b.life <= 0) {
       if (b.carrying) { const escaped = b.carrying; escaped.state = 'walk'; escaped.vx = (Math.random()<0.5?-1:1)*ENEMY_SPEED; escaped.vy = -80; enemies.push(escaped); }
@@ -275,7 +309,11 @@ function update(dt) {
     else {
       player.y = b.y - player.h - 1;
       if (keys.down || (keys.shoot && player.shootCooldown <= 0)) {
-        if (b.carrying) spawnPickup(b.x - 4, b.y - 4);
+        if (b.carrying) {
+        const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }
+        if (missing.length>0) { const idx = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[idx]); }
+        else { spawnPickup(b.x - 4, b.y - 4); }
+      }
         playPop(); bubbles.splice(i, 1); player.ridingBubble = -1; player.shootCooldown = BUBBLE_CD;
       }
     }
@@ -294,11 +332,21 @@ function update(dt) {
 
   // Pickups
   for (let i = pickups.length - 1; i >= 0; i--) {
+    // EXTEND letters handled below
     const p = pickups[i]; p.life -= dt; p.vy += GRAV * 0.9 * dt; p.x += p.vx * dt;
     const nextY = p.y + p.vy * dt; const tileY = Math.floor((nextY + p.h) / TS); const left = Math.floor(p.x / TS); const right = Math.floor((p.x + p.w - 0.001) / TS);
     let landed=false; for (let tx = left; tx <= right; tx++) { if (groundAt(tx, tileY)) { landed = true; break; } }
     if (landed) { p.vy = 0; p.y = tileY * TS - p.h - 0.001; p.vx *= 0.98; } else { p.y = nextY; }
-    if (rectIntersects(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) { world.score += PICKUP_SCORE; if (world.score > world.hi) world.hi = world.score; playPickup(); pickups.splice(i,1); continue; }
+    if (rectIntersects(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) {
+      if (p.kind === 'letter' && p.ch) {
+        const idx = EXTEND.indexOf(p.ch);
+        if (idx >= 0 && !extendCollected[idx]) { extendCollected[idx] = true; updateExtendHUD(); playPickup(); }
+        if (extendCollected.every(Boolean)) { world.lives = Math.min(world.lives + 1, 9); world.score += 10000; extendReset(); }
+      } else {
+        world.score += PICKUP_SCORE; if (world.score > world.hi) world.hi = world.score; playPickup();
+      }
+      pickups.splice(i, 1); continue;
+    }
     if (p.life <= 0) { pickups.splice(i,1); continue; }
   }
 
@@ -379,3 +427,8 @@ function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now;
 
 async function init() { SPR = await loadSprites(); applyLevel(roundIndex); world.round = roundIndex + 1; requestAnimationFrame(loop); }
 init();
+
+function dispatchSpawn(sp){
+  if (sp.type==='jumper') return spawnJumper(sp.tx, sp.ty, sp.dir||1);
+  return spawnEnemy(sp.tx, sp.ty, sp.dir||1);
+}

@@ -37,3 +37,11 @@ Next (suggested)
 Recent fixes
 - Enemy spawns align to top of nearest platform (solid/semi-solid) and search downward from the spawn tile to avoid spawning inside tiles.
 - Tuning: bubbles now spawn slower, float gently (~-10 px/s), and have a slightly wider ride snap window to make riding reliable.
+- Animations: simple 2-frame walk/bob for player and enemies; directional flip
+- EXTEND letters: drop on pop, HUD progress, 1UP + 10,000 on completion
+- Enemy: added 'jumper' type that pursues and hops
+
+- Fix: cleaned spawnEnemy block, properly added spawnJumper, corrected spawnPickup syntax
+- Added: simple 2-frame animations, jumper AI, spawn dispatcher
+- Fix: repaired applyLevel closure and rebuilt enemy spawn dispatch
+- Fix: repaired Player vs bubble collision block and riding tap-pop for EXTEND drops and proper braces
