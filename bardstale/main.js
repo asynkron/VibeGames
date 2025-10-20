@@ -817,14 +817,49 @@ function createHudRenderer(canvas, stageElement) {
     const headerY = PARTY_PANEL.y + layout.partyPanelHeaderOffset;
     ctx.fillStyle = ACCENT_COLOR;
     ctx.fillText('MEMBERS', PARTY_PANEL.x + 12, headerY);
-    ctx.fillStyle = TEXT_COLOR;
+
+    // Build a small table for the roster so each stat aligns into readable columns.
+    const rosterColumns = [
+      { label: 'NAME', align: 'left', value: row => row.name },
+      { label: 'CLASS', align: 'left', value: row => row.classType },
+      { label: 'LV', align: 'right', value: row => `${row.level}` },
+      { label: 'AC', align: 'right', value: row => `${row.ac}` },
+      { label: 'HP', align: 'right', value: row => `${row.hpCurrent}/${row.hpMax}` },
+    ];
+
+    const textX = PARTY_PANEL.x + 18;
+    const columnSpacing = 14;
+    const columnMetrics = rosterColumns.map(col => {
+      let maxWidth = ctx.measureText(col.label).width;
+      for (let i = 0; i < state.party.length; i++) {
+        maxWidth = Math.max(maxWidth, ctx.measureText(col.value(state.party[i])).width);
+      }
+      return Math.ceil(maxWidth);
+    });
+
+    const columnPositions = [];
+    let currentX = textX;
+    for (let i = 0; i < rosterColumns.length; i++) {
+      columnPositions.push(currentX);
+      currentX += columnMetrics[i] + columnSpacing;
+    }
+
+    const headerBaseline = headerY + layout.partyPanelRowOffset + lineHeight;
+    for (let i = 0; i < rosterColumns.length; i++) {
+      const column = rosterColumns[i];
+      ctx.textAlign = column.align === 'right' ? 'right' : 'left';
+      const drawX = column.align === 'right'
+        ? columnPositions[i] + columnMetrics[i]
+        : columnPositions[i];
+      ctx.fillText(column.label, drawX, headerBaseline);
+    }
 
     const partyPanelBottom = PARTY_PANEL.y + PARTY_PANEL.height - layout.partyPanelFooterPadding;
     const rowPadding = 4;
-    let rowTop = headerY + layout.partyPanelRowOffset + lineHeight;
+    const rowHeight = rowPadding * 2 + lineHeight;
+    let rowTop = headerBaseline + rowPadding + 4;
     for (let i = 0; i < state.party.length; i++) {
       const row = state.party[i];
-      const rowHeight = rowPadding * 2 + lineHeight;
       if (rowTop + rowHeight > partyPanelBottom) {
         break;
       }
@@ -834,16 +869,28 @@ function createHudRenderer(canvas, stageElement) {
         ctx.fillRect(PARTY_PANEL.x + 10, rowTop - 2, PARTY_PANEL.width - 20, rowHeight);
         ctx.restore();
       }
-      const textX = PARTY_PANEL.x + 18;
-      const textY = rowTop + rowPadding + lineHeight;
+      const baselineY = rowTop + rowPadding + lineHeight;
       const status = row.alive
         ? (row.statusText ? ` — ${row.statusText}` : '')
         : ' — DEAD';
       ctx.fillStyle = TEXT_COLOR;
-      ctx.fillText(`${row.name}  ${row.classType} Lv ${row.level}  AC ${row.ac}  HP ${row.hpCurrent}/${row.hpMax}${status}`, textX, textY);
+      for (let j = 0; j < rosterColumns.length; j++) {
+        const column = rosterColumns[j];
+        const drawX = column.align === 'right'
+          ? columnPositions[j] + columnMetrics[j]
+          : columnPositions[j];
+        ctx.textAlign = column.align === 'right' ? 'right' : 'left';
+        ctx.fillText(column.value(row), drawX, baselineY);
+      }
+      if (status) {
+        ctx.textAlign = 'left';
+        ctx.fillText(status, columnPositions[rosterColumns.length - 1] + columnMetrics[rosterColumns.length - 1] + columnSpacing / 2, baselineY);
+      }
       rowTop += rowHeight;
     }
 
+    ctx.textAlign = 'left';
+    
     ctx.restore();
   }
 
