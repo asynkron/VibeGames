@@ -3,6 +3,13 @@
 
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
+import {
+  RETRO_SURFACE_SIZE,
+  RETRO_COLOR_COUNT,
+  RETRO_COLOR_LEVELS_PER_CHANNEL,
+  UI_SETTINGS,
+  createPartyPanelRect,
+} from './config/uiSettings.js';
 
 const DIR = { N: 0, E: 1, S: 2, W: 3 };
 const DX = [0, 1, 0, -1];
@@ -99,6 +106,21 @@ function hexToRgb(hex) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function quantizeComponent(value, steps) {
+  const stepCount = Math.max(2, steps);
+  const scaled = Math.round((value / 255) * (stepCount - 1));
+  return Math.round((scaled / Math.max(1, stepCount - 1)) * 255);
+}
+
+function quantizeImageData(data, steps) {
+  const stepCount = Math.max(2, steps);
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = quantizeComponent(data[i], stepCount);
+    data[i + 1] = quantizeComponent(data[i + 1], stepCount);
+    data[i + 2] = quantizeComponent(data[i + 2], stepCount);
+  }
 }
 
 function createStoneTexture(baseHex, options = {}) {
@@ -373,6 +395,9 @@ function createMinimapOverlay(screenElement, state) {
 }
 
 function createHudRenderer(canvas, stageElement) {
+  canvas.width = SCREEN_WIDTH;
+  canvas.height = SCREEN_HEIGHT;
+
   const pixel = createPixelContext(canvas, { alpha: true });
   const ctx = pixel.ctx;
   const state = {
@@ -384,23 +409,19 @@ function createHudRenderer(canvas, stageElement) {
   };
   let buttonZones = [];
 
-  const PANEL_MARGIN = 18;
-  const INFO_PANEL_MIN_WIDTH = 180;
-  const INFO_PANEL_MIN_HEIGHT = 180;
-  const INFO_PANEL_GAP = 12;
-  const PARTY_PANEL = {
-    x: PANEL_MARGIN,
-    y: SCREEN_HEIGHT / 2 - 6,
-    width: SCREEN_WIDTH - PANEL_MARGIN * 2,
-    height: SCREEN_HEIGHT / 2 - 32,
-  };
-  const TITLE_FONT = '9px "Press Start 2P", "VT323", monospace';
-  const TEXT_FONT = '7px "Press Start 2P", "VT323", monospace';
-  const TEXT_COLOR = '#f7efd6';
-  const ACCENT_COLOR = '#f4d28a';
-  const PANEL_BG = 'rgba(18, 16, 22, 0.86)';
-  const PANEL_BORDER = '#6a4f31';
-  const PANEL_SHADOW = 'rgba(0, 0, 0, 0.65)';
+  const { fonts, colors, layout } = UI_SETTINGS;
+  const PANEL_MARGIN = layout.panelMargin;
+  const INFO_PANEL_MIN_WIDTH = layout.infoPanelMinWidth;
+  const INFO_PANEL_MIN_HEIGHT = layout.infoPanelMinHeight;
+  const INFO_PANEL_GAP = layout.infoPanelGap;
+  const PARTY_PANEL = createPartyPanelRect();
+  const TITLE_FONT = fonts.title;
+  const TEXT_FONT = fonts.text;
+  const TEXT_COLOR = colors.text;
+  const ACCENT_COLOR = colors.accent;
+  const PANEL_BG = colors.panelBackground;
+  const PANEL_BORDER = colors.panelBorder;
+  const PANEL_SHADOW = colors.panelShadow;
 
   function wrapLine(text, maxWidth) {
     const words = text.split(/\s+/g);
@@ -511,10 +532,10 @@ function createHudRenderer(canvas, stageElement) {
     drawPanel(infoPanel, 'ADVENTURE LOG');
 
     const logX = infoPanel.x + 12;
-    const logTop = infoPanel.y + 42; // Skip the title band to keep log lines aligned under the header.
+    const logTop = infoPanel.y + layout.logTopOffset; // Skip the title band to keep log lines aligned under the header.
     const maxWidth = Math.max(0, infoPanel.width - 24);
-    const lineHeight = 10;
-    const logHeight = Math.max(60, infoPanel.height - 94);
+    const lineHeight = layout.logLineHeight;
+    const logHeight = Math.max(layout.logMinHeight, infoPanel.height - layout.logBottomPadding);
     const logBottom = logTop + logHeight;
     const flattened = [];
     for (let i = 0; i < state.log.length; i++) {
@@ -529,8 +550,8 @@ function createHudRenderer(canvas, stageElement) {
       ctx.fillText(visible[i], logX, startY + i * lineHeight);
     }
 
-    let actionY = logBottom + 6;
-    const panelBottom = infoPanel.y + infoPanel.height - 10;
+    let actionY = logBottom + layout.buttonVerticalSpacing;
+    const panelBottom = infoPanel.y + infoPanel.height - layout.infoPanelFooterPadding;
     if (state.prompt && actionY <= panelBottom) {
       ctx.fillStyle = ACCENT_COLOR;
       ctx.fillText(state.prompt, logX, actionY);
@@ -538,7 +559,7 @@ function createHudRenderer(canvas, stageElement) {
       actionY += lineHeight + 2;
     }
 
-    const buttonStride = lineHeight + 6;
+    const buttonStride = lineHeight + layout.buttonVerticalSpacing;
     const availableButtonSpace = Math.max(0, panelBottom - actionY + 4);
     const maxButtons = Math.max(0, Math.floor(availableButtonSpace / buttonStride));
     for (let i = 0; i < state.buttons.length && i < maxButtons; i++) {
@@ -548,19 +569,19 @@ function createHudRenderer(canvas, stageElement) {
       const bw = Math.max(0, infoPanel.width - 20);
       const bh = lineHeight + 6;
       ctx.save();
-      ctx.fillStyle = 'rgba(70, 50, 30, 0.85)';
+      ctx.fillStyle = colors.buttonBackground;
       ctx.fillRect(bx, by, bw, bh);
-      ctx.strokeStyle = 'rgba(255, 216, 160, 0.45)';
+      ctx.strokeStyle = colors.buttonBorder;
       ctx.lineWidth = 1.5;
       ctx.strokeRect(bx, by, bw, bh);
       ctx.restore();
-      ctx.fillText(`[${i + 1}] ${btn.label}`, bx + 8, by + 3);
+      ctx.fillText(`[${i + 1}] ${btn.label}`, bx + layout.buttonPaddingX, by + layout.buttonPaddingY);
       buttonZones.push({ x: bx, y: by, width: bw, height: bh, onSelect: btn.onSelect });
     }
 
     drawPanel(PARTY_PANEL, `ROSTER — GOLD ${state.gold}`);
-    const headerY = PARTY_PANEL.y + 26;
-    const rowHeight = 12;
+    const headerY = PARTY_PANEL.y + layout.partyPanelHeaderOffset;
+    const rowHeight = layout.partyPanelRowHeight;
     const cols = [
       { title: 'NAME', x: PARTY_PANEL.x + 12 },
       { title: 'CLASS', x: PARTY_PANEL.x + 180 },
@@ -577,7 +598,7 @@ function createHudRenderer(canvas, stageElement) {
     ctx.fillStyle = TEXT_COLOR;
     for (let i = 0; i < state.party.length; i++) {
       const row = state.party[i];
-      const y = headerY + 6 + (i + 1) * rowHeight;
+      const y = headerY + layout.partyPanelRowOffset + (i + 1) * rowHeight;
       ctx.fillText(row.name, cols[0].x, y);
       ctx.fillText(row.classType, cols[1].x, y);
       ctx.fillText(String(row.level), cols[2].x, y);
@@ -680,6 +701,43 @@ function setupEncounterBillboard(stageElement) {
   let currentUrl = '';
   let loadToken = 0;
 
+  const offscreen = document.createElement('canvas');
+  offscreen.width = RETRO_SURFACE_SIZE;
+  offscreen.height = RETRO_SURFACE_SIZE;
+  const offscreenCtx = offscreen.getContext('2d');
+  if (offscreenCtx) {
+    offscreenCtx.imageSmoothingEnabled = false;
+  }
+
+  function preprocessEncounterImage(sourceImage) {
+    if (!offscreenCtx) return '';
+    const naturalWidth = Math.max(1, sourceImage.naturalWidth || sourceImage.width || RETRO_SURFACE_SIZE);
+    const naturalHeight = Math.max(1, sourceImage.naturalHeight || sourceImage.height || RETRO_SURFACE_SIZE);
+    const scale = RETRO_SURFACE_SIZE / naturalWidth;
+    const sourceHeight = Math.min(naturalHeight, Math.round(RETRO_SURFACE_SIZE / Math.max(scale, 1e-6)));
+    offscreenCtx.clearRect(0, 0, offscreen.width, offscreen.height);
+    offscreenCtx.drawImage(
+      sourceImage,
+      0,
+      0,
+      naturalWidth,
+      sourceHeight,
+      0,
+      0,
+      RETRO_SURFACE_SIZE,
+      RETRO_SURFACE_SIZE,
+    );
+    try {
+      const imageData = offscreenCtx.getImageData(0, 0, RETRO_SURFACE_SIZE, RETRO_SURFACE_SIZE);
+      quantizeImageData(imageData.data, COLOR_LEVEL_STEPS);
+      offscreenCtx.putImageData(imageData, 0, 0);
+      return offscreen.toDataURL();
+    } catch (err) {
+      console.warn('Encounter art preprocessing failed', err);
+      return '';
+    }
+  }
+
   function hide() {
     currentUrl = '';
     loadToken += 1;
@@ -703,17 +761,29 @@ function setupEncounterBillboard(stageElement) {
     const token = ++loadToken;
     currentUrl = url;
     container.classList.remove('is-visible');
+    img.onload = null;
+    img.onerror = null;
 
-    img.onload = () => {
+    const loader = new Image();
+    loader.decoding = 'async';
+    loader.onload = () => {
       if (token !== loadToken || currentUrl !== url) return;
-      container.classList.add('is-visible');
+      const processedUrl = preprocessEncounterImage(loader) || url;
+      img.onload = () => {
+        if (token !== loadToken || currentUrl !== url) return;
+        container.classList.add('is-visible');
+      };
+      img.onerror = () => {
+        if (token !== loadToken) return;
+        hide();
+      };
+      img.src = processedUrl;
     };
-    img.onerror = () => {
+    loader.onerror = () => {
       if (token !== loadToken) return;
       hide();
     };
-
-    img.src = url;
+    loader.src = url;
   }
 
   return {
@@ -839,8 +909,9 @@ function yawForDir(dir) {
   }
 }
 
-const SCREEN_WIDTH = 640;
-const SCREEN_HEIGHT = 480;
+const SCREEN_WIDTH = UI_SETTINGS.resolution.width;
+const SCREEN_HEIGHT = UI_SETTINGS.resolution.height;
+const COLOR_LEVEL_STEPS = RETRO_COLOR_LEVELS_PER_CHANNEL || Math.max(2, Math.round(Math.cbrt(RETRO_COLOR_COUNT)));
 
 function buildScene(state) {
   const stage = document.getElementById('stage');
@@ -849,16 +920,54 @@ function buildScene(state) {
   scene.fog = new THREE.Fog(0x0a0c10, 4.5, 20);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-
-  // Render into a deliberately undersized back-buffer to amplify chunky pixels when the canvas stretches.
-  const pixelScale = 0.58;
   renderer.setPixelRatio(1);
+  renderer.setSize(RETRO_SURFACE_SIZE, RETRO_SURFACE_SIZE, false);
   stage.appendChild(renderer.domElement);
   renderer.domElement.classList.add('pixel-canvas');
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
+  renderer.domElement.style.imageRendering = 'pixelated';
 
-  const camera = new THREE.PerspectiveCamera(60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
+  const renderTarget = new THREE.WebGLRenderTarget(RETRO_SURFACE_SIZE, RETRO_SURFACE_SIZE, {
+    depthBuffer: true,
+    stencilBuffer: false,
+  });
+  renderTarget.texture.minFilter = THREE.NearestFilter;
+  renderTarget.texture.magFilter = THREE.NearestFilter;
+  renderTarget.texture.generateMipmaps = false;
+
+  const postScene = new THREE.Scene();
+  const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const postMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: renderTarget.texture },
+      colorSteps: { value: COLOR_LEVEL_STEPS },
+    },
+    vertexShader: /* glsl */`
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      varying vec2 vUv;
+      uniform sampler2D tDiffuse;
+      uniform float colorSteps;
+      void main() {
+        vec4 texel = texture2D(tDiffuse, vUv);
+        float steps = max(2.0, colorSteps);
+        vec3 quantised = floor(texel.rgb * (steps - 1.0) + 0.5) / (steps - 1.0);
+        gl_FragColor = vec4(quantised, texel.a);
+      }
+    `,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
+  postScene.add(postQuad);
+
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.05, 200);
 
   const ambient = new THREE.AmbientLight(0xbcb6a8, 0.42);
   const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.7);
@@ -956,21 +1065,26 @@ function buildScene(state) {
   camera.position.set(0, eye, 0);
   player.add(camera);
 
+  function renderDungeon() {
+    renderer.setRenderTarget(renderTarget);
+    renderer.clear();
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.render(postScene, postCamera);
+  }
+
   function onResize() {
     if (!stage) return;
     const rect = stage.getBoundingClientRect();
     const w = Math.max(1, rect.width || SCREEN_WIDTH);
     const h = Math.max(1, rect.height || SCREEN_HEIGHT);
-    renderer.setSize(w * pixelScale, h * pixelScale, false);
-    renderer.domElement.style.width = '100%';
-    renderer.domElement.style.height = '100%';
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
   onResize();
   window.addEventListener('resize', onResize);
 
-  return { stage, scene, renderer, camera, player };
+  return { stage, scene, renderer, camera, player, renderDungeon };
 }
 
 function parseOptsFromURL() {
@@ -1104,7 +1218,7 @@ function main() {
       }
     }
 
-    g.renderer.render(g.scene, g.camera);
+    g.renderDungeon();
     requestAnimationFrame(step);
   }
 
@@ -1164,14 +1278,14 @@ main();
       },
       // Monster definitions roughly escalate per dungeon depth tier so the encounter table below can scale difficulty.
       monsters: {
-        serpent: { id: 'serpent', name: 'Cavern Serpent', hpMin: 5, hpMax: 9, ac: 9, toHit: 0, dmgMin: 1, dmgMax: 4, magicRes: 5 },
-        hobbit: { id: 'hobbit', name: 'Trickster Halfling', hpMin: 6, hpMax: 11, ac: 8, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 10 },
-        hobgoblin: { id: 'hobgoblin', name: 'Tunnel Hobgoblin', hpMin: 9, hpMax: 14, ac: 7, toHit: 2, dmgMin: 3, dmgMax: 6, magicRes: 12 },
-        skeleton: { id: 'skeleton', name: 'Restless Skeleton', hpMin: 7, hpMax: 12, ac: 7, toHit: 1, dmgMin: 2, dmgMax: 6, magicRes: 15 },
-        knight: { id: 'knight', name: 'Banished Knight', hpMin: 12, hpMax: 20, ac: 5, toHit: 3, dmgMin: 4, dmgMax: 8, magicRes: 18 },
-        monk: { id: 'monk', name: 'Ashen Monk', hpMin: 10, hpMax: 16, ac: 6, toHit: 2, dmgMin: 3, dmgMax: 7, magicRes: 20 },
-        mage: { id: 'mage', name: 'Arcane Adept', hpMin: 9, hpMax: 13, ac: 8, toHit: 2, dmgMin: 3, dmgMax: 8, magicRes: 25 },
-        enchantress: { id: 'enchantress', name: 'Storm Enchantress', hpMin: 10, hpMax: 15, ac: 7, toHit: 3, dmgMin: 4, dmgMax: 9, magicRes: 30 },
+        serpent: { id: 'serpent', name: 'Cavern Serpent', hpMin: 3, hpMax: 6, ac: 9, toHit: 0, dmgMin: 1, dmgMax: 3, magicRes: 5 },
+        hobbit: { id: 'hobbit', name: 'Trickster Halfling', hpMin: 4, hpMax: 8, ac: 8, toHit: 0, dmgMin: 1, dmgMax: 4, magicRes: 10 },
+        hobgoblin: { id: 'hobgoblin', name: 'Tunnel Hobgoblin', hpMin: 6, hpMax: 10, ac: 7, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 12 },
+        skeleton: { id: 'skeleton', name: 'Restless Skeleton', hpMin: 5, hpMax: 9, ac: 7, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 15 },
+        knight: { id: 'knight', name: 'Banished Knight', hpMin: 8, hpMax: 14, ac: 5, toHit: 2, dmgMin: 3, dmgMax: 6, magicRes:18 },
+        monk: { id: 'monk', name: 'Ashen Monk', hpMin: 7, hpMax: 11, ac: 6, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 20 },
+        mage: { id: 'mage', name: 'Arcane Adept', hpMin: 6, hpMax: 10, ac: 8, toHit: 1, dmgMin: 2, dmgMax: 6, magicRes: 25 },
+        enchantress: { id: 'enchantress', name: 'Storm Enchantress', hpMin: 7, hpMax: 11, ac: 7, toHit: 2, dmgMin: 3, dmgMax: 7, magicRes: 30 },
       }
     };
 
