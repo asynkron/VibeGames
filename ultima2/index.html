@@ -12,7 +12,7 @@
   <main class="layout">
     <section class="screen">
       <div class="viewport crt-frame">
-        <canvas id="game" width="800" height="480" aria-label="Ultima II overworld"></canvas>
+        <canvas id="game" width="640" height="480" aria-label="Ultima II overworld"></canvas>
         <div class="crt-overlay"></div>
         <div class="crt-glow"></div>
         <div id="dialogue" class="dialogue" aria-live="polite"></div>
@@ -35,43 +35,45 @@
       </div>
     </section>
     <aside class="hud-container">
-      <div class="hud">
-        <section class="panel">
-          <h2>Avatar</h2>
-          <ul id="stats"></ul>
-        </section>
-        <section class="panel">
-          <h2>Inventory</h2>
-          <ul id="inventory"></ul>
-        </section>
-        <section class="panel">
-          <h2>Spellbook</h2>
-          <ul id="spells"></ul>
-        </section>
-        <section class="panel">
-          <h2>Scrolls</h2>
-          <ul id="scrolls"></ul>
-        </section>
-        <section class="panel">
-          <h2>Potions</h2>
-          <ul id="potions"></ul>
-        </section>
-        <section class="panel">
-          <h2>Quests</h2>
-          <ul id="quests"></ul>
-        </section>
-        <section class="panel log">
-          <h2>Chronicle</h2>
-          <ul id="log"></ul>
-        </section>
-        <section class="panel help">
-          <h2>Controls</h2>
-          <p>Arrow keys / WASD: Move</p>
-          <p>T or Enter: Talk to nearby NPC</p>
-          <p>Space: Wait a turn</p>
-          <p>M: Toggle world map</p>
-          <p>Esc: Close dialogue</p>
-        </section>
+      <div class="hud-scroll" role="presentation">
+        <div class="hud">
+          <section class="panel">
+            <h2>Avatar</h2>
+            <ul id="stats"></ul>
+          </section>
+          <section class="panel">
+            <h2>Inventory</h2>
+            <ul id="inventory"></ul>
+          </section>
+          <section class="panel">
+            <h2>Spellbook</h2>
+            <ul id="spells"></ul>
+          </section>
+          <section class="panel">
+            <h2>Scrolls</h2>
+            <ul id="scrolls"></ul>
+          </section>
+          <section class="panel">
+            <h2>Potions</h2>
+            <ul id="potions"></ul>
+          </section>
+          <section class="panel">
+            <h2>Quests</h2>
+            <ul id="quests"></ul>
+          </section>
+          <section class="panel log">
+            <h2>Chronicle</h2>
+            <ul id="log"></ul>
+          </section>
+          <section class="panel help">
+            <h2>Controls</h2>
+            <p>Arrow keys / WASD: Move</p>
+            <p>T or Enter: Talk to nearby NPC</p>
+            <p>Space: Wait a turn</p>
+            <p>M: Toggle world map</p>
+            <p>Esc: Close dialogue</p>
+          </section>
+        </div>
       </div>
     </aside>
   </main>

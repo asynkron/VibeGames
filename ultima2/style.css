@@ -226,13 +226,21 @@ body {
   display: flex;
 }
 
+.hud-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  margin-right: -0.5rem;
+}
+
 .hud {
   display: grid;
   gap: 1rem;
   flex: 1;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-  margin-right: -0.5rem;
+  min-height: 0;
 }
 
 .panel {
@@ -298,10 +306,13 @@ body {
     height: auto;
   }
 
-  .hud {
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  .hud-scroll {
     overflow: visible;
     padding-right: 0;
     margin-right: 0;
+  }
+
+  .hud {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 }
