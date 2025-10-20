@@ -402,6 +402,10 @@ function createHudRenderer(canvas, stageElement) {
     gold: 0,
     prompt: '',
     buttons: [],
+    activeCharacterId: '',
+    activePortrait: '',
+    activeHeading: '',
+    activeDetails: '',
     encounter: {
       url: '',
       image: null,
@@ -411,6 +415,7 @@ function createHudRenderer(canvas, stageElement) {
     },
   };
   let buttonZones = [];
+  const portraitCache = new Map();
 
   const { fonts, colors, layout } = UI_SETTINGS;
   const PANEL_MARGIN = layout.panelMargin;
@@ -508,6 +513,28 @@ function createHudRenderer(canvas, stageElement) {
     stageElement.style.minHeight = '0px';
 
     return VIEWPORT_BOUNDS;
+  }
+
+  function getPortraitImage(path) {
+    if (!path) return null;
+    let entry = portraitCache.get(path);
+    if (!entry) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = path;
+      img.addEventListener('load', () => render(), { once: false });
+      img.addEventListener('error', () => {
+        portraitCache.delete(path);
+        render();
+      }, { once: true });
+      entry = { img };
+      portraitCache.set(path, entry);
+    }
+    const img = entry.img;
+    if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      return img;
+    }
+    return null;
   }
 
   function drawViewportFrame(bounds) {
@@ -625,26 +652,60 @@ function createHudRenderer(canvas, stageElement) {
     const infoPanel = computeInfoPanel(stageBounds);
     drawPanel(infoPanel, 'ADVENTURE LOG');
 
-    const logX = infoPanel.x + 12;
-    const logTop = infoPanel.y + layout.logTopOffset; // Skip the title band to keep log lines aligned under the header.
-    const maxWidth = Math.max(0, infoPanel.width - 24);
     const lineHeight = layout.logLineHeight;
-    const logHeight = Math.max(layout.logMinHeight, infoPanel.height - layout.logBottomPadding);
-    const logBottom = logTop + logHeight;
+    const logMargin = 12;
+    const portraitDisplaySize = 86;
+    let logX = infoPanel.x + logMargin;
+    let logTop = infoPanel.y + layout.logTopOffset;
+    let logWidth = Math.max(0, infoPanel.width - logMargin * 2);
+
+    if (state.activePortrait) {
+      const portrait = getPortraitImage(state.activePortrait);
+      if (portrait) {
+        const px = infoPanel.x + logMargin;
+        const py = infoPanel.y + layout.logTopOffset;
+        ctx.drawImage(portrait, px, py, portraitDisplaySize, portraitDisplaySize);
+        ctx.strokeStyle = 'rgba(244, 210, 138, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px - 1, py - 1, portraitDisplaySize + 2, portraitDisplaySize + 2);
+        logX = px + portraitDisplaySize + 10;
+        logWidth = Math.max(0, infoPanel.width - (portraitDisplaySize + 10 + logMargin * 2));
+        let textY = py;
+        if (state.activeHeading) {
+          ctx.fillStyle = ACCENT_COLOR;
+          ctx.fillText(state.activeHeading, logX, textY);
+          textY += lineHeight + 2;
+          ctx.fillStyle = TEXT_COLOR;
+        }
+        if (state.activeDetails) {
+          const detailLines = wrapLine(state.activeDetails, logWidth);
+          for (let i = 0; i < detailLines.length; i++) {
+            ctx.fillText(detailLines[i], logX, textY + i * lineHeight);
+          }
+          textY += detailLines.length * lineHeight + 4;
+        }
+        logTop = Math.max(textY, py + portraitDisplaySize + 4);
+      } else {
+        // Trigger lazy load if not already cached.
+        getPortraitImage(state.activePortrait);
+      }
+    }
+
     const flattened = [];
     for (let i = 0; i < state.log.length; i++) {
       const message = state.log[i];
-      const lines = wrapLine(message, maxWidth);
+      const lines = wrapLine(message, logWidth);
       for (let j = 0; j < lines.length; j++) flattened.push(lines[j]);
     }
-    const maxVisible = Math.max(1, Math.floor(logHeight / lineHeight));
+    const logBottomLimit = infoPanel.y + infoPanel.height - layout.logBottomPadding;
+    const maxVisible = Math.max(1, Math.floor(Math.max(0, logBottomLimit - logTop) / lineHeight));
     const visible = flattened.slice(-maxVisible);
-    const startY = Math.max(logTop, logBottom - visible.length * lineHeight);
+    const startY = Math.max(logTop, logBottomLimit - visible.length * lineHeight);
     for (let i = 0; i < visible.length; i++) {
       ctx.fillText(visible[i], logX, startY + i * lineHeight);
     }
 
-    let actionY = logBottom + layout.buttonVerticalSpacing;
+    let actionY = Math.min(logBottomLimit, startY + visible.length * lineHeight) + layout.buttonVerticalSpacing;
     const panelBottom = infoPanel.y + infoPanel.height - layout.infoPanelFooterPadding;
     if (state.prompt && actionY <= panelBottom) {
       ctx.fillStyle = ACCENT_COLOR;
@@ -658,9 +719,9 @@ function createHudRenderer(canvas, stageElement) {
     const maxButtons = Math.max(0, Math.floor(availableButtonSpace / buttonStride));
     for (let i = 0; i < state.buttons.length && i < maxButtons; i++) {
       const btn = state.buttons[i];
-      const bx = infoPanel.x + 10;
+      const bx = logX;
       const by = actionY + i * buttonStride;
-      const bw = Math.max(0, infoPanel.width - 20);
+      const bw = Math.max(0, logWidth);
       const bh = lineHeight + 6;
       ctx.save();
       ctx.fillStyle = colors.buttonBackground;
@@ -669,37 +730,58 @@ function createHudRenderer(canvas, stageElement) {
       ctx.lineWidth = 1.5;
       ctx.strokeRect(bx, by, bw, bh);
       ctx.restore();
-      ctx.fillText(`[${i + 1}] ${btn.label}`, bx + layout.buttonPaddingX, by + layout.buttonPaddingY);
+      const hotkey = btn.hotkey ? btn.hotkey : String(i + 1);
+      ctx.fillText(`[${hotkey}] ${btn.label}`, bx + layout.buttonPaddingX, by + layout.buttonPaddingY);
       buttonZones.push({ x: bx, y: by, width: bw, height: bh, onSelect: btn.onSelect });
     }
 
     drawPanel(PARTY_PANEL, `ROSTER — GOLD ${state.gold}`);
     const headerY = PARTY_PANEL.y + layout.partyPanelHeaderOffset;
-    const rowHeight = layout.partyPanelRowHeight;
-    const cols = [
-      { title: 'NAME', x: PARTY_PANEL.x + 12 },
-      { title: 'CLASS', x: PARTY_PANEL.x + 180 },
-      { title: 'LVL', x: PARTY_PANEL.x + 270 },
-      { title: 'HP', x: PARTY_PANEL.x + 320 },
-      { title: 'AC', x: PARTY_PANEL.x + 400 },
-      { title: 'TO-HIT', x: PARTY_PANEL.x + 450 },
-      { title: 'STATUS', x: PARTY_PANEL.x + 540 },
-    ];
     ctx.fillStyle = ACCENT_COLOR;
-    for (const col of cols) {
-      ctx.fillText(col.title, col.x, headerY);
-    }
+    ctx.fillText('MEMBERS', PARTY_PANEL.x + 12, headerY);
     ctx.fillStyle = TEXT_COLOR;
+
+    const portraitSize = 48;
+    const rowHeight = 58;
+    const baseY = headerY + layout.partyPanelRowOffset + 18;
     for (let i = 0; i < state.party.length; i++) {
       const row = state.party[i];
-      const y = headerY + layout.partyPanelRowOffset + (i + 1) * rowHeight;
-      ctx.fillText(row.name, cols[0].x, y);
-      ctx.fillText(row.classType, cols[1].x, y);
-      ctx.fillText(String(row.level), cols[2].x, y);
-      ctx.fillText(`${row.hpCurrent}/${row.hpMax}`, cols[3].x, y);
-      ctx.fillText(String(row.ac), cols[4].x, y);
-      ctx.fillText(String(row.toHit), cols[5].x, y);
-      ctx.fillText(row.alive ? '' : 'DEAD', cols[6].x, y);
+      const rowTop = baseY + i * rowHeight;
+      if (row.id && row.id === state.activeCharacterId) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(244, 210, 138, 0.16)';
+        ctx.fillRect(PARTY_PANEL.x + 10, rowTop - 14, PARTY_PANEL.width - 20, rowHeight - 4);
+        ctx.restore();
+      }
+      if (row.portrait) {
+        const portrait = getPortraitImage(row.portrait);
+        if (portrait) {
+          ctx.drawImage(portrait, PARTY_PANEL.x + 12, rowTop - 8, portraitSize, portraitSize);
+          ctx.strokeStyle = 'rgba(244, 210, 138, 0.35)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(PARTY_PANEL.x + 11, rowTop - 9, portraitSize + 2, portraitSize + 2);
+        } else {
+          getPortraitImage(row.portrait);
+        }
+      }
+      const textX = PARTY_PANEL.x + 12 + portraitSize + 12;
+      let textY = rowTop - 6;
+      ctx.fillStyle = ACCENT_COLOR;
+      ctx.fillText(`${row.name} — ${row.classType} (Lv ${row.level})`, textX, textY);
+      ctx.fillStyle = TEXT_COLOR;
+      textY += lineHeight + 2;
+      ctx.fillText(`HP ${row.hpCurrent}/${row.hpMax}   SP ${row.spCurrent}/${row.spMax}   AC ${row.ac}   Hit ${row.toHit}   DMG ${row.damageMin}-${row.damageMax}`, textX, textY);
+      textY += lineHeight + 2;
+      if (row.attributes) {
+        const attrs = row.attributes;
+        const attrLine = `STR ${attrs.strength}  INT ${attrs.intelligence}  DEX ${attrs.dexterity}  CON ${attrs.constitution}  LCK ${attrs.luck}`;
+        ctx.fillText(attrLine, textX, textY);
+        textY += lineHeight + 2;
+      }
+      const statusLine = row.alive ? (row.statusText || '') : 'DEAD';
+      if (statusLine) {
+        ctx.fillText(statusLine, textX, textY);
+      }
     }
 
     ctx.restore();
@@ -784,11 +866,15 @@ function createHudRenderer(canvas, stageElement) {
     window.addEventListener('resize', render);
     window.addEventListener('keydown', (event) => {
       if (!state.buttons.length) return;
-      const digit = parseInt(event.key, 10);
-      if (Number.isInteger(digit) && digit >= 1 && digit <= state.buttons.length) {
-        event.preventDefault();
-        const btn = state.buttons[digit - 1];
-        triggerButton(btn);
+      const key = String(event.key || '').toLowerCase();
+      for (let i = 0; i < state.buttons.length; i++) {
+        const btn = state.buttons[i];
+        const hotkey = (btn?.hotkey ? String(btn.hotkey) : String(i + 1)).toLowerCase();
+        if (hotkey === key) {
+          event.preventDefault();
+          triggerButton(btn);
+          break;
+        }
       }
     });
   }
@@ -802,18 +888,40 @@ function createHudRenderer(canvas, stageElement) {
       render();
     },
     setParty(data) {
-      state.party = Array.isArray(data?.members) ? data.members.slice() : [];
+      state.party = Array.isArray(data?.members)
+        ? data.members.map((member) => {
+            if (member?.portrait) getPortraitImage(member.portrait);
+            return member;
+          })
+        : [];
       state.gold = data?.gold ?? state.gold;
+      if (state.activeCharacterId && !state.party.some((m) => m.id === state.activeCharacterId)) {
+        state.activeCharacterId = '';
+        state.activePortrait = '';
+        state.activeHeading = '';
+        state.activeDetails = '';
+      }
       render();
     },
-    setActions({ prompt = '', buttons = [] } = {}) {
+    setActions({ prompt = '', buttons = [], active = null, details = '' } = {}) {
       state.prompt = prompt;
-      state.buttons = buttons;
+      state.buttons = Array.isArray(buttons) ? buttons.slice() : [];
+      const activeData = active || {};
+      state.activeCharacterId = activeData.id || '';
+      state.activePortrait = activeData.portrait || '';
+      state.activeHeading = activeData.heading || activeData.name || '';
+      const detailText = activeData.details || details || '';
+      state.activeDetails = detailText;
+      if (state.activePortrait) getPortraitImage(state.activePortrait);
       render();
     },
     clearActions() {
       state.prompt = '';
       state.buttons = [];
+      state.activeCharacterId = '';
+      state.activePortrait = '';
+      state.activeHeading = '';
+      state.activeDetails = '';
       render();
     },
     showEncounterArt(url, callbacks) {
@@ -1300,8 +1408,17 @@ main();
 // BT3-like systems (overlay, party, items, encounters, combat)
 // =========================
 (function initBt3Systems() {
-  function onReady(fn){ if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn, { once: true }); else fn(); }
-  function roll(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function onReady(fn) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    } else {
+      fn();
+    }
+  }
+
+  function roll(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
 
   onReady(function() {
     if (typeof window !== 'undefined') window.__bt3_isCombatActive = false;
@@ -1320,10 +1437,14 @@ main();
 
     const hud = (typeof window !== 'undefined' && window.__bt3_hud) ? window.__bt3_hud : createFallbackHud();
 
-    function log(msg) { hud.appendLog(msg); }
-    function clearActions() { hud.clearActions(); }
+    function log(message) {
+      hud.appendLog(message);
+    }
 
-    // Local pixel art placeholders so the encounter billboard can load without external fetches.
+    function clearActions() {
+      hud.clearActions();
+    }
+
     const MONSTER_ART = {
       serpent: './assets/monsters/serpent.png',
       hobbit: './assets/monsters/hobbit.png',
@@ -1333,285 +1454,1513 @@ main();
       monk: './assets/monsters/monk.png',
       mage: './assets/monsters/mage.png',
       enchantress: './assets/monsters/female-mage.png',
+      rat: './assets/monsters/rat.png',
+      default: './assets/monsters/monster.png',
       treasure: './assets/monsters/treasure.png',
-      default: './assets/monsters/monster.png'
     };
 
     const billboard = (typeof window !== 'undefined' && window.__bt3_encounterBillboard) ? window.__bt3_encounterBillboard : null;
     let postVictoryTimer = null;
+
     function clearVictoryTimer() {
       if (postVictoryTimer) {
         clearTimeout(postVictoryTimer);
         postVictoryTimer = null;
       }
     }
-    function showEncounterArt(species){
+
+    function showEncounterArt(speciesId) {
       if (!billboard) return;
       clearVictoryTimer();
-      const path = MONSTER_ART[species] || MONSTER_ART.default;
-      if (path) billboard.show(path); else billboard.hide();
+      const path = MONSTER_ART[speciesId] || MONSTER_ART.default;
+      if (path) {
+        billboard.show(path);
+      } else {
+        billboard.hide();
+      }
     }
-    function hideEncounterArt(){
+
+    function hideEncounterArt() {
       clearVictoryTimer();
       if (billboard) billboard.hide();
     }
 
-    const DB = {
-      items: {
-        sword_basic: { id: 'sword_basic', name: 'Short Sword', slot: 'Weapon', minDamage: 2, maxDamage: 8, toHit: 0, acBonus: 0, magicRes: 0, weight: 3 },
-        leather_armor: { id: 'leather_armor', name: 'Leather Armor', slot: 'Body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -1, magicRes: 0, weight: 5 },
-        songbook: { id: 'songbook', name: 'Songbook', slot: 'Instrument', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 0, weight: 1 },
-        potion_small: { id: 'potion_small', name: 'Healing Potion', slot: 'Consumable', heals: 10, weight: 1 },
+    const CLASS_DATA = {
+      Warrior: {
+        hitDie: 16,
+        spBase: 0,
+        baseAttributes: { strength: 18, intelligence: 8, dexterity: 12, constitution: 17, luck: 10 },
+        baseAc: 8,
+        baseToHit: 2,
+        damageBonus: 3,
+        ability: 'warrior_power_strike',
+        portrait: './assets/portraits/warrior.png',
+        description: 'Battle-hardened veteran who wields heavy weapons with crushing force.'
       },
-      // Monster definitions roughly escalate per dungeon depth tier so the encounter table below can scale difficulty.
-      monsters: {
-        serpent: { id: 'serpent', name: 'Cavern Serpent', hpMin: 3, hpMax: 6, ac: 9, toHit: 0, dmgMin: 1, dmgMax: 3, magicRes: 5 },
-        hobbit: { id: 'hobbit', name: 'Trickster Halfling', hpMin: 4, hpMax: 8, ac: 8, toHit: 0, dmgMin: 1, dmgMax: 4, magicRes: 10 },
-        hobgoblin: { id: 'hobgoblin', name: 'Tunnel Hobgoblin', hpMin: 6, hpMax: 10, ac: 7, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 12 },
-        skeleton: { id: 'skeleton', name: 'Restless Skeleton', hpMin: 5, hpMax: 9, ac: 7, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 15 },
-        knight: { id: 'knight', name: 'Banished Knight', hpMin: 8, hpMax: 14, ac: 5, toHit: 2, dmgMin: 3, dmgMax: 6, magicRes:18 },
-        monk: { id: 'monk', name: 'Ashen Monk', hpMin: 7, hpMax: 11, ac: 6, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 20 },
-        mage: { id: 'mage', name: 'Arcane Adept', hpMin: 6, hpMax: 10, ac: 8, toHit: 1, dmgMin: 2, dmgMax: 6, magicRes: 25 },
-        enchantress: { id: 'enchantress', name: 'Storm Enchantress', hpMin: 7, hpMax: 11, ac: 7, toHit: 2, dmgMin: 3, dmgMax: 7, magicRes: 30 },
-      }
+      Paladin: {
+        hitDie: 14,
+        spBase: 6,
+        baseAttributes: { strength: 16, intelligence: 10, dexterity: 11, constitution: 16, luck: 12 },
+        baseAc: 8,
+        baseToHit: 1,
+        damageBonus: 2,
+        ability: 'paladin_lay_on_hands',
+        portrait: './assets/portraits/paladin.png',
+        description: 'Holy knight capable of bolstering allies with restorative miracles.'
+      },
+      Rogue: {
+        hitDie: 12,
+        spBase: 0,
+        baseAttributes: { strength: 12, intelligence: 11, dexterity: 17, constitution: 12, luck: 16 },
+        baseAc: 9,
+        baseToHit: 1,
+        damageBonus: 1,
+        ability: 'rogue_backstab',
+        portrait: './assets/portraits/rogue.png',
+        description: 'Shadowy specialist who excels at striking distracted foes.'
+      },
+      Bard: {
+        hitDie: 12,
+        spBase: 4,
+        baseAttributes: { strength: 12, intelligence: 13, dexterity: 14, constitution: 12, luck: 14 },
+        baseAc: 9,
+        baseToHit: 0,
+        damageBonus: 1,
+        songs: ['TRAV', 'ROGU', 'SEEK', 'WACH', 'DEST', 'FALK'],
+        portrait: './assets/portraits/bard.png',
+        description: 'Wandering minstrel whose songs fortify, heal, and confound.'
+      },
+      Hunter: {
+        hitDie: 13,
+        spBase: 0,
+        baseAttributes: { strength: 15, intelligence: 9, dexterity: 18, constitution: 13, luck: 13 },
+        baseAc: 8,
+        baseToHit: 2,
+        damageBonus: 2,
+        ability: 'hunter_aimed_shot',
+        portrait: './assets/portraits/hunter.png',
+        description: 'Keen-eyed archer whose critical strikes can fell the mightiest foes.'
+      },
+      Monk: {
+        hitDie: 13,
+        spBase: 0,
+        baseAttributes: { strength: 15, intelligence: 11, dexterity: 16, constitution: 14, luck: 12 },
+        baseAc: 7,
+        baseToHit: 2,
+        damageBonus: 2,
+        ability: 'monk_stunning_blow',
+        portrait: './assets/portraits/monk.png',
+        description: 'Unarmored martial artist whose disciplined strikes stagger enemies.'
+      },
+      Conjurer: {
+        hitDie: 10,
+        spBase: 14,
+        baseAttributes: { strength: 9, intelligence: 17, dexterity: 12, constitution: 11, luck: 12 },
+        baseAc: 10,
+        baseToHit: 0,
+        damageBonus: 0,
+        spellList: ['MAFL', 'ARFI', 'TRZP', 'FRFO', 'MACO', 'WOHL', 'LEVI', 'WAST'],
+        portrait: './assets/portraits/conjurer.png',
+        description: 'Elemental scholar focused on direct evocation and exploration magic.'
+      },
+      Magician: {
+        hitDie: 10,
+        spBase: 14,
+        baseAttributes: { strength: 9, intelligence: 17, dexterity: 12, constitution: 11, luck: 12 },
+        baseAc: 10,
+        baseToHit: 0,
+        damageBonus: 0,
+        spellList: ['SCSI', 'HOWA', 'STLI', 'PHBL', 'MAGA', 'AREN', 'GRRE', 'WAWA'],
+        portrait: './assets/portraits/magician.png',
+        description: 'Offensive mage specializing in weapon enchantments and holy damage.'
+      },
+      Sorcerer: {
+        hitDie: 10,
+        spBase: 16,
+        baseAttributes: { strength: 8, intelligence: 18, dexterity: 13, constitution: 10, luck: 13 },
+        baseAc: 10,
+        baseToHit: 0,
+        damageBonus: 0,
+        spellList: ['MIJA', 'PHDO', 'YAWR', 'MAGM', 'OGST', 'INWO', 'FLCO', 'MAMA'],
+        portrait: './assets/portraits/sorcerer.png',
+        description: 'Illusionist whose reality-bending magics disable and devastate.'
+      },
+      Wizard: {
+        hitDie: 10,
+        spBase: 18,
+        baseAttributes: { strength: 8, intelligence: 19, dexterity: 12, constitution: 10, luck: 14 },
+        baseAc: 10,
+        baseToHit: 0,
+        damageBonus: 0,
+        spellList: ['MIBL', 'INVI', 'GRSU', 'ANMA', 'FLRE', 'REST', 'WZWA', 'APAR'],
+        portrait: './assets/portraits/wizard.png',
+        description: 'Master of high sorcery wielding mind blades and protective wards.'
+      },
+      Archmage: {
+        hitDie: 11,
+        spBase: 20,
+        baseAttributes: { strength: 9, intelligence: 20, dexterity: 13, constitution: 11, luck: 15 },
+        baseAc: 9,
+        baseToHit: 0,
+        damageBonus: 0,
+        spellList: ['SOSI', 'MORT', 'DEMI', 'SPTO', 'WIZB', 'APAR', 'REST', 'BLAZ'],
+        inherits: ['Conjurer', 'Magician', 'Sorcerer', 'Wizard'],
+        portrait: './assets/portraits/archmage.png',
+        description: 'Spell-archivist who commands the full repertoire of lesser disciplines.'
+      },
+      Chronomancer: {
+        hitDie: 11,
+        spBase: 18,
+        baseAttributes: { strength: 8, intelligence: 20, dexterity: 14, constitution: 11, luck: 15 },
+        baseAc: 9,
+        baseToHit: 0,
+        damageBonus: 0,
+        spellList: ['DELV', 'HAST', 'SLOW', 'TARD', 'ROTL', 'DIVA', 'TIME', 'STAS'],
+        inherits: ['Sorcerer', 'Wizard'],
+        portrait: './assets/portraits/chronomancer.png',
+        description: 'Guardian of time who hastens allies and suspends enemies in stasis.'
+      },
+      Geomancer: {
+        hitDie: 11,
+        spBase: 18,
+        baseAttributes: { strength: 10, intelligence: 19, dexterity: 13, constitution: 12, luck: 14 },
+        baseAc: 9,
+        baseToHit: 0,
+        damageBonus: 1,
+        spellList: ['QUAK', 'STON', 'VINE', 'LAVA', 'SAND', 'GAEA', 'TOXF', 'BREA'],
+        inherits: ['Conjurer', 'Magician'],
+        portrait: './assets/portraits/geomancer.png',
+        description: 'Earth-shaper blending primal fury with protective wards.'
+      },
     };
 
-    function makeChar(id, name, classType, hp, acBase, toHit, dmgBonus){
-      return { id, name, classType, level: 1, xp: 0, hpCurrent: hp, hpMax: hp, spCurrent: 0, spMax: 0,
-        base: { ac: acBase, toHit, dmgBonus, magicRes: 0 }, equip: { weapon: '', offhand: '', head: '', body: '', hands: '', feet: '', instrument: '', accessory: '' }, inv: [], alive: true };
+    const SPELL_LIBRARY = {
+      MAFL: { code: 'MAFL', name: 'Magic Flame', classType: 'Conjurer', cost: 2, type: 'buff', target: 'party', duration: 3, modifiers: { toHit: 1, damageBonus: 1 }, description: 'Ignites a spectral flame that sharpens party attacks.', usableInCombat: true },
+      ARFI: { code: 'ARFI', name: 'Arc Fire', classType: 'Conjurer', cost: 3, type: 'damage', target: 'enemy', power: 12, description: 'Arcing flames scorch a single foe.', usableInCombat: true },
+      TRZP: { code: 'TRZP', name: 'Trap Zap', classType: 'Conjurer', cost: 3, type: 'utility', target: 'none', description: 'Neutralizes mundane traps; little use in combat.', usableInCombat: false },
+      FRFO: { code: 'FRFO', name: 'Freeze Foes', classType: 'Conjurer', cost: 5, type: 'debuff', target: 'enemies', duration: 2, modifiers: { toHit: -2 }, description: 'Sheets of frost sap enemy accuracy.', usableInCombat: true },
+      MACO: { code: 'MACO', name: 'Magic Compass', classType: 'Conjurer', cost: 2, type: 'utility', target: 'none', description: 'Calibrates the party compass.', usableInCombat: false },
+      WOHL: { code: 'WOHL', name: 'Word of Healing', classType: 'Conjurer', cost: 4, type: 'heal', target: 'ally', amount: 18, description: 'Divine word mends wounds.', usableInCombat: true },
+      LEVI: { code: 'LEVI', name: 'Levitate', classType: 'Conjurer', cost: 4, type: 'utility', target: 'party', description: 'Allows levitation over floor hazards.', usableInCombat: false },
+      WAST: { code: 'WAST', name: 'Warstrike', classType: 'Conjurer', cost: 6, type: 'damage', target: 'enemy', power: 22, description: 'Concentrated beam that devastates a single foe.', usableInCombat: true },
+
+      SCSI: { code: 'SCSI', name: 'Scry Site', classType: 'Magician', cost: 3, type: 'utility', target: 'party', description: 'Reveals dungeon layout.', usableInCombat: false },
+      HOWA: { code: 'HOWA', name: 'Holy Water', classType: 'Magician', cost: 4, type: 'damage', target: 'enemy', power: 14, description: 'Consecrated water burns undead.', usableInCombat: true },
+      STLI: { code: 'STLI', name: 'Stillness', classType: 'Magician', cost: 5, type: 'debuff', target: 'enemy', duration: 2, modifiers: { stunned: true }, description: 'Suspends a foe in place.', usableInCombat: true },
+      PHBL: { code: 'PHBL', name: 'Phase Blur', classType: 'Magician', cost: 4, type: 'buff', target: 'ally', duration: 3, modifiers: { ac: -2 }, description: 'Envelops an ally in shimmering mist, lowering AC.', usableInCombat: true },
+      MAGA: { code: 'MAGA', name: 'Mage Gauntlets', classType: 'Magician', cost: 4, type: 'buff', target: 'ally', duration: 3, modifiers: { damageBonus: 3 }, description: 'Empowers a weapon with arcane might.', usableInCombat: true },
+      AREN: { code: 'AREN', name: 'Area Enchant', classType: 'Magician', cost: 5, type: 'buff', target: 'party', duration: 3, modifiers: { ac: -1, toHit: 1 }, description: 'Augments the entire party with protective wards.', usableInCombat: true },
+      GRRE: { code: 'GRRE', name: 'Greater Revelation', classType: 'Magician', cost: 5, type: 'utility', target: 'party', description: 'Exposes hidden doors and illusions.', usableInCombat: false },
+      WAWA: { code: 'WAWA', name: 'War Wind', classType: 'Magician', cost: 7, type: 'damage', target: 'enemies', power: 18, description: 'Storm of blades lashes all enemies.', usableInCombat: true },
+
+      MIJA: { code: 'MIJA', name: 'Mind Jab', classType: 'Sorcerer', cost: 4, type: 'damage', target: 'enemy', power: 16, ignoreArmor: true, description: 'Psychic lance bypasses armor.', usableInCombat: true },
+      PHDO: { code: 'PHDO', name: 'Phase Door', classType: 'Sorcerer', cost: 6, type: 'utility', target: 'party', description: 'Teleports the party short distances.', usableInCombat: false },
+      YAWR: { code: 'YAWR', name: "Ybarra's Ward", classType: 'Sorcerer', cost: 5, type: 'buff', target: 'party', duration: 3, modifiers: { magicResist: 10 }, description: 'Mystical barrier improves magical resistance.', usableInCombat: true },
+      MAGM: { code: 'MAGM', name: 'Magi Magma', classType: 'Sorcerer', cost: 6, type: 'damage', target: 'enemies', power: 16, description: 'Molten rock erupts beneath enemies.', usableInCombat: true },
+      OGST: { code: 'OGST', name: 'Oscon\'s Stasis', classType: 'Sorcerer', cost: 7, type: 'debuff', target: 'enemy', duration: 2, modifiers: { stunned: true }, description: 'Locks a foe in temporal amber.', usableInCombat: true },
+      INWO: { code: 'INWO', name: 'Invisible Wall', classType: 'Sorcerer', cost: 6, type: 'buff', target: 'party', duration: 2, modifiers: { ac: -2 }, description: 'Invisible barrier shields the party.', usableInCombat: true },
+      FLCO: { code: 'FLCO', name: 'Flesh to Coal', classType: 'Sorcerer', cost: 7, type: 'damage', target: 'enemy', power: 20, description: 'Attempts to petrify the target.', usableInCombat: true },
+      MAMA: { code: 'MAMA', name: 'Mana Maelstrom', classType: 'Sorcerer', cost: 8, type: 'damage', target: 'enemies', power: 24, description: 'Explosive conflagration engulfing all foes.', usableInCombat: true },
+
+      MIBL: { code: 'MIBL', name: "Mangar's Mind Blade", classType: 'Wizard', cost: 8, type: 'damage', target: 'enemies', power: 26, ignoreArmor: true, description: 'Legendary psionic blade ravages enemy minds.', usableInCombat: true },
+      INVI: { code: 'INVI', name: 'Invisibility', classType: 'Wizard', cost: 6, type: 'buff', target: 'ally', duration: 3, modifiers: { ac: -3, toHit: 1 }, description: 'Bends light around an ally.', usableInCombat: true },
+      GRSU: { code: 'GRSU', name: 'Group Shield', classType: 'Wizard', cost: 6, type: 'buff', target: 'party', duration: 3, modifiers: { ac: -2 }, description: 'Protective field cushions the entire party.', usableInCombat: true },
+      ANMA: { code: 'ANMA', name: 'Anti-Magic', classType: 'Wizard', cost: 5, type: 'buff', target: 'party', duration: 3, modifiers: { magicResist: 15 }, description: 'Nullifies hostile spells.', usableInCombat: true },
+      FLRE: { code: 'FLRE', name: 'Flesh Restore', classType: 'Wizard', cost: 8, type: 'revive', target: 'ally', amount: 20, description: 'Restores a fallen ally to fighting shape.', usableInCombat: true },
+      REST: { code: 'REST', name: 'Restoration', classType: 'Wizard', cost: 7, type: 'heal', target: 'party', amount: 14, description: 'Heals all allies with rejuvenating light.', usableInCombat: true },
+      WZWA: { code: 'WZWA', name: 'Wizard War', classType: 'Wizard', cost: 9, type: 'damage', target: 'enemies', power: 24, description: 'Arcane barrage batters every enemy.', usableInCombat: true },
+      APAR: { code: 'APAR', name: 'Apport Arcane', classType: 'Wizard', cost: 8, type: 'utility', target: 'none', description: 'Warps the party across space.', usableInCombat: false },
+
+      SOSI: { code: 'SOSI', name: 'Soul Siphon', classType: 'Archmage', cost: 10, type: 'drain', target: 'enemy', power: 24, description: 'Steals vitality from an enemy and feeds the caster.', usableInCombat: true },
+      MORT: { code: 'MORT', name: 'Mortal Blast', classType: 'Archmage', cost: 9, type: 'damage', target: 'enemy', power: 30, description: 'Pure destruction focused on one target.', usableInCombat: true },
+      DEMI: { code: 'DEMI', name: 'Demi Armor', classType: 'Archmage', cost: 8, type: 'buff', target: 'party', duration: 3, modifiers: { ac: -3, magicResist: 20 }, description: 'Layers party in ethereal mail.', usableInCombat: true },
+      SPTO: { code: 'SPTO', name: 'Spirit Touch', classType: 'Archmage', cost: 6, type: 'restore', target: 'ally', amount: 8, description: 'Restores spell points to a weary ally.', usableInCombat: true },
+      WIZB: { code: 'WIZB', name: 'Wizard Bolt', classType: 'Archmage', cost: 8, type: 'damage', target: 'enemies', power: 26, description: 'Bolts of force slam every foe.', usableInCombat: true },
+      BLAZ: { code: 'BLAZ', name: 'Blazing Star', classType: 'Archmage', cost: 10, type: 'damage', target: 'enemies', power: 32, description: 'A blazing star detonates in the enemy ranks.', usableInCombat: true },
+
+      DELV: { code: 'DELV', name: 'Delayed Void', classType: 'Chronomancer', cost: 8, type: 'debuff', target: 'enemy', duration: 2, modifiers: { toHit: -3 }, description: 'Accelerates entropy around a foe.', usableInCombat: true },
+      HAST: { code: 'HAST', name: 'Haste', classType: 'Chronomancer', cost: 7, type: 'buff', target: 'party', duration: 3, modifiers: { toHit: 2 }, description: 'Speeds the party, improving accuracy.', usableInCombat: true },
+      SLOW: { code: 'SLOW', name: 'Slow Time', classType: 'Chronomancer', cost: 7, type: 'debuff', target: 'enemies', duration: 2, modifiers: { toHit: -2, damageBonus: -1 }, description: 'Slows enemies, dulling their strikes.', usableInCombat: true },
+      TARD: { code: 'TARD', name: 'Temporal Dervish', classType: 'Chronomancer', cost: 9, type: 'damage', target: 'enemies', power: 24, description: 'Temporal blades rip through all foes.', usableInCombat: true },
+      ROTL: { code: 'ROTL', name: 'Rotate Life', classType: 'Chronomancer', cost: 10, type: 'revive', target: 'ally', amount: 18, description: 'Turns back time on a fallen ally.', usableInCombat: true },
+      DIVA: { code: 'DIVA', name: 'Divine Intervention', classType: 'Chronomancer', cost: 9, type: 'heal', target: 'party', amount: 20, description: 'Temporal plea mends grievous wounds.', usableInCombat: true },
+      TIME: { code: 'TIME', name: 'Time Stop', classType: 'Chronomancer', cost: 11, type: 'debuff', target: 'enemies', duration: 1, modifiers: { stunned: true }, description: 'Freezes all enemies for a moment.', usableInCombat: true },
+      STAS: { code: 'STAS', name: 'Stasis Field', classType: 'Chronomancer', cost: 8, type: 'buff', target: 'ally', duration: 2, modifiers: { ac: -4 }, description: 'Encases an ally in time-dilated protection.', usableInCombat: true },
+
+      QUAK: { code: 'QUAK', name: 'Earthquake', classType: 'Geomancer', cost: 8, type: 'damage', target: 'enemies', power: 22, description: 'The ground heaves violently under every foe.', usableInCombat: true },
+      STON: { code: 'STON', name: 'Stone Skin', classType: 'Geomancer', cost: 6, type: 'buff', target: 'party', duration: 3, modifiers: { ac: -3 }, description: 'Hardens skin to stone-like resilience.', usableInCombat: true },
+      VINE: { code: 'VINE', name: 'Vine Snare', classType: 'Geomancer', cost: 6, type: 'debuff', target: 'enemy', duration: 2, modifiers: { stunned: true }, description: 'Thorny vines bind a target.', usableInCombat: true },
+      LAVA: { code: 'LAVA', name: 'Lava Burst', classType: 'Geomancer', cost: 8, type: 'damage', target: 'enemy', power: 24, description: 'Lava erupts beneath a foe.', usableInCombat: true },
+      SAND: { code: 'SAND', name: 'Sandstorm', classType: 'Geomancer', cost: 7, type: 'debuff', target: 'enemies', duration: 2, modifiers: { toHit: -2 }, description: 'Sand lashes enemies, blinding them.', usableInCombat: true },
+      GAEA: { code: 'GAEA', name: "Gaia's Embrace", classType: 'Geomancer', cost: 8, type: 'heal', target: 'party', amount: 16, description: 'Nature\'s energy restores the party.', usableInCombat: true },
+      TOXF: { code: 'TOXF', name: 'Toxic Fumes', classType: 'Geomancer', cost: 7, type: 'damage', target: 'enemies', power: 18, description: 'Poisonous vapors sap enemy vitality.', usableInCombat: true },
+      BREA: { code: 'BREA', name: 'Breach Earth', classType: 'Geomancer', cost: 10, type: 'damage', target: 'enemy', power: 28, description: 'Jagged pillars erupt through an enemy.', usableInCombat: true },
+    };
+
+    const SONG_LIBRARY = {
+      TRAV: { id: 'TRAV', name: "Traveler's Tune", type: 'buff', target: 'party', duration: 3, modifiers: { ac: -2 }, description: 'Calming melody reduces incoming blows.' },
+      ROGU: { id: 'ROGU', name: "Rogue's March", type: 'buff', target: 'party', duration: 3, modifiers: { toHit: 1, damageBonus: 1 }, description: 'Rousing march sharpens blades and wits.' },
+      SEEK: { id: 'SEEK', name: "Seeker's Ballad", type: 'buff', target: 'party', duration: 3, modifiers: { magicResist: 12 }, description: 'Haunting ballad steels minds against magic.' },
+      WACH: { id: 'WACH', name: "Watchwood Melody", type: 'buff', target: 'party', duration: 3, modifiers: { ac: -1, toHit: 1 }, description: 'Forest melody heightens reflexes.' },
+      DEST: { id: 'DEST', name: "Destiny's Dirge", type: 'heal', target: 'party', amount: 12, description: 'Somber dirge mends the weary.' },
+      FALK: { id: 'FALK', name: "Falkentyne's Fury", type: 'buff', target: 'party', duration: 2, modifiers: { damageBonus: 3 }, description: 'Legendary anthem unleashes fierce strikes.' },
+    };
+
+    const ABILITY_LIBRARY = {
+      warrior_power_strike: { id: 'warrior_power_strike', name: 'Power Strike', type: 'attack', damageBonus: 8, description: 'Overhand swing that adds significant damage.' },
+      paladin_lay_on_hands: { id: 'paladin_lay_on_hands', name: 'Lay on Hands', type: 'heal', amount: 22, description: 'Restores an ally with a burst of holy light.' },
+      rogue_backstab: { id: 'rogue_backstab', name: 'Backstab', type: 'attack', toHitBonus: 4, damageMultiplier: 2.5, description: 'Devastating strike against an unwary foe.' },
+      hunter_aimed_shot: { id: 'hunter_aimed_shot', name: 'Aimed Shot', type: 'prep', duration: 2, modifiers: { critBonus: 0.3 }, description: 'Take careful aim to improve the next shot.' },
+      monk_stunning_blow: { id: 'monk_stunning_blow', name: 'Stunning Blow', type: 'attack', damageBonus: 4, apply: { stunned: true, duration: 1 }, description: 'Chi-focused strike that may stun the target.' },
+    };
+
+    const ITEM_DB = {
+      sword_basic: { id: 'sword_basic', name: 'Short Sword', slot: 'Weapon', minDamage: 2, maxDamage: 8, toHit: 1, acBonus: 0, magicRes: 0, weight: 3 },
+      longsword: { id: 'longsword', name: 'Longsword', slot: 'Weapon', minDamage: 3, maxDamage: 9, toHit: 2, acBonus: 0, magicRes: 0, weight: 4 },
+      dagger: { id: 'dagger', name: 'Dagger', slot: 'Weapon', minDamage: 1, maxDamage: 6, toHit: 2, acBonus: 0, magicRes: 0, weight: 1 },
+      quarterstaff: { id: 'quarterstaff', name: 'Quarterstaff', slot: 'Weapon', minDamage: 2, maxDamage: 7, toHit: 1, acBonus: 0, magicRes: 0, weight: 3 },
+      leather_armor: { id: 'leather_armor', name: 'Leather Armor', slot: 'Body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -1, magicRes: 0, weight: 5 },
+      chain_armor: { id: 'chain_armor', name: 'Chain Armor', slot: 'Body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -2, magicRes: 0, weight: 7 },
+      robes: { id: 'robes', name: 'Mystic Robes', slot: 'Body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 5, weight: 2 },
+      shield_wood: { id: 'shield_wood', name: 'Wooden Shield', slot: 'Offhand', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -1, magicRes: 0, weight: 3 },
+      songbook: { id: 'songbook', name: 'Songbook', slot: 'Instrument', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 0, weight: 1 },
+      lute: { id: 'lute', name: 'Traveler\'s Lute', slot: 'Instrument', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 0, weight: 1 },
+      healing_potion: { id: 'healing_potion', name: 'Healing Potion', slot: 'Consumable', heals: 20, weight: 1 },
+    };
+
+    const MONSTER_DB = {
+      serpent: { id: 'serpent', name: 'Cavern Serpent', hpMin: 6, hpMax: 12, ac: 9, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 5, special: '' },
+      rat_swarm: { id: 'rat_swarm', name: 'Rat Swarm', hpMin: 5, hpMax: 10, ac: 9, toHit: 0, dmgMin: 1, dmgMax: 4, magicRes: 0, special: 'swarm' },
+      hobbit: { id: 'hobbit', name: 'Trickster Halfling', hpMin: 8, hpMax: 14, ac: 8, toHit: 2, dmgMin: 2, dmgMax: 6, magicRes: 10, special: 'backstab' },
+      hobgoblin: { id: 'hobgoblin', name: 'Tunnel Hobgoblin', hpMin: 10, hpMax: 18, ac: 7, toHit: 3, dmgMin: 3, dmgMax: 7, magicRes: 12, special: 'war_cry' },
+      skeleton: { id: 'skeleton', name: 'Restless Skeleton', hpMin: 9, hpMax: 16, ac: 7, toHit: 2, dmgMin: 3, dmgMax: 6, magicRes: 15, special: 'bone_chill' },
+      monk: { id: 'monk', name: 'Ashen Monk', hpMin: 12, hpMax: 18, ac: 6, toHit: 3, dmgMin: 3, dmgMax: 8, magicRes: 20, special: 'stun_palm' },
+      knight: { id: 'knight', name: 'Banished Knight', hpMin: 14, hpMax: 22, ac: 5, toHit: 4, dmgMin: 4, dmgMax: 9, magicRes: 18, special: 'shield_bash' },
+      mage: { id: 'mage', name: 'Arcane Adept', hpMin: 12, hpMax: 18, ac: 8, toHit: 3, dmgMin: 3, dmgMax: 8, magicRes: 25, special: 'fire_bolt' },
+      enchantress: { id: 'enchantress', name: 'Storm Enchantress', hpMin: 13, hpMax: 20, ac: 7, toHit: 4, dmgMin: 4, dmgMax: 9, magicRes: 28, special: 'chain_lightning' },
+      warlock: { id: 'warlock', name: 'Void Warlock', hpMin: 14, hpMax: 22, ac: 6, toHit: 4, dmgMin: 4, dmgMax: 8, magicRes: 30, special: 'shadow_flame' },
+      ogre: { id: 'ogre', name: 'Crag Ogre', hpMin: 18, hpMax: 28, ac: 6, toHit: 5, dmgMin: 5, dmgMax: 10, magicRes: 12, special: 'smash' },
+      lich: { id: 'lich', name: 'Fallen Lich', hpMin: 18, hpMax: 28, ac: 4, toHit: 5, dmgMin: 4, dmgMax: 9, magicRes: 40, special: 'life_drain' },
+      elemental: { id: 'elemental', name: 'Chaos Elemental', hpMin: 16, hpMax: 26, ac: 5, toHit: 4, dmgMin: 5, dmgMax: 9, magicRes: 35, special: 'elemental_burst' },
+    };
+
+    const ENCOUNTER_TABLES = [
+      { maxDepth: 1, options: [
+        { species: 'rat_swarm', min: 2, max: 5 },
+        { species: 'serpent', min: 1, max: 3 },
+        { species: 'hobbit', min: 1, max: 3 }
+      ] },
+      { maxDepth: 2, options: [
+        { species: 'hobgoblin', min: 2, max: 4 },
+        { species: 'skeleton', min: 2, max: 4 },
+        { species: 'monk', min: 1, max: 3 }
+      ] },
+      { maxDepth: 3, options: [
+        { species: 'knight', min: 1, max: 3 },
+        { species: 'mage', min: 1, max: 2 },
+        { species: 'ogre', min: 1, max: 2 }
+      ] },
+      { maxDepth: 4, options: [
+        { species: 'enchantress', min: 1, max: 2 },
+        { species: 'warlock', min: 1, max: 2 },
+        { species: 'elemental', min: 1, max: 2 }
+      ] },
+      { maxDepth: Number.POSITIVE_INFINITY, options: [
+        { species: 'lich', min: 1, max: 2 },
+        { species: 'warlock', min: 1, max: 3 },
+        { species: 'elemental', min: 1, max: 3 }
+      ] },
+    ];
+
+    function abilityModifier(score) {
+      return Math.floor((score - 10) / 2);
     }
 
-    const party = { id: 'p_main', gold: 0, members: [ makeChar('c_hero','Hero','Warrior',16,9,1,1), makeChar('c_bard','Lyre','Bard',12,9,0,0) ] };
+    function getPortraitForClass(classType) {
+      const def = CLASS_DATA[classType];
+      return def?.portrait || '';
+    }
 
-    function addItem(char, itemId, qty){ for (let i=0;i<char.inv.length;i++){ const it=char.inv[i]; if(it.itemId===itemId && !it.equipped){ it.qty+=qty; return; } } char.inv.push({ itemId, qty, equipped:false }); }
-    function equip(char, itemId){ const def=DB.items[itemId]; if(!def) return false; for(let i=0;i<char.inv.length;i++){ const it=char.inv[i]; if(it.itemId===itemId && it.qty>0){ it.equipped=true; if(def.slot==='Weapon') char.equip.weapon=itemId; else if(def.slot==='Body') char.equip.body=itemId; else if(def.slot==='Instrument') char.equip.instrument=itemId; return true; } } return false; }
+    function getClassSpellList(classType) {
+      const def = CLASS_DATA[classType];
+      if (!def) return [];
+      const combined = new Set(def.spellList || []);
+      if (Array.isArray(def.inherits)) {
+        for (const parent of def.inherits) {
+          const parentDef = CLASS_DATA[parent];
+          if (parentDef?.spellList) {
+            for (const code of parentDef.spellList) combined.add(code);
+          }
+        }
+      }
+      return Array.from(combined);
+    }
 
-    // Starter kit
-    addItem(party.members[0],'sword_basic',1); addItem(party.members[0],'leather_armor',1); addItem(party.members[0],'potion_small',2);
-    addItem(party.members[1],'songbook',1);
-    equip(party.members[0],'sword_basic'); equip(party.members[0],'leather_armor'); equip(party.members[1],'songbook');
+    function makeCharacter(id, name, classType, level = 1) {
+      const def = CLASS_DATA[classType];
+      if (!def) throw new Error(`Unknown class ${classType}`);
+      const attrs = { ...def.baseAttributes };
+      const conMod = abilityModifier(attrs.constitution);
+      const intMod = abilityModifier(attrs.intelligence);
+      const hpMax = def.hitDie + Math.max(0, conMod);
+      const spMax = Math.max(0, def.spBase + Math.max(0, intMod * 2));
+      return {
+        id,
+        name,
+        classType,
+        level,
+        xp: 0,
+        hpCurrent: hpMax,
+        hpMax,
+        spCurrent: spMax,
+        spMax,
+        attributes: attrs,
+        base: {
+          ac: def.baseAc,
+          toHit: def.baseToHit + abilityModifier(attrs.dexterity),
+          damage: { min: 1 + def.damageBonus + abilityModifier(attrs.strength), max: 6 + def.damageBonus + abilityModifier(attrs.strength) },
+          magicResist: abilityModifier(attrs.luck) * 3,
+        },
+        inventory: [],
+        equipment: { weapon: '', offhand: '', body: '', head: '', hands: '', feet: '', instrument: '', accessory: '' },
+        statusEffects: [],
+        knownSpells: getClassSpellList(classType),
+        knownSongs: def.songs ? def.songs.slice() : [],
+        abilityId: def.ability || '',
+        portrait: def.portrait,
+        description: def.description,
+        alive: true,
+      };
+    }
 
-    function charAC(c){ let ac=c.base.ac; if(c.equip.body){ const d=DB.items[c.equip.body]; ac+= (d.acBonus||0); } return ac; }
-    function charToHit(c){ let th=c.base.toHit; if(c.equip.weapon){ const d=DB.items[c.equip.weapon]; th+= (d.toHit||0);} return th; }
-    function charDamage(c){ let min=1+c.base.dmgBonus, max=6+c.base.dmgBonus; if(c.equip.weapon){ const w=DB.items[c.equip.weapon]; min=Math.max(min, w.minDamage||min); max=Math.max(max, w.maxDamage||max);} return {min,max}; }
+    function ensureInventory(character) {
+      if (!character.inventory) character.inventory = [];
+    }
 
-    function renderParty(){
-      const members = party.members.map((c) => ({
-        name: c.name,
-        classType: c.classType,
-        level: c.level,
-        hpCurrent: c.hpCurrent,
-        hpMax: c.hpMax,
-        ac: charAC(c),
-        toHit: charToHit(c),
-        alive: c.alive,
-      }));
+    function addItem(character, itemId, qty = 1) {
+      ensureInventory(character);
+      const existing = character.inventory.find((entry) => entry.itemId === itemId && !entry.equipped);
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        character.inventory.push({ itemId, qty, equipped: false });
+      }
+    }
+
+    function getItemDef(itemId) {
+      return ITEM_DB[itemId] || null;
+    }
+
+    function equipItem(character, itemId) {
+      const def = getItemDef(itemId);
+      if (!def) return false;
+      ensureInventory(character);
+      const entry = character.inventory.find((item) => item.itemId === itemId && item.qty > 0);
+      if (!entry) return false;
+      entry.equipped = true;
+      if (def.slot === 'Weapon') character.equipment.weapon = itemId;
+      else if (def.slot === 'Offhand') character.equipment.offhand = itemId;
+      else if (def.slot === 'Body') character.equipment.body = itemId;
+      else if (def.slot === 'Instrument') character.equipment.instrument = itemId;
+      return true;
+    }
+
+    function getEquippedItem(character, slot) {
+      const id = character.equipment?.[slot];
+      if (!id) return null;
+      return getItemDef(id);
+    }
+
+    function computeCharacterStats(character) {
+      const base = { ...character.base };
+      let ac = base.ac;
+      let toHit = base.toHit;
+      let minDamage = base.damage.min;
+      let maxDamage = base.damage.max;
+      let magicRes = base.magicResist;
+      const weapon = getEquippedItem(character, 'weapon');
+      if (weapon) {
+        if (typeof weapon.minDamage === 'number') minDamage = Math.max(minDamage, weapon.minDamage);
+        if (typeof weapon.maxDamage === 'number') maxDamage = Math.max(maxDamage, weapon.maxDamage);
+        if (typeof weapon.toHit === 'number') toHit += weapon.toHit;
+      }
+      const offhand = getEquippedItem(character, 'offhand');
+      if (offhand?.acBonus) ac += offhand.acBonus;
+      const body = getEquippedItem(character, 'body');
+      if (body?.acBonus) ac += body.acBonus;
+      if (body?.magicRes) magicRes += body.magicRes;
+      const instrument = getEquippedItem(character, 'instrument');
+      if (instrument?.magicRes) magicRes += instrument.magicRes;
+      const statuses = character.statusEffects || [];
+      let critBonus = 0;
+      for (const status of statuses) {
+        if (status?.modifiers?.ac) ac += status.modifiers.ac;
+        if (status?.modifiers?.toHit) toHit += status.modifiers.toHit;
+        if (status?.modifiers?.damageBonus) {
+          minDamage += status.modifiers.damageBonus;
+          maxDamage += status.modifiers.damageBonus;
+        }
+        if (status?.modifiers?.magicResist) magicRes += status.modifiers.magicResist;
+        if (status?.modifiers?.critBonus) critBonus += status.modifiers.critBonus;
+      }
+      if (character.classType === 'Monk' && !getEquippedItem(character, 'body')) {
+        ac -= Math.max(1, Math.floor(character.level / 2));
+      }
+      if (character.classType === 'Monk' && !weapon) {
+        const scale = Math.max(4, 6 + character.level);
+        minDamage = Math.max(minDamage, Math.floor(scale / 2));
+        maxDamage = Math.max(maxDamage, scale);
+      }
+      return {
+        ac,
+        toHit,
+        minDamage,
+        maxDamage,
+        magicRes,
+        critBonus,
+      };
+    }
+
+    function describeStatuses(entity) {
+      if (!entity.statusEffects || !entity.statusEffects.length) return '';
+      const parts = [];
+      for (const status of entity.statusEffects) {
+        if (status.duration && status.duration !== Infinity) {
+          parts.push(`${status.name} (${status.duration})`);
+        } else {
+          parts.push(status.name);
+        }
+      }
+      return parts.join(', ');
+    }
+
+    function applyStatus(target, status) {
+      if (!target.statusEffects) target.statusEffects = [];
+      const existingIndex = target.statusEffects.findIndex((s) => s.id === status.id);
+      if (existingIndex >= 0) {
+        target.statusEffects[existingIndex] = { ...target.statusEffects[existingIndex], ...status };
+      } else {
+        target.statusEffects.push({ ...status });
+      }
+    }
+
+    function removeStatus(target, id) {
+      if (!target.statusEffects) return;
+      target.statusEffects = target.statusEffects.filter((status) => status.id !== id);
+    }
+
+    function tickStatuses(targets) {
+      for (const entity of targets) {
+        if (!entity?.statusEffects?.length) continue;
+        const next = [];
+        for (const status of entity.statusEffects) {
+          if (status.duration === Infinity || typeof status.duration !== 'number') {
+            next.push(status);
+            continue;
+          }
+          if (status.duration > 1) {
+            next.push({ ...status, duration: status.duration - 1 });
+          } else if (status.onExpire) {
+            status.onExpire(entity);
+          }
+        }
+        entity.statusEffects = next;
+      }
+    }
+
+    function hasStatus(entity, predicate) {
+      if (!entity?.statusEffects?.length) return false;
+      return entity.statusEffects.some(predicate);
+    }
+
+    function isUnableToAct(entity) {
+      return hasStatus(entity, (status) => status.modifiers?.stunned);
+    }
+
+    function healTarget(target, amount) {
+      if (!target.alive) return false;
+      const before = target.hpCurrent;
+      target.hpCurrent = Math.min(target.hpMax, target.hpCurrent + amount);
+      return target.hpCurrent > before;
+    }
+
+    function reviveTarget(target, amount) {
+      if (target.alive) return healTarget(target, amount);
+      target.alive = true;
+      target.hpCurrent = Math.max(1, Math.min(target.hpMax, amount));
+      return true;
+    }
+
+    function spendSpellPoints(caster, cost) {
+      if (caster.spCurrent < cost) return false;
+      caster.spCurrent -= cost;
+      return true;
+    }
+
+    const party = {
+      id: 'p_main',
+      name: 'Main Party',
+      gold: 0,
+      members: [
+        makeCharacter('c_warrior', 'Brynn', 'Warrior'),
+        makeCharacter('c_paladin', 'Ser Ana', 'Paladin'),
+        makeCharacter('c_rogue', 'Shade', 'Rogue'),
+        makeCharacter('c_bard', 'Lyre', 'Bard'),
+        makeCharacter('c_chrono', 'Quint', 'Chronomancer'),
+      ],
+    };
+
+    function setupStartingGear() {
+      const [warrior, paladin, rogue, bard, chrono] = party.members;
+      addItem(warrior, 'longsword'); equipItem(warrior, 'longsword');
+      addItem(warrior, 'chain_armor'); equipItem(warrior, 'chain_armor');
+      addItem(warrior, 'shield_wood'); equipItem(warrior, 'shield_wood');
+
+      addItem(paladin, 'longsword'); equipItem(paladin, 'longsword');
+      addItem(paladin, 'chain_armor'); equipItem(paladin, 'chain_armor');
+      addItem(paladin, 'shield_wood'); equipItem(paladin, 'shield_wood');
+      addItem(paladin, 'healing_potion', 2);
+
+      addItem(rogue, 'dagger'); equipItem(rogue, 'dagger');
+      addItem(rogue, 'leather_armor'); equipItem(rogue, 'leather_armor');
+      addItem(rogue, 'healing_potion');
+
+      addItem(bard, 'sword_basic'); equipItem(bard, 'sword_basic');
+      addItem(bard, 'leather_armor'); equipItem(bard, 'leather_armor');
+      addItem(bard, 'lute'); equipItem(bard, 'lute');
+
+      addItem(chrono, 'quarterstaff'); equipItem(chrono, 'quarterstaff');
+      addItem(chrono, 'robes'); equipItem(chrono, 'robes');
+      addItem(chrono, 'healing_potion');
+    }
+
+    setupStartingGear();
+
+    function renderParty() {
+      const members = party.members.map((member) => {
+        const stats = computeCharacterStats(member);
+        return {
+          id: member.id,
+          name: member.name,
+          classType: member.classType,
+          level: member.level,
+          hpCurrent: member.hpCurrent,
+          hpMax: member.hpMax,
+          spCurrent: member.spCurrent,
+          spMax: member.spMax,
+          ac: stats.ac,
+          toHit: stats.toHit,
+          damageMin: stats.minDamage,
+          damageMax: stats.maxDamage,
+          alive: member.alive,
+          portrait: getPortraitForClass(member.classType) || member.portrait,
+          attributes: member.attributes,
+          statusText: describeStatuses(member),
+        };
+      });
       hud.setParty({ gold: party.gold, members });
     }
 
-    function generateEncounter(depth){
-      // Depth bands loosely theme encounters around the available monster portraits.
-      const tables = [
-        { maxDepth: 1, options: [ { species: 'serpent', min: 2, max: 4 }, { species: 'hobbit', min: 1, max: 3 } ] },
-        { maxDepth: 2, options: [ { species: 'hobgoblin', min: 2, max: 4 }, { species: 'skeleton', min: 1, max: 3 } ] },
-        { maxDepth: 3, options: [ { species: 'monk', min: 1, max: 2 }, { species: 'knight', min: 1, max: 2 } ] },
-        { maxDepth: Infinity, options: [ { species: 'mage', min: 1, max: 2 }, { species: 'enchantress', min: 1, max: 2 } ] },
-      ];
-      const tier = tables.find(t => depth <= t.maxDepth) || tables[tables.length - 1];
-      const picks = tier.options.slice();
-      for(let i=picks.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [picks[i],picks[j]]=[picks[j],picks[i]]; }
-      const groupCount = Math.min(picks.length, roll(1, 2));
-      const groups = [];
-      for(let i=0;i<groupCount;i++){
-        const entry = picks[i];
-        const count = roll(entry.min, entry.max);
-        groups.push({ species: entry.species, count });
-      }
-      return { id:'enc_'+Math.random().toString(36).slice(2), groups, canFlee: depth <= 3 };
+    function findPartyMember(id) {
+      return party.members.find((member) => member.id === id) || null;
     }
-    function makeMon(specId, idx){ const key=DB.monsters[specId]?specId:'serpent'; const sp=DB.monsters[key]; const hp=roll(sp.hpMin, sp.hpMax); return { id: key+'_'+idx, name: sp.name, hpCurrent: hp, hpMax: hp, ac: sp.ac, toHit: sp.toHit, dmgMin: sp.dmgMin, dmgMax: sp.dmgMax, alive: true }; }
-    function startCombat(enc){
-      const monsters=[];
-      for(let g=0;g<enc.groups.length;g++){
-        const grp=enc.groups[g];
-        for(let n=0;n<grp.count;n++) monsters.push(makeMon(grp.species, (g+1)+'_'+(n+1)));
+
+    function livingPartyMembers() {
+      return party.members.filter((member) => member.alive);
+    }
+
+    function livingMonsters(monsters) {
+      return monsters.filter((monster) => monster.alive);
+    }
+
+    function makeMonster(speciesId, index) {
+      const spec = MONSTER_DB[speciesId] || MONSTER_DB.serpent;
+      const hp = roll(spec.hpMin, spec.hpMax);
+      return {
+        id: `${spec.id}_${index}`,
+        name: spec.name,
+        speciesId: spec.id,
+        hpCurrent: hp,
+        hpMax: hp,
+        ac: spec.ac,
+        toHit: spec.toHit,
+        dmgMin: spec.dmgMin,
+        dmgMax: spec.dmgMax,
+        magicRes: spec.magicRes,
+        special: spec.special,
+        statusEffects: [],
+        alive: true,
+      };
+    }
+
+    function computeMonsterAttack(monster) {
+      let toHit = monster.toHit;
+      let minDamage = monster.dmgMin;
+      let maxDamage = monster.dmgMax;
+      const statuses = monster.statusEffects || [];
+      for (const status of statuses) {
+        if (status?.modifiers?.toHit) toHit += status.modifiers.toHit;
+        if (status?.modifiers?.damageBonus) {
+          minDamage += status.modifiers.damageBonus;
+          maxDamage += status.modifiers.damageBonus;
+        }
       }
-      const leadSpecies = enc.groups[0] ? enc.groups[0].species : '';
-      showEncounterArt(leadSpecies);
+      return { toHit, minDamage, maxDamage };
+    }
+
+    function monsterMagicResist(monster) {
+      let resist = monster.magicRes || 0;
+      if (monster.statusEffects) {
+        for (const status of monster.statusEffects) {
+          if (status?.modifiers?.magicResist) resist += status.modifiers.magicResist;
+        }
+      }
+      return resist;
+    }
+
+    function generateEncounter(depth) {
+      const tier = ENCOUNTER_TABLES.find((entry) => depth <= entry.maxDepth) || ENCOUNTER_TABLES[ENCOUNTER_TABLES.length - 1];
+      const choices = tier.options.slice();
+      for (let i = choices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [choices[i], choices[j]] = [choices[j], choices[i]];
+      }
+      const groupCount = Math.min(choices.length, roll(1, 3));
+      const groups = [];
+      for (let i = 0; i < groupCount; i++) {
+        const option = choices[i];
+        groups.push({ species: option.species, count: roll(option.min, option.max) });
+      }
+      return {
+        id: 'enc_' + Math.random().toString(36).slice(2),
+        depth,
+        canFlee: depth <= 4,
+        groups,
+      };
+    }
+
+    function startCombat(encounter) {
+      const monsters = [];
+      let index = 1;
+      for (const group of encounter.groups) {
+        for (let i = 0; i < group.count; i++) {
+          monsters.push(makeMonster(group.species, index++));
+        }
+      }
+      const leadSpecies = encounter.groups[0]?.species || '';
+      if (leadSpecies) showEncounterArt(leadSpecies);
       if (typeof window !== 'undefined') window.__bt3_isCombatActive = true;
-      log(`Encounter! ${monsters.length} ${(monsters.length===1?'foe':'foes')} appear.`);
+      log(`Encounter! ${monsters.length} ${(monsters.length === 1 ? 'foe' : 'foes')} approach.`);
       log('Awaiting party commands...');
       clearActions();
-      return { round:1, party: party.members.map(c=>c), monsters, encounter: enc, pendingActions: [], selectionOrder: [], selectionIndex: 0, ended:false, winner:'', fled:false };
+      return {
+        encounter,
+        round: 1,
+        party: party.members,
+        monsters,
+        pendingActions: [],
+        selectionOrder: [],
+        selectionIndex: 0,
+        ended: false,
+        winner: '',
+        fled: false,
+      };
     }
 
-    function firstAlive(list){ for(let i=0;i<list.length;i++){ if(list[i].alive) return list[i]; } return null; }
-    function hasAlive(list){ for(let i=0;i<list.length;i++){ if(list[i].alive) return true; } return false; }
+    function hitCheck(attackerToHit, defenderAc) {
+      const rollResult = Math.floor(Math.random() * 20) + 1;
+      return { roll: rollResult, success: (rollResult + attackerToHit) >= defenderAc };
+    }
 
-    function attackChar(att, def){ const d=charDamage(att); const hitRoll=Math.floor(Math.random()*20)+1; const hit=(hitRoll + charToHit(att)) >= def.ac; if(hit){ const dmg=roll(d.min,d.max); def.hpCurrent-=dmg; if(def.hpCurrent<=0){ def.hpCurrent=0; def.alive=false; } log(`${att.name} hits ${def.name} for ${dmg}.`);} else { log(`${att.name} misses ${def.name}.`);} }
-    function attackMonster(att, def){ const hitRoll=Math.floor(Math.random()*20)+1; const hit=(hitRoll + att.toHit) >= charAC(def); if(hit){ const dmg=roll(att.dmgMin, att.dmgMax); def.hpCurrent-=dmg; if(def.hpCurrent<=0){ def.hpCurrent=0; def.alive=false; } log(`${att.name} hits ${def.name} for ${dmg}.`);} else { log(`${att.name} misses ${def.name}.`);} }
+    function applyPhysicalDamage(defender, amount) {
+      defender.hpCurrent -= amount;
+      if (defender.hpCurrent <= 0) {
+        defender.hpCurrent = 0;
+        defender.alive = false;
+      }
+    }
 
-    function concludeCombat(st){
-      if(st.__concluded) return;
-      st.__concluded = true;
-      const partyVictory = st.winner==='Party' && !st.fled;
-      if(partyVictory){
-        // Briefly celebrate the win by showing the treasure sprite, then return to exploration.
+    function hunterCriticalChance(attacker, stats) {
+      if (attacker.classType !== 'Hunter') return 0;
+      const base = 0.1 + Math.max(0, abilityModifier(attacker.attributes.dexterity)) * 0.02;
+      const statusBonus = stats.critBonus || 0;
+      return Math.min(0.6, base + statusBonus);
+    }
+
+    function performAttack(attacker, defender, options = {}) {
+      if (!attacker.alive) return { hit: false, damage: 0 };
+      if (!defender?.alive) return { hit: false, damage: 0 };
+      if (isUnableToAct(attacker)) {
+        log(`${attacker.name} is unable to act!`);
+        return { hit: false, damage: 0 };
+      }
+      const attackerStats = computeCharacterStats(attacker);
+      let toHit = attackerStats.toHit + (options.toHitBonus || 0);
+      let minDamage = attackerStats.minDamage + (options.damageBonus || 0);
+      let maxDamage = attackerStats.maxDamage + (options.damageBonus || 0);
+      const defenderStats = defender.base ? computeCharacterStats(defender) : null;
+      const defenderAc = defender.base ? defenderStats.ac : defender.ac;
+      const result = hitCheck(toHit, defenderAc);
+      if (!result.success) {
+        log(`${attacker.name} misses ${defender.name}.`);
+        return { hit: false, damage: 0 };
+      }
+      let damage = roll(minDamage, maxDamage);
+      if (attacker.classType === 'Rogue' && options.isBackstab) {
+        damage = Math.floor(damage * (options.damageMultiplier || 2));
+      }
+      const critChance = hunterCriticalChance(attacker, attackerStats);
+      if (critChance > 0 && Math.random() < critChance) {
+        damage = Math.max(defender.hpCurrent, damage + Math.floor(maxDamage * 0.75));
+        log(`${attacker.name} lands a critical hit on ${defender.name}!`);
+      }
+      applyPhysicalDamage(defender, damage);
+      if (!defender.alive) {
+        log(`${attacker.name} strikes down ${defender.name} for ${damage} damage.`);
+      } else {
+        log(`${attacker.name} hits ${defender.name} for ${damage} damage.`);
+      }
+      return { hit: true, damage };
+    }
+
+    function performMonsterAttack(monster, defender, options = {}) {
+      if (!monster.alive || !defender?.alive) return { hit: false, damage: 0 };
+      if (isUnableToAct(monster)) {
+        log(`${monster.name} is held fast and cannot attack!`);
+        return { hit: false, damage: 0 };
+      }
+      const stats = computeMonsterAttack(monster);
+      const defenderStats = computeCharacterStats(defender);
+      const result = hitCheck(stats.toHit + (options.toHitBonus || 0), defenderStats.ac);
+      if (!result.success) {
+        log(`${monster.name} misses ${defender.name}.`);
+        return { hit: false, damage: 0 };
+      }
+      let damage = roll(stats.minDamage, stats.maxDamage);
+      if (options.damageBonus) damage += options.damageBonus;
+      applyPhysicalDamage(defender, damage);
+      if (!defender.alive) {
+        log(`${monster.name} slays ${defender.name} for ${damage} damage!`);
+      } else {
+        log(`${monster.name} hits ${defender.name} for ${damage} damage.`);
+      }
+      return { hit: true, damage };
+    }
+
+    function resolveTargetsForSpell(state, caster, spellDef, explicitTargetId) {
+      const targets = [];
+      if (spellDef.target === 'enemy') {
+        let target = null;
+        if (explicitTargetId) target = state.monsters.find((m) => m.id === explicitTargetId && m.alive);
+        if (!target) target = livingMonsters(state.monsters)[0] || null;
+        if (target) targets.push(target);
+      } else if (spellDef.target === 'enemies') {
+        targets.push(...livingMonsters(state.monsters));
+      } else if (spellDef.target === 'ally') {
+        let target = null;
+        if (explicitTargetId) target = findPartyMember(explicitTargetId);
+        if (!target) target = livingPartyMembers()[0] || null;
+        if (target) targets.push(target);
+      } else if (spellDef.target === 'party') {
+        targets.push(...party.members);
+      } else if (spellDef.target === 'self') {
+        targets.push(caster);
+      }
+      return targets;
+    }
+
+    function applySpellDamage(caster, target, spellDef, powerBonus = 0) {
+      const intBonus = abilityModifier(caster.attributes?.intelligence ?? 10);
+      const base = spellDef.power + powerBonus + Math.max(0, intBonus * 2);
+      const variance = Math.max(2, Math.floor(base * 0.25));
+      const damage = Math.max(1, roll(base - variance, base + variance));
+      if (target.base) {
+        const resist = monsterMagicResist(target);
+        if (!spellDef.ignoreArmor && Math.random() * 100 < resist) {
+          log(`${target.name} resists ${spellDef.name}!`);
+          return 0;
+        }
+      }
+      applyPhysicalDamage(target, damage);
+      return damage;
+    }
+
+    function castSpell(state, caster, spellCode, explicitTargetId) {
+      const spellDef = SPELL_LIBRARY[spellCode];
+      if (!spellDef) {
+        log(`${caster.name} tries to cast an unknown spell.`);
+        return false;
+      }
+      if (!spellDef.usableInCombat) {
+        log(`${spellDef.name} cannot be used during combat.`);
+        return false;
+      }
+      const targets = resolveTargetsForSpell(state, caster, spellDef, explicitTargetId);
+      if (!targets.length && spellDef.target !== 'none') {
+        log(`${spellDef.name} fizzles without a target.`);
+        return false;
+      }
+      if (!spendSpellPoints(caster, spellDef.cost)) {
+        log(`${caster.name} lacks the spell points to cast ${spellDef.name}.`);
+        return false;
+      }
+      log(`${caster.name} casts ${spellDef.name}!`);
+      let success = false;
+      if (spellDef.type === 'damage' || spellDef.type === 'drain') {
+        for (const target of targets) {
+          const damage = applySpellDamage(caster, target, spellDef);
+          if (damage > 0) {
+            success = true;
+            log(`${target.name} takes ${damage} damage from ${spellDef.name}.`);
+            if (spellDef.type === 'drain') {
+              const heal = Math.max(1, Math.floor(damage / 2));
+              healTarget(caster, heal);
+              log(`${caster.name} siphons ${heal} health.`);
+            }
+            if (!target.alive) {
+              log(`${target.name} is defeated by ${spellDef.name}!`);
+            }
+          }
+        }
+      } else if (spellDef.type === 'heal') {
+        for (const target of targets) {
+          if (healTarget(target, spellDef.amount)) {
+            success = true;
+            log(`${target.name} recovers ${spellDef.amount} health.`);
+          }
+        }
+      } else if (spellDef.type === 'revive') {
+        for (const target of targets) {
+          if (reviveTarget(target, spellDef.amount)) {
+            success = true;
+            log(`${target.name} is restored by ${spellDef.name}!`);
+          }
+        }
+      } else if (spellDef.type === 'restore') {
+        for (const target of targets) {
+          const before = target.spCurrent;
+          target.spCurrent = Math.min(target.spMax, target.spCurrent + spellDef.amount);
+          if (target.spCurrent > before) {
+            success = true;
+            log(`${target.name} regains ${target.spCurrent - before} spell points.`);
+          }
+        }
+      } else if (spellDef.type === 'buff' || spellDef.type === 'debuff') {
+        for (const target of targets) {
+          const status = {
+            id: `spell_${spellDef.code}_${target.id}`,
+            name: spellDef.name,
+            duration: spellDef.duration ?? 0,
+            modifiers: { ...spellDef.modifiers },
+          };
+          applyStatus(target, status);
+          success = true;
+          if (spellDef.duration) {
+            log(`${target.name} is affected by ${spellDef.name} for ${spellDef.duration} rounds.`);
+          } else {
+            log(`${target.name} is affected by ${spellDef.name}.`);
+          }
+        }
+      }
+      return success;
+    }
+
+    function performSong(state, bard, songId) {
+      const song = SONG_LIBRARY[songId];
+      if (!song) {
+        log(`${bard.name} does not recall that melody.`);
+        return false;
+      }
+      if (!bard.equipment.instrument) {
+        log(`${bard.name} fumbles without an instrument.`);
+        return false;
+      }
+      log(`${bard.name} plays ${song.name}.`);
+      let success = false;
+      if (song.type === 'buff') {
+        const targets = song.target === 'party' ? party.members : [bard];
+        for (const target of targets) {
+          const status = {
+            id: `song_${song.id}_${target.id}`,
+            name: song.name,
+            duration: song.duration ?? 0,
+            modifiers: { ...song.modifiers },
+          };
+          applyStatus(target, status);
+          success = true;
+        }
+        if (song.duration) {
+          log(`The party is inspired for ${song.duration} rounds.`);
+        }
+      } else if (song.type === 'heal') {
+        const targets = song.target === 'party' ? party.members : [bard];
+        for (const target of targets) {
+          if (healTarget(target, song.amount)) success = true;
+        }
+        if (success) log('Wounds knit as the song crescendos.');
+      } else if (song.type === 'debuff') {
+        const targets = livingMonsters(state.monsters);
+        for (const target of targets) {
+          const status = {
+            id: `song_${song.id}_${target.id}`,
+            name: song.name,
+            duration: song.duration ?? 0,
+            modifiers: { ...song.modifiers },
+          };
+          applyStatus(target, status);
+          success = true;
+        }
+        if (success) log('Enemies falter under the melody.');
+      }
+      return success;
+    }
+
+    function useAbility(state, actor, abilityId, targetId) {
+      const ability = ABILITY_LIBRARY[abilityId];
+      if (!ability) {
+        log(`${actor.name} tries a technique they have not mastered.`);
+        return false;
+      }
+      if (ability.type === 'attack') {
+        let target = null;
+        if (targetId) target = state.monsters.find((m) => m.id === targetId && m.alive);
+        if (!target) target = livingMonsters(state.monsters)[0] || null;
+        if (!target) {
+          log(`${actor.name} has no target for ${ability.name}.`);
+          return false;
+        }
+        const options = {
+          toHitBonus: ability.toHitBonus || 0,
+          damageBonus: ability.damageBonus || 0,
+          isBackstab: abilityId === 'rogue_backstab',
+          damageMultiplier: ability.damageMultiplier || 1,
+        };
+        const result = performAttack(actor, target, options);
+        if (result.hit && ability.apply?.stunned && target.alive) {
+          applyStatus(target, { id: `ability_${ability.id}_${target.id}`, name: ability.name, duration: ability.apply.duration || 1, modifiers: { stunned: true } });
+          log(`${target.name} is stunned!`);
+        }
+        return result.hit;
+      }
+      if (ability.type === 'heal') {
+        let target = null;
+        if (targetId) target = findPartyMember(targetId);
+        if (!target) target = actor;
+        if (!target) return false;
+        if (reviveTarget(target, ability.amount)) {
+          log(`${actor.name} uses ${ability.name} on ${target.name}.`);
+          return true;
+        }
+        return false;
+      }
+      if (ability.type === 'prep') {
+        applyStatus(actor, {
+          id: `ability_${ability.id}_${actor.id}`,
+          name: ability.name,
+          duration: ability.duration ?? 1,
+          modifiers: { ...(ability.modifiers || {}) },
+        });
+        log(`${actor.name} prepares with ${ability.name}.`);
+        return true;
+      }
+      return false;
+    }
+
+    function monsterSpecialAction(state, monster) {
+      if (!monster.special || Math.random() > 0.35) return false;
+      const target = livingPartyMembers()[0];
+      if (!target) return false;
+      switch (monster.special) {
+        case 'swarm': {
+          log(`${monster.name} swarms over ${target.name}!`);
+          const result = performMonsterAttack(monster, target, { damageBonus: 2 });
+          if (result.hit) performMonsterAttack(monster, target, { damageBonus: 1 });
+          return true;
+        }
+        case 'backstab': {
+          log(`${monster.name} darts behind ${target.name}!`);
+          performMonsterAttack(monster, target, { toHitBonus: 3, damageBonus: 3 });
+          return true;
+        }
+        case 'war_cry': {
+          log(`${monster.name} unleashes a war cry!`);
+          for (const hero of livingPartyMembers()) {
+            applyStatus(hero, { id: `debuff_war_cry_${hero.id}`, name: 'War Cry', duration: 2, modifiers: { toHit: -1 } });
+          }
+          return true;
+        }
+        case 'bone_chill': {
+          log(`${monster.name} exhales bone-chilling frost!`);
+          for (const hero of livingPartyMembers()) {
+            applyStatus(hero, { id: `bone_chill_${hero.id}`, name: 'Bone Chill', duration: 2, modifiers: { ac: 1 } });
+          }
+          return true;
+        }
+        case 'stun_palm': {
+          log(`${monster.name} attempts a stunning palm!`);
+          const result = performMonsterAttack(monster, target, { toHitBonus: 2 });
+          if (result.hit && target.alive) {
+            applyStatus(target, { id: `stun_${monster.id}`, name: 'Stunned', duration: 1, modifiers: { stunned: true } });
+            log(`${target.name} is stunned!`);
+          }
+          return true;
+        }
+        case 'shield_bash': {
+          log(`${monster.name} bashes ${target.name} with a shield!`);
+          const result = performMonsterAttack(monster, target, { damageBonus: 2 });
+          if (result.hit && target.alive) {
+            applyStatus(target, { id: `bash_${monster.id}`, name: 'Dazed', duration: 2, modifiers: { toHit: -1 } });
+          }
+          return true;
+        }
+        case 'fire_bolt': {
+          const spell = SPELL_LIBRARY.ARFI;
+          if (spell) castSpell(state, monster, 'ARFI', target.id);
+          return true;
+        }
+        case 'chain_lightning': {
+          log(`${monster.name} hurls chain lightning!`);
+          for (const hero of livingPartyMembers()) {
+            const damage = roll(8, 16);
+            applyPhysicalDamage(hero, damage);
+            log(`${hero.name} is shocked for ${damage} damage.`);
+          }
+          return true;
+        }
+        case 'shadow_flame': {
+          log(`${monster.name} conjures shadow flame!`);
+          const damage = roll(12, 20);
+          applyPhysicalDamage(target, damage);
+          log(`${target.name} is scorched for ${damage}.`);
+          if (target.spCurrent > 0) {
+            target.spCurrent = Math.max(0, target.spCurrent - 4);
+            log(`${target.name}'s spell energy is drained.`);
+          }
+          return true;
+        }
+        case 'smash': {
+          log(`${monster.name} smashes the ground!`);
+          for (const hero of livingPartyMembers()) {
+            const result = hitCheck(monster.toHit + 2, computeCharacterStats(hero).ac);
+            if (result.success) {
+              const damage = roll(monster.dmgMin + 2, monster.dmgMax + 4);
+              applyPhysicalDamage(hero, damage);
+              log(`${hero.name} suffers ${damage} damage from the quake.`);
+            }
+          }
+          return true;
+        }
+        case 'life_drain': {
+          log(`${monster.name} drains life from ${target.name}!`);
+          const damage = roll(10, 18);
+          applyPhysicalDamage(target, damage);
+          healTarget(monster, Math.max(4, Math.floor(damage / 2)));
+          log(`${monster.name} is reinvigorated.`);
+          return true;
+        }
+        case 'elemental_burst': {
+          log(`${monster.name} detonates elemental energy!`);
+          const heroes = livingPartyMembers();
+          for (const hero of heroes) {
+            const damage = roll(9, 15);
+            applyPhysicalDamage(hero, damage);
+            log(`${hero.name} is blasted for ${damage}.`);
+          }
+          return true;
+        }
+        default:
+          return false;
+      }
+    }
+
+    function concludeCombat(state) {
+      if (state.__concluded) return;
+      state.__concluded = true;
+      const partyVictory = state.winner === 'Party' && !state.fled;
+      if (partyVictory) {
         showEncounterArt('treasure');
         if (typeof window !== 'undefined') {
-          postVictoryTimer = window.setTimeout(() => { hideEncounterArt(); }, 2000);
-        } else {
-          hideEncounterArt();
+          postVictoryTimer = window.setTimeout(() => hideEncounterArt(), 2000);
+        }
+        const gold = roll(12, 28) + state.encounter.depth * 6;
+        party.gold += gold;
+        log(`The party claims ${gold} gold.`);
+        if (Math.random() < 0.35) {
+          addItem(party.members[0], 'healing_potion');
+          log('A spare healing potion is recovered.');
         }
       } else {
         hideEncounterArt();
       }
       if (typeof window !== 'undefined') window.__bt3_isCombatActive = false;
-      log(`Combat ends. Winner: ${st.winner}.`);
-      if(partyVictory){
-        const gold=roll(5,20);
-        party.gold+=gold;
-        log(`Loot: ${gold} gold.`);
-        if(Math.random()<0.2){ addItem(party.members[0],'potion_small',1); log('Found a Healing Potion.'); }
+      log(`Combat ends. Winner: ${state.winner}.`);
+      for (const hero of party.members) {
+        hero.statusEffects = hero.statusEffects.filter((status) => status.persistent);
       }
       clearActions();
-      inCombat = false;
-      combatState = null;
       renderParty();
+      endCombatCleanup();
     }
 
-    function beginPlayerPhase(st){
-      if(st.ended) return;
-      const order=[];
-      for(let i=0;i<st.party.length;i++){ const c=st.party[i]; if(c.alive) order.push({ index:i, id:c.id }); }
-      st.selectionOrder = order;
-      st.selectionIndex = 0;
-      st.pendingActions = [];
-      log(`-- Round ${st.round} --`);
-      renderParty();
-      if(order.length===0){
-        resolveActions(st);
+    function monstersAct(state) {
+      const livingHeroes = livingPartyMembers();
+      const livingFoes = livingMonsters(state.monsters);
+      if (!livingHeroes.length || !livingFoes.length) return;
+      for (const monster of livingFoes) {
+        if (!monster.alive) continue;
+        if (monsterSpecialAction(state, monster)) {
+          if (!livingPartyMembers().length) break;
+          continue;
+        }
+        const target = livingPartyMembers()[0];
+        if (!target) break;
+        performMonsterAttack(monster, target);
+        if (!livingPartyMembers().length) break;
+      }
+    }
+
+    function attemptFlee(state, actor) {
+      if (!state.encounter.canFlee) {
+        log('Escape is impossible!');
+        return false;
+      }
+      const chance = 0.45 + state.encounter.depth * 0.05;
+      if (Math.random() < chance) {
+        log(`${actor.name} signals a retreat!`);
+        state.ended = true;
+        state.winner = 'Party';
+        state.fled = true;
+        concludeCombat(state);
+        return true;
+      }
+      log(`${actor.name} fails to escape!`);
+      return false;
+    }
+
+    function resolvePendingActions(state) {
+      clearActions();
+      if (state.ended) return;
+      for (const action of state.pendingActions) {
+        const actor = findPartyMember(action.actorId);
+        if (!actor || !actor.alive) continue;
+        if (action.type === 'attack') {
+          const target = state.monsters.find((m) => m.id === action.targetId && m.alive);
+          if (target) performAttack(actor, target);
+        } else if (action.type === 'spell') {
+          castSpell(state, actor, action.spellCode, action.targetId);
+        } else if (action.type === 'song') {
+          performSong(state, actor, action.songId);
+        } else if (action.type === 'ability') {
+          useAbility(state, actor, action.abilityId, action.targetId);
+        } else if (action.type === 'flee') {
+          if (attemptFlee(state, actor)) return;
+        }
+        renderParty();
+      }
+      state.pendingActions = [];
+      if (!livingMonsters(state.monsters).length) {
+        state.ended = true;
+        state.winner = 'Party';
+        concludeCombat(state);
         return;
       }
-      promptAction(st);
+      if (!livingPartyMembers().length) {
+        state.ended = true;
+        state.winner = 'Monsters';
+        concludeCombat(state);
+        return;
+      }
+      monstersAct(state);
+      renderParty();
+      if (!livingPartyMembers().length) {
+        state.ended = true;
+        state.winner = 'Monsters';
+        concludeCombat(state);
+        return;
+      }
+      state.round += 1;
+      tickStatuses(state.party);
+      tickStatuses(state.monsters);
+      renderParty();
+      setTimeout(() => beginPlayerPhase(state), 300);
     }
 
-    function promptAction(st){
-      const entry = st.selectionOrder[st.selectionIndex];
-      if(!entry){ clearActions(); resolveActions(st); return; }
-      const actor = st.party[entry.index];
-      if(!actor || !actor.alive){ st.selectionIndex+=1; promptAction(st); return; }
-      const aliveMonsters = st.monsters.filter(m=>m.alive);
-      if(aliveMonsters.length===0){ clearActions(); resolveActions(st); return; }
-      const canFlee = !!st.encounter.canFlee;
-      const buttons = aliveMonsters.map((monster) => {
-        const targetId = monster.id;
-        return {
-          label: `Attack ${monster.name} (${monster.hpCurrent} HP)`,
+    function queueAction(state, action) {
+      state.pendingActions.push(action);
+    }
+
+    function promptAttackTargets(state, actor, config = {}) {
+      const monsters = livingMonsters(state.monsters);
+      if (!monsters.length) {
+        state.selectionIndex += 1;
+        promptNextAction(state);
+        return;
+      }
+      const buttons = monsters.map((monster, idx) => ({
+        label: `${monster.name} (${monster.hpCurrent}/${monster.hpMax})`,
+        hotkey: String(idx + 1),
+        onSelect: () => {
+          if (config.actionType === 'ability' && config.abilityId) {
+            queueAction(state, { type: 'ability', actorId: actor.id, abilityId: config.abilityId, targetId: monster.id });
+          } else {
+            queueAction(state, { type: 'attack', actorId: actor.id, targetId: monster.id });
+          }
+          state.selectionIndex += 1;
+          promptNextAction(state);
+        },
+      }));
+      buttons.push({ label: 'Back', hotkey: '0', onSelect: () => (config.onCancel ? config.onCancel() : promptMainAction(state, actor)) });
+      hud.setActions({
+        prompt: `Choose target for ${actor.name}`,
+        buttons,
+        active: { id: actor.id, portrait: actor.portrait, heading: `${actor.name} — ${actor.classType}`, details: 'Select a foe to strike.' },
+      });
+    }
+
+    function promptSpellTarget(state, actor, spellDef) {
+      const needsEnemy = spellDef.target === 'enemy';
+      const needsAlly = spellDef.target === 'ally';
+      if (needsEnemy) {
+        const monsters = livingMonsters(state.monsters);
+        const buttons = monsters.map((monster, idx) => ({
+          label: `${monster.name} (${monster.hpCurrent}/${monster.hpMax})`,
+          hotkey: String(idx + 1),
           onSelect: () => {
-            st.pendingActions.push({ type:'attack', actorId: actor.id, targetId });
-            st.selectionIndex += 1;
-            promptAction(st);
+            queueAction(state, { type: 'spell', actorId: actor.id, spellCode: spellDef.code, targetId: monster.id });
+            state.selectionIndex += 1;
+            promptNextAction(state);
+          },
+        }));
+        buttons.push({ label: 'Back', hotkey: '0', onSelect: () => promptSpellSelect(state, actor) });
+        hud.setActions({
+          prompt: `Target for ${spellDef.name}`,
+          buttons,
+          active: { id: actor.id, portrait: actor.portrait, heading: `${actor.name} — ${actor.classType}`, details: spellDef.description },
+        });
+        return;
+      }
+      if (needsAlly) {
+        const allies = party.members;
+        const buttons = allies.map((ally, idx) => ({
+          label: `${ally.name} (${ally.hpCurrent}/${ally.hpMax})${ally.alive ? '' : ' [KO]'}`,
+          hotkey: String(idx + 1),
+          onSelect: () => {
+            queueAction(state, { type: 'spell', actorId: actor.id, spellCode: spellDef.code, targetId: ally.id });
+            state.selectionIndex += 1;
+            promptNextAction(state);
+          },
+        }));
+        buttons.push({ label: 'Back', hotkey: '0', onSelect: () => promptSpellSelect(state, actor) });
+        hud.setActions({
+          prompt: `Target for ${spellDef.name}`,
+          buttons,
+          active: { id: actor.id, portrait: actor.portrait, heading: `${actor.name} — ${actor.classType}`, details: spellDef.description },
+        });
+        return;
+      }
+      queueAction(state, { type: 'spell', actorId: actor.id, spellCode: spellDef.code });
+      state.selectionIndex += 1;
+      promptNextAction(state);
+    }
+
+    function promptSpellSelect(state, actor) {
+      const spells = (actor.knownSpells || []).map((code) => SPELL_LIBRARY[code]).filter((spell) => spell?.usableInCombat);
+      if (!spells.length) {
+        log(`${actor.name} has no combat-ready spells.`);
+        state.selectionIndex += 1;
+        promptNextAction(state);
+        return;
+      }
+      const buttons = spells.map((spell, idx) => ({
+        label: `${spell.code} ${spell.name} (SP ${spell.cost})`,
+        hotkey: String(idx + 1),
+        onSelect: () => {
+          promptSpellTarget(state, actor, spell);
+        },
+      }));
+      buttons.push({ label: 'Back', hotkey: '0', onSelect: () => promptMainAction(state, actor) });
+      hud.setActions({
+        prompt: `Cast which spell?`,
+        buttons,
+        active: { id: actor.id, portrait: actor.portrait, heading: `${actor.name} — ${actor.classType}`, details: `Spell Points: ${actor.spCurrent}/${actor.spMax}` },
+      });
+    }
+
+    function promptSongSelect(state, actor) {
+      const songs = actor.knownSongs || [];
+      if (!songs.length) {
+        log(`${actor.name} knows no useful songs.`);
+        state.selectionIndex += 1;
+        promptNextAction(state);
+        return;
+      }
+      const buttons = songs.map((songId, idx) => {
+        const song = SONG_LIBRARY[songId];
+        return {
+          label: `${song.name}`,
+          hotkey: String(idx + 1),
+          onSelect: () => {
+            queueAction(state, { type: 'song', actorId: actor.id, songId });
+            state.selectionIndex += 1;
+            promptNextAction(state);
           },
         };
       });
-      if (canFlee) {
-        buttons.push({
-          label: 'Flee',
+      buttons.push({ label: 'Back', hotkey: '0', onSelect: () => promptMainAction(state, actor) });
+      hud.setActions({
+        prompt: 'Choose a melody',
+        buttons,
+        active: { id: actor.id, portrait: actor.portrait, heading: `${actor.name} — ${actor.classType}`, details: actor.description },
+      });
+    }
+
+    function promptAbilitySelect(state, actor) {
+      const ability = ABILITY_LIBRARY[actor.abilityId];
+      if (!ability) {
+        log(`${actor.name} has no special ability ready.`);
+        state.selectionIndex += 1;
+        promptNextAction(state);
+        return;
+      }
+      if (ability.type === 'attack') {
+        promptAttackTargets(state, actor, { actionType: 'ability', abilityId: ability.id, onCancel: () => promptMainAction(state, actor) });
+        return;
+      }
+      if (ability.type === 'heal') {
+        const allies = party.members;
+        const buttons = allies.map((ally, idx) => ({
+          label: `${ally.name} (${ally.hpCurrent}/${ally.hpMax})${ally.alive ? '' : ' [KO]'}`,
+          hotkey: String(idx + 1),
           onSelect: () => {
-            st.pendingActions.push({ type:'flee', actorId: actor.id });
-            st.selectionIndex += 1;
-            promptAction(st);
+            queueAction(state, { type: 'ability', actorId: actor.id, abilityId: ability.id, targetId: ally.id });
+            state.selectionIndex += 1;
+            promptNextAction(state);
           },
+        }));
+        buttons.push({ label: 'Back', hotkey: '0', onSelect: () => promptMainAction(state, actor) });
+        hud.setActions({
+          prompt: `Use ${ability.name} on whom?`,
+          buttons,
+          active: { id: actor.id, portrait: actor.portrait, heading: `${actor.name} — ${actor.classType}`, details: ability.description },
         });
+        return;
       }
-      hud.setActions({ prompt: `Round ${st.round}: ${actor.name}`, buttons });
+      queueAction(state, { type: 'ability', actorId: actor.id, abilityId: ability.id });
+      state.selectionIndex += 1;
+      promptNextAction(state);
     }
 
-    function resolveActions(st){
-      clearActions();
-      if(st.ended) return;
-      for(let i=0;i<st.pendingActions.length;i++){
-        const act = st.pendingActions[i];
-        const actor = st.party.find(c=>c.id===act.actorId);
-        if(!actor || !actor.alive) continue;
-        if(act.type==='flee'){
-          if(!st.encounter.canFlee){ log(`${actor.name} cannot flee!`); continue; }
-          const success = Math.random() < 0.55;
-          if(success){
-            log(`${actor.name} signals a retreat! The party escapes.`);
-            st.ended = true;
-            st.winner = 'Party';
-            st.fled = true;
-            concludeCombat(st);
-            return;
-          } else {
-            log(`${actor.name} fails to escape!`);
-          }
-        } else if(act.type==='attack'){
-          let tgt = st.monsters.find(m=>m.id===act.targetId && m.alive);
-          if(!tgt) tgt = firstAlive(st.monsters);
-          if(!tgt){ log(`${actor.name} has no foe to strike.`); continue; }
-          attackChar(actor, tgt);
-          renderParty();
-        }
+    function promptMainAction(state, actor) {
+      const buttons = [];
+      let optionIndex = 1;
+      if (livingMonsters(state.monsters).length) {
+        buttons.push({ label: 'Attack', hotkey: String(optionIndex++), onSelect: () => promptAttackTargets(state, actor) });
       }
-      if(!hasAlive(st.monsters)){
-        st.ended = true;
-        st.winner = 'Party';
-        concludeCombat(st);
-        renderParty();
+      if ((actor.knownSpells || []).some((code) => SPELL_LIBRARY[code]?.usableInCombat) && actor.spCurrent > 0) {
+        buttons.push({ label: 'Cast Spell', hotkey: String(optionIndex++), onSelect: () => promptSpellSelect(state, actor) });
+      }
+      if ((actor.knownSongs || []).length) {
+        buttons.push({ label: 'Sing', hotkey: String(optionIndex++), onSelect: () => promptSongSelect(state, actor) });
+      }
+      if (actor.abilityId) {
+        buttons.push({ label: 'Use Ability', hotkey: String(optionIndex++), onSelect: () => promptAbilitySelect(state, actor) });
+      }
+      if (state.encounter.canFlee) {
+        buttons.push({ label: 'Flee', hotkey: String(optionIndex++), onSelect: () => {
+          queueAction(state, { type: 'flee', actorId: actor.id });
+          state.selectionIndex += 1;
+          promptNextAction(state);
+        }});
+      }
+      buttons.push({ label: 'Pass', hotkey: String(optionIndex++), onSelect: () => {
+        state.selectionIndex += 1;
+        promptNextAction(state);
+      }});
+      hud.setActions({
+        prompt: `Round ${state.round}: ${actor.name}`,
+        buttons,
+        active: { id: actor.id, portrait: actor.portrait, heading: `${actor.name} — ${actor.classType}`, details: actor.description },
+      });
+    }
+
+    function promptNextAction(state) {
+      if (state.selectionIndex >= state.selectionOrder.length) {
+        resolvePendingActions(state);
         return;
       }
-      const aliveParty = st.party.filter(c=>c.alive);
-      if(aliveParty.length===0){
-        st.ended = true;
-        st.winner = 'Monsters';
-        concludeCombat(st);
-        renderParty();
+      const entry = state.selectionOrder[state.selectionIndex];
+      const actor = findPartyMember(entry.id);
+      if (!actor || !actor.alive) {
+        state.selectionIndex += 1;
+        promptNextAction(state);
         return;
       }
-      for(let i=0;i<st.monsters.length;i++){
-        const m = st.monsters[i];
-        if(!m.alive) continue;
-        const tgt = firstAlive(st.party);
-        if(!tgt) break;
-        attackMonster(m, tgt);
-        renderParty();
-        if(!hasAlive(st.party)) break;
-      }
-      if(!hasAlive(st.party)){
-        st.ended = true;
-        st.winner = 'Monsters';
-        concludeCombat(st);
-        renderParty();
+      if (isUnableToAct(actor)) {
+        log(`${actor.name} is incapacitated and misses a turn.`);
+        state.selectionIndex += 1;
+        promptNextAction(state);
         return;
       }
-      st.round += 1;
+      promptMainAction(state, actor);
+    }
+
+    function beginPlayerPhase(state) {
+      if (state.ended) return;
+      state.selectionOrder = livingPartyMembers().map((member) => ({ id: member.id }));
+      state.selectionIndex = 0;
+      state.pendingActions = [];
+      log(`-- Round ${state.round} --`);
       renderParty();
-      setTimeout(()=>beginPlayerPhase(st), 250);
+      if (!state.selectionOrder.length) {
+        resolvePendingActions(state);
+        return;
+      }
+      promptNextAction(state);
     }
 
-    let stepsSinceEncounter=0; let inCombat=false; let combatState=null;
-    function maybeEncounter(depth){
-      if(inCombat) return;
-      stepsSinceEncounter+=1;
-      const threshold=Math.max(2, 6 - Math.min(depth,4));
-      if(stepsSinceEncounter>=threshold){
-        const chance=0.25 + 0.05*depth;
-        if(Math.random()<chance){
-          const enc=generateEncounter(depth);
-          combatState=startCombat(enc);
-          inCombat=true;
-          stepsSinceEncounter=0;
-          renderParty();
-          setTimeout(()=>beginPlayerPhase(combatState), 200);
+    let stepsSinceEncounter = 0;
+    let inCombat = false;
+    let combatState = null;
+
+    function beginEncounter(depth) {
+      const encounter = generateEncounter(depth);
+      combatState = startCombat(encounter);
+      inCombat = true;
+      renderParty();
+      setTimeout(() => beginPlayerPhase(combatState), 200);
+    }
+
+    function maybeEncounter(depth) {
+      if (inCombat) return;
+      stepsSinceEncounter += 1;
+      const threshold = Math.max(1, 4 - Math.min(depth, 3));
+      if (stepsSinceEncounter >= threshold) {
+        const chance = 0.35 + depth * 0.08;
+        if (Math.random() < chance) {
+          stepsSinceEncounter = 0;
+          beginEncounter(depth);
         }
       }
     }
 
-    window.__bt3_onStepComplete = function(depth){ const d=(typeof depth==='number' && depth>0) ? depth : 1; maybeEncounter(d); };
+    function endCombatCleanup() {
+      inCombat = false;
+      combatState = null;
+      hideEncounterArt();
+    }
 
     renderParty();
+
+    if (typeof window !== 'undefined') {
+      window.__bt3_onStepComplete = function(depth) {
+        const d = (typeof depth === 'number' && depth > 0) ? depth : 1;
+        maybeEncounter(d);
+      };
+    }
+
+    if (billboard && typeof billboard.sync === 'function') {
+      billboard.sync();
+    }
   });
 })();
+
