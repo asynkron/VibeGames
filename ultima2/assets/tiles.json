@@ -2,6 +2,7 @@
     "tile-set": {
         "columns": 9,
         "rows": 6,
+        "tile-size": 16,
         "classic-start-row": 0,
         "modern-start-row": 7
     },

@@ -2,6 +2,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 const TILE_SIZE = 32;
+const BASE_SPRITE_SIZE = 16;
 const VIEW_COLS = Math.floor(canvas.width / TILE_SIZE);
 const VIEW_ROWS = Math.floor(canvas.height / TILE_SIZE);
 
@@ -17,6 +18,7 @@ const TILESET_IMAGE_URL = new URL('./assets/ultima.png', import.meta.url).href;
 const TILESET_DATA_URL = new URL('./assets/tiles.json', import.meta.url).href;
 
 let spriteSheet = null;
+let spriteSize = BASE_SPRITE_SIZE;
 const spriteAtlas = new Map();
 
 function loadImage(src) {
@@ -30,21 +32,25 @@ function loadImage(src) {
 
 function buildSpriteAtlas(metadata) {
   const tileSet = metadata['tile-set'] ?? {};
-  const modernStartRow = tileSet['modern-start-row'] ?? 0;
+  const classicStartRow = tileSet['classic-start-row'] ?? 0;
+  spriteSize = tileSet['tile-size'] ?? BASE_SPRITE_SIZE;
   spriteAtlas.clear();
   // Each row entry in the metadata corresponds to both classic and modern
-  // tiles; shifting by the modern start row lets us target the updated art.
+  // tiles; shifting by the classic start row targets the Apple II inspired
+  // originals while allowing the metadata to describe alternative atlases.
   const rowEntries = Object.entries(metadata)
     .filter(([key]) => /^row\d+$/.test(key))
     .sort(([a], [b]) => parseInt(a.slice(3), 10) - parseInt(b.slice(3), 10));
   for (const [rowKey, names] of rowEntries) {
     const rowIndex = parseInt(rowKey.slice(3), 10) - 1;
-    const actualRow = modernStartRow + rowIndex;
+    const actualRow = classicStartRow + rowIndex;
     names.forEach((name, column) => {
       if (!name) return;
       spriteAtlas.set(name, {
-        sx: column * TILE_SIZE,
-        sy: actualRow * TILE_SIZE,
+        sx: column * spriteSize,
+        sy: actualRow * spriteSize,
+        sw: spriteSize,
+        sh: spriteSize,
       });
     });
   }
@@ -57,8 +63,8 @@ function drawSprite(name, px, py) {
     spriteSheet,
     frame.sx,
     frame.sy,
-    TILE_SIZE,
-    TILE_SIZE,
+    frame.sw ?? spriteSize,
+    frame.sh ?? spriteSize,
     px,
     py,
     TILE_SIZE,
