@@ -1162,6 +1162,8 @@ function buildScene(state) {
   scene.fog = new THREE.Fog(0x0a0c10, 4.5, 20);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+  renderer.shadowMap.enabled = true; // Torch should cast real-time shadows onto nearby geometry.
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(1);
   stage.appendChild(renderer.domElement);
   renderer.domElement.classList.add('pixel-canvas');
@@ -1176,9 +1178,9 @@ function buildScene(state) {
 
   // Fill the maze with a soft base light so darker corners remain readable.
   // Bump the global and accent lighting so the dungeon reads ~20% brighter overall.
-  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.78);
+  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.7); // Leave gentle fill lighting so shadowed areas stay readable.
   // Hemisphere light lifts the vertical surfaces without over-exposing the floor.
-  const hemiLight = new THREE.HemisphereLight(0xd9d0c0, 0x111318, 0.48);
+  const hemiLight = new THREE.HemisphereLight(0xd9d0c0, 0x111318, 0.46);
   const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.6);
   dirLight.position.set(3.5, 4.5, 2.5);
   scene.add(ambient, hemiLight, dirLight);
@@ -1210,11 +1212,13 @@ function buildScene(state) {
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(state.width * tileSize, state.height * tileSize), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(state.width * tileSize / 2, 0, state.height * tileSize / 2);
+  floor.receiveShadow = true;
   scene.add(floor);
 
   const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(state.width * tileSize, state.height * tileSize), ceilMat);
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.set(state.width * tileSize / 2, wallHeight, state.height * tileSize / 2);
+  ceiling.receiveShadow = true;
   scene.add(ceiling);
 
   const wallsGroup = new THREE.Group();
@@ -1227,6 +1231,8 @@ function buildScene(state) {
     function addPanel(px, py, pz, ry, width, height, mat) {
       const geo = new THREE.PlaneGeometry(width, height);
       const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       mesh.position.set(px, py, pz);
       mesh.rotation.y = ry;
       wallsGroup.add(mesh);
@@ -1280,7 +1286,13 @@ function buildScene(state) {
   torchAnchor.position.set(torchOffset.x, torchOffset.y, torchOffset.z);
   torchAnchor.userData.baseOffset = torchOffset;
   const torch = new THREE.PointLight(0xffc87a, 1.86, 7.5, 2.2);
-  torch.castShadow = false;
+  torch.castShadow = true; // The party's torch now paints dynamic shadows on the surrounding walls.
+  torch.shadow.mapSize.set(512, 512);
+  torch.shadow.bias = -0.0012;
+  torch.shadow.normalBias = 0.02;
+  torch.shadow.radius = 3;
+  torch.shadow.camera.near = 0.1;
+  torch.shadow.camera.far = 9;
   torch.userData.baseIntensity = torch.intensity;
   torch.userData.baseDistance = torch.distance;
   torchAnchor.add(torch);
