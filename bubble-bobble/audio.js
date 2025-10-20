@@ -32,7 +32,50 @@ export function playBubble()  { beep(660, 880, 0.10, 'sine',   0.12); }
 export function playPop()     { beep(220, 140, 0.08, 'triangle',0.16); }
 export function playPickup()  { beep(500, 760, 0.14, 'square', 0.14); }
 export function playCapture() { beep(300, 240, 0.16, 'sawtooth',0.12); }
-// Prime audio on first user gesture
+
+// Music handling
+const music = { buffer: null, gain: null, source: null, volume: 0.25, muted: false, paused: false };
+function startMusicSource() {
+  const c = ensureCtx(); if (!c || !music.buffer) return;
+  if (music.source) { try { music.source.stop(); } catch (_) {} }
+  const s = c.createBufferSource();
+  s.buffer = music.buffer;
+  s.loop = true;
+  if (!music.gain) music.gain = c.createGain();
+  const target = (music.muted || music.paused) ? 0 : music.volume;
+  music.gain.gain.setValueAtTime(target, c.currentTime);
+  s.connect(music.gain).connect(c.destination);
+  s.start();
+  music.source = s;
+}
+export async function loadAndLoopMusic(url) {
+  const c = ensureCtx(); if (!c) return;
+  try {
+    const res = await fetch(url);
+    const ab = await res.arrayBuffer();
+    const buf = await c.decodeAudioData(ab);
+    music.buffer = buf;
+    startMusicSource();
+  } catch (e) {
+    console.warn('Music load failed', e);
+  }
+}
+export function toggleMusicMute() {
+  const c = ensureCtx(); if (!c) return;
+  music.muted = !music.muted;
+  if (music.gain) music.gain.gain.setTargetAtTime((music.muted || music.paused) ? 0 : music.volume, c.currentTime, 0.03);
+}
+export function setMusicVolume(v) {
+  const c = ensureCtx(); if (!c) return;
+  music.volume = Math.max(0, Math.min(1, v));
+  if (music.gain) music.gain.gain.setTargetAtTime((music.muted || music.paused) ? 0 : music.volume, c.currentTime, 0.03);
+}
+export function setMusicPaused(paused) {
+  const c = ensureCtx(); if (!c) return;
+  music.paused = !!paused;
+  if (music.gain) music.gain.gain.setTargetAtTime((music.muted || music.paused) ? 0 : music.volume, c.currentTime, 0.03);
+}
+// Prime audio on first user gesture (resume suspended contexts)
 export function primeOnFirstKeydown(target = window) {
   const handler = () => {
     const c = ensureCtx(); if (c && c.state === 'suspended') c.resume();

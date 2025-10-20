@@ -2,9 +2,9 @@ import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtContr
 import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
 import { initCrtPresetHotkeys } from '../shared/ui/crt.js';
 import { DEFAULT_SCANLINE_ALPHA_RANGE, createDefaultCrtSettings } from '../shared/config/display.js';
-import { LEVEL_01 } from './assets/levels/level01.js';
+import { LEVELS } from './assets/levels/index.js';
 import { loadSprites, drawSprite } from './sprites.js';
-import { playJump, playBubble, playPop, playPickup, playCapture, primeOnFirstKeydown } from './audio.js';
+import { playJump, playBubble, playPop, playPickup, playCapture, primeOnFirstKeydown, loadAndLoopMusic, toggleMusicMute, setMusicPaused } from './audio.js';
 
 // Canvas + CRT setup
 const canvas = document.getElementById('game');
@@ -14,43 +14,39 @@ ctx.imageSmoothingEnabled = false;
 
 const crtFrame = document.querySelector('.screen.crt-frame');
 const crtSettings = createDefaultCrtSettings();
-const syncScanlines = (value) => {
-  if (!crtFrame) return;
-  applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
-};
-const crtControls = createCrtControls({
-  storageKey: 'bubble_crt_settings',
-  defaults: createDefaultCrtSettings(),
-  onChange: (next) => { Object.assign(crtSettings, next); syncScanlines(next.scanlines); }
-});
+const syncScanlines = (value) => { if (!crtFrame) return; applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE }); };
+const crtControls = createCrtControls({ storageKey: 'bubble_crt_settings', defaults: createDefaultCrtSettings(), onChange: (next) => { Object.assign(crtSettings, next); syncScanlines(next.scanlines); } });
 Object.assign(crtSettings, crtControls.getSettings());
 syncScanlines(crtSettings.scanlines);
 const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
 initCrtPresetHotkeys({ storageKey: 'bubble_crt_preset', target: document.documentElement });
 
-// Prime audio on gesture
+// Prime audio and prepare music
 primeOnFirstKeydown(window);
+const MUSIC_URL = './assets/music.mp3';
+loadAndLoopMusic(MUSIC_URL);
 
-// Level
-const TS = LEVEL_01.tileSize;
-const COLS = LEVEL_01.width;
-const ROWS = LEVEL_01.height;
-const TILES = LEVEL_01.tiles;
-
+// Globals that depend on level
+let TS = 16; let COLS = 16; let ROWS = 14; let TILES = [];
 function tileIndex(tx, ty) { return ty * COLS + tx; }
 function inBounds(tx, ty) { return tx >= 0 && tx < COLS && ty >= 0 && ty < ROWS; }
-function solidAt(tx, ty) { return inBounds(tx, ty) && TILES[tileIndex(tx, ty)] === 1; }
+function tileTypeAt(tx, ty) { return inBounds(tx, ty) ? TILES[tileIndex(tx, ty)] : 0; }
+function solidAt(tx, ty) { return tileTypeAt(tx, ty) === 1; }
+function groundAt(tx, ty) { const t = tileTypeAt(tx, ty); return t === 1 || t === 2; }
 
 // Input
-const keys = { left: false, right: false, up: false, shoot: false };
+const keys = { left: false, right: false, up: false, down: false, shoot: false };
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
   switch (e.key) {
     case 'ArrowLeft': case 'a': case 'A': keys.left = true; break;
     case 'ArrowRight': case 'd': case 'D': keys.right = true; break;
     case 'ArrowUp': case 'w': case 'W': keys.up = true; break;
+    case 'ArrowDown': case 's': case 'S': keys.down = true; break;
     case ' ': keys.shoot = true; break;
-    case 'p': case 'P': running = !running; if (running) requestAnimationFrame(loop); break;
+    case 'm': case 'M': toggleMusicMute(); break;
+    case 'p': case 'P': running = !running; setMusicPaused(!running); if (running) requestAnimationFrame(loop); break;
+    case 'Enter': case 'r': case 'R': if (gameState === 'gameOver') restartGame(); break;
   }
 });
 addEventListener('keyup', (e) => {
@@ -58,96 +54,56 @@ addEventListener('keyup', (e) => {
     case 'ArrowLeft': case 'a': case 'A': keys.left = false; break;
     case 'ArrowRight': case 'd': case 'D': keys.right = false; break;
     case 'ArrowUp': case 'w': case 'W': keys.up = false; break;
+    case 'ArrowDown': case 's': case 'S': keys.down = false; break;
     case ' ': keys.shoot = false; break;
   }
 });
 
 // World state
-const world = {
-  tick: 0,
-  score: 0,
-  round: 1,
-};
+const world = { tick: 0, score: 0, round: 1, lives: 3, hi: 0 };
+try { const saved = localStorage.getItem('bbt_high_score'); if (saved) world.hi = Math.max(0, parseInt(saved, 10) || 0); } catch {}
 
-const player = {
-  x: (LEVEL_01.playerSpawn.x + 0.1) * TS,
-  y: (LEVEL_01.playerSpawn.y + 0.1) * TS,
-  w: 12,
-  h: 14,
-  vx: 0,
-  vy: 0,
-  dir: 1, // 1 right, -1 left
-  onGround: false,
-  canJump: false,
-  shootCooldown: 0,
-};
+const player = { x: 0, y: 0, w: 12, h: 14, vx: 0, vy: 0, dir: 1, onGround: false, canJump: false, shootCooldown: 0, ridingBubble: -1 };
+const bubbles = []; const enemies = []; const pickups = [];
 
-const bubbles = [];
-const enemies = [];
-const pickups = [];
-
-// Tunables (rough arcade feel)
-const ACCEL = 450;       // px/s^2
-const FRICTION = 800;    // px/s^2
-const MAX_VX = 90;       // px/s
-const GRAV = 900;        // px/s^2
-const JUMP_VY = -260;    // px/s
-const BUBBLE_CD = 0.35;  // s
-const ENEMY_SPEED = 40;  // px/s
-const PICKUP_SCORE = 100;
+// Tunables
+const ACCEL = 450; const FRICTION = 800; const MAX_VX = 90; const GRAV = 900; const JUMP_VY = -260;
+const BUBBLE_CD = 0.35; const ENEMY_SPEED = 40; const PICKUP_SCORE = 100;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-function rectIntersects(ax, ay, aw, ah, bx, by, bw, bh) {
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
-}
-function rectCircleIntersects(rx, ry, rw, rh, cx, cy, cr) {
-  const nx = clamp(cx, rx, rx + rw);
-  const ny = clamp(cy, ry, ry + rh);
-  const dx = cx - nx;
-  const dy = cy - ny;
-  return dx * dx + dy * dy <= cr * cr;
-}
+function rectIntersects(ax, ay, aw, ah, bx, by, bw, bh) { return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by; }
+function rectCircleIntersects(rx, ry, rw, rh, cx, cy, cr) { const nx = clamp(cx, rx, rx + rw); const ny = clamp(cy, ry, ry + rh); const dx = cx - nx; const dy = cy - ny; return dx*dx + dy*dy <= cr*cr; }
 
 function moveAndCollide(p, dt) {
   // Horizontal
   let newX = p.x + p.vx * dt;
   if (p.vx > 0) {
-    const right = newX + p.w;
-    const tileX = Math.floor(right / TS);
-    const top = Math.floor(p.y / TS);
-    const bottom = Math.floor((p.y + p.h - 0.001) / TS);
-    for (let ty = top; ty <= bottom; ty++) {
-      if (solidAt(tileX, ty)) {
-        newX = tileX * TS - p.w - 0.001;
-        p.vx = 0;
-        break;
-      }
-    }
+    const right = newX + p.w; const tileX = Math.floor(right / TS); const top = Math.floor(p.y / TS); const bottom = Math.floor((p.y + p.h - 0.001) / TS);
+    for (let ty = top; ty <= bottom; ty++) { if (solidAt(tileX, ty)) { newX = tileX * TS - p.w - 0.001; p.vx = 0; break; } }
   } else if (p.vx < 0) {
-    const left = Math.floor(newX / TS);
-    const top = Math.floor(p.y / TS);
-    const bottom = Math.floor((p.y + p.h - 0.001) / TS);
-    for (let ty = top; ty <= bottom; ty++) {
-      if (solidAt(left, ty)) {
-        newX = (left + 1) * TS + 0.001;
-        p.vx = 0;
-        break;
-      }
-    }
+    const left = Math.floor(newX / TS); const top = Math.floor(p.y / TS); const bottom = Math.floor((p.y + p.h - 0.001) / TS);
+    for (let ty = top; ty <= bottom; ty++) { if (solidAt(left, ty)) { newX = (left + 1) * TS + 0.001; p.vx = 0; break; } }
   }
   p.x = newX;
+
+  // Horizontal wrap (player and enemies will use same helper)
+  wrapEntity(p);
 
   // Vertical
   p.onGround = false;
   let newY = p.y + p.vy * dt;
   if (p.vy > 0) {
-    const bottomPix = newY + p.h;
-    const tileY = Math.floor(bottomPix / TS);
+    const prevBottom = p.y + p.h;
+    const nextBottom = newY + p.h;
+    const tileY = Math.floor(nextBottom / TS);
     const left = Math.floor(p.x / TS);
     const right = Math.floor((p.x + p.w - 0.001) / TS);
     for (let tx = left; tx <= right; tx++) {
-      if (solidAt(tx, tileY)) {
-        newY = tileY * TS - p.h - 0.001;
+      const t = tileTypeAt(tx, tileY);
+      const tileTop = tileY * TS;
+      const passOneWay = (t === 2) && (prevBottom <= tileTop) && (nextBottom >= tileTop);
+      if (t === 1 || passOneWay) {
+        newY = tileTop - p.h - 0.001;
         p.vy = 0;
         p.onGround = true;
         p.canJump = true;
@@ -156,336 +112,233 @@ function moveAndCollide(p, dt) {
     }
   } else if (p.vy < 0) {
     const tileY = Math.floor(newY / TS);
-    const left = Math.floor(p.x / TS);
-    const right = Math.floor((p.x + p.w - 0.001) / TS);
-    for (let tx = left; tx <= right; tx++) {
-      if (solidAt(tx, tileY)) {
-        newY = (tileY + 1) * TS + 0.001;
-        p.vy = 0;
-        break;
-      }
-    }
+    const left = Math.floor(p.x / TS); const right = Math.floor((p.x + p.w - 0.001) / TS);
+    for (let tx = left; tx <= right; tx++) { if (solidAt(tx, tileY)) { newY = (tileY + 1) * TS + 0.001; p.vy = 0; break; } }
   }
   p.y = newY;
 }
 
-function spawnBubble(px, py, dir) {
-  bubbles.push({ x: px, y: py, r: 5, vx: dir * 30, vy: -60, life: 2.4, carrying: null });
+function wrapEntity(e) {
+  const W = canvas.width;
+  if (e.x + e.w < 0) e.x = W - e.w;
+  else if (e.x > W) e.x = 0;
 }
 
-function spawnEnemy(tx, ty, dir) {
-  const w = 12, h = 14;
-  const x = tx * TS + (TS - w) / 2;
-  const y = ty * TS - h; // place on top of tile row
-  enemies.push({ x, y, w, h, vx: dir * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk' });
+function spawnBubble(px, py, dir) { bubbles.push({ x: px, y: py, r: 5, vx: dir * 30, vy: -60, life: 2.4, carrying: null }); }
+function spawnEnemy(tx, ty, dir) { const w=12,h=14; const x = tx * TS + (TS - w) / 2; const y = ty * TS - h; enemies.push({ x,y,w,h,vx: dir*ENEMY_SPEED,vy:0,onGround:false,state:'walk' }); }
+function spawnPickup(x, y) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.random()*30-15), vy: -120, life: 7.0 }); }
+
+// Level/round management
+let roundIndex = 0; // 0-based
+let gameState = 'roundIntro'; // 'roundIntro' | 'playing' | 'roundClear' | 'gameOver'
+let stateTimer = 1.5;
+
+function applyLevel(idx) {
+  const L = LEVELS[idx % LEVELS.length];
+  TS = L.tileSize; COLS = L.width; ROWS = L.height; TILES = L.tiles;
+  // reset world actors
+  bubbles.length = 0; enemies.length = 0; pickups.length = 0;
+  // player spawn
+  player.x = (L.playerSpawn.x + 0.1) * TS; player.y = (L.playerSpawn.y + 0.1) * TS;
+  player.vx = player.vy = 0; player.dir = 1; player.onGround = false; player.canJump = false; player.shootCooldown = 0; player.ridingBubble = -1;
+  // enemies from level
+  if (Array.isArray(L.enemySpawns)) { for (const s of L.enemySpawns) spawnEnemy(s.tx, s.ty, s.dir >= 0 ? 1 : -1); }
 }
 
-function spawnPickup(x, y) {
-  pickups.push({ x, y, w: 8, h: 8, vx: (Math.random() * 30 - 15), vy: -120, life: 7.0 });
+function loseLife() {
+  world.lives = Math.max(0, world.lives - 1);
+  if (world.lives <= 0) {
+    if (world.score > world.hi) { world.hi = world.score; try { localStorage.setItem('bbt_high_score', String(world.hi)); } catch {} }
+    gameState = 'gameOver'; stateTimer = 0.0; setMusicPaused(true);
+  } else {
+    gameState = 'roundIntro'; stateTimer = 1.2; applyLevel(roundIndex);
+  }
 }
 
-// Initial enemies
-spawnEnemy(10, 13, -1);
-spawnEnemy(6, 7, 1);
+function restartGame() {
+  world.score = 0; world.lives = 3; roundIndex = 0; world.round = 1; setMusicPaused(false);
+  applyLevel(roundIndex); gameState = 'roundIntro'; stateTimer = 1.2;
+}
 
 function update(dt) {
   world.tick++;
 
-  // Player input
+  if (gameState === 'gameOver') {
+    return;
+  }
+
+  // Intro → play
+  if (gameState === 'roundIntro') { stateTimer -= dt; if (stateTimer <= 0) gameState = 'playing'; }
+
+  // Input and physics
   if (keys.left) { player.vx -= ACCEL * dt; player.dir = -1; }
   if (keys.right) { player.vx += ACCEL * dt; player.dir = 1; }
-  if (!keys.left && !keys.right) {
-    // friction toward stop
-    if (player.vx > 0) { player.vx = Math.max(0, player.vx - FRICTION * dt); }
-    if (player.vx < 0) { player.vx = Math.min(0, player.vx + FRICTION * dt); }
-  }
-  // clamp
-  if (player.vx > MAX_VX) player.vx = MAX_VX;
-  if (player.vx < -MAX_VX) player.vx = -MAX_VX;
-
-  // Gravity
+  if (!keys.left && !keys.right) { if (player.vx > 0) player.vx = Math.max(0, player.vx - FRICTION * dt); if (player.vx < 0) player.vx = Math.min(0, player.vx + FRICTION * dt); }
+  if (player.vx > MAX_VX) player.vx = MAX_VX; if (player.vx < -MAX_VX) player.vx = -MAX_VX;
   player.vy += GRAV * dt;
-
-  // Jump (simple)
-  if (keys.up && player.canJump) {
-    player.vy = JUMP_VY;
-    player.canJump = false;
-    playJump();
-  }
-
-  // Shoot bubble
+  if (keys.up && player.canJump) { player.vy = JUMP_VY; player.canJump = false; playJump(); if (player.ridingBubble >= 0) player.ridingBubble = -1; }
   if (player.shootCooldown > 0) player.shootCooldown -= dt;
-  if (keys.shoot && player.shootCooldown <= 0) {
-    spawnBubble(player.x + player.w / 2 + player.dir * 6, player.y + 4, player.dir);
-    player.shootCooldown = BUBBLE_CD;
-    playBubble();
-  }
+  if (keys.shoot && player.shootCooldown <= 0) { spawnBubble(player.x + player.w/2 + player.dir * 6, player.y + 4, player.dir); player.shootCooldown = BUBBLE_CD; playBubble(); }
 
-  // Move + collide player
   moveAndCollide(player, dt);
 
   // Enemies
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    const e = enemies[i];
-    if (e.state === 'walk') {
-      e.vy += GRAV * dt;
-      const prevVx = e.vx;
-      moveAndCollide(e, dt);
-      // Turn at edges if on ground
-      if (e.onGround) {
-        const frontX = e.x + (e.vx >= 0 ? e.w + 1 : -1);
-        const footY = e.y + e.h + 1;
-        const fx = Math.floor(frontX / TS);
-        const fy = Math.floor(footY / TS);
-        if (!solidAt(fx, fy)) {
-          e.vx = -Math.sign(e.vx || prevVx) * ENEMY_SPEED;
+  if (gameState === 'playing') {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      if (e.state === 'walk') {
+        e.vy += GRAV * dt; const prevVx = e.vx; moveAndCollide(e, dt); wrapEntity(e);
+        if (e.onGround) {
+          const frontX = e.x + (e.vx >= 0 ? e.w + 1 : -1);
+          const footY = e.y + e.h + 1; const fx = Math.floor(frontX / TS); const fy = Math.floor(footY / TS);
+          if (!groundAt(fx, fy)) e.vx = -Math.sign(e.vx || prevVx) * ENEMY_SPEED;
         }
-      }
-      // If hit wall (vx zeroed), bounce
-      if (prevVx !== 0 && e.vx === 0) {
-        e.vx = -Math.sign(prevVx) * ENEMY_SPEED;
+        if (prevVx !== 0 && e.vx === 0) e.vx = -Math.sign(prevVx) * ENEMY_SPEED;
+        if (rectIntersects(player.x, player.y, player.w, player.h, e.x, e.y, e.w, e.h)) { loseLife(); return; }
       }
     }
   }
 
-  // Bubbles update
+  // Bubbles
   for (let i = bubbles.length - 1; i >= 0; i--) {
-    const b = bubbles[i];
-    b.life -= dt;
-    // gentle float and slight horizontal damping if not carrying
-    if (!b.carrying) {
-      b.vy = Math.min(b.vy + (-40) * dt, -20);
-      b.vx *= 0.995;
-    } else {
-      // carrying enemy: slower drift, keep enemy aligned
-      b.vy = Math.min(b.vy + (-30) * dt, -15);
-      b.vx *= 0.992;
-      b.carrying.x = b.x - b.carrying.w / 2;
-      b.carrying.y = b.y - b.carrying.h / 2;
-    }
-
-    // Integrate X
+    const b = bubbles[i]; b.life -= dt;
+    if (!b.carrying) { b.vy = Math.min(b.vy + (-40)*dt, -20); b.vx *= 0.995; }
+    else { b.vy = Math.min(b.vy + (-30)*dt, -15); b.vx *= 0.992; b.carrying.x = b.x - b.carrying.w/2; b.carrying.y = b.y - b.carrying.h/2; }
     b.x += b.vx * dt;
-    // Integrate Y with simple ceiling/platform interaction (stop under blocks)
     const nextY = b.y + b.vy * dt;
     if (b.vy < 0) {
-      const topNext = nextY - b.r;
-      const tx0 = Math.floor((b.x - b.r + 0.001) / TS);
-      const tx1 = Math.floor((b.x + b.r - 0.001) / TS);
-      const ty = Math.floor(topNext / TS);
-      let hit = false;
-      for (let tx = tx0; tx <= tx1; tx++) { if (solidAt(tx, ty)) { hit = true; break; } }
-      if (hit) {
-        b.vy = 0;
-        b.y = (ty + 1) * TS + b.r + 0.001;
-      } else {
-        b.y = nextY;
-      }
-    } else {
-      b.y = nextY;
-    }
+      const topNext = nextY - b.r; const tx0 = Math.floor((b.x - b.r + 0.001) / TS); const tx1 = Math.floor((b.x + b.r - 0.001) / TS); const ty = Math.floor(topNext / TS);
+      let hit = false; for (let tx = tx0; tx <= tx1; tx++) { if (solidAt(tx, ty)) { hit = true; break; } }
+      if (hit) { b.vy = 0; b.y = (ty + 1) * TS + b.r + 0.001; } else { b.y = nextY; }
+    } else { b.y = nextY; }
 
-    // Player can pop bubbles by touching them
+    // Decide ride vs pop
+    const playerCenterX = player.x + player.w / 2;
+    const approachingFromAbove = player.vy > 0 && (player.y + player.h) <= b.y && (b.y - (player.y + player.h)) < 6;
+    const horizontallyAligned = Math.abs(playerCenterX - b.x) < (b.r + player.w * 0.5);
+
     if (rectCircleIntersects(player.x, player.y, player.w, player.h, b.x, b.y, b.r)) {
-      // Pop
-      if (b.carrying) {
-        spawnPickup(b.x - 4, b.y - 4);
+      if (approachingFromAbove && horizontallyAligned) {
+        player.ridingBubble = i; player.onGround = true; player.canJump = true; player.vy = 0; player.y = b.y - player.h - 1; continue;
       }
-      playPop();
-      bubbles.splice(i, 1);
-      continue;
+      if (b.carrying) { spawnPickup(b.x - 4, b.y - 4); }
+      playPop(); bubbles.splice(i, 1); if (player.ridingBubble === i) player.ridingBubble = -1; continue;
     }
 
-    // Bubble expiration
     if (b.life <= 0) {
-      if (b.carrying) {
-        // Enemy escapes from here
-        const escaped = b.carrying;
-        escaped.state = 'walk';
-        escaped.vx = (Math.random() < 0.5 ? -1 : 1) * ENEMY_SPEED;
-        escaped.vy = -80;
-        enemies.push(escaped);
-      }
-      bubbles.splice(i, 1);
-      continue;
+      if (b.carrying) { const escaped = b.carrying; escaped.state = 'walk'; escaped.vx = (Math.random()<0.5?-1:1)*ENEMY_SPEED; escaped.vy = -80; enemies.push(escaped); }
+      bubbles.splice(i, 1); if (player.ridingBubble === i) player.ridingBubble = -1; continue;
     }
   }
 
-  // Bubble capture: enemy intersects bubble
-  for (let bi = 0; bi < bubbles.length; bi++) {
-    const b = bubbles[bi];
-    if (b.carrying) continue;
-    for (let ei = enemies.length - 1; ei >= 0; ei--) {
-      const e = enemies[ei];
-      if (e.state !== 'walk') continue;
-      if (rectCircleIntersects(e.x, e.y, e.w, e.h, b.x, b.y, b.r)) {
-        // Capture this enemy
-        e.state = 'captured';
-        // Remove enemy from active list and attach to bubble
-        enemies.splice(ei, 1);
-        b.carrying = e;
-        b.life = Math.max(b.life, 4.0); // longer life while carrying
-        b.vx *= 0.7; b.vy *= 0.7;
-        playCapture();
-        break;
+  // Riding tap-pop
+  if (player.ridingBubble >= 0) {
+    const i = player.ridingBubble; const b = bubbles[i];
+    if (!b) { player.ridingBubble = -1; }
+    else {
+      player.y = b.y - player.h - 1;
+      if (keys.down || (keys.shoot && player.shootCooldown <= 0)) {
+        if (b.carrying) spawnPickup(b.x - 4, b.y - 4);
+        playPop(); bubbles.splice(i, 1); player.ridingBubble = -1; player.shootCooldown = BUBBLE_CD;
       }
     }
   }
 
-  // Pickups update
+  // Capture
+  if (gameState === 'playing') {
+    for (let bi = 0; bi < bubbles.length; bi++) {
+      const b = bubbles[bi]; if (b.carrying) continue;
+      for (let ei = enemies.length - 1; ei >= 0; ei--) {
+        const e = enemies[ei]; if (e.state !== 'walk') continue;
+        if (rectCircleIntersects(e.x, e.y, e.w, e.h, b.x, b.y, b.r)) { e.state='captured'; enemies.splice(ei,1); b.carrying=e; b.life=Math.max(b.life,4.0); b.vx*=0.7; b.vy*=0.7; playCapture(); break; }
+      }
+    }
+  }
+
+  // Pickups
   for (let i = pickups.length - 1; i >= 0; i--) {
-    const p = pickups[i];
-    p.life -= dt;
-    p.vy += GRAV * 0.9 * dt;
-    p.x += p.vx * dt;
-    // collide with floor for a simple bounce/stop
-    const nextY = p.y + p.vy * dt;
-    const tileY = Math.floor((nextY + p.h) / TS);
-    const left = Math.floor(p.x / TS);
-    const right = Math.floor((p.x + p.w - 0.001) / TS);
-    let landed = false;
-    for (let tx = left; tx <= right; tx++) {
-      if (solidAt(tx, tileY)) { landed = true; break; }
-    }
-    if (landed) {
-      p.vy = 0;
-      p.y = tileY * TS - p.h - 0.001;
-      p.vx *= 0.98;
-    } else {
-      p.y = nextY;
-    }
-
-    // Collect by player
-    if (rectIntersects(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) {
-      world.score += PICKUP_SCORE;
-      playPickup();
-      pickups.splice(i, 1);
-      continue;
-    }
-
-    if (p.life <= 0) {
-      pickups.splice(i, 1);
-      continue;
-    }
+    const p = pickups[i]; p.life -= dt; p.vy += GRAV * 0.9 * dt; p.x += p.vx * dt;
+    const nextY = p.y + p.vy * dt; const tileY = Math.floor((nextY + p.h) / TS); const left = Math.floor(p.x / TS); const right = Math.floor((p.x + p.w - 0.001) / TS);
+    let landed=false; for (let tx = left; tx <= right; tx++) { if (groundAt(tx, tileY)) { landed = true; break; } }
+    if (landed) { p.vy = 0; p.y = tileY * TS - p.h - 0.001; p.vx *= 0.98; } else { p.y = nextY; }
+    if (rectIntersects(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) { world.score += PICKUP_SCORE; if (world.score > world.hi) world.hi = world.score; playPickup(); pickups.splice(i,1); continue; }
+    if (p.life <= 0) { pickups.splice(i,1); continue; }
   }
-}
 
-function drawTiles() {
-  for (let ty = 0; ty < ROWS; ty++) {
-    for (let tx = 0; tx < COLS; tx++) {
-      if (solidAt(tx, ty)) {
-        ctx.fillStyle = '#1a2a44';
-        ctx.fillRect(tx * TS, ty * TS, TS, TS);
-        ctx.strokeStyle = 'rgba(180,220,255,0.08)';
-        ctx.strokeRect(tx * TS + 0.5, ty * TS + 0.5, TS - 1, TS - 1);
-      }
-    }
+  // Round clear
+  if (gameState === 'playing') {
+    const anyActiveEnemies = enemies.length > 0;
+    const anyCarrying = bubbles.some(b => !!b.carrying);
+    if (!anyActiveEnemies && !anyCarrying) { gameState = 'roundClear'; stateTimer = 2.0; }
+  } else if (gameState === 'roundClear') {
+    stateTimer -= dt; if (stateTimer <= 0) { roundIndex = (roundIndex + 1) % LEVELS.length; world.round = roundIndex + 1; applyLevel(roundIndex); gameState = 'roundIntro'; stateTimer = 1.2; }
   }
 }
 
 let SPR = null; // loaded sprites
 
-function drawPlayer() {
-  if (SPR && SPR.player) {
-    drawSprite(ctx, SPR.player, Math.floor(player.x), Math.floor(player.y), player.w, player.h);
-  } else {
-    ctx.fillStyle = '#7ff';
-    ctx.fillRect(Math.floor(player.x), Math.floor(player.y), player.w, player.h);
-  }
+function drawBackground() {
+  const w = canvas.width; const h = canvas.height;
+  ctx.fillStyle = '#02131c'; ctx.fillRect(0, 0, w, h);
+  ctx.save(); ctx.globalAlpha = 0.05;
+  for (let x = 0; x < w; x += 8) { ctx.fillStyle = x % 16 === 0 ? '#3aa' : '#0ff'; ctx.fillRect(x, 0, 2, h); }
+  ctx.restore();
 }
 
+function drawPlayer() {
+  const bob = Math.sin(world.tick * 0.15) * 0.6;
+  const y = Math.floor(player.y + bob);
+  if (SPR && SPR.player) drawSprite(ctx, SPR.player, Math.floor(player.x), y, player.w, player.h);
+  else { ctx.fillStyle = '#7ff'; ctx.fillRect(Math.floor(player.x), y, player.w, player.h); }
+}
 function drawEnemies() {
   for (const e of enemies) {
-    if (SPR && SPR.enemy) {
-      drawSprite(ctx, SPR.enemy, Math.floor(e.x), Math.floor(e.y), e.w, e.h);
-    } else {
-      ctx.fillStyle = '#f55';
-      ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h);
-    }
+    const bob = Math.sin((world.tick + e.x * 0.1) * 0.1) * 0.4;
+    const y = Math.floor(e.y + bob);
+    if (SPR && SPR.enemy) drawSprite(ctx, SPR.enemy, Math.floor(e.x), y, e.w, e.h);
+    else { ctx.fillStyle = '#f55'; ctx.fillRect(Math.floor(e.x), y, e.w, e.h); }
   }
 }
-
 function drawBubbles() {
   for (const b of bubbles) {
     const alpha = Math.max(0.2, Math.min(1, b.life / 2.4));
-    if (SPR && SPR.bubble) {
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      drawSprite(ctx, SPR.bubble, Math.floor(b.x - b.r), Math.floor(b.y - b.r), b.r * 2, b.r * 2);
-      ctx.restore();
-    } else {
-      ctx.strokeStyle = `rgba(180,255,255,${alpha})`;
-      ctx.fillStyle = `rgba(90,200,220,${alpha * 0.25})`;
-      ctx.beginPath();
-      ctx.arc(Math.floor(b.x), Math.floor(b.y), b.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
+    if (SPR && SPR.bubble) { ctx.save(); ctx.globalAlpha = alpha; drawSprite(ctx, SPR.bubble, Math.floor(b.x - b.r), Math.floor(b.y - b.r), b.r*2, b.r*2); ctx.restore(); }
+    else { ctx.strokeStyle = `rgba(180,255,255,${alpha})`; ctx.fillStyle = `rgba(90,200,220,${alpha*0.25})`; ctx.beginPath(); ctx.arc(Math.floor(b.x), Math.floor(b.y), b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
     if (b.carrying) {
-      const e = b.carrying;
-      if (SPR && SPR.enemy) {
-        drawSprite(ctx, SPR.enemy, Math.floor(e.x), Math.floor(e.y), e.w, e.h);
-      } else {
-        ctx.fillStyle = 'rgba(255,120,120,0.6)';
-        ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h);
-      }
+      const e = b.carrying; if (SPR && SPR.enemy) drawSprite(ctx, SPR.enemy, Math.floor(e.x), Math.floor(e.y), e.w, e.h); else { ctx.fillStyle = 'rgba(255,120,120,0.6)'; ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h); }
     }
   }
 }
-
 function drawPickups() {
   for (const p of pickups) {
-    if (SPR && SPR.pickup) {
-      drawSprite(ctx, SPR.pickup, Math.floor(p.x), Math.floor(p.y), p.w, p.h);
-    } else {
-      ctx.fillStyle = '#ffda6b';
-      ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.w, p.h);
-      ctx.strokeStyle = 'rgba(100,50,0,0.4)';
-      ctx.strokeRect(Math.floor(p.x) + 0.5, Math.floor(p.y) + 0.5, p.w - 1, p.h - 1);
+    if (SPR && SPR.pickup) drawSprite(ctx, SPR.pickup, Math.floor(p.x), Math.floor(p.y), p.w, p.h);
+    else { ctx.fillStyle = '#ffda6b'; ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.w, p.h); ctx.strokeStyle = 'rgba(100,50,0,0.4)'; ctx.strokeRect(Math.floor(p.x)+0.5, Math.floor(p.y)+0.5, p.w-1, p.h-1); }
+  }
+}
+function drawTiles() {
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      const t = tileTypeAt(tx, ty);
+      if (t === 1) { ctx.fillStyle = '#1a2a44'; ctx.fillRect(tx * TS, ty * TS, TS, TS); ctx.strokeStyle = 'rgba(180,220,255,0.08)'; ctx.strokeRect(tx * TS + 0.5, ty * TS + 0.5, TS - 1, TS - 1); }
+      if (t === 2) { ctx.fillStyle = '#26395b'; ctx.fillRect(tx * TS, ty * TS, TS, TS); ctx.strokeStyle = 'rgba(180,220,255,0.05)'; ctx.strokeRect(tx * TS + 0.5, ty * TS + 0.5, TS - 1, TS - 1); }
     }
   }
 }
 
 function render() {
-  // Clear
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Backdrop tint (subtle)
-  ctx.fillStyle = '#02131c';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  drawTiles();
-  drawBubbles();
-  drawEnemies();
-  drawPickups();
-  drawPlayer();
-
-  // HUD text
-  ctx.fillStyle = '#fff';
-  ctx.font = '12px monospace';
-  ctx.textBaseline = 'top';
-  ctx.fillText(`SCORE ${world.score}`, 8, 8);
-  ctx.fillText(`ROUND ${world.round}`, 160, 8);
-
-  // Apply CRT post-process
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+  drawTiles(); drawBubbles(); drawEnemies(); drawPickups(); drawPlayer();
+  ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textBaseline = 'top';
+  ctx.fillText(`SCORE ${world.score}`, 8, 8); ctx.fillText(`HI ${world.hi}`, 110, 8); ctx.fillText(`LIVES ${world.lives}`, 8, 20); ctx.fillText(`ROUND ${world.round}`, 160, 8); ctx.fillText('M: music  P: pause', 8, 32);
+  if (gameState === 'roundIntro') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(`ROUND ${world.round}`, canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
+  if (gameState === 'roundClear') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('ROUND CLEAR!', canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
+  if (gameState === 'gameOver') { ctx.fillStyle = 'rgba(255,180,180,0.95)'; ctx.font = 'bold 16px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10); ctx.font = '12px monospace'; ctx.fillText('Press Enter to Restart', canvas.width/2, canvas.height/2 + 12); ctx.textAlign = 'left'; }
   crtPost.render();
 }
 
-let running = true;
-let last = performance.now();
-function loop(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-  update(dt);
-  render();
-  if (running) requestAnimationFrame(loop);
-}
+let running = true; let last = performance.now();
+function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; update(dt); render(); if (running) requestAnimationFrame(loop); }
 
-async function init() {
-  // Load sprites first
-  SPR = await loadSprites();
-  requestAnimationFrame(loop);
-}
-
+async function init() { SPR = await loadSprites(); applyLevel(roundIndex); world.round = roundIndex + 1; requestAnimationFrame(loop); }
 init();
