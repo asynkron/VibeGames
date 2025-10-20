@@ -39,6 +39,7 @@ loadAndLoopMusic(MUSIC_URL);
 
 // Globals that depend on level
 let TS = 16; let COLS = 16; let ROWS = 14; let TILES = [];
+let CURRENT_LEVEL = null;
 function tileIndex(tx, ty) { return ty * COLS + tx; }
 function inBounds(tx, ty) { return tx >= 0 && tx < COLS && ty >= 0 && ty < ROWS; }
 function tileTypeAt(tx, ty) { return inBounds(tx, ty) ? TILES[tileIndex(tx, ty)] : 0; }
@@ -62,8 +63,8 @@ function expandTilesTo8(srcTiles, cols, rows) {
 // Input
 const keys = { left: false, right: false, up: false, down: false, shoot: false };
 addEventListener('keydown', (e) => {
+  const k = e.key; if (k === 't' || k === 'T') { TILE_MIGRATION.mode = (TILE_MIGRATION.mode === '8' ? '16' : '8'); applyLevel(roundIndex); return; }
   if (e.repeat) return;
-  const k = e.key;
   const c = e.code;
   switch (k) {
     case 'ArrowLeft': case 'a': case 'A': keys.left = true; break;
@@ -207,6 +208,7 @@ let stateTimer = 0.9; // shorter intro so testing is snappier
 
 
   const L = LEVELS[idx % LEVELS.length];
+  CURRENT_LEVEL = L;
   TS = L.tileSize; COLS = L.width; ROWS = L.height; TILES = L.tiles;
   // reset world actors
   bubbles.length = 0; enemies.length = 0; pickups.length = 0;
