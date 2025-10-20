@@ -650,20 +650,21 @@ function createHudRenderer(canvas, stageElement) {
     drawEncounterArt(stageBounds);
     drawViewportFrame(stageBounds);
     const infoPanel = computeInfoPanel(stageBounds);
-    drawPanel(infoPanel, 'ADVENTURE LOG');
+    drawPanel(infoPanel);
 
     const lineHeight = layout.logLineHeight;
     const logMargin = 12;
     const portraitDisplaySize = 86;
+    const contentTop = infoPanel.y + 18;
     let logX = infoPanel.x + logMargin;
-    let logTop = infoPanel.y + layout.logTopOffset;
+    let logTop = contentTop;
     let logWidth = Math.max(0, infoPanel.width - logMargin * 2);
 
     if (state.activePortrait) {
       const portrait = getPortraitImage(state.activePortrait);
       if (portrait) {
         const px = infoPanel.x + logMargin;
-        const py = infoPanel.y + layout.logTopOffset;
+        const py = contentTop;
         ctx.drawImage(portrait, px, py, portraitDisplaySize, portraitDisplaySize);
         ctx.strokeStyle = 'rgba(244, 210, 138, 0.4)';
         ctx.lineWidth = 2;
@@ -741,47 +742,44 @@ function createHudRenderer(canvas, stageElement) {
     ctx.fillText('MEMBERS', PARTY_PANEL.x + 12, headerY);
     ctx.fillStyle = TEXT_COLOR;
 
-    const portraitSize = 48;
-    const rowHeight = 58;
-    const baseY = headerY + layout.partyPanelRowOffset + 18;
+    const panelBottom = PARTY_PANEL.y + PARTY_PANEL.height - layout.partyPanelFooterPadding;
+    const rowPadding = 6;
+    const lineSpacing = lineHeight + 2;
+    let rowTop = headerY + layout.partyPanelRowOffset + lineHeight;
     for (let i = 0; i < state.party.length; i++) {
       const row = state.party[i];
-      const rowTop = baseY + i * rowHeight;
+      const statusLine = row.alive ? (row.statusText || '') : 'DEAD';
+      let lineCount = 2;
+      if (row.attributes) lineCount += 1;
+      if (statusLine) lineCount += 1;
+      const rowHeight = rowPadding * 2 + lineCount * lineHeight + Math.max(0, lineCount - 1) * 2;
+      if (rowTop + rowHeight > panelBottom) {
+        break;
+      }
       if (row.id && row.id === state.activeCharacterId) {
         ctx.save();
         ctx.fillStyle = 'rgba(244, 210, 138, 0.16)';
-        ctx.fillRect(PARTY_PANEL.x + 10, rowTop - 14, PARTY_PANEL.width - 20, rowHeight - 4);
+        ctx.fillRect(PARTY_PANEL.x + 10, rowTop - 2, PARTY_PANEL.width - 20, rowHeight);
         ctx.restore();
       }
-      if (row.portrait) {
-        const portrait = getPortraitImage(row.portrait);
-        if (portrait) {
-          ctx.drawImage(portrait, PARTY_PANEL.x + 12, rowTop - 8, portraitSize, portraitSize);
-          ctx.strokeStyle = 'rgba(244, 210, 138, 0.35)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(PARTY_PANEL.x + 11, rowTop - 9, portraitSize + 2, portraitSize + 2);
-        } else {
-          getPortraitImage(row.portrait);
-        }
-      }
-      const textX = PARTY_PANEL.x + 12 + portraitSize + 12;
-      let textY = rowTop - 6;
+      const textX = PARTY_PANEL.x + 18;
+      let textY = rowTop + rowPadding;
       ctx.fillStyle = ACCENT_COLOR;
       ctx.fillText(`${row.name} — ${row.classType} (Lv ${row.level})`, textX, textY);
       ctx.fillStyle = TEXT_COLOR;
-      textY += lineHeight + 2;
+      textY += lineSpacing;
       ctx.fillText(`HP ${row.hpCurrent}/${row.hpMax}   SP ${row.spCurrent}/${row.spMax}   AC ${row.ac}   Hit ${row.toHit}   DMG ${row.damageMin}-${row.damageMax}`, textX, textY);
-      textY += lineHeight + 2;
+      textY += lineSpacing;
       if (row.attributes) {
         const attrs = row.attributes;
         const attrLine = `STR ${attrs.strength}  INT ${attrs.intelligence}  DEX ${attrs.dexterity}  CON ${attrs.constitution}  LCK ${attrs.luck}`;
         ctx.fillText(attrLine, textX, textY);
-        textY += lineHeight + 2;
+        textY += lineSpacing;
       }
-      const statusLine = row.alive ? (row.statusText || '') : 'DEAD';
       if (statusLine) {
         ctx.fillText(statusLine, textX, textY);
       }
+      rowTop += rowHeight;
     }
 
     ctx.restore();
@@ -1437,8 +1435,51 @@ main();
 
     const hud = (typeof window !== 'undefined' && window.__bt3_hud) ? window.__bt3_hud : createFallbackHud();
 
-    function log(message) {
+    const LOG_SCROLL_DELAY = 420; // Pace log entries to mimic the classic slow scroll.
+    const logQueue = [];
+    let logTimer = null;
+    let isProcessingLog = false;
+    const logIdleResolvers = [];
+
+    function resolveLogIdle() {
+      const pending = logIdleResolvers.splice(0, logIdleResolvers.length);
+      for (const resolve of pending) resolve();
+    }
+
+    function processLogQueue() {
+      if (!logQueue.length) {
+        isProcessingLog = false;
+        if (logTimer) {
+          clearTimeout(logTimer);
+          logTimer = null;
+        }
+        resolveLogIdle();
+        return;
+      }
+      isProcessingLog = true;
+      const { message, delay } = logQueue.shift();
       hud.appendLog(message);
+      const wait = typeof delay === 'number' && delay >= 0 ? delay : LOG_SCROLL_DELAY;
+      logTimer = setTimeout(processLogQueue, wait);
+    }
+
+    function enqueueLog(message, delay = LOG_SCROLL_DELAY) {
+      logQueue.push({ message, delay });
+      if (!isProcessingLog) {
+        processLogQueue();
+      }
+    }
+
+    function waitForLogIdle() {
+      if (!isProcessingLog && !logQueue.length) {
+        return Promise.resolve();
+      }
+      return new Promise((resolve) => logIdleResolvers.push(resolve));
+    }
+
+    function log(message, options = {}) {
+      const delay = typeof options?.delay === 'number' ? options.delay : LOG_SCROLL_DELAY;
+      enqueueLog(message, delay);
     }
 
     function clearActions() {
@@ -2599,7 +2640,7 @@ main();
       }
       clearActions();
       renderParty();
-      endCombatCleanup();
+      endCombatCleanup({ preserveEncounterArt: partyVictory });
     }
 
     function monstersAct(state) {
@@ -2682,7 +2723,13 @@ main();
       tickStatuses(state.party);
       tickStatuses(state.monsters);
       renderParty();
-      setTimeout(() => beginPlayerPhase(state), 300);
+      // Let the narration finish before prompting the next round of commands.
+      waitForLogIdle().then(() => {
+        if (state.ended) return;
+        setTimeout(() => {
+          if (!state.ended) beginPlayerPhase(state);
+        }, 150);
+      });
     }
 
     function queueAction(state, action) {
@@ -2927,7 +2974,14 @@ main();
       combatState = startCombat(encounter);
       inCombat = true;
       renderParty();
-      setTimeout(() => beginPlayerPhase(combatState), 200);
+      const stateRef = combatState;
+      // Delay the command phase until the opening narration finishes scrolling.
+      waitForLogIdle().then(() => {
+        if (!stateRef || stateRef.ended || combatState !== stateRef) return;
+        setTimeout(() => {
+          if (combatState === stateRef && !stateRef.ended) beginPlayerPhase(stateRef);
+        }, 150);
+      });
     }
 
     function maybeEncounter(depth) {
@@ -2943,10 +2997,12 @@ main();
       }
     }
 
-    function endCombatCleanup() {
+    function endCombatCleanup({ preserveEncounterArt = false } = {}) {
       inCombat = false;
       combatState = null;
-      hideEncounterArt();
+      if (!preserveEncounterArt) {
+        hideEncounterArt();
+      }
     }
 
     renderParty();
