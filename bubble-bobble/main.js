@@ -136,7 +136,7 @@ function spawnBubbleFromPlayer() {
   const dx = (player.dir > 0 ? (player.w / 2 + r + 4) : -(player.w / 2 + r + 4));
   const px = player.x + player.w / 2 + dx;
   const py = player.y + player.h / 2 - 2;
-  bubbles.push({ x: px, y: py, r, vx: player.dir * 34, vy: -60, life: 2.6, carrying: null, spawnGrace: 0.2 });
+  bubbles.push({ x: px, y: py, r: 6, vx: player.dir * 18, vy: -26, life: 3.2, carrying: null, spawnGrace: 0.45 });
 }
 
 function spawnEnemy(tx, ty, dir) {
@@ -236,8 +236,8 @@ function update(dt) {
   // Bubbles
   for (let i = bubbles.length - 1; i >= 0; i--) {
     const b = bubbles[i]; b.life -= dt; if (b.spawnGrace && b.spawnGrace > 0) b.spawnGrace = Math.max(0, b.spawnGrace - dt);
-    if (!b.carrying) { b.vy = Math.min(b.vy + (-40)*dt, -20); b.vx *= 0.995; }
-    else { b.vy = Math.min(b.vy + (-30)*dt, -15); b.vx *= 0.992; b.carrying.x = b.x - b.carrying.w/2; b.carrying.y = b.y - b.carrying.h/2; }
+    if (!b.carrying) { b.vy = Math.min(b.vy + 70*dt, -10); b.vx *= 0.98; }
+    else { b.vy = Math.min(b.vy + 50*dt, -12); b.vx *= 0.985; b.carrying.x = b.x - b.carrying.w/2; b.carrying.y = b.y - b.carrying.h/2; }
     b.x += b.vx * dt;
     const nextY = b.y + b.vy * dt;
     if (b.vy < 0) {
@@ -249,7 +249,7 @@ function update(dt) {
     // Player vs bubble
     if (rectCircleIntersects(player.x, player.y, player.w, player.h, b.x, b.y, b.r)) {
       const playerCenterX = player.x + player.w / 2;
-      const approachingFromAbove = player.vy > 0 && (player.y + player.h) <= b.y && (b.y - (player.y + player.h)) < 6;
+      const approachingFromAbove = player.vy > 0 && (player.y + player.h) <= b.y && (b.y - (player.y + player.h)) < 10;
       const horizontallyAligned = Math.abs(playerCenterX - b.x) < (b.r + player.w * 0.5);
       if (approachingFromAbove && horizontallyAligned) {
         // Ride: snap to top of bubble, don't pop

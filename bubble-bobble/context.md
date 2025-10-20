@@ -36,3 +36,4 @@ Next (suggested)
 
 Recent fixes
 - Enemy spawns align to top of nearest platform (solid/semi-solid) and search downward from the spawn tile to avoid spawning inside tiles.
+- Tuning: bubbles now spawn slower, float gently (~-10 px/s), and have a slightly wider ride snap window to make riding reliable.
