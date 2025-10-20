@@ -13,6 +13,20 @@ const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 const WALL = { OPEN: 0, WALL: 1, DOOR: 2 };
 
+const textureLoader = new THREE.TextureLoader();
+
+function loadTexture(relativePath, options = {}) {
+  const { repeatX = 1, repeatY = 1 } = options;
+  const texture = textureLoader.load(new URL(relativePath, import.meta.url).href);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  return texture;
+}
+
 function leftOf(dir) { return (dir + 3) % 4; }
 function rightOf(dir) { return (dir + 1) % 4; }
 function backOf(dir) { return (dir + 2) % 4; }
@@ -1011,10 +1025,10 @@ function buildScene(state) {
   const wallHeight = tileSize;
   const eye = tileSize * 0.55;
 
-  const wallTexture = createStoneTexture('#6a6154', { accentHex: '#4c4338', noise: 0.2, crackCount: 14, repeat: 3, repeatY: 2.5 });
+  const wallTexture = loadTexture('./assets/monsters/green-wall.png');
   const floorTexture = createStoneTexture('#2c2f33', { accentHex: '#1e2126', noise: 0.15, crackColor: 'rgba(0,0,0,0.18)', crackCount: 8, repeat: 6 });
   const ceilingTexture = createStoneTexture('#3a3d45', { accentHex: '#2f3238', noise: 0.12, crackColor: 'rgba(0,0,0,0.12)', crackCount: 6, repeat: 4 });
-  const doorTexture = createWoodTexture('#5c3d26', { accentHex: '#7c5632', repeat: 2, repeatY: 3 });
+  const doorTexture = loadTexture('./assets/monsters/green-wall-door.png');
 
   const wallMat = new THREE.MeshLambertMaterial({ map: wallTexture, color: 0xffffff, side: THREE.DoubleSide });
   const doorMat = new THREE.MeshLambertMaterial({ map: doorTexture, color: 0xffffff, side: THREE.DoubleSide });
@@ -1038,8 +1052,6 @@ function buildScene(state) {
   function addWallPanel(x, y, dir, type) {
     const cx = x + 0.5; const cz = y + 0.5;
     const w = tileSize; const h = wallHeight;
-    const doorWidth = 0.5; // gap
-    const lintelH = 0.3;
 
     function addPanel(px, py, pz, ry, width, height, mat) {
       const geo = new THREE.PlaneGeometry(width, height);
@@ -1058,21 +1070,17 @@ function buildScene(state) {
     }
 
     if (type === WALL.DOOR) {
-      const side = (w - doorWidth) / 2;
-      const postH = h;
-      const topY = h - lintelH / 2;
+      const doorHeight = h;
+      const doorY = doorHeight / 2;
+
       if (dir === DIR.N || dir === DIR.S) {
         const z = dir === DIR.N ? (cz - 0.5) : (cz + 0.5);
         const ry = dir === DIR.N ? 0 : Math.PI;
-        addPanel(cx - (doorWidth / 2 + side / 2), postH / 2, z, ry, side, postH, doorMat);
-        addPanel(cx + (doorWidth / 2 + side / 2), postH / 2, z, ry, side, postH, doorMat);
-        addPanel(cx, topY, z, ry, doorWidth, lintelH, doorMat);
+        addPanel(cx, doorY, z, ry, w, doorHeight, doorMat);
       } else {
         const xw = dir === DIR.E ? (cx + 0.5) : (cx - 0.5);
         const ry = dir === DIR.E ? -Math.PI / 2 : Math.PI / 2;
-        addPanel(xw, postH / 2, cz - (doorWidth / 2 + side / 2), ry, side, postH, doorMat);
-        addPanel(xw, postH / 2, cz + (doorWidth / 2 + side / 2), ry, side, postH, doorMat);
-        addPanel(xw, topY, cz, ry, doorWidth, lintelH, doorMat);
+        addPanel(xw, doorY, cz, ry, w, doorHeight, doorMat);
       }
       return;
     }
