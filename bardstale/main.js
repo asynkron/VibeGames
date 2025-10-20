@@ -19,8 +19,9 @@ function loadTexture(relativePath, options = {}) {
   const { repeatX = 1, repeatY = 1 } = options;
   const texture = textureLoader.load(new URL(relativePath, import.meta.url).href);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(repeatX, repeatY);
@@ -182,8 +183,9 @@ function createStoneTexture(baseHex, options = {}) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.LinearMipMapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
   texture.repeat.set(repeat, repeatY);
   texture.needsUpdate = true;
 
@@ -235,8 +237,9 @@ function createWoodTexture(baseHex, options = {}) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.LinearMipMapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
   texture.repeat.set(repeat, repeatY);
   texture.needsUpdate = true;
 
@@ -665,7 +668,9 @@ function createHudRenderer(canvas, stageElement) {
       if (portrait) {
         const px = infoPanel.x + logMargin;
         const py = contentTop;
-        ctx.drawImage(portrait, px, py, portraitDisplaySize, portraitDisplaySize);
+        pixel.withSmoothing(true, () => {
+          ctx.drawImage(portrait, px, py, portraitDisplaySize, portraitDisplaySize);
+        });
         ctx.strokeStyle = 'rgba(244, 210, 138, 0.4)';
         ctx.lineWidth = 2;
         ctx.strokeRect(px - 1, py - 1, portraitDisplaySize + 2, portraitDisplaySize + 2);
