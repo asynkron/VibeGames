@@ -16,14 +16,18 @@ const WALL = { OPEN: 0, WALL: 1, DOOR: 2 };
 const textureLoader = new THREE.TextureLoader();
 
 function loadTexture(relativePath, options = {}) {
-  const { repeatX = 1, repeatY = 1 } = options;
+  const { repeatX = 1, repeatY = 1, anisotropy = 1 } = options;
   const texture = textureLoader.load(new URL(relativePath, import.meta.url).href);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(repeatX, repeatY);
+  if (anisotropy > 1) {
+    texture.anisotropy = anisotropy;
+  }
   return texture;
 }
 
@@ -1165,13 +1169,17 @@ function buildScene(state) {
   renderer.domElement.style.height = '100%';
   renderer.domElement.style.imageRendering = 'pixelated';
 
+  const maxAnisotropy = Math.max(1, renderer.capabilities.getMaxAnisotropy());
+  // Lean on hardware texture filtering without changing the requested render resolution.
+
   const camera = new THREE.PerspectiveCamera(60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
 
   // Fill the maze with a soft base light so darker corners remain readable.
-  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.65);
+  // Bump the global and accent lighting so the dungeon reads ~20% brighter overall.
+  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.78);
   // Hemisphere light lifts the vertical surfaces without over-exposing the floor.
-  const hemiLight = new THREE.HemisphereLight(0xd9d0c0, 0x111318, 0.4);
-  const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.5);
+  const hemiLight = new THREE.HemisphereLight(0xd9d0c0, 0x111318, 0.48);
+  const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.6);
   dirLight.position.set(3.5, 4.5, 2.5);
   scene.add(ambient, hemiLight, dirLight);
 
@@ -1179,17 +1187,19 @@ function buildScene(state) {
   const wallHeight = tileSize;
   const eye = tileSize * 0.55;
 
-  const wallTexture = loadTexture('./assets/monsters/green-wall.png');
+  const wallTexture = loadTexture('./assets/monsters/green-wall.png', { anisotropy: maxAnisotropy });
   const floorTexture = loadTexture('./assets/monsters/floor.png', {
     // Repeat across the dungeon grid so each tile gets the proper texel density.
     repeatX: state.width,
     repeatY: state.height,
+    anisotropy: maxAnisotropy,
   });
   const ceilingTexture = loadTexture('./assets/monsters/ceiling.png', {
     repeatX: state.width,
     repeatY: state.height,
+    anisotropy: maxAnisotropy,
   });
-  const doorTexture = loadTexture('./assets/monsters/green-wall-door.png');
+  const doorTexture = loadTexture('./assets/monsters/green-wall-door.png', { anisotropy: maxAnisotropy });
 
   const wallMat = new THREE.MeshLambertMaterial({ map: wallTexture, color: 0xffffff, side: THREE.DoubleSide });
   const doorMat = new THREE.MeshLambertMaterial({ map: doorTexture, color: 0xffffff, side: THREE.DoubleSide });
@@ -1269,7 +1279,7 @@ function buildScene(state) {
   const torchOffset = { x: 0.28, y: eye - 0.08, z: -0.32 };
   torchAnchor.position.set(torchOffset.x, torchOffset.y, torchOffset.z);
   torchAnchor.userData.baseOffset = torchOffset;
-  const torch = new THREE.PointLight(0xffc87a, 1.55, 7.5, 2.2);
+  const torch = new THREE.PointLight(0xffc87a, 1.86, 7.5, 2.2);
   torch.castShadow = false;
   torch.userData.baseIntensity = torch.intensity;
   torch.userData.baseDistance = torch.distance;
