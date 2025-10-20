@@ -9,11 +9,13 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="screen" class="screen crt-frame">
+  <div id="screen" class="screen">
     <div id="stage" data-screen-canvas="true"></div>
-    <canvas id="hud" width="640" height="480" data-screen-canvas="true" aria-label="Bard's Tale interface"></canvas>
-    <div class="crt-overlay"></div>
-    <div class="crt-glow"></div>
+    <div id="hud-frame" class="crt-frame" data-screen-canvas="true">
+      <canvas id="hud" data-screen-canvas="true" aria-label="Bard's Tale interface"></canvas>
+      <div class="crt-overlay"></div>
+      <div class="crt-glow"></div>
+    </div>
   </div>
   <script type="module" src="./main.js"></script>
 </body>
