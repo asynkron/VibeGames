@@ -43,28 +43,31 @@ body {
   isolation: isolate;
   width: 100vw;
   height: 100vh;
+  /* Share the stage size with anything that needs to align to it. */
+  --stage-size: clamp(240px, min(48vw, 48vh), 540px);
 }
 
 #stage {
   position: absolute;
   /* Anchor the WebGL viewport in the top-left 3×3 block of the layout. */
-  inset: auto;
   top: var(--ui-margin);
   left: var(--ui-margin);
-  height: calc(50% - 24px);
-  min-height: 180px;
+  display: block;
+  width: var(--stage-size);
+  height: var(--stage-size);
+  min-width: 200px;
+  min-height: 200px;
+  max-width: calc(100% - var(--ui-margin) * 2);
   max-height: calc(100% - var(--ui-margin) * 2);
   aspect-ratio: 1 / 1;
-  width: auto;
-  max-width: calc(50% - 24px);
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
 }
 
 #hud-frame {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 5;
 }
 
 #hud {
@@ -72,10 +75,18 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 2;
+  z-index: 10;
   pointer-events: auto;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+
+#hud-frame .crt-glow {
+  z-index: 20;
+}
+
+#hud-frame .crt-overlay {
+  z-index: 30;
 }
 
 #stage .encounter-art {
@@ -103,11 +114,6 @@ body {
   image-rendering: crisp-edges;
   object-fit: fill;
   filter: drop-shadow(0 0 12px rgba(0, 0, 0, 0.65));
-}
-
-#hud {
-  z-index: 2;
-  pointer-events: auto;
 }
 
 #hud {
