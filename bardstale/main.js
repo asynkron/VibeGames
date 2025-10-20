@@ -680,6 +680,11 @@ function setupEncounterBillboard(stageElement) {
 
   stageElement.appendChild(container);
 
+  function setEncounterVisibility(active) {
+    // Hide the WebGL canvas while the encounter billboard is meant to occupy the space.
+    stageElement.classList.toggle('is-encountering', !!active);
+  }
+
   let currentUrl = '';
   let loadToken = 0;
 
@@ -690,6 +695,7 @@ function setupEncounterBillboard(stageElement) {
     img.onload = null;
     img.onerror = null;
     img.removeAttribute('src');
+    setEncounterVisibility(false);
   }
 
   function show(url) {
@@ -701,6 +707,7 @@ function setupEncounterBillboard(stageElement) {
     const token = ++loadToken;
     currentUrl = url;
     container.classList.remove('is-visible');
+    setEncounterVisibility(true);
     img.onload = () => {
       if (token !== loadToken || currentUrl !== url) return;
       container.classList.add('is-visible');
@@ -711,6 +718,8 @@ function setupEncounterBillboard(stageElement) {
     };
     img.src = url;
   }
+
+  setEncounterVisibility(false);
 
   return {
     show,
