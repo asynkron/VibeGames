@@ -1290,12 +1290,28 @@ main();
       monk: './assets/monsters/monk.png',
       mage: './assets/monsters/mage.png',
       enchantress: './assets/monsters/female-mage.png',
+      treasure: './assets/monsters/treasure.png',
       default: './assets/monsters/monster.png'
     };
 
     const billboard = (typeof window !== 'undefined' && window.__bt3_encounterBillboard) ? window.__bt3_encounterBillboard : null;
-    function showEncounterArt(species){ if (!billboard) return; const path = MONSTER_ART[species] || MONSTER_ART.default; if (path) billboard.show(path); else billboard.hide(); }
-    function hideEncounterArt(){ if (billboard) billboard.hide(); }
+    let postVictoryTimer = null;
+    function clearVictoryTimer() {
+      if (postVictoryTimer) {
+        clearTimeout(postVictoryTimer);
+        postVictoryTimer = null;
+      }
+    }
+    function showEncounterArt(species){
+      if (!billboard) return;
+      clearVictoryTimer();
+      const path = MONSTER_ART[species] || MONSTER_ART.default;
+      if (path) billboard.show(path); else billboard.hide();
+    }
+    function hideEncounterArt(){
+      clearVictoryTimer();
+      if (billboard) billboard.hide();
+    }
 
     const DB = {
       items: {
@@ -1395,10 +1411,21 @@ main();
     function concludeCombat(st){
       if(st.__concluded) return;
       st.__concluded = true;
-      hideEncounterArt();
+      const partyVictory = st.winner==='Party' && !st.fled;
+      if(partyVictory){
+        // Briefly celebrate the win by showing the treasure sprite, then return to exploration.
+        showEncounterArt('treasure');
+        if (typeof window !== 'undefined') {
+          postVictoryTimer = window.setTimeout(() => { hideEncounterArt(); }, 2000);
+        } else {
+          hideEncounterArt();
+        }
+      } else {
+        hideEncounterArt();
+      }
       if (typeof window !== 'undefined') window.__bt3_isCombatActive = false;
       log(`Combat ends. Winner: ${st.winner}.`);
-      if(st.winner==='Party' && !st.fled){
+      if(partyVictory){
         const gold=roll(5,20);
         party.gold+=gold;
         log(`Loot: ${gold} gold.`);
