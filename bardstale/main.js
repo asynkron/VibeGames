@@ -388,6 +388,13 @@ function createHudRenderer(canvas, stageElement) {
     gold: 0,
     prompt: '',
     buttons: [],
+    encounter: {
+      url: '',
+      image: null,
+      isVisible: false,
+      isLoading: false,
+      token: 0,
+    },
   };
   let buttonZones = [];
 
@@ -519,6 +526,58 @@ function createHudRenderer(canvas, stageElement) {
     ctx.restore();
   }
 
+  function drawEncounterArt(bounds) {
+    const artState = state.encounter;
+    if (!artState?.isLoading && !artState?.isVisible) return;
+
+    const width = Math.max(0, bounds.right - bounds.left);
+    const height = Math.max(0, bounds.bottom - bounds.top);
+    if (!width || !height) return;
+
+    const innerPadding = 6;
+    const innerWidth = Math.max(0, width - innerPadding * 2);
+    const innerHeight = Math.max(0, height - innerPadding * 2);
+    if (!innerWidth || !innerHeight) return;
+
+    const innerX = bounds.left + innerPadding;
+    const innerY = bounds.top + innerPadding;
+    const centerX = innerX + innerWidth / 2;
+    const centerY = innerY + innerHeight / 2;
+
+    ctx.save();
+    const gradient = ctx.createRadialGradient(
+      centerX,
+      centerY,
+      Math.min(innerWidth, innerHeight) * 0.1,
+      centerX,
+      centerY,
+      Math.max(innerWidth, innerHeight) * 0.75,
+    );
+    gradient.addColorStop(0, 'rgba(10, 12, 16, 0.82)');
+    gradient.addColorStop(0.75, 'rgba(5, 6, 8, 0.92)');
+    gradient.addColorStop(1, 'rgba(5, 6, 8, 0.98)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(innerX, innerY, innerWidth, innerHeight);
+
+    if (artState.isVisible && artState.image) {
+      pixel.disableSmoothing();
+      const img = artState.image;
+      const scale = Math.min(innerWidth / img.width, innerHeight / img.height);
+      const drawWidth = Math.max(1, Math.round(img.width * scale));
+      const drawHeight = Math.max(1, Math.round(img.height * scale));
+      const drawX = innerX + Math.round((innerWidth - drawWidth) / 2);
+      const drawY = innerY + Math.round((innerHeight - drawHeight) / 2);
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+    }
+
+    ctx.restore();
+  }
+
   function computeInfoPanel(stageBounds) {
     const x = Math.round(stageBounds.right + INFO_PANEL_GAP);
     const availableWidth = Math.max(0, SCREEN_WIDTH - PANEL_MARGIN - x);
@@ -547,6 +606,7 @@ function createHudRenderer(canvas, stageElement) {
     ctx.fillStyle = TEXT_COLOR;
 
     const stageBounds = measureStageBounds();
+    drawEncounterArt(stageBounds);
     drawViewportFrame(stageBounds);
     const infoPanel = computeInfoPanel(stageBounds);
     drawPanel(infoPanel, 'ADVENTURE LOG');
@@ -647,6 +707,49 @@ function createHudRenderer(canvas, stageElement) {
     }
   }
 
+  function requestEncounterArt(url, callbacks = {}) {
+    const artState = state.encounter;
+    if (!artState) return;
+
+    artState.token += 1;
+    const token = artState.token;
+    const { onLoad, onError } = callbacks;
+
+    if (!url) {
+      artState.url = '';
+      artState.image = null;
+      artState.isVisible = false;
+      artState.isLoading = false;
+      render();
+      return;
+    }
+
+    artState.url = url;
+    artState.isVisible = false;
+    artState.isLoading = true;
+    render();
+
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      if (token !== artState.token) return;
+      artState.image = img;
+      artState.isVisible = true;
+      artState.isLoading = false;
+      render();
+      if (typeof onLoad === 'function') onLoad();
+    };
+    img.onerror = () => {
+      if (token !== artState.token) return;
+      artState.image = null;
+      artState.isVisible = false;
+      artState.isLoading = false;
+      render();
+      if (typeof onError === 'function') onError();
+    };
+    img.src = url;
+  }
+
   canvas.addEventListener('click', (event) => {
     if (!state.buttons.length) return;
     const { x, y } = pointerToCanvas(event);
@@ -699,24 +802,18 @@ function createHudRenderer(canvas, stageElement) {
       state.buttons = [];
       render();
     },
+    showEncounterArt(url, callbacks) {
+      requestEncounterArt(url, callbacks);
+    },
+    hideEncounterArt() {
+      requestEncounterArt('');
+    },
     redraw: render,
   };
 }
 
-function setupEncounterBillboard(stageElement) {
+function setupEncounterBillboard(stageElement, hudRenderer) {
   if (!stageElement) return null;
-
-  const container = document.createElement('div');
-  container.className = 'encounter-art';
-  container.setAttribute('aria-hidden', 'true');
-
-  const img = document.createElement('img');
-  img.decoding = 'async';
-  img.loading = 'lazy';
-  img.alt = '';
-  container.appendChild(img);
-
-  stageElement.appendChild(container);
 
   function setEncounterVisibility(active) {
     // Hide the WebGL canvas while the encounter billboard is meant to occupy the space.
@@ -729,10 +826,9 @@ function setupEncounterBillboard(stageElement) {
   function hide() {
     currentUrl = '';
     loadToken += 1;
-    container.classList.remove('is-visible');
-    img.onload = null;
-    img.onerror = null;
-    img.removeAttribute('src');
+    if (typeof hudRenderer?.hideEncounterArt === 'function') {
+      hudRenderer.hideEncounterArt();
+    }
     setEncounterVisibility(false);
   }
 
@@ -744,17 +840,15 @@ function setupEncounterBillboard(stageElement) {
 
     const token = ++loadToken;
     currentUrl = url;
-    container.classList.remove('is-visible');
     setEncounterVisibility(true);
-    img.onload = () => {
-      if (token !== loadToken || currentUrl !== url) return;
-      container.classList.add('is-visible');
-    };
-    img.onerror = () => {
-      if (token !== loadToken) return;
-      hide();
-    };
-    img.src = url;
+    if (typeof hudRenderer?.showEncounterArt === 'function') {
+      hudRenderer.showEncounterArt(url, {
+        onError: () => {
+          if (token !== loadToken || currentUrl !== url) return;
+          hide();
+        },
+      });
+    }
   }
 
   setEncounterVisibility(false);
@@ -762,7 +856,12 @@ function setupEncounterBillboard(stageElement) {
   return {
     show,
     hide,
-    sync() {},
+    sync() {
+      setEncounterVisibility(!!currentUrl);
+      if (typeof hudRenderer?.redraw === 'function') {
+        hudRenderer.redraw();
+      }
+    },
   };
 }
 
@@ -1039,7 +1138,7 @@ function main() {
   const g = buildScene(state);
   const minimap = createMinimapOverlay(screenElement, state);
   if (minimap) minimap.update();
-  const encounterBillboard = setupEncounterBillboard(stageElement);
+  const encounterBillboard = setupEncounterBillboard(stageElement, hud);
   if (encounterBillboard?.sync) encounterBillboard.sync();
   if (typeof window !== 'undefined') {
     window.__bt3_encounterBillboard = encounterBillboard;
@@ -1170,6 +1269,8 @@ main();
         setParty() {},
         setActions() {},
         clearActions() {},
+        showEncounterArt() {},
+        hideEncounterArt() {},
         redraw() {},
       };
     }
