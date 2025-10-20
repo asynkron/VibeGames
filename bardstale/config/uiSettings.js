@@ -2,12 +2,6 @@
 // Keeping these values in one place makes it easy to experiment with the
 // presentation without digging through rendering code.
 
-export const RETRO_SURFACE_SIZE = 256;
-export const RETRO_COLOR_COUNT = 64;
-// Each colour channel is quantised to the same number of steps so that the
-// combined palette stays within the requested 64 shades (4 × 4 × 4).
-export const RETRO_COLOR_LEVELS_PER_CHANNEL = 4;
-
 const UI_FONT_FAMILY = '"Press Start 2P", "VT323", monospace';
 
 export const UI_SETTINGS = Object.freeze({

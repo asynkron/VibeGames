@@ -4,9 +4,6 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
 import {
-  RETRO_SURFACE_SIZE,
-  RETRO_COLOR_COUNT,
-  RETRO_COLOR_LEVELS_PER_CHANNEL,
   UI_SETTINGS,
   createPartyPanelRect,
 } from './config/uiSettings.js';
@@ -106,21 +103,6 @@ function hexToRgb(hex) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
-}
-
-function quantizeComponent(value, steps) {
-  const stepCount = Math.max(2, steps);
-  const scaled = Math.round((value / 255) * (stepCount - 1));
-  return Math.round((scaled / Math.max(1, stepCount - 1)) * 255);
-}
-
-function quantizeImageData(data, steps) {
-  const stepCount = Math.max(2, steps);
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = quantizeComponent(data[i], stepCount);
-    data[i + 1] = quantizeComponent(data[i + 1], stepCount);
-    data[i + 2] = quantizeComponent(data[i + 2], stepCount);
-  }
 }
 
 function createStoneTexture(baseHex, options = {}) {
@@ -701,43 +683,6 @@ function setupEncounterBillboard(stageElement) {
   let currentUrl = '';
   let loadToken = 0;
 
-  const offscreen = document.createElement('canvas');
-  offscreen.width = RETRO_SURFACE_SIZE;
-  offscreen.height = RETRO_SURFACE_SIZE;
-  const offscreenCtx = offscreen.getContext('2d');
-  if (offscreenCtx) {
-    offscreenCtx.imageSmoothingEnabled = false;
-  }
-
-  function preprocessEncounterImage(sourceImage) {
-    if (!offscreenCtx) return '';
-    const naturalWidth = Math.max(1, sourceImage.naturalWidth || sourceImage.width || RETRO_SURFACE_SIZE);
-    const naturalHeight = Math.max(1, sourceImage.naturalHeight || sourceImage.height || RETRO_SURFACE_SIZE);
-    const scale = RETRO_SURFACE_SIZE / naturalWidth;
-    const sourceHeight = Math.min(naturalHeight, Math.round(RETRO_SURFACE_SIZE / Math.max(scale, 1e-6)));
-    offscreenCtx.clearRect(0, 0, offscreen.width, offscreen.height);
-    offscreenCtx.drawImage(
-      sourceImage,
-      0,
-      0,
-      naturalWidth,
-      sourceHeight,
-      0,
-      0,
-      RETRO_SURFACE_SIZE,
-      RETRO_SURFACE_SIZE,
-    );
-    try {
-      const imageData = offscreenCtx.getImageData(0, 0, RETRO_SURFACE_SIZE, RETRO_SURFACE_SIZE);
-      quantizeImageData(imageData.data, COLOR_LEVEL_STEPS);
-      offscreenCtx.putImageData(imageData, 0, 0);
-      return offscreen.toDataURL();
-    } catch (err) {
-      console.warn('Encounter art preprocessing failed', err);
-      return '';
-    }
-  }
-
   function hide() {
     currentUrl = '';
     loadToken += 1;
@@ -753,37 +698,18 @@ function setupEncounterBillboard(stageElement) {
       return;
     }
 
-    if (currentUrl === url && img.complete && img.naturalWidth > 0) {
-      container.classList.add('is-visible');
-      return;
-    }
-
     const token = ++loadToken;
     currentUrl = url;
     container.classList.remove('is-visible');
-    img.onload = null;
-    img.onerror = null;
-
-    const loader = new Image();
-    loader.decoding = 'async';
-    loader.onload = () => {
+    img.onload = () => {
       if (token !== loadToken || currentUrl !== url) return;
-      const processedUrl = preprocessEncounterImage(loader) || url;
-      img.onload = () => {
-        if (token !== loadToken || currentUrl !== url) return;
-        container.classList.add('is-visible');
-      };
-      img.onerror = () => {
-        if (token !== loadToken) return;
-        hide();
-      };
-      img.src = processedUrl;
+      container.classList.add('is-visible');
     };
-    loader.onerror = () => {
+    img.onerror = () => {
       if (token !== loadToken) return;
       hide();
     };
-    loader.src = url;
+    img.src = url;
   }
 
   return {
@@ -911,7 +837,6 @@ function yawForDir(dir) {
 
 const SCREEN_WIDTH = UI_SETTINGS.resolution.width;
 const SCREEN_HEIGHT = UI_SETTINGS.resolution.height;
-const COLOR_LEVEL_STEPS = RETRO_COLOR_LEVELS_PER_CHANNEL || Math.max(2, Math.round(Math.cbrt(RETRO_COLOR_COUNT)));
 
 function buildScene(state) {
   const stage = document.getElementById('stage');
@@ -920,54 +845,14 @@ function buildScene(state) {
   scene.fog = new THREE.Fog(0x0a0c10, 4.5, 20);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+  const pixelScale = 0.58;
   renderer.setPixelRatio(1);
-  renderer.setSize(RETRO_SURFACE_SIZE, RETRO_SURFACE_SIZE, false);
   stage.appendChild(renderer.domElement);
   renderer.domElement.classList.add('pixel-canvas');
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
-  renderer.domElement.style.imageRendering = 'pixelated';
 
-  const renderTarget = new THREE.WebGLRenderTarget(RETRO_SURFACE_SIZE, RETRO_SURFACE_SIZE, {
-    depthBuffer: true,
-    stencilBuffer: false,
-  });
-  renderTarget.texture.minFilter = THREE.NearestFilter;
-  renderTarget.texture.magFilter = THREE.NearestFilter;
-  renderTarget.texture.generateMipmaps = false;
-
-  const postScene = new THREE.Scene();
-  const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const postMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      tDiffuse: { value: renderTarget.texture },
-      colorSteps: { value: COLOR_LEVEL_STEPS },
-    },
-    vertexShader: /* glsl */`
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = vec4(position.xy, 0.0, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */`
-      varying vec2 vUv;
-      uniform sampler2D tDiffuse;
-      uniform float colorSteps;
-      void main() {
-        vec4 texel = texture2D(tDiffuse, vUv);
-        float steps = max(2.0, colorSteps);
-        vec3 quantised = floor(texel.rgb * (steps - 1.0) + 0.5) / (steps - 1.0);
-        gl_FragColor = vec4(quantised, texel.a);
-      }
-    `,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
-  postScene.add(postQuad);
-
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.05, 200);
+  const camera = new THREE.PerspectiveCamera(60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
 
   const ambient = new THREE.AmbientLight(0xbcb6a8, 0.42);
   const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.7);
@@ -1065,26 +950,21 @@ function buildScene(state) {
   camera.position.set(0, eye, 0);
   player.add(camera);
 
-  function renderDungeon() {
-    renderer.setRenderTarget(renderTarget);
-    renderer.clear();
-    renderer.render(scene, camera);
-    renderer.setRenderTarget(null);
-    renderer.render(postScene, postCamera);
-  }
-
   function onResize() {
     if (!stage) return;
     const rect = stage.getBoundingClientRect();
     const w = Math.max(1, rect.width || SCREEN_WIDTH);
     const h = Math.max(1, rect.height || SCREEN_HEIGHT);
+    renderer.setSize(w * pixelScale, h * pixelScale, false);
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
   onResize();
   window.addEventListener('resize', onResize);
 
-  return { stage, scene, renderer, camera, player, renderDungeon };
+  return { stage, scene, renderer, camera, player };
 }
 
 function parseOptsFromURL() {
@@ -1218,7 +1098,7 @@ function main() {
       }
     }
 
-    g.renderDungeon();
+    g.renderer.render(g.scene, g.camera);
     requestAnimationFrame(step);
   }
 
