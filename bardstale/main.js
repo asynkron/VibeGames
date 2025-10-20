@@ -225,6 +225,153 @@ function createWoodTexture(baseHex, options = {}) {
   return texture;
 }
 
+function createMinimapOverlay(screenElement, state) {
+  // Draw a dungeon overview derived from visited cells and overlay it on demand.
+  if (typeof document === 'undefined' || !screenElement) return null;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'minimap-overlay';
+  overlay.setAttribute('aria-hidden', 'true');
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  overlay.appendChild(canvas);
+
+  const hint = document.createElement('div');
+  hint.className = 'minimap-hint';
+  hint.textContent = 'Press M or Esc to close';
+  overlay.appendChild(hint);
+
+  screenElement.appendChild(overlay);
+
+  const ctx = canvas.getContext('2d');
+  const cellSize = 18;
+  const margin = 32;
+  const corridorColor = '#46536a';
+  const doorColor = '#c4873e';
+  const tileColor = '#1e2737';
+  const tileOutline = 'rgba(112, 130, 162, 0.32)';
+  const playerColor = '#f4d28a';
+  const headingColor = '#ffe9b3';
+  const wallThickness = Math.max(2, Math.round(cellSize * 0.25));
+
+  function ensureSize() {
+    const desiredWidth = margin * 2 + state.width * cellSize;
+    const desiredHeight = margin * 2 + state.height * cellSize;
+    if (canvas.width !== desiredWidth || canvas.height !== desiredHeight) {
+      canvas.width = desiredWidth;
+      canvas.height = desiredHeight;
+    }
+  }
+
+  function drawHeading(cx, cy) {
+    const size = cellSize * 0.55;
+    const half = size / 2;
+    ctx.fillStyle = headingColor;
+    ctx.beginPath();
+    if (state.dir === DIR.N) {
+      ctx.moveTo(cx, cy - half);
+      ctx.lineTo(cx - half * 0.6, cy + half);
+      ctx.lineTo(cx + half * 0.6, cy + half);
+    } else if (state.dir === DIR.S) {
+      ctx.moveTo(cx - half * 0.6, cy - half);
+      ctx.lineTo(cx + half * 0.6, cy - half);
+      ctx.lineTo(cx, cy + half);
+    } else if (state.dir === DIR.E) {
+      ctx.moveTo(cx - half, cy - half * 0.6);
+      ctx.lineTo(cx + half, cy);
+      ctx.lineTo(cx - half, cy + half * 0.6);
+    } else {
+      ctx.moveTo(cx + half, cy - half * 0.6);
+      ctx.lineTo(cx - half, cy);
+      ctx.lineTo(cx + half, cy + half * 0.6);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function draw() {
+    ensureSize();
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(5, 7, 10, 0.94)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(margin, margin);
+
+    for (let y = 0; y < state.height; y++) {
+      for (let x = 0; x < state.width; x++) {
+        const cell = state.cells[y][x];
+        const px = x * cellSize;
+        const py = y * cellSize;
+        ctx.strokeStyle = tileOutline;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, cellSize - 1, cellSize - 1);
+        if (!cell.visited) continue;
+
+        ctx.fillStyle = tileColor;
+        ctx.fillRect(px + wallThickness, py + wallThickness, cellSize - wallThickness * 2, cellSize - wallThickness * 2);
+
+        for (const dir of [DIR.N, DIR.E, DIR.S, DIR.W]) {
+          const wall = getWall(state.cells, state.width, state.height, x, y, dir);
+          if (wall === WALL.WALL) continue;
+          ctx.fillStyle = wall === WALL.DOOR ? doorColor : corridorColor;
+          if (dir === DIR.N) {
+            ctx.fillRect(px + wallThickness, py, cellSize - wallThickness * 2, wallThickness + 1);
+          } else if (dir === DIR.S) {
+            ctx.fillRect(px + wallThickness, py + cellSize - wallThickness - 1, cellSize - wallThickness * 2, wallThickness + 1);
+          } else if (dir === DIR.E) {
+            ctx.fillRect(px + cellSize - wallThickness - 1, py + wallThickness, wallThickness + 1, cellSize - wallThickness * 2);
+          } else if (dir === DIR.W) {
+            ctx.fillRect(px, py + wallThickness, wallThickness + 1, cellSize - wallThickness * 2);
+          }
+        }
+      }
+    }
+
+    const playerPx = state.x * cellSize + cellSize / 2;
+    const playerPy = state.y * cellSize + cellSize / 2;
+    ctx.fillStyle = playerColor;
+    ctx.beginPath();
+    ctx.arc(playerPx, playerPy, Math.max(3, cellSize * 0.25), 0, Math.PI * 2);
+    ctx.fill();
+    drawHeading(playerPx, playerPy);
+
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(244, 210, 138, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(16.5, 16.5, canvas.width - 33, canvas.height - 33);
+  }
+
+  function show() {
+    overlay.classList.add('is-visible');
+    overlay.setAttribute('aria-hidden', 'false');
+    draw();
+  }
+
+  function hide() {
+    overlay.classList.remove('is-visible');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  overlay.addEventListener('click', (event) => {
+    event.preventDefault();
+    hide();
+  });
+
+  return {
+    show,
+    hide,
+    toggle() { if (overlay.classList.contains('is-visible')) hide(); else show(); },
+    isVisible() { return overlay.classList.contains('is-visible'); },
+    update: draw,
+  };
+}
+
 function createHudRenderer(canvas, stageElement) {
   const pixel = createPixelContext(canvas, { alpha: true });
   const ctx = pixel.ctx;
@@ -842,12 +989,15 @@ function main() {
 
   const hudCanvas = document.getElementById('hud');
   const stageElement = document.getElementById('stage');
+  const screenElement = document.getElementById('screen');
   const hud = hudCanvas ? createHudRenderer(hudCanvas, stageElement) : null;
   if (typeof window !== 'undefined') {
     window.__bt3_hud = hud;
   }
 
   const g = buildScene(state);
+  const minimap = createMinimapOverlay(screenElement, state);
+  if (minimap) minimap.update();
   const encounterBillboard = setupEncounterBillboard(stageElement);
   if (encounterBillboard?.sync) encounterBillboard.sync();
   if (typeof window !== 'undefined') {
@@ -870,6 +1020,7 @@ function main() {
   function startMove(dirSign) { // +1 forward, -1 backward
     if (anim) return;
     if (typeof window !== 'undefined' && window.__bt3_isCombatActive) return;
+    if (minimap?.isVisible()) return;
     const dirToUse = (dirSign === 1) ? state.dir : backOf(state.dir);
     const ok = dirSign === 1 ? canMoveForward() : canMoveBackward();
     if (!ok) return;
@@ -883,11 +1034,13 @@ function main() {
     anim = { type: 'move', start: performance.now(), duration: 280, fromPos, toPos };
     // Commit logical cell at the end of the motion
     state.x = nx; state.y = ny; cells[state.y][state.x].visited = true;
+    if (minimap) minimap.update();
   }
 
   function startTurn(left) {
     if (anim) return;
     if (typeof window !== 'undefined' && window.__bt3_isCombatActive) return;
+    if (minimap?.isVisible()) return;
     const fromYaw = g.player.rotation.y;
     state.dir = left ? leftOf(state.dir) : rightOf(state.dir);
     const toYawIdeal = yawForDir(state.dir);
@@ -896,9 +1049,27 @@ function main() {
     while (delta > Math.PI) delta -= 2 * Math.PI;
     while (delta < -Math.PI) delta += 2 * Math.PI;
     anim = { type: 'turn', start: performance.now(), duration: 220, fromYaw, toYaw: fromYaw + delta };
+    if (minimap) minimap.update();
   }
 
   function onKey(ev) {
+    if (ev.key === 'm' || ev.key === 'M') {
+      ev.preventDefault();
+      if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+      if (minimap) minimap.toggle();
+      return;
+    }
+    if (ev.key === 'Escape' && minimap?.isVisible()) {
+      ev.preventDefault();
+      if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+      minimap.hide();
+      return;
+    }
+    if (minimap?.isVisible()) {
+      ev.preventDefault();
+      if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+      return;
+    }
     if (ev.key === 'ArrowLeft') { ev.preventDefault(); if (!anim) startTurn(true); else keyQueued = 'L'; }
     else if (ev.key === 'ArrowRight') { ev.preventDefault(); if (!anim) startTurn(false); else keyQueued = 'R'; }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); if (!anim) startMove(+1); else keyQueued = 'F'; }
