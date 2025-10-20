@@ -45,3 +45,5 @@ Recent fixes
 - Added: simple 2-frame animations, jumper AI, spawn dispatcher
 - Fix: repaired applyLevel closure and rebuilt enemy spawn dispatch
 - Fix: repaired Player vs bubble collision block and riding tap-pop for EXTEND drops and proper braces
+- Visuals: added C64-style pastel 8x8 backdrop with offscreen rendering and fake 3D tile shadows (solid: right/bottom, semi-solid: slim top). No gameplay changes.
+- Visuals: render order adjusted so backdrop blits after black clear, ensuring visibility.

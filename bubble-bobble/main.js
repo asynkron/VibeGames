@@ -11,6 +11,14 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('2D context not available');
 ctx.imageSmoothingEnabled = false;
+// Backdrop (C64-style 8x8 pattern + tile shadows)
+const BACKDROP_8 = { canvas: document.createElement('canvas'), ctx: null, dirty: true, roundSeed: 0 };
+function initBackdropCanvas() { BACKDROP_8.canvas.width = canvas.width; BACKDROP_8.canvas.height = canvas.height; BACKDROP_8.ctx = BACKDROP_8.canvas.getContext('2d'); if (BACKDROP_8.ctx) BACKDROP_8.ctx.imageSmoothingEnabled = false; }
+function seededRand(seed) { let x = Math.imul((seed|0) ^ 0x9e3779b1, 0x85ebca6b) >>> 0; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 0xFFFFFFFF; }; }
+function pickPastel(rand) { const pals = ['#142850','#0f3057','#2a4b7c','#4d648d','#6e7f9a','#8aa2a9','#a3c6c4','#b8d8d8','#dce2f0']; return pals[Math.floor(rand()*pals.length)]; }
+function drawC64BackdropPattern(ctx,w,h,seed) { const rand = seededRand(seed); const base = pickPastel(rand); ctx.fillStyle = base; ctx.fillRect(0,0,w,h); const CHAR=8; ctx.globalAlpha = 0.08; ctx.fillStyle = '#ffffff'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 0.05; ctx.fillStyle = '#000000'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) continue; ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 1; }
+function drawTileShadows(ctx) { if (!Array.isArray(TILES)) return; const ts=TS|0; if (ts<=0) return; for (let ty=0; ty<ROWS; ty++){ for (let tx=0; tx<COLS; tx++){ const t = tileTypeAt(tx,ty); if (t===0) continue; const px=Math.floor(tx*ts), py=Math.floor(ty*ts); if (t===1){ ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(px + ts, py + 2, 2, ts - 4); ctx.fillRect(px + 2, py + ts, ts - 2, 2); ctx.fillRect(px + ts - 1, py + ts - 1, 3, 3); } else if (t===2){ ctx.fillStyle='rgba(0,0,0,0.14)'; ctx.fillRect(px + 1, py + 1, ts - 2, 2); ctx.fillRect(px + ts, py + 1, 1, 2); } } } }
+function rebuildBackdrop(roundSeed) { if (!BACKDROP_8.ctx) initBackdropCanvas(); const b=BACKDROP_8.ctx; if(!b) return; BACKDROP_8.roundSeed=(roundSeed|0); drawC64BackdropPattern(b, BACKDROP_8.canvas.width, BACKDROP_8.canvas.height, BACKDROP_8.roundSeed); drawTileShadows(b); BACKDROP_8.dirty=false; }
 
 const crtFrame = document.querySelector('.screen.crt-frame');
 const crtSettings = createDefaultCrtSettings();
@@ -192,6 +200,8 @@ function applyLevel(idx) {
   // enemies from level
   if (Array.isArray(L.enemySpawns)) {
     for (const sp of L.enemySpawns) { dispatchSpawn(sp); }
+  BACKDROP_8.dirty = true;
+
   }
 }
 
@@ -411,7 +421,12 @@ function drawTiles() {
 }
 
 function render() {
+
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Backdrop
+  if (BACKDROP_8.dirty) rebuildBackdrop(world.round || 1);
+  if (BACKDROP_8.ctx) ctx.drawImage(BACKDROP_8.canvas, 0, 0);
+
   drawBackground();
   drawTiles(); drawBubbles(); drawEnemies(); drawPickups(); drawPlayer();
   ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textBaseline = 'top';
