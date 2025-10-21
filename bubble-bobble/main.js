@@ -210,25 +210,22 @@ let stateTimer = 0.9; // shorter intro so testing is snappier
 function applyLevel(idx) {
   const L = LEVELS[idx % LEVELS.length];
   CURRENT_LEVEL = L;
-  TS = L.tileSize; COLS = L.width; ROWS = L.height; TILES = L.tiles;
-  // reset world actors
-  bubbles.length = 0; enemies.length = 0; pickups.length = 0;
-  // player spawn
-  player.x = (TILE_MIGRATION.mode==='8'?2:1)*(L.playerSpawn.x + 0.1) * TS;/*ts8*/ player.y = (TILE_MIGRATION.mode==='8'?2:1)*(L.playerSpawn.y + 0.1) * TS;/*ts8*/
-  player.vx = 0; player.vy = 0; player.dir = 1; player.onGround = false; player.canJump = false; player.shootCooldown = 0; player.ridingBubble = -1;
-  // enemies from level
-  if (Array.isArray(L.enemySpawns)) {
-    for (const sp of L.enemySpawns) { dispatchSpawn(sp);
-  // 8x8 migration stage: expand map and switch TS when enabled
-  if (TILE_MIGRATION.mode === '8') {
-    const _cols = COLS, _rows = ROWS, _tiles = TILES;
-    const ex = expandTilesTo8(_tiles, _cols, _rows);
+  COLS = L.width; ROWS = L.height; TILES = L.tiles;
+  if (TILE_MIGRATION.mode === "8") {
+    const ex = expandTilesTo8(TILES, COLS, ROWS);
     COLS = ex.cols; ROWS = ex.rows; TILES = ex.tiles; TS = 8;
-  } else { TS = 16; }
-  BACKDROP_8.dirty = true;
-
+  } else {
+    TS = 16;
   }
-}
+  bubbles.length = 0; enemies.length = 0; pickups.length = 0;
+  const base = 16;
+  player.x = (L.playerSpawn.x + 0.1) * base;
+  player.y = (L.playerSpawn.y + 0.1) * base;
+  player.vx = 0; player.vy = 0; player.dir = 1; player.onGround = false; player.canJump = false; player.shootCooldown = 0; player.ridingBubble = -1;
+  if (Array.isArray(L.enemySpawns)) {
+    for (const sp of L.enemySpawns) { dispatchSpawn(sp); }
+  }
+  BACKDROP_8.dirty = true;
 }
 
 function loseLife() {
