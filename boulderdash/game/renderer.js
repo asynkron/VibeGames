@@ -1,9 +1,7 @@
 import { createPixelContext } from '../../shared/render/pixelCanvas.js';
-import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
-import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
+import { initGameCrt } from '../../shared/ui/gameCrt.js';
 import { createOverlayFX } from '../../shared/fx/overlay.js';
 import {
-  DEFAULT_SCANLINE_ALPHA_RANGE,
   createDefaultCrtSettings,
 } from '../../shared/config/display.js';
 
@@ -39,24 +37,13 @@ export function createRenderer(canvas, assets) {
     return viewport;
   }
 
-  const crtFrame = document.getElementById('root');
-  const syncScanlines = (amount) => {
-    if (!crtFrame) return;
-    applyScanlineIntensity(crtFrame, amount, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
-  };
-
   const crtSettings = createDefaultCrtSettings();
-  const crtControls = createCrtControls({
+  const { post: crtPost } = initGameCrt({
     storageKey: 'boulderdash_crt_settings',
-    defaults: createDefaultCrtSettings(),
-    onChange: (next) => {
-      Object.assign(crtSettings, next);
-      syncScanlines(next.scanlines);
-    },
+    settings: crtSettings,
+    targetContext: ctx,
+    frameElement: document.getElementById('root'),
   });
-  Object.assign(crtSettings, crtControls.getSettings());
-  syncScanlines(crtSettings.scanlines);
-  const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
   const overlayFx = createOverlayFX({ ctx, width: canvas.width, height: canvas.height });
   updateViewport();
 

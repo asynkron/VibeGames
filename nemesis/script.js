@@ -1,13 +1,11 @@
 import { createBeeper } from '../shared/audio/beeper.js';
 import { createDPad } from '../shared/input/dpad.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
-import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtControls.js';
-import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
+import { initGameCrt } from '../shared/ui/gameCrt.js';
 import { createOverlayFX } from '../shared/fx/overlay.js';
 import { applyAmbientLighting } from '../shared/fx/lighting.js';
 import {
   DEFAULT_TILE_SIZE,
-  DEFAULT_SCANLINE_ALPHA_RANGE,
   createDefaultCrtSettings,
 } from '../shared/config/display.js';
 
@@ -16,25 +14,13 @@ import {
   const pixel = createPixelContext(canvas, { alpha: false });
   const { ctx } = pixel;
 
-  const crtFrame = document.querySelector('.screen.crt-frame');
-  const syncScanlines = (value) => {
-    if (!crtFrame) return;
-    applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
-  };
-
   const crtSettings = createDefaultCrtSettings({ warp: 0.1, aberration: 0.07 });
-  const crtControls = createCrtControls({
+  const { post: crtPost } = initGameCrt({
     storageKey: 'nemesis_crt_settings',
+    settings: crtSettings,
     defaults: crtSettings,
-    onChange: (next) => {
-      Object.assign(crtSettings, next);
-      syncScanlines(next.scanlines);
-    },
+    targetContext: ctx,
   });
-  Object.assign(crtSettings, crtControls.getSettings?.() ?? {});
-  syncScanlines(crtSettings.scanlines);
-
-  const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
   const overlay = createOverlayFX({ ctx, width: canvas.width, height: canvas.height });
   const { startShockwave, drawShockwave, screenFlash, drawFlash, startIris, drawIris, setBounds } = overlay;
 

@@ -7,11 +7,9 @@ import { createToastManager } from '../shared/fx/toast.js';
 import { createOverlayFX } from '../shared/fx/overlay.js';
 import { drawGlowBatch, rgbaFromHex } from '../shared/fx/glow.js';
 import { applyAmbientLighting } from '../shared/fx/lighting.js';
-import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtControls.js';
-import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
+import { initGameCrt } from '../shared/ui/gameCrt.js';
 import {
   DEFAULT_TILE_SIZE,
-  DEFAULT_SCANLINE_ALPHA_RANGE,
   createDefaultCrtSettings,
 } from '../shared/config/display.js';
 
@@ -47,12 +45,6 @@ import {
   } = createOverlayFX({ ctx: screen, width: WIDTH, height: HEIGHT });
 
   // Settings for lighting and glow (more settings added in later phases)
-  const crtFrame = document.querySelector('.screen.crt-frame');
-  const syncScanlines = (value) => {
-    if (!crtFrame) return;
-    applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
-  };
-
   const settings = {
     crt: createDefaultCrtSettings(),
     lighting: {
@@ -143,21 +135,11 @@ import {
   updateHUD();
 
   // Shared CRT controller (settings + sliders)
-  const crtControls = createCrtControls({
+  const { post: crtPost } = initGameCrt({
     storageKey: 'pacman_crt_settings',
-    defaults: settings.crt,
-    onChange: (next) => {
-      Object.assign(settings.crt, next);
-      syncScanlines(next.scanlines);
-    },
-  });
-  Object.assign(settings.crt, crtControls.getSettings());
-  syncScanlines(settings.crt.scanlines);
-
-  const crtPost = createCrtPostProcessor({
+    settings: settings.crt,
     targetContext: screen,
     defaultSource: scene,
-    settings: settings.crt,
   });
 
 
