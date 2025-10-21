@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Battle AI</title>
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="screen battle-ai-screen crt-frame">
+    <canvas id="game" width="720" height="480"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div id="hud" class="retro-hud battle-ai-hud">
+      <div class="retro-controls">
+        <span id="hud-blue">Blue Units: 0</span>
+        <span id="hud-red">Red Units: 0</span>
+        <span id="hud-score">Score 0 : 0</span>
+      </div>
+      <div class="retro-controls control-buttons">
+        <button type="button" class="retro-button" data-team="blue">Deploy Blue Squad</button>
+        <button type="button" class="retro-button" data-team="red">Deploy Red Squad</button>
+        <button type="button" class="retro-button" data-action="auto">Auto Deploy: On</button>
+        <button type="button" class="retro-button" data-action="reset">Reset Arena</button>
+      </div>
+      <div class="retro-hud-message" id="hud-msg">
+        Left click inside the arena to set the active team rally point.
+      </div>
+    </div>
+  </div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
