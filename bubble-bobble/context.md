@@ -87,3 +87,15 @@ Map scaling update (2×)
 - Spawns scaled by 2× (playerSpawn, enemySpawns).
 - Sprites remain 32×32; wrap uses world width (COLS*TS).
 - Syntax checks pass for all levels.
+
+Fixes (2025-10-21)
+- Sprite flip: Added player.facing with default 1 and update each frame from vx/dir; draw uses facing<0 for flip.
+- Bubble riding: Widened mount window proportional to bubble radius, allowed slight upward approach, zeroed/synced vertical position while riding.
+- Fix: cleaned Riding tap-pop block after resolution edits (merged duplicate else, keep player synced to bubble, Down/Space pops).
+- Bubble riding tuning (2025-10-21):
+  - Mount requires centered horizontally (HORIZ_MARGIN = max(6, floor(r*0.6))) and reduced vertical window (MOUNT_MARGIN = max(4, floor(r*0.5))).
+  - While riding, player is carried by bubble (x += b.vx*dt) and will auto-dismount if moving off top (|center delta| > max(8, r-2)).
+  - Adjustments: increase HORIZ_MARGIN/MOUNT_MARGIN for easier mounts; lower rideMargin for quicker dismount.
+- Visual tuning (2025-10-21):
+  - Bubbles enlarged via spawnBubbleFromPlayer (r ≈ TS*1.35) and consistent spawn offset uses r.
+  - Carried enemies inside bubbles render semi-transparent (alpha 0.6).

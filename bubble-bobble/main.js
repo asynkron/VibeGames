@@ -100,7 +100,7 @@ let extendCollected = [false,false,false,false,false,false];
 function extendReset(){ extendCollected = [false,false,false,false,false,false]; updateExtendHUD(); }
 function updateExtendHUD(){ const ids=['L_E','L_X','L_T','L_E2','L_N','L_D']; for (let i=0;i<6;i++){ const el=document.getElementById(ids[i]); if (el) el.style.opacity = extendCollected[i] ? '1' : '0.25'; } }
 
-const player = { x: 0, y: 0, w: 32, h: 32, vx: 0, vy: 0, dir: 1, onGround: false, canJump: false, shootCooldown: 0, ridingBubble: -1, animTime: 0, animFrame: 0 };
+const player = { x: 0, y: 0, w: 32, h: 32, vx: 0, vy: 0, dir: 1, facing: 1, onGround: false, canJump: false, shootCooldown: 0, ridingBubble: -1, animTime: 0, animFrame: 0 };
 const bubbles = []; const enemies = []; const pickups = [];
 
 // Tunables
@@ -170,13 +170,14 @@ function wrapEntity(e) {
 }
 
 function spawnBubbleFromPlayer() {
-  const r = 12;
+  const r = Math.max(12, Math.floor(TS * 1.35));
   // Place the bubble clearly in front of the player to avoid instant overlap
   const dx = (player.dir > 0 ? (player.w / 2 + r + 4) : -(player.w / 2 + r + 4));
   const px = player.x + player.w / 2 + dx;
   const py = player.y + player.h / 2 - 2;
-  bubbles.push({ x: px, y: py, r: 12, vx: player.dir * 18, vy: -26, life: 3.2, carrying: null, spawnGrace: 0.45 });
+  bubbles.push({ x: px, y: py, r: r, vx: player.dir * 18, vy: -26, life: 3.2, carrying: null, spawnGrace: 0.45 });
 }
+
 
 
 function spawnEnemy(tx, ty, dir) {
@@ -280,6 +281,10 @@ function update(dt) {
   if (keys.left) { player.vx -= ACCEL * dt; player.dir = -1; }
   if (keys.right) { player.vx += ACCEL * dt; player.dir = 1; }
   player.vx = clamp(player.vx, -MAX_VX, MAX_VX);
+  // Update facing from current velocity or last input
+  if (player.vx < 0) player.facing = -1;
+  else if (player.vx > 0) player.facing = 1;
+  else if (player.dir !== 0) player.facing = player.dir;
   player.vy += GRAV * dt;
   if (keys.up && player.canJump) { player.vy = JUMP_VY; player.canJump = false; playJump(); if (player.ridingBubble >= 0) player.ridingBubble = -1; }
   if (player.shootCooldown > 0) player.shootCooldown -= dt;
@@ -341,8 +346,11 @@ function update(dt) {
       // Mount if landing from above; otherwise pop (after grace)
       const bubbleTop = b.y - b.r;
       const playerBottom = player.y + player.h;
-      const fromAbove = (playerBottom <= bubbleTop + 6) && (player.vy >= -40);
-      if (fromAbove) {
+      const MOUNT_MARGIN = Math.max(6, Math.floor(b.r * 0.9));
+      const HORIZ_MARGIN = Math.max(8, Math.floor(b.r * 0.85));
+      const fromAbove = (playerBottom <= bubbleTop + MOUNT_MARGIN) && (player.vy >= -80);
+      const centered = Math.abs((player.x + player.w/2) - b.x) <= HORIZ_MARGIN;
+if (fromAbove && centered) {
         player.ridingBubble = i;
         player.y = bubbleTop - player.h - 0.001;
         player.vy = 0;
@@ -367,18 +375,22 @@ function update(dt) {
     }
   }
 
-  // Riding tap-pop
+    // Riding tap-pop
   if (player.ridingBubble >= 0) {
     const i = player.ridingBubble; const b = bubbles[i];
     if (!b) { player.ridingBubble = -1; }
     else {
       player.y = b.y - b.r - player.h - 0.001; player.onGround = true; player.canJump = true;
+      // Carry horizontally with the bubble
+      player.x += b.vx * dt;
+      // Auto-dismount if moved off the bubble top horizontally
+      { const cx = player.x + player.w/2; const rideMargin = Math.max(8, b.r - 2); if (Math.abs(cx - b.x) > rideMargin) { player.ridingBubble = -1; player.onGround = false; } }
       if (keys.down || (keys.shoot && player.shootCooldown <= 0)) {
         if (b.carrying) {
-        const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }
-        if (missing.length>0) { const roundIndex = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[roundIndex]); }
-        else { spawnPickup(b.x - 4, b.y - 4); }
-      }
+          const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }
+          if (missing.length>0) { const roundIndex = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[roundIndex]); }
+          else { spawnPickup(b.x - 4, b.y - 4); }
+        }
         playPop(); bubbles.splice(i, 1); player.ridingBubble = -1; player.shootCooldown = BUBBLE_CD;
       }
     }
@@ -438,7 +450,7 @@ function drawBackground() {
 function drawPlayer() {
   const bob = Math.sin(world.tick * 0.15) * 0.6;
   const y = Math.floor(player.y + bob);
-  if (SPR && SPR.player) drawSprite(ctx, SPR.player, Math.floor(player.x), y, player.w, player.h, player.facing<0);
+  if (SPR && SPR.player) drawSprite(ctx, SPR.player, Math.floor(player.x), y, player.w, player.h, player.facing <0);
   else { ctx.fillStyle = '#7ff'; ctx.fillRect(Math.floor(player.x), y, player.w, player.h); }
 }
 function drawEnemies() {
@@ -455,7 +467,7 @@ function drawBubbles() {
     if (SPR && SPR.bubble) { ctx.save(); ctx.globalAlpha = alpha; drawSprite(ctx, SPR.bubble, Math.floor(b.x - b.r), Math.floor(b.y - b.r), b.r*2, b.r*2); ctx.restore(); }
     else { ctx.strokeStyle = `rgba(180,255,255,${alpha})`; ctx.fillStyle = `rgba(90,200,220,${alpha*0.25})`; ctx.beginPath(); ctx.arc(Math.floor(b.x), Math.floor(b.y), b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
     if (b.carrying) {
-      const e = b.carrying; if (SPR && SPR.enemy) drawSprite(ctx, SPR.enemy, Math.floor(e.x), Math.floor(e.y), e.w, e.h, (typeof e.facing==='number'?e.facing<0:e.vx<0)); else { ctx.fillStyle = 'rgba(255,120,120,0.6)'; ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h); }
+      const e = b.carrying; if (SPR && SPR.enemy) { ctx.save(); ctx.globalAlpha = 0.6; drawSprite(ctx, SPR.enemy, Math.floor(e.x), Math.floor(e.y), e.w, e.h, (typeof e.facing==='number'?e.facing<0:e.vx<0)); ctx.restore(); } else { ctx.fillStyle = 'rgba(255,120,120,0.6)'; ctx.fillRect(Math.floor(e.x), Math.floor(e.y), e.w, e.h); }
     }
   }
 }
