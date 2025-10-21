@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Neon Outrun</title>
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="screen outrun-screen crt-frame">
+    <canvas id="game" width="384" height="256"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud outrun-hud">
+      <div class="retro-controls">
+        <span class="title">Neon Outrun</span>
+        <div class="stat-grid">
+          <span>Speed <span id="speed">000</span> km/h</span>
+          <span>Distance <span id="distance">0.0</span> km</span>
+          <span class="fps" id="fps"></span>
+        </div>
+      </div>
+      <div class="retro-hud-footer outrun-controls">
+        Up/W accelerate · Down/S brake · Left/Right or A/D steer · Shift turbo
+      </div>
+    </div>
+  </div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
