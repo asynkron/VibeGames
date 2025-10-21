@@ -209,7 +209,7 @@ let gameState = 'roundIntro'; // 'roundIntro' | 'playing' | 'roundClear' | 'game
 let stateTimer = 0.9; // shorter intro so testing is snappier
 
 
-  const L = LEVELS[idx % LEVELS.length];
+  const L = LEVELS[roundIndex % LEVELS.length];
   CURRENT_LEVEL = L;
   TS = L.tileSize; COLS = L.width; ROWS = L.height; TILES = L.tiles;
   // reset world actors
@@ -322,7 +322,7 @@ function update(dt) {
         // Pop only if grace elapsed
         if (b.carrying) {
           const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }
-          if (missing.length>0) { const idx = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[idx]); }
+          if (missing.length>0) { const roundIndex = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[roundIndex]); }
           else { spawnPickup(b.x - 4, b.y - 4); }
         }
         playPop(); bubbles.splice(i, 1); if (player.ridingBubble === i) player.ridingBubble = -1;
@@ -347,7 +347,7 @@ function update(dt) {
       if (keys.down || (keys.shoot && player.shootCooldown <= 0)) {
         if (b.carrying) {
         const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }
-        if (missing.length>0) { const idx = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[idx]); }
+        if (missing.length>0) { const roundIndex = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[roundIndex]); }
         else { spawnPickup(b.x - 4, b.y - 4); }
       }
         playPop(); bubbles.splice(i, 1); player.ridingBubble = -1; player.shootCooldown = BUBBLE_CD;
@@ -375,8 +375,8 @@ function update(dt) {
     if (landed) { p.vy = 0; p.y = tileY * TS - p.h - 0.001; p.vx *= 0.98; } else { p.y = nextY; }
     if (rectIntersects(player.x, player.y, player.w, player.h, p.x, p.y, p.w, p.h)) {
       if (p.kind === 'letter' && p.ch) {
-        const idx = EXTEND.indexOf(p.ch);
-        if (idx >= 0 && !extendCollected[idx]) { extendCollected[idx] = true; updateExtendHUD(); playPickup(); }
+        const roundIndex = EXTEND.indexOf(p.ch);
+        if (roundIndex >= 0 && !extendCollected[roundIndex]) { extendCollected[roundIndex] = true; updateExtendHUD(); playPickup(); }
         if (extendCollected.every(Boolean)) { world.lives = Math.min(world.lives + 1, 9); world.score += 10000; extendReset(); }
       } else {
         world.score += PICKUP_SCORE; if (world.score > world.hi) world.hi = world.score; playPickup();
@@ -488,7 +488,7 @@ function drawOverlay(ctx) {
     ctx.fillStyle = '#0f0';
     let y = 6; const line = (s)=>{ ctx.fillText(s, 8, y); y += 12; };
     line(`TS=${TS} COLS=${COLS} ROWS=${ROWS}`);
-    line(`mode=${TILE_MIGRATION.mode} round=${world.round} idx=${roundIndex}`);
+    line(`mode=${TILE_MIGRATION.mode} round=${world.round} roundIndex=${roundIndex}`);
     line(`px=${(player.x|0)} py=${(player.y|0)}`);
     line(`vx=${player.vx.toFixed(1)} vy=${player.vy.toFixed(1)}`);
     line(`enemies=${enemies.length} bubbles=${bubbles.length}`);
