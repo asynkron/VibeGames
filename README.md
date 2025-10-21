@@ -15,7 +15,6 @@ Each game is also directly accessible:
 - https://asynkron.github.io/VibeGames/pacman/
 - https://asynkron.github.io/VibeGames/snake/
 - https://asynkron.github.io/VibeGames/defender/
-- https://asynkron.github.io/VibeGames/battle-ai/
 - https://asynkron.github.io/VibeGames/battle-isle/
 
 ### Enable the site
