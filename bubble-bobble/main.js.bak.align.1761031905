@@ -46,6 +46,7 @@ function tileTypeAt(tx, ty) { return inBounds(tx, ty) ? TILES[tileIndex(tx, ty)]
 function solidAt(tx, ty) { return tileTypeAt(tx, ty) === 1; }
 function groundAt(tx, ty) { const t = tileTypeAt(tx, ty); return t === 1 || t === 2; }
 
+
 // 8x8 migration helpers (expand each 16px tile into 2x2 of 8px tiles)
 const TILE_MIGRATION = { mode: '8' }; // '8' or '16'
 function expandTilesTo8(srcTiles, cols, rows) {
@@ -100,20 +101,12 @@ let extendCollected = [false,false,false,false,false,false];
 function extendReset(){ extendCollected = [false,false,false,false,false,false]; updateExtendHUD(); }
 function updateExtendHUD(){ const ids=['L_E','L_X','L_T','L_E2','L_N','L_D']; for (let i=0;i<6;i++){ const el=document.getElementById(ids[i]); if (el) el.style.opacity = extendCollected[i] ? '1' : '0.25'; } }
 
-const player = { x: 0, y: 0, w: 32, h: 32, vx: 0, vy: 0, dir: 1, onGround: false, canJump: false, shootCooldown: 0, ridingBubble: -1, animTime: 0, animFrame: 0 };
+const player = { x: 0, y: 0, w: 48, h: 48, vx: 0, vy: 0, dir: 1, onGround: false, canJump: false, shootCooldown: 0, ridingBubble: -1  , animTime: 0, animFrame: 0 };
 const bubbles = []; const enemies = []; const pickups = [];
 
 // Tunables
-const ACCEL = 450;
-const FRICTION = 2400;
-const MAX_VX = 90;
-const GRAV = 900;
-const JUMP_VY = -260;
-const HITBOX_MARGIN = 1.0; // inset for collision checks (px)
-const BUBBLE_CD = 0.35;
-const ENEMY_SPEED = 40;
-const PICKUP_SCORE = 100;
-const STOP_EPS = 4;
+const ACCEL = 450; const FRICTION = 800; const MAX_VX = 90; const GRAV = 900; const JUMP_VY = -260;
+const BUBBLE_CD = 0.35; const ENEMY_SPEED = 40; const PICKUP_SCORE = 100;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function rectIntersects(ax, ay, aw, ah, bx, by, bw, bh) { return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by; }
@@ -123,10 +116,10 @@ function moveAndCollide(p, dt) {
   // Horizontal
   let newX = p.x + p.vx * dt;
   if (p.vx > 0) {
-    const right = newX + p.w - HITBOX_MARGIN; const tileX = Math.floor(right / TS); const top = Math.floor((p.y + HITBOX_MARGIN) / TS); const bottom = Math.floor(((p.y + p.h - HITBOX_MARGIN - 0.001)) / TS);
+    const right = newX + p.w; const tileX = Math.floor(right / TS); const top = Math.floor(p.y / TS); const bottom = Math.floor((p.y + p.h - 0.001) / TS);
     for (let ty = top; ty <= bottom; ty++) { if (solidAt(tileX, ty)) { newX = tileX * TS - p.w - 0.001; p.vx = 0; break; } }
   } else if (p.vx < 0) {
-    const left = Math.floor((newX + HITBOX_MARGIN) / TS); const top = Math.floor((p.y + HITBOX_MARGIN) / TS); const bottom = Math.floor(((p.y + p.h - HITBOX_MARGIN - 0.001)) / TS);
+    const left = Math.floor(newX / TS); const top = Math.floor(p.y / TS); const bottom = Math.floor((p.y + p.h - 0.001) / TS);
     for (let ty = top; ty <= bottom; ty++) { if (solidAt(left, ty)) { newX = (left + 1) * TS + 0.001; p.vx = 0; break; } }
   }
   p.x = newX;
@@ -156,7 +149,7 @@ function moveAndCollide(p, dt) {
       }
     }
   } else if (p.vy < 0) {
-    const tileY = Math.floor((newY + HITBOX_MARGIN) / TS);
+    const tileY = Math.floor(newY / TS);
     const left = Math.floor(p.x / TS); const right = Math.floor((p.x + p.w - 0.001) / TS);
     for (let tx = left; tx <= right; tx++) { if (solidAt(tx, tileY)) { newY = (tileY + 1) * TS + 0.001; p.vy = 0; break; } }
   }
@@ -164,45 +157,40 @@ function moveAndCollide(p, dt) {
 }
 
 function wrapEntity(e) {
-  const W = COLS * TS;
+  const W = canvas.width;
   if (e.x + e.w < 0) e.x = W - e.w;
   else if (e.x > W) e.x = 0;
 }
 
 function spawnBubbleFromPlayer() {
-  const r = 12;
+  const r = 5;
   // Place the bubble clearly in front of the player to avoid instant overlap
   const dx = (player.dir > 0 ? (player.w / 2 + r + 4) : -(player.w / 2 + r + 4));
   const px = player.x + player.w / 2 + dx;
   const py = player.y + player.h / 2 - 2;
-  bubbles.push({ x: px, y: py, r: 12, vx: player.dir * 18, vy: -26, life: 3.2, carrying: null, spawnGrace: 0.45 });
+  bubbles.push({ x: px, y: py, r: 6, vx: player.dir * 18, vy: -26, life: 3.2, carrying: null, spawnGrace: 0.45 });
 }
 
-
 function spawnEnemy(tx, ty, dir) {
-  const w = 32, h = 32;
-  // Find nearest ground row around requested (tx,ty)
+  const w = 48, h = 48;
   let groundRow = -1;
-  const t0 = tileTypeAt(tx, ty);
-  if (t0 === 1 || t0 === 2) {
+  const t = tileTypeAt(tx, ty);
+  if (t === 1 || t === 2) {
     groundRow = ty;
+  } else if (groundAt(tx, ty + 1)) {
+    groundRow = ty + 1;
+  } else {
+    for (let r = ty + 1; r < ROWS; r++) { if (groundAt(tx, r)) { groundRow = r; break; } }
   }
-  if (groundRow < 0) {
-    for (let r = ty + 1; r < Math.min(ROWS, ty + 30); r++) { if (groundAt(tx, r)) { groundRow = r; break; } }
-  }
-  if (groundRow < 0) {
-    for (let r = ty; r >= Math.max(0, ty - 30); r--) { if (groundAt(tx, r)) { groundRow = r; break; } }
-  }
-  if (groundRow < 0) groundRow = Math.max(0, Math.min(ROWS - 1, ty));
+  if (groundRow < 0) groundRow = ROWS - 1;
   const x = tx * TS + (TS - w) / 2;
   const yTop = groundRow * TS;
   const y = yTop - h - 0.001;
   enemies.push({ x, y, w, h, vx: (dir >= 0 ? 1 : -1) * ENEMY_SPEED, vy: 0, onGround: false, state: 'walk', type: 'walker', animTime: 0, animFrame: 0, facing: (dir >= 0 ? 1 : -1) });
 }
 
-
 function spawnJumper(tx, ty, dir) {
-  const w = 32, h = 32;
+  const w = 48, h = 48;
   let groundRow = -1; const t = tileTypeAt(tx, ty);
   if (t === 1 || t === 2) groundRow = ty; else if (groundAt(tx, ty + 1)) groundRow = ty + 1; else { for (let r = ty + 1; r < ROWS; r++) { if (groundAt(tx, r)) { groundRow = r; break; } } }
   if (groundRow < 0) groundRow = ROWS - 1;
@@ -232,17 +220,6 @@ function applyLevel(idx) {
   const base = 16;
   player.x = (L.playerSpawn.x + 0.1) * base;
   player.y = (L.playerSpawn.y + 0.1) * base;
-  {
-    const sx = Math.floor(player.x / TS);
-    const sy = Math.floor((player.y + player.h) / TS);
-    let groundRow = -1;
-    if (groundAt(sx, sy)) groundRow = sy;
-    else if (groundAt(sx, sy + 1)) groundRow = sy + 1;
-    else { for (let r = sy + 1; r < ROWS; r++) { if (groundAt(sx, r)) { groundRow = r; break; } } }
-    if (groundRow < 0) groundRow = ROWS - 1;
-    const yTop = groundRow * TS;
-    player.y = yTop - player.h - 0.001;
-  }
    player.facing = (player.vx<0)?-1:((player.vx>0)?1:player.facing); player.vy = 0; player.dir = 1; player.onGround = false; player.canJump = false; player.shootCooldown = 0; player.ridingBubble = -1;
   if (Array.isArray(L.enemySpawns)) {
     for (const sp of L.enemySpawns) { dispatchSpawn(sp); }
@@ -279,21 +256,14 @@ function update(dt) {
   // Input and physics
   if (keys.left) { player.vx -= ACCEL * dt; player.dir = -1; }
   if (keys.right) { player.vx += ACCEL * dt; player.dir = 1; }
-  player.vx = clamp(player.vx, -MAX_VX, MAX_VX);
+  if (!keys.left && !keys.right) { if (player.vx > 0)  player.facing = (player.vx<0)?-1:((player.vx>0)?1:player.facing); if (player.vx < 0)  player.facing = (player.vx<0)?-1:((player.vx>0)?1:player.facing); }
+  if (player.vx > MAX_VX)  player.facing = (player.vx<0)?-1:((player.vx>0)?1:player.facing); if (player.vx < -MAX_VX)  player.facing = (player.vx<0)?-1:((player.vx>0)?1:player.facing);
   player.vy += GRAV * dt;
   if (keys.up && player.canJump) { player.vy = JUMP_VY; player.canJump = false; playJump(); if (player.ridingBubble >= 0) player.ridingBubble = -1; }
   if (player.shootCooldown > 0) player.shootCooldown -= dt;
   if (keys.shoot && player.shootCooldown <= 0) { spawnBubbleFromPlayer(); player.shootCooldown = BUBBLE_CD; playBubble(); }
 
-
-
   moveAndCollide(player, dt);
-  // Ground decel only when no input
-  if (player.onGround && !keys.left && !keys.right) {
-    if (player.vx > 0) player.vx = Math.max(0, player.vx - FRICTION * dt);
-    else if (player.vx < 0) player.vx = Math.min(0, player.vx + FRICTION * dt);
-    if (Math.abs(player.vx) < STOP_EPS) player.vx = 0;
-  }
 
   // Enemies
   if (gameState === 'playing') {
@@ -338,17 +308,14 @@ function update(dt) {
 
     // Player vs bubble
     if (rectCircleIntersects(player.x, player.y, player.w, player.h, b.x, b.y, b.r)) {
-      // Mount if landing from above; otherwise pop (after grace)
-      const bubbleTop = b.y - b.r;
-      const playerBottom = player.y + player.h;
-      const fromAbove = (playerBottom <= bubbleTop + 6) && (player.vy >= -40);
-      if (fromAbove) {
-        player.ridingBubble = i;
-        player.y = bubbleTop - player.h - 0.001;
-        player.vy = 0;
-        player.onGround = true;
-        player.canJump = true;
+      const playerCenterX = player.x + player.w / 2;
+      const approachingFromAbove = player.vy > 0 && (player.y + player.h) <= b.y && (b.y - (player.y + player.h)) < 10;
+      const horizontallyAligned = Math.abs(playerCenterX - b.x) < (b.r + player.w * 0.5);
+      if (approachingFromAbove && horizontallyAligned) {
+        // Ride: snap to top of bubble, don't pop
+        player.ridingBubble = i; player.onGround = true; player.canJump = true; player.vy = 0; player.y = b.y - player.h - 1;
       } else if (!b.spawnGrace || b.spawnGrace <= 0) {
+        // Pop only if grace elapsed
         if (b.carrying) {
           const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }
           if (missing.length>0) { const roundIndex = missing[Math.floor(Math.random()*missing.length)]; spawnLetter(b.x - 4, b.y - 4, EXTEND[roundIndex]); }
@@ -372,7 +339,7 @@ function update(dt) {
     const i = player.ridingBubble; const b = bubbles[i];
     if (!b) { player.ridingBubble = -1; }
     else {
-      player.y = b.y - b.r - player.h - 0.001; player.onGround = true; player.canJump = true;
+      player.y = b.y - player.h - 1;
       if (keys.down || (keys.shoot && player.shootCooldown <= 0)) {
         if (b.carrying) {
         const missing=[]; for (let mi=0; mi<6; mi++){ if(!extendCollected[mi]) missing.push(mi); }

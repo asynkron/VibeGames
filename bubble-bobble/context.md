@@ -56,3 +56,34 @@ Recent fixes
 - Fix: replaced stray idx reference with roundIndex to avoid ReferenceError.
 - Fix: restored applyLevel(idx) and encapsulated level-init logic; prevents runtime ReferenceError.
 - Chore: ignore *.tmp in bubble-bobble and removed stray main.js.tmp.
+
+Resolution
+- Internal canvas is now 640×480. Current world content draws in a 256×224 base inside this canvas.
+- If we center and scale the playfield with an integer 2× (512×448), we’ll add offsets (64px L/R, 16px T/B) and keep pixels crisp.
+- Backdrop/border code still renders against full canvas; scaling wrapper is optional and can be added on request.
+
+HTML fix
+- Removed stray broken canvas text so only a single valid <canvas id="game"> remains.
+
+Sprites
+- drawSprite(ctx, name, x, y, w, h, flipX) now supports horizontal flip.
+- Player/enemies flip left when vx<0; right when vx>0; idle keeps last facing.
+
+Changes
+- Player and enemies set to 48×48 px; rebuilt spawnEnemy/spawnJumper.
+- Syntax checks pass (main.js, sprites.js).
+- Level redesign pending your choice: auto-clearance or curated.
+
+Sprite+Map update (32×32)
+- Player/enemies set to 32×32; enemy spawns use 32×32.
+- wrapEntity now uses world width (COLS*TS).
+- Levels 1–4 enlarged to 20×16 tiles (+4 cols, +2 rows).
+- Spawns shifted by (+2,+2).
+- Clearance ensured: ≥2 tiles above platforms.
+- Syntax checks pass (main.js, sprites.js, levels).
+
+Map scaling update (2×)
+- All levels scaled by 2× in width and height (nearest-neighbor on tiles).
+- Spawns scaled by 2× (playerSpawn, enemySpawns).
+- Sprites remain 32×32; wrap uses world width (COLS*TS).
+- Syntax checks pass for all levels.

@@ -11,7 +11,7 @@
 </head>
 <body>
   <div class="screen bubble-screen crt-frame">
-    <canvas id="game" width="640" height="480" aria-label="Bubble Bobble"></canvas>
+    <canvas id="game" width="256" height="224" aria-label="Bubble Bobble"></canvas>
     <div class="crt-overlay"></div>
     <div class="crt-glow"></div>
     <div class="retro-hud bubble-hud">
@@ -23,6 +23,6 @@
       </div>
     </div>
   </div>
-  <script defer type="module" src="main.js"></script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
