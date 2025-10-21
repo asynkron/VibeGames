@@ -78,25 +78,12 @@ function inBounds(tx, ty) { return tx >= 0 && tx < COLS && ty >= 0 && ty < ROWS;
 function tileTypeAt(tx, ty) { return inBounds(tx, ty) ? TILES[tileIndex(tx, ty)] : 0; }
 function solidAt(tx, ty) { return tileTypeAt(tx, ty) === 1; }
 function groundAt(tx, ty) { const t = tileTypeAt(tx, ty); return t === 1 || t === 2; }
-
-// 8x8 migration helpers (expand each 16px tile into 2x2 of 8px tiles)
-const TILE_MIGRATION = { mode: '8' }; // '8' or '16'
-function expandTilesTo8(srcTiles, cols, rows) {
-  const dstCols = cols * 2, dstRows = rows * 2;
-  const out = new Array(dstCols * dstRows);
-  for (let ty=0; ty<rows; ty++){ for(let tx=0; tx<cols; tx++){ const t = srcTiles[ty*cols+tx]; const dx = tx*2, dy = ty*2;
-      out[(dy)*dstCols + (dx)] = t;
-      out[(dy)*dstCols + (dx+1)] = t;
-      out[(dy+1)*dstCols + (dx)] = t;
-      out[(dy+1)*dstCols + (dx+1)] = t;
-  } }
-  return { tiles: out, cols: dstCols, rows: dstRows };
-}
 // Input
 const keys = { left: false, right: false, up: false, down: false, shoot: false };
 let SHOW_OVERLAY = false;
 addEventListener('keydown', (e) => {
-  const k = e.key; if (k === 't' || k === 'T') { TILE_MIGRATION.mode = (TILE_MIGRATION.mode === '8' ? '16' : '8'); applyLevel(roundIndex); return; } BACKDROP_8.dirty = true; 
+  const k = e.key;
+  BACKDROP_8.dirty = true;
   if (e.repeat) return;
   if (k === 'o' || k === 'O') { SHOW_OVERLAY = !SHOW_OVERLAY; return; }
   const c = e.code;
@@ -255,15 +242,12 @@ let stateTimer = 0.9; // shorter intro so testing is snappier
 function applyLevel(idx) {
   const L = LEVELS[idx % LEVELS.length];
   CURRENT_LEVEL = L;
-  COLS = L.width; ROWS = L.height; TILES = L.tiles;
-  if (TILE_MIGRATION.mode === "8") {
-    const ex = expandTilesTo8(TILES, COLS, ROWS);
-    COLS = ex.cols; ROWS = ex.rows; TILES = ex.tiles; TS = 8;
-  } else {
-    TS = 16;
-  }
+  COLS = L.width;
+  ROWS = L.height;
+  TILES = L.tiles;
+  TS = L.tileSize || 16; // default to the large 16px tiles when unspecified
   bubbles.length = 0; enemies.length = 0; pickups.length = 0;
-  const base = 16;
+  const base = TS;
   player.x = (L.playerSpawn.x + 0.1) * base;
   player.y = (L.playerSpawn.y + 0.1) * base;
   {
@@ -556,7 +540,7 @@ function render() {
   drawBackground();
   drawTiles(); drawBubbles(); drawEnemies(); drawPickups(); drawPlayer();
   ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textBaseline = 'top';
-  ctx.fillText(`SCORE ${world.score}`, 8, 8); ctx.fillText(`HI ${world.hi}`, 110, 8); ctx.fillText(`LIVES ${world.lives}`, 8, 20); ctx.fillText(`ROUND ${world.round}`, 160, 8); ctx.fillText('M: music  P: pause  B: palette  T: tiles  O: overlay', 8, 32);
+  ctx.fillText(`SCORE ${world.score}`, 8, 8); ctx.fillText(`HI ${world.hi}`, 110, 8); ctx.fillText(`LIVES ${world.lives}`, 8, 20); ctx.fillText(`ROUND ${world.round}`, 160, 8); ctx.fillText('M: music  P: pause  B: palette  O: overlay', 8, 32);
   if (gameState === 'roundIntro') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(`ROUND ${world.round}`, canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
   if (gameState === 'roundClear') { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'bold 14px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('ROUND CLEAR!', canvas.width/2, canvas.height/2); ctx.textAlign = 'left'; }
   if (gameState === 'gameOver') { ctx.fillStyle = 'rgba(255,180,180,0.95)'; ctx.font = 'bold 16px monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10); ctx.font = '12px monospace'; ctx.fillText('Press Enter to Restart', canvas.width/2, canvas.height/2 + 12); ctx.textAlign = 'left'; }
@@ -571,8 +555,8 @@ init();
 
 function dispatchSpawn(sp) {
   const dir = (sp.dir || 1);
-  const tx = (TILE_MIGRATION && TILE_MIGRATION.mode === '8' ? sp.tx * 2 : sp.tx);
-  const ty = (TILE_MIGRATION && TILE_MIGRATION.mode === '8' ? sp.ty * 2 : sp.ty);
+  const tx = sp.tx;
+  const ty = sp.ty;
   if (sp.type==='jumper') return spawnJumper(tx, ty, dir);
   return spawnEnemy(tx, ty, dir);
 }
@@ -587,7 +571,7 @@ function drawOverlay(ctx) {
     ctx.fillStyle = '#0f0';
     let y = 6; const line = (s)=>{ ctx.fillText(s, 8, y); y += 12; };
     line(`TS=${TS} COLS=${COLS} ROWS=${ROWS}`);
-    line(`mode=${TILE_MIGRATION.mode} round=${world.round} roundIndex=${roundIndex}`);
+    line(`round=${world.round} roundIndex=${roundIndex}`);
     line(`px=${(player.x|0)} py=${(player.y|0)}`);
     line(`vx=${player.vx.toFixed(1)} vy=${player.vy.toFixed(1)}`);
     line(`enemies=${enemies.length} bubbles=${bubbles.length}`);
