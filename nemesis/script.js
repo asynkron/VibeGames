@@ -372,13 +372,24 @@ import {
   }
 
   function spawnPlayerShot() {
-    const worldX = state.cameraX + player.x + player.width * 0.55;
+    const angle = player.tilt * 0.6;
+    const speed = 380;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const muzzleOffsetX = player.width * 0.55;
+    const muzzleOffsetY = -1;
+    const shipWorldX = state.cameraX + player.x;
+    const shipWorldY = player.y;
+    const spawnX = shipWorldX + muzzleOffsetX * cos - muzzleOffsetY * sin;
+    const spawnY = shipWorldY + muzzleOffsetX * sin + muzzleOffsetY * cos;
     bullets.push({
-      x: worldX,
-      y: player.y - 1,
-      vx: 380,
+      x: spawnX,
+      y: spawnY,
+      vx: cos * speed,
+      vy: sin * speed,
       life: 1.4,
     });
+    // Fire in the same direction the ship is currently tilted.
     shotTone();
   }
 
@@ -401,8 +412,14 @@ import {
     for (let i = bullets.length - 1; i >= 0; i -= 1) {
       const bullet = bullets[i];
       bullet.x += bullet.vx * dt;
+      bullet.y += (bullet.vy ?? 0) * dt;
       bullet.life -= dt;
-      if (bullet.life <= 0 || bullet.x - state.cameraX > SCREEN_WIDTH + 40) {
+      if (
+        bullet.life <= 0 ||
+        bullet.x - state.cameraX > SCREEN_WIDTH + 40 ||
+        bullet.y < -40 ||
+        bullet.y > SCREEN_HEIGHT + 40
+      ) {
         bullets.splice(i, 1);
         continue;
       }
@@ -678,11 +695,23 @@ import {
     ctx.fillStyle = COLORS.bullet;
     for (const bullet of bullets) {
       const screenX = bullet.x - state.cameraX;
-      if (screenX < -8 || screenX > SCREEN_WIDTH + 8) continue;
-      ctx.fillRect(screenX - 1, bullet.y - 1, 4, 2);
+      if (
+        screenX < -8 ||
+        screenX > SCREEN_WIDTH + 8 ||
+        bullet.y < -8 ||
+        bullet.y > SCREEN_HEIGHT + 8
+      ) {
+        continue;
+      }
+      ctx.save();
+      ctx.translate(screenX, bullet.y);
+      const angle = Math.atan2(bullet.vy ?? 0, bullet.vx);
+      ctx.rotate(angle);
+      ctx.fillRect(-1, -1, 4, 2);
+      ctx.restore();
       lights.push({
-        x: screenX + 1,
-        y: bullet.y,
+        x: screenX + Math.cos(angle) * 1,
+        y: bullet.y + Math.sin(angle) * 1,
         radius: 34,
         innerRadius: 4,
         innerStop: 0.1,
