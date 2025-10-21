@@ -64,7 +64,7 @@ function expandTilesTo8(srcTiles, cols, rows) {
 const keys = { left: false, right: false, up: false, down: false, shoot: false };
 let SHOW_OVERLAY = false;
 addEventListener('keydown', (e) => {
-  const k = e.key; if (k === 't' || k === 'T') { TILE_MIGRATION.mode = (TILE_MIGRATION.mode === '8' ? '16' : '8'); applyLevel(roundIndex); return; }
+  const k = e.key; if (k === 't' || k === 'T') { TILE_MIGRATION.mode = (TILE_MIGRATION.mode === '8' ? '16' : '8'); applyLevel(roundIndex); return; } BACKDROP_8.dirty = true; 
   if (e.repeat) return;
   if (k === 'o' || k === 'O') { SHOW_OVERLAY = !SHOW_OVERLAY; return; }
   const c = e.code;
