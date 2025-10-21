@@ -135,7 +135,29 @@ const ENEMY_SPEED = 40;
 const PICKUP_SCORE = 100;
 const STOP_EPS = 4;
 
+// Bubble flight tuning (approximates arcade behaviour)
+const BUBBLE_LIFE = 3.2;
+const BUBBLE_GRACE = 0.45; // seconds before player pops their own bubble
+const BUBBLE_LAUNCH_TIME = 0.24; // horizontal burst before the float kicks in
+const BUBBLE_LAUNCH_ACCEL = 220; // px/s^2 push during launch
+const BUBBLE_LAUNCH_MAX_SPEED = 90; // px/s clamp for launch burst
+const BUBBLE_LAUNCH_INITIAL = 54; // px/s initial kick
+const BUBBLE_LAUNCH_RISE = 36; // px/s upward drift while launching
+const BUBBLE_FLOAT_SPEED = 28; // px/s upward drift once floating
+const BUBBLE_FLOAT_SPEED_CARRY = 44; // bubbles with enemies rise a bit faster
+const BUBBLE_DRIFT_DECAY = 22; // px/s^2 convergence of launch drift → 0
+const BUBBLE_WOBBLE_RATE = 4.2; // radians per second for the side-to-side sway
+const BUBBLE_WOBBLE_AMPLITUDE = 16; // px/s amplitude of the sway velocity
+const BUBBLE_CARRY_WOBBLE_SCALE = 0.55; // captured enemies sway less
+const BUBBLE_WALL_BOUNCE = 0.85; // slight damping when bouncing off walls
+const BUBBLE_SLIDE_SPEED = 34; // px/s while gliding under a ceiling
+
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function approach(value, target, maxDelta) {
+  if (value < target) return Math.min(target, value + maxDelta);
+  if (value > target) return Math.max(target, value - maxDelta);
+  return target;
+}
 function rectIntersects(ax, ay, aw, ah, bx, by, bw, bh) { return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by; }
 function rectCircleIntersects(rx, ry, rw, rh, cx, cy, cr) { const nx = clamp(cx, rx, rx + rw); const ny = clamp(cy, ry, ry + rh); const dx = cx - nx; const dy = cy - ny; return dx*dx + dy*dy <= cr*cr; }
 
@@ -189,6 +211,15 @@ function wrapEntity(e) {
   else if (e.x > W) e.x = 0;
 }
 
+function sampleAirCurrent(x, y) {
+  if (!CURRENT_LEVEL || !Array.isArray(CURRENT_LEVEL.airCurrents)) return 0;
+  for (const current of CURRENT_LEVEL.airCurrents) {
+    const { x0 = 0, y0 = 0, x1 = COLS * TS, y1 = ROWS * TS, vx = 0 } = current;
+    if (x >= x0 && x <= x1 && y >= y0 && y <= y1) return vx;
+  }
+  return 0;
+}
+
 function spawnBubbleFromPlayer() {
   // Keep the bubble large enough to capture enemies, but scale it a bit
   // smaller relative to oversized tiles so it still looks proportional.
@@ -197,7 +228,25 @@ function spawnBubbleFromPlayer() {
   const dx = (player.dir > 0 ? (player.w / 2 + r + 4) : -(player.w / 2 + r + 4));
   const px = player.x + player.w / 2 + dx;
   const py = player.y + player.h / 2 - 2;
-  bubbles.push({ x: px, y: py, r: r, vx: player.dir * 18, vy: -26, life: 3.2, carrying: null, spawnGrace: 0.45 });
+  const dir = player.dir || 1;
+  const wobblePhase = (world.tick % 360) * (Math.PI / 180);
+  bubbles.push({
+    x: px,
+    y: py,
+    r,
+    vx: dir * BUBBLE_LAUNCH_INITIAL,
+    vy: -BUBBLE_LAUNCH_RISE,
+    life: BUBBLE_LIFE,
+    carrying: null,
+    spawnGrace: BUBBLE_GRACE,
+    phase: 'launch',
+    age: 0,
+    launchTimer: BUBBLE_LAUNCH_TIME,
+    floatTime: 0,
+    floatPhase: wobblePhase,
+    baseDrift: dir * BUBBLE_LAUNCH_INITIAL,
+    slideDir: dir || 1
+  });
 }
 
 
@@ -349,27 +398,130 @@ function update(dt) {
 
   // Bubbles
   for (let i = bubbles.length - 1; i >= 0; i--) {
-    const b = bubbles[i]; b.life -= dt; if (b.spawnGrace && b.spawnGrace > 0) b.spawnGrace = Math.max(0, b.spawnGrace - dt);
-    if (!b.carrying) { b.vy = Math.min(b.vy + 70*dt, -10); b.vx *= 0.98; }
-    else { b.vy = Math.min(b.vy + 50*dt, -12); b.vx *= 0.985; b.carrying.x = b.x - b.carrying.w/2; b.carrying.y = b.y - b.carrying.h/2; }
-    b.x += b.vx * dt;
-    const nextY = b.y + b.vy * dt;
-    if (b.vy < 0) {
-      const topNext = nextY - b.r; const tx0 = Math.floor((b.x - b.r + 0.001) / TS); const tx1 = Math.floor((b.x + b.r - 0.001) / TS); const ty = Math.floor(topNext / TS);
-      let hit = false; for (let tx = tx0; tx <= tx1; tx++) { if (solidAt(tx, ty)) { hit = true; break; } }
-      if (hit) { b.vy = 0; b.y = (ty + 1) * TS + b.r + 0.001; } else { b.y = nextY; }
-    } else { b.y = nextY; }
+    const b = bubbles[i];
+    b.life -= dt;
+    if (b.spawnGrace && b.spawnGrace > 0) b.spawnGrace = Math.max(0, b.spawnGrace - dt);
+    b.age = (typeof b.age === 'number') ? b.age + dt : dt;
+    if (!b.phase) b.phase = 'float';
+    if (typeof b.floatTime !== 'number') b.floatTime = 0;
 
-    // Player vs bubble
+    const carrying = !!b.carrying;
+
+    if (b.phase === 'launch') {
+      b.launchTimer = (typeof b.launchTimer === 'number') ? b.launchTimer - dt : BUBBLE_LAUNCH_TIME - dt;
+      const dir = Math.sign(b.vx) || b.slideDir || 1;
+      b.vx = clamp(b.vx + dir * BUBBLE_LAUNCH_ACCEL * dt, -BUBBLE_LAUNCH_MAX_SPEED, BUBBLE_LAUNCH_MAX_SPEED);
+      b.vy = -BUBBLE_LAUNCH_RISE;
+      b.baseDrift = b.vx;
+      if (b.launchTimer <= 0) {
+        b.phase = 'float';
+        b.floatTime = 0;
+      }
+    } else {
+      b.floatTime += dt;
+    }
+
+    const wobbleScale = carrying ? BUBBLE_CARRY_WOBBLE_SCALE : 1;
+    const wobble = Math.sin((b.floatPhase || 0) + b.floatTime * BUBBLE_WOBBLE_RATE) * BUBBLE_WOBBLE_AMPLITUDE * wobbleScale;
+    const air = sampleAirCurrent(b.x, b.y);
+
+    if (b.phase === 'slide') {
+      const slideDir = b.slideDir || (b.vx >= 0 ? 1 : -1) || 1;
+      b.vx = slideDir * BUBBLE_SLIDE_SPEED + air + wobble;
+      b.vy = 0;
+    } else {
+      b.baseDrift = approach(typeof b.baseDrift === 'number' ? b.baseDrift : 0, 0, BUBBLE_DRIFT_DECAY * dt);
+      b.vx = (b.baseDrift || 0) + air + wobble;
+      b.vy = -(carrying ? BUBBLE_FLOAT_SPEED_CARRY : BUBBLE_FLOAT_SPEED);
+    }
+
+    let nextX = b.x + b.vx * dt;
+    let nextY = b.y + b.vy * dt;
+
+    if (b.vx !== 0) {
+      const movingRight = b.vx > 0;
+      const radius = b.r;
+      const tileTop = Math.floor((b.y - radius + 0.001) / TS);
+      const tileBottom = Math.floor((b.y + radius - 0.001) / TS);
+      const edge = movingRight ? nextX + radius : nextX - radius;
+      const tileX = Math.floor(edge / TS);
+      let collided = false;
+      for (let ty = tileTop; ty <= tileBottom; ty++) {
+        if (groundAt(tileX, ty)) { collided = true; break; }
+      }
+      if (collided) {
+        if (movingRight) {
+          nextX = tileX * TS - radius - 0.001;
+        } else {
+          nextX = (tileX + 1) * TS + radius + 0.001;
+        }
+        b.vx = -b.vx * BUBBLE_WALL_BOUNCE;
+        b.baseDrift = -(b.baseDrift || 0) * BUBBLE_WALL_BOUNCE;
+        b.slideDir = (b.vx >= 0 ? 1 : -1) || 1;
+      }
+    }
+
+    const minX = b.r;
+    const maxX = COLS * TS - b.r;
+    if (nextX < minX) {
+      nextX = minX;
+      b.vx = Math.abs(b.vx) * BUBBLE_WALL_BOUNCE;
+      b.baseDrift = Math.abs(b.baseDrift || 0) * BUBBLE_WALL_BOUNCE;
+      b.slideDir = 1;
+    } else if (nextX > maxX) {
+      nextX = maxX;
+      b.vx = -Math.abs(b.vx) * BUBBLE_WALL_BOUNCE;
+      b.baseDrift = -Math.abs(b.baseDrift || 0) * BUBBLE_WALL_BOUNCE;
+      b.slideDir = -1;
+    }
+
+    if (b.vy < 0) {
+      const radius = b.r;
+      const topNext = nextY - radius;
+      const ty = Math.floor(topNext / TS);
+      let hit = false;
+      for (let tx = Math.floor((nextX - radius + 0.001) / TS); tx <= Math.floor((nextX + radius - 0.001) / TS); tx++) {
+        if (groundAt(tx, ty)) { hit = true; break; }
+      }
+      if (hit) {
+        nextY = (ty + 1) * TS + radius + 0.001;
+        b.vy = 0;
+        b.phase = 'slide';
+        if (!b.slideDir) b.slideDir = (b.vx >= 0 ? 1 : -1) || 1;
+      }
+    } else if (b.phase === 'slide') {
+      const radius = b.r;
+      const ty = Math.floor(((b.y - radius) - 0.001) / TS);
+      let stillCeiling = false;
+      for (let tx = Math.floor((nextX - radius + 0.001) / TS); tx <= Math.floor((nextX + radius - 0.001) / TS); tx++) {
+        if (groundAt(tx, ty)) { stillCeiling = true; break; }
+      }
+      if (!stillCeiling || ty < 0) {
+        b.phase = 'float';
+        b.floatTime = 0;
+        b.baseDrift = clamp(b.vx, -BUBBLE_LAUNCH_MAX_SPEED, BUBBLE_LAUNCH_MAX_SPEED);
+        nextY -= 1;
+      } else {
+        nextY = (ty + 1) * TS + b.r + 0.001;
+      }
+    }
+
+    b.x = nextX;
+    b.y = nextY;
+
+    if (carrying) {
+      b.carrying.x = b.x - b.carrying.w / 2;
+      b.carrying.y = b.y - b.carrying.h / 2;
+    }
+
     if (rectCircleIntersects(player.x, player.y, player.w, player.h, b.x, b.y, b.r)) {
-      // Mount if landing from above; otherwise pop (after grace)
       const bubbleTop = b.y - b.r;
       const playerBottom = player.y + player.h;
       const MOUNT_MARGIN = Math.max(6, Math.floor(b.r * 0.9));
       const HORIZ_MARGIN = Math.max(8, Math.floor(b.r * 0.85));
       const fromAbove = (playerBottom <= bubbleTop + MOUNT_MARGIN) && (player.vy >= -80);
       const centered = Math.abs((player.x + player.w/2) - b.x) <= HORIZ_MARGIN;
-if (fromAbove && centered) {
+      if (fromAbove && centered) {
         player.ridingBubble = i;
         player.y = bubbleTop - player.h - 0.001;
         player.vy = 0;
@@ -385,8 +537,6 @@ if (fromAbove && centered) {
       }
       continue;
     }
-
-  
 
     if (b.life <= 0) {
       if (b.carrying) { const escaped = b.carrying; escaped.state = 'walk'; escaped.vx = (Math.random()<0.5?-1:1)*ENEMY_SPEED; escaped.vy = -80; enemies.push(escaped); }
@@ -421,7 +571,20 @@ if (fromAbove && centered) {
       const b = bubbles[bi]; if (b.carrying) continue;
       for (let ei = enemies.length - 1; ei >= 0; ei--) {
         const e = enemies[ei]; if (e.state !== 'walk') continue;
-        if (rectCircleIntersects(e.x, e.y, e.w, e.h, b.x, b.y, b.r)) { e.state='captured'; enemies.splice(ei,1); b.carrying=e; b.life=Math.max(b.life,4.0); b.vx*=0.7; b.vy*=0.7; playCapture(); break; }
+        if (rectCircleIntersects(e.x, e.y, e.w, e.h, b.x, b.y, b.r)) {
+          e.state='captured';
+          enemies.splice(ei,1);
+          b.carrying=e;
+          b.life=Math.max(b.life,4.0);
+          b.phase='float';
+          b.floatTime=0;
+          b.baseDrift = clamp(b.vx, -BUBBLE_LAUNCH_MAX_SPEED, BUBBLE_LAUNCH_MAX_SPEED);
+          b.vx*=0.7;
+          b.vy*=0.7;
+          b.slideDir = (b.vx >= 0 ? 1 : -1) || 1;
+          playCapture();
+          break;
+        }
       }
     }
   }
