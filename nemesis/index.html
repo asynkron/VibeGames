@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nemesis CRT</title>
+  <meta name="color-scheme" content="dark light" />
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="screen nemesis-screen crt-frame">
+    <canvas id="game" width="320" height="224" aria-label="Nemesis"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud nemesis-hud">
+      <div class="retro-controls">
+        <span class="title">Nemesis</span>
+        <span>Score: <span id="score">0</span></span>
+        <span>Stage: <span id="stage">1</span></span>
+        <span>Lives: <span id="lives">3</span></span>
+        <span class="fps" id="fps"></span>
+      </div>
+      <div class="retro-hud-footer nemesis-controls">
+        Arrows/WASD to maneuver · Space to rapid-fire · P to pause · R to restart
+      </div>
+    </div>
+  </div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
