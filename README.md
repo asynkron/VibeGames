@@ -11,6 +11,7 @@ Once GitHub Pages is configured to serve from the `main` branch (root), the site
 Each game is also directly accessible:
 
 - https://asynkron.github.io/VibeGames/boulderdash/
+- https://asynkron.github.io/VibeGames/bubble-bobble/
 - https://asynkron.github.io/VibeGames/pacman/
 - https://asynkron.github.io/VibeGames/snake/
 
