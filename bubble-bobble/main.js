@@ -207,9 +207,8 @@ function spawnLetter(x, y, letter) { pickups.push({ x, y, w: 8, h: 8, vx: (Math.
 let roundIndex = 0; // 0-based
 let gameState = 'roundIntro'; // 'roundIntro' | 'playing' | 'roundClear' | 'gameOver'
 let stateTimer = 0.9; // shorter intro so testing is snappier
-
-
-  const L = LEVELS[roundIndex % LEVELS.length];
+function applyLevel(idx) {
+  const L = LEVELS[idx % LEVELS.length];
   CURRENT_LEVEL = L;
   TS = L.tileSize; COLS = L.width; ROWS = L.height; TILES = L.tiles;
   // reset world actors
@@ -229,6 +228,7 @@ let stateTimer = 0.9; // shorter intro so testing is snappier
   BACKDROP_8.dirty = true;
 
   }
+}
 }
 
 function loseLife() {

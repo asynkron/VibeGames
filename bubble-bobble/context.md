@@ -54,3 +54,4 @@ Recent fixes
 - Debug: overlay (O) shows TS/COLS/ROWS/mode/round/player pos/vel and counts; HUD shows T (tiles) and O (overlay).
 - Debug: ensured overlay draws each frame by moving call into loop() before rAF.
 - Fix: replaced stray idx reference with roundIndex to avoid ReferenceError.
+- Fix: restored applyLevel(idx) and encapsulated level-init logic; prevents runtime ReferenceError.
