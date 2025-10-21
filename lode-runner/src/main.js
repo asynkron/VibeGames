@@ -1,10 +1,8 @@
 import GameScene from './scene/GameScene.js';
 import { initCrtPresetHotkeys } from '../../shared/ui/crt.js';
-import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
-import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
+import { initGameCrt } from '../../shared/ui/gameCrt.js';
 import { createOverlayFX } from '../../shared/fx/overlay.js';
 import {
-  DEFAULT_SCANLINE_ALPHA_RANGE,
   createDefaultCrtSettings,
 } from '../../shared/config/display.js';
 
@@ -30,26 +28,13 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-const crtFrame = document.querySelector('.screen.crt-frame');
-const syncScanlines = (value) => {
-  if (!crtFrame) return;
-  applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
-};
-
 const crtSettings = createDefaultCrtSettings();
-const crtControls = createCrtControls({
-  storageKey: 'loderunner_crt_settings',
-  defaults: createDefaultCrtSettings(),
-  onChange: (next) => {
-    Object.assign(crtSettings, next);
-    syncScanlines(next.scanlines);
-  },
-});
-Object.assign(crtSettings, crtControls.getSettings());
-syncScanlines(crtSettings.scanlines);
-
 if (game && game.context && typeof game.context.drawImage === 'function' && game.events) {
-  const crtPost = createCrtPostProcessor({ targetContext: game.context, settings: crtSettings });
+  const { post: crtPost } = initGameCrt({
+    storageKey: 'loderunner_crt_settings',
+    settings: crtSettings,
+    targetContext: game.context,
+  });
   const overlayFx = createOverlayFX({ ctx: game.context, width: WIDTH, height: HEIGHT });
   const coreEvents = Phaser && Phaser.Core && Phaser.Core.Events ? Phaser.Core.Events : null;
   const POST_RENDER = coreEvents ? coreEvents.POST_RENDER : 'postrender';

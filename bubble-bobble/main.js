@@ -1,7 +1,6 @@
-import { createCrtControls, applyScanlineIntensity } from '../shared/ui/crtControls.js';
-import { createCrtPostProcessor } from '../shared/fx/crtPostprocess.js';
+import { initGameCrt } from '../shared/ui/gameCrt.js';
 import { initCrtPresetHotkeys } from '../shared/ui/crt.js';
-import { DEFAULT_SCANLINE_ALPHA_RANGE, createDefaultCrtSettings } from '../shared/config/display.js';
+import { createDefaultCrtSettings } from '../shared/config/display.js';
 import { LEVELS } from './assets/levels/index.js';
 import { loadSprites, drawSprite } from './sprites.js';
 import { playJump, playBubble, playPop, playPickup, playCapture, primeOnFirstKeydown, loadAndLoopMusic, toggleMusicMute, setMusicPaused } from './audio.js';
@@ -56,13 +55,12 @@ function getStripePattern(kind) {
 }
 function drawC64Border(ctx){ const w=canvas.width,h=canvas.height,b=BORDER_THICKNESS; const borderPattern = getStripePattern('border'); ctx.save(); ctx.fillStyle = borderPattern || STRIPE_STYLE.border.base; ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b); ctx.fillRect(0,b,b,h-2*b); ctx.fillRect(w-b,b,b,h-2*b); ctx.restore(); ctx.save(); ctx.lineJoin='miter'; ctx.strokeStyle = STRIPE_STYLE.border.outer; ctx.lineWidth = 2; ctx.strokeRect(1,1,w-2,h-2); ctx.strokeStyle = STRIPE_STYLE.border.inner; ctx.strokeRect(b-1,b-1,w-2*(b-1),h-2*(b-1)); ctx.restore(); }
 
-const crtFrame = document.querySelector('.screen.crt-frame');
 const crtSettings = createDefaultCrtSettings();
-const syncScanlines = (value) => { if (!crtFrame) return; applyScanlineIntensity(crtFrame, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE }); };
-const crtControls = createCrtControls({ storageKey: 'bubble_crt_settings', defaults: createDefaultCrtSettings(), onChange: (next) => { Object.assign(crtSettings, next); syncScanlines(next.scanlines); } });
-Object.assign(crtSettings, crtControls.getSettings());
-syncScanlines(crtSettings.scanlines);
-const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
+const { post: crtPost } = initGameCrt({
+  storageKey: 'bubble_crt_settings',
+  settings: crtSettings,
+  targetContext: ctx,
+});
 initCrtPresetHotkeys({ storageKey: 'bubble_crt_preset', target: document.documentElement });
 
 // Prime audio and prepare music

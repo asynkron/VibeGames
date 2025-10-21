@@ -1,11 +1,9 @@
 import { createBeeper } from '../../shared/audio/beeper.js';
 import { createPixelContext } from '../../shared/render/pixelCanvas.js';
-import { createCrtControls, applyScanlineIntensity } from '../../shared/ui/crtControls.js';
-import { createCrtPostProcessor } from '../../shared/fx/crtPostprocess.js';
+import { initGameCrt } from '../../shared/ui/gameCrt.js';
 import { createOverlayFX } from '../../shared/fx/overlay.js';
 import { initCrtPresetHotkeys } from '../../shared/ui/crt.js';
 import {
-  DEFAULT_SCANLINE_ALPHA_RANGE,
   DEFAULT_FONT_STACK,
   createDefaultCrtSettings,
 } from '../../shared/config/display.js';
@@ -42,27 +40,20 @@ const defaultApertureOpacity = (() => {
   const value = parseFloat(getComputedStyle(screen).getPropertyValue('--crt-aperture-opacity'));
   return Number.isFinite(value) ? value : 0.16;
 })();
-const syncScanlines = (value) => {
-  const target = screen || bezel;
-  if (!target) return;
-  applyScanlineIntensity(target, value, { alphaRange: DEFAULT_SCANLINE_ALPHA_RANGE });
-};
-const crtControls = createCrtControls({
+const { controls: crtControls, post: crtPost } = initGameCrt({
   storageKey: 'qbert_crt_settings',
-  defaults: createDefaultCrtSettings(),
-  onChange: (next) => {
-    Object.assign(crtSettings, next);
-    syncScanlines(next.scanlines);
-    maskOn = next.enabled !== false;
+  settings: crtSettings,
+  defaults: defaultCrtSettings,
+  targetContext: ctx,
+  frameElement: screen || bezel,
+  onSettingsChange: (current) => {
+    maskOn = current.enabled !== false;
     updateMaskVisual();
-    scanOn = next.scanlines > 0;
-    if (scanOn && next.scanlines > 0) storedScanlineValue = next.scanlines;
+    scanOn = current.scanlines > 0;
+    if (scanOn && current.scanlines > 0) storedScanlineValue = current.scanlines;
     if (!initializingControls) savePrefs();
   },
 });
-Object.assign(crtSettings, crtControls.getSettings());
-syncScanlines(crtSettings.scanlines);
-const crtPost = createCrtPostProcessor({ targetContext: ctx, settings: crtSettings });
 initCrtPresetHotkeys({ storageKey: 'qbert_crt_preset', target: document.documentElement });
 
 const beeper = createBeeper({ masterGain: 0.18 });
