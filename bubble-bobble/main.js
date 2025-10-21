@@ -13,15 +13,48 @@ if (!ctx) throw new Error('2D context not available');
 ctx.imageSmoothingEnabled = false;
 // Backdrop (C64-style 8x8 pattern + tile shadows)
 const BACKDROP_8 = {  canvas: document.createElement('canvas'), ctx: null, dirty: true, roundSeed: 0, paletteIndex: 0 };
-const BACKDROP_PALETTES = ['#142850','#0f3057','#2a4b7c','#4d648d','#6e7f9a','#8aa2a9','#a3c6c4','#b8d8d8','#dce2f0'];
 function initBackdropCanvas() { BACKDROP_8.canvas.width = canvas.width; BACKDROP_8.canvas.height = canvas.height; BACKDROP_8.ctx = BACKDROP_8.canvas.getContext('2d'); if (BACKDROP_8.ctx) BACKDROP_8.ctx.imageSmoothingEnabled = false; }
-function seededRand(seed) { let x = Math.imul((seed|0) ^ 0x9e3779b1, 0x85ebca6b) >>> 0; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 0xFFFFFFFF; }; }
-function pickPastel(rand) { const pals = ['#142850','#0f3057','#2a4b7c','#4d648d','#6e7f9a','#8aa2a9','#a3c6c4','#b8d8d8','#dce2f0']; return pals[Math.floor(rand()*pals.length)]; }
-function drawC64BackdropPattern(ctx,w,h,seed) { const rand = seededRand(seed); const base = (typeof BACKDROP_8 !== 'undefined' && BACKDROP_8 && typeof BACKDROP_8.paletteIndex === 'number') ? (BACKDROP_PALETTES[(BACKDROP_8.paletteIndex>>>0)%BACKDROP_PALETTES.length] || pickPastel(rand)) : pickPastel(rand); ctx.fillStyle = base; ctx.fillRect(0,0,w,h); const CHAR=8; ctx.globalAlpha = 0.08; ctx.fillStyle = '#ffffff'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 0.05; ctx.fillStyle = '#000000'; for (let y=0; y<h; y+=CHAR) { for (let x=0; x<w; x+=CHAR) { if (((x>>3)+(y>>3)) & 1) continue; ctx.fillRect(x,y,CHAR,CHAR); } } ctx.globalAlpha = 1; }
-function drawTileShadows(ctx) { if (!Array.isArray(TILES)) return; const ts=TS|0; if (ts<=0) return; for (let ty=0; ty<ROWS; ty++){ for (let tx=0; tx<COLS; tx++){ const t = tileTypeAt(tx,ty); if (t===0) continue; const px=Math.floor(tx*ts), py=Math.floor(ty*ts); if (t===1){ ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px + ts, py + 2, 2, ts - 4); ctx.fillRect(px + 2, py + ts, ts - 2, 2); ctx.fillRect(px + ts - 1, py + ts - 1, 4, 4); } else if (t===2){ ctx.fillStyle='rgba(0,0,0,0.12)'; ctx.fillRect(px + 1, py + 1, ts - 2, 2); ctx.fillRect(px + ts, py + 1, 1, 2); } } } }
-function rebuildBackdrop(roundSeed) { if (!BACKDROP_8.ctx) initBackdropCanvas(); const b=BACKDROP_8.ctx; if(!b) return; BACKDROP_8.roundSeed=(roundSeed|0); drawC64BackdropPattern(b, BACKDROP_8.canvas.width, BACKDROP_8.canvas.height, BACKDROP_8.roundSeed); drawTileShadows(b); BACKDROP_8.dirty=false; }
+function rebuildBackdrop(roundSeed) { if (!BACKDROP_8.ctx) initBackdropCanvas(); const b=BACKDROP_8.ctx; if(!b) return; BACKDROP_8.roundSeed=(roundSeed|0); b.fillStyle='#000'; b.fillRect(0,0,BACKDROP_8.canvas.width,BACKDROP_8.canvas.height); BACKDROP_8.dirty=false; }
 
-function drawC64Border(ctx){ const w=canvas.width,h=canvas.height,b=12; ctx.fillStyle='#0b0f1a'; ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b); ctx.fillRect(0,0,b,h); ctx.fillRect(w-b,0,b,h); }
+const BORDER_THICKNESS = 12;
+const STRIPE_STYLE = {
+  solid: { base: '#ff4fa8', stripe: '#ffe4f6', outline: '#ff99cf', shadow: '#d13b84', stripeWidth: 4, stripeSpacing: 8, patternSize: 16 },
+  oneWay: { base: '#ff6cc0', stripe: '#fff0fb', outline: '#ffc6e6', shadow: '#e0559a', stripeWidth: 4, stripeSpacing: 8, patternSize: 16 },
+  border: { base: '#ff4fa8', stripe: '#ffe4f6', outer: '#ff9bd3', inner: '#c32778', stripeWidth: 5, stripeSpacing: 10, patternSize: 24 }
+};
+const STRIPE_CACHE = { solid: null, oneWay: null, border: null };
+function createDiagonalStripePattern(baseColor, stripeColor, size = 16, stripeWidth = 4, spacing = 8) {
+  const patternCanvas = document.createElement('canvas');
+  patternCanvas.width = patternCanvas.height = size;
+  const pctx = patternCanvas.getContext('2d');
+  if (!pctx) return null;
+  pctx.fillStyle = baseColor;
+  pctx.fillRect(0, 0, size, size);
+  pctx.fillStyle = stripeColor;
+  for (let i = -size; i < size; i += spacing) {
+    pctx.beginPath();
+    pctx.moveTo(i, size);
+    pctx.lineTo(i + stripeWidth, size);
+    pctx.lineTo(i + stripeWidth + size, 0);
+    pctx.lineTo(i + size, 0);
+    pctx.closePath();
+    pctx.fill();
+  }
+  return { canvas: patternCanvas, pattern: ctx.createPattern(patternCanvas, 'repeat') };
+}
+function getStripePattern(kind) {
+  const key = kind === 2 ? 'oneWay' : (kind === 'border' ? 'border' : 'solid');
+  const cache = STRIPE_CACHE[key];
+  if (cache && cache.pattern) return cache.pattern;
+  const style = STRIPE_STYLE[key];
+  if (!style) return null;
+  const size = style.patternSize || 16;
+  const patternEntry = createDiagonalStripePattern(style.base, style.stripe, size, style.stripeWidth || 4, style.stripeSpacing || 8);
+  if (!patternEntry) return null;
+  STRIPE_CACHE[key] = patternEntry;
+  return patternEntry.pattern;
+}
+function drawC64Border(ctx){ const w=canvas.width,h=canvas.height,b=BORDER_THICKNESS; const borderPattern = getStripePattern('border'); ctx.save(); ctx.fillStyle = borderPattern || STRIPE_STYLE.border.base; ctx.fillRect(0,0,w,b); ctx.fillRect(0,h-b,w,b); ctx.fillRect(0,b,b,h-2*b); ctx.fillRect(w-b,b,b,h-2*b); ctx.restore(); ctx.save(); ctx.lineJoin='miter'; ctx.strokeStyle = STRIPE_STYLE.border.outer; ctx.lineWidth = 2; ctx.strokeRect(1,1,w-2,h-2); ctx.strokeStyle = STRIPE_STYLE.border.inner; ctx.strokeRect(b-1,b-1,w-2*(b-1),h-2*(b-1)); ctx.restore(); }
 
 const crtFrame = document.querySelector('.screen.crt-frame');
 const crtSettings = createDefaultCrtSettings();
@@ -440,11 +473,9 @@ if (fromAbove && centered) {
 let SPR = null; // loaded sprites
 
 function drawBackground() {
-  const w = canvas.width; const h = canvas.height;
-  ctx.fillStyle = '#02131c'; ctx.fillRect(0, 0, w, h);
-  ctx.save(); ctx.globalAlpha = 0.05;
-  for (let x = 0; x < w; x += 8) { ctx.fillStyle = x % 16 === 0 ? '#3aa' : '#0ff'; ctx.fillRect(x, 0, 2, h); }
-  ctx.restore();
+  const w = canvas.width; const h = canvas.height; const b = BORDER_THICKNESS;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(b, b, w - b * 2, h - b * 2);
 }
 
 function drawPlayer() {
@@ -478,11 +509,38 @@ function drawPickups() {
   }
 }
 function drawTiles() {
+  const solidPattern = getStripePattern(1);
+  const oneWayPattern = getStripePattern(2);
+  const highlightHeight = Math.max(1, Math.round(TS / 8));
+  const shadowHeight = Math.max(1, Math.round(TS / 8));
   for (let ty = 0; ty < ROWS; ty++) {
     for (let tx = 0; tx < COLS; tx++) {
       const t = tileTypeAt(tx, ty);
-      if (t === 1) { ctx.fillStyle = '#1a2a44'; ctx.fillRect(tx * TS, ty * TS, TS, TS); ctx.strokeStyle = 'rgba(180,220,255,0.08)'; ctx.strokeRect(tx * TS + 0.5, ty * TS + 0.5, TS - 1, TS - 1); }
-      if (t === 2) { ctx.fillStyle = '#26395b'; ctx.fillRect(tx * TS, ty * TS, TS, TS); ctx.strokeStyle = 'rgba(180,220,255,0.05)'; ctx.strokeRect(tx * TS + 0.5, ty * TS + 0.5, TS - 1, TS - 1); }
+      if (t === 0) continue;
+      const px = tx * TS;
+      const py = ty * TS;
+      const isOneWay = (t === 2);
+      const pattern = isOneWay ? oneWayPattern : solidPattern;
+      const style = STRIPE_STYLE[isOneWay ? 'oneWay' : 'solid'];
+      ctx.save();
+      ctx.fillStyle = pattern || style.base;
+      ctx.fillRect(px, py, TS, TS);
+      ctx.restore();
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = style.outline;
+      ctx.strokeRect(px + 0.5, py + 0.5, TS - 1, TS - 1);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(px, py, TS, highlightHeight);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = style.shadow;
+      ctx.fillRect(px, py + TS - shadowHeight, TS, shadowHeight);
+      ctx.restore();
     }
   }
 }
