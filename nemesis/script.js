@@ -13,7 +13,9 @@ import {
 
 (() => {
   const canvas = document.getElementById('game');
-  const pixel = createPixelContext(canvas, { alpha: false });
+  // Enable alpha on the main canvas so the lighting mask can punch holes through
+  // the ambient overlay instead of clearing to opaque black.
+  const pixel = createPixelContext(canvas);
   const { ctx } = pixel;
 
   const crtFrame = document.querySelector('.screen.crt-frame');
