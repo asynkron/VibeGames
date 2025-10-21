@@ -55,3 +55,4 @@ Recent fixes
 - Debug: ensured overlay draws each frame by moving call into loop() before rAF.
 - Fix: replaced stray idx reference with roundIndex to avoid ReferenceError.
 - Fix: restored applyLevel(idx) and encapsulated level-init logic; prevents runtime ReferenceError.
+- Chore: ignore *.tmp in bubble-bobble and removed stray main.js.tmp.
