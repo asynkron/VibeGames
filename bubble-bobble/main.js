@@ -190,7 +190,9 @@ function wrapEntity(e) {
 }
 
 function spawnBubbleFromPlayer() {
-  const r = Math.max(12, Math.floor(TS * 1.35));
+  // Keep the bubble large enough to capture enemies, but scale it a bit
+  // smaller relative to oversized tiles so it still looks proportional.
+  const r = Math.max(12, Math.floor(TS * 1.2));
   // Place the bubble clearly in front of the player to avoid instant overlap
   const dx = (player.dir > 0 ? (player.w / 2 + r + 4) : -(player.w / 2 + r + 4));
   const px = player.x + player.w / 2 + dx;
