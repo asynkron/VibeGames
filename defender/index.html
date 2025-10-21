@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Defender CRT</title>
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="screen defender-screen crt-frame">
+    <canvas id="game" width="320" height="224"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud defender-hud">
+      <div class="retro-controls">
+        <span class="title">Defender</span>
+        <div class="scoreboard">
+          <span>Score: <span id="score">0</span></span>
+          <span>Lives: <span id="lives">3</span></span>
+          <span>Humans: <span id="humans">6</span></span>
+          <span class="fps" id="fps"></span>
+        </div>
+      </div>
+      <div class="retro-hud-footer defender-controls">Arrows/WASD to thrust · Space to shoot · Shift for boost · P to pause · R to restart</div>
+    </div>
+  </div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
