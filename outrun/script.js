@@ -40,6 +40,19 @@ const CAMERA_DEPTH = 1 / Math.tan(((FIELD_OF_VIEW / 2) * Math.PI) / 180);
 const SPEED_TO_KMH = 0.09;
 const DISTANCE_TO_KM = SPEED_TO_KMH / 3600;
 
+const CURVE_LOOKAHEAD_STEP = SEGMENT_LENGTH * 2;
+const CURVE_LOOKAHEAD_STEPS = 20;
+const HORIZON_LOOK_STRENGTH = 2.8;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function easeOutQuad(t) {
+  const clamped = clamp(t, 0, 1);
+  return 1 - (1 - clamped) * (1 - clamped);
+}
+
 const segments = [];
 let trackLength = 0;
 let lastY = 0;
@@ -83,26 +96,37 @@ function addStretch(length, curve = 0, elevation = 0, spriteEvery = 0, spriteOff
 
 // Assemble a looping course that mixes straights, sweepers, and rolling hills.
 function buildTrack() {
-  addStretch(120, 0, 0, 18, 2.8);
-  addStretch(40, 0.0006, 160, 0);
-  addStretch(40, 0.0006, -160, 0);
+  addStretch(90, 0, 0, 18, 2.8);
 
-  addStretch(80, 0.001, 0, 14, 2.4);
-  addStretch(60, 0.0014, 260, 0);
-  addStretch(50, 0.0014, -260, 0);
+  // Sweeping right-hander that climbs and then drops away.
+  addStretch(30, 0.0018, 80, 0);
+  addStretch(50, 0.0034, 160, 14, 2.6);
+  addStretch(70, 0.004, -200, 0);
 
-  addStretch(110, -0.0012, 0, 16, 2.2);
-  addStretch(60, -0.0012, 180, 0);
-  addStretch(60, -0.0014, -180, 0);
+  // Quick change of direction into a left curve.
+  addStretch(25, -0.0024, 100, 12, 2.3);
+  addStretch(45, -0.0036, 180, 0);
+  addStretch(45, -0.0036, -180, 0);
 
-  addStretch(90, 0, 0, 12, 2.8);
-  addStretch(70, 0.0008, 220, 10, 2.6);
-  addStretch(60, 0.0008, -220, 0);
+  // Time to breathe with a rolling straight.
+  addStretch(110, 0, 0, 16, 2.8);
+  addStretch(40, 0, 120, 10, 2.8);
+  addStretch(40, 0, -120, 0);
 
-  addStretch(120, -0.0015, 80, 14, 3.1);
-  addStretch(120, 0.0015, -80, 0);
+  // A fast chicane that sets up a long left sweeper.
+  addStretch(20, 0.0036, 40, 0);
+  addStretch(20, -0.0038, 40, 0);
+  addStretch(20, 0.0038, -40, 0);
+  addStretch(20, -0.004, -40, 0);
+  addStretch(60, -0.0042, 200, 14, 2.6);
+  addStretch(70, -0.0032, -200, 0);
 
-  addStretch(160, 0, 0, 20, 2.2);
+  // Finish with a flowing right turn back onto the highway.
+  addStretch(35, 0.0022, 0, 12, 2.4);
+  addStretch(60, 0.0038, 160, 0);
+  addStretch(80, 0.0032, -160, 0);
+
+  addStretch(140, 0, 0, 20, 2.6);
 
   trackLength = segments.length * SEGMENT_LENGTH;
 }
@@ -113,13 +137,32 @@ function findSegment(z) {
   return segments[Math.floor(z / SEGMENT_LENGTH) % segments.length];
 }
 
+// Sample curvature a short distance ahead to anticipate where the road is heading.
+function sampleUpcomingCurve(position) {
+  let total = 0;
+  let weight = 0;
+
+  for (let i = 0; i < CURVE_LOOKAHEAD_STEPS; i += 1) {
+    const offset = CURVE_LOOKAHEAD_STEP * (i + 1);
+    const segment = findSegment(position + offset);
+    const w = 1 - i / CURVE_LOOKAHEAD_STEPS;
+    total += segment.curve * w;
+    weight += w;
+  }
+
+  return weight ? total / weight : 0;
+}
+
 // Runtime state for the player's car and camera.
 const state = {
   position: 0,
   speed: 0,
   lateral: 0,
   lastFrame: 0,
-  distanceTravelled: 0
+  distanceTravelled: 0,
+  tilt: 0,
+  horizonCurve: 0,
+  horizonOffset: 0
 };
 
 const gauges = {
@@ -158,6 +201,7 @@ function update(dt) {
   const braking = input.has('ArrowDown') || input.has('KeyS');
   const steeringLeft = input.has('ArrowLeft') || input.has('KeyA');
   const steeringRight = input.has('ArrowRight') || input.has('KeyD');
+  const steeringInput = (steeringRight ? 1 : 0) - (steeringLeft ? 1 : 0);
 
   if (accelerating) {
     state.speed += (hasTurbo ? ACCELERATION * TURBO_MULTIPLIER : ACCELERATION) * dt;
@@ -169,7 +213,9 @@ function update(dt) {
     state.speed -= BRAKING * dt;
   }
 
-  state.speed = Math.max(0, Math.min(state.speed, MAX_SPEED * (hasTurbo ? 1.1 : 1)));
+  state.speed = clamp(state.speed, 0, MAX_SPEED * (hasTurbo ? 1.1 : 1));
+
+  const previousLateral = state.lateral;
 
   if (steeringLeft) {
     state.lateral -= (LATERAL_FORCE + state.speed / MAX_SPEED) * dt;
@@ -181,7 +227,9 @@ function update(dt) {
   const baseSegment = findSegment(state.position);
   state.lateral -= baseSegment.curve * 50 * dt * (state.speed / MAX_SPEED);
 
-  state.lateral = Math.max(-OFFROAD_LIMIT, Math.min(OFFROAD_LIMIT, state.lateral));
+  state.lateral = clamp(state.lateral, -OFFROAD_LIMIT, OFFROAD_LIMIT);
+
+  const lateralDelta = state.lateral - previousLateral;
 
   if (Math.abs(state.lateral) > 1.05) {
     state.speed -= (state.speed * 0.9) * dt;
@@ -193,6 +241,24 @@ function update(dt) {
   if (state.position >= trackLength) {
     state.position -= trackLength;
   }
+
+  const curveInfluence = baseSegment.curve * (state.speed / MAX_SPEED);
+  const driftInfluence = lateralDelta / Math.max(0.0001, dt);
+  const targetTilt = clamp(
+    (steeringInput * 0.34) + (curveInfluence * 110) - (driftInfluence * 0.05),
+    -0.6,
+    0.6
+  );
+  const tiltResponse = Math.min(1, dt * 7);
+  state.tilt += (targetTilt - state.tilt) * tiltResponse;
+
+  // Smooth the upcoming curve sample so the horizon glides instead of snapping.
+  const targetCurveSample = sampleUpcomingCurve(state.position);
+  const curveLerp = Math.min(1, dt * 2.8);
+  state.horizonCurve += (targetCurveSample - state.horizonCurve) * curveLerp;
+  const speedFactor = 0.2 + (state.speed / MAX_SPEED) * 0.8;
+  const targetOffset = state.horizonCurve * ROAD_WIDTH * HORIZON_LOOK_STRENGTH * speedFactor;
+  state.horizonOffset += (targetOffset - state.horizonOffset) * curveLerp;
 
   gauges.speed.textContent = String(Math.round(state.speed * SPEED_TO_KMH)).padStart(3, '0');
   gauges.distance.textContent = (state.distanceTravelled * DISTANCE_TO_KM).toFixed(1);
@@ -272,7 +338,9 @@ function renderSky() {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, halfHeight);
 
-  const glow = ctx.createRadialGradient(halfWidth, halfHeight * 0.95, 10, halfWidth, halfHeight * 0.95, halfWidth * 1.1);
+  const horizonRatio = state.horizonOffset / ROAD_WIDTH;
+  const glowCenterX = halfWidth + horizonRatio * width * 0.35;
+  const glow = ctx.createRadialGradient(glowCenterX, halfHeight * 0.95, 10, glowCenterX, halfHeight * 0.95, halfWidth * 1.1);
   glow.addColorStop(0, horizonGlow);
   glow.addColorStop(1, 'rgba(255, 96, 182, 0)');
   ctx.fillStyle = glow;
@@ -290,6 +358,7 @@ function renderRoad() {
   const cameraX = state.lateral * ROAD_WIDTH;
   const cameraY = baseSegment.y + CAMERA_HEIGHT;
   const cameraZ = state.position - CAMERA_DISTANCE;
+  const horizonOffset = state.horizonOffset;
 
   let x = 0;
   let dx = -baseSegment.curve * basePercent;
@@ -308,8 +377,11 @@ function renderRoad() {
     x += dx;
     dx += segment.curve;
 
-    const p1 = project(x, segment.y, segmentZ, cameraX, cameraY, cameraZ);
-    const p2 = project(x + dx, next.y, nextZ, cameraX, cameraY, cameraZ);
+    // Blend the horizon offset so far-away slices hint at the upcoming turn.
+    const offset1 = horizonOffset * easeOutQuad(n / DRAW_DISTANCE);
+    const offset2 = horizonOffset * easeOutQuad((n + 1) / DRAW_DISTANCE);
+    const p1 = project(x + offset1, segment.y, segmentZ, cameraX, cameraY, cameraZ);
+    const p2 = project(x + dx + offset2, next.y, nextZ, cameraX, cameraY, cameraZ);
 
     if (p1.dz <= CAMERA_DEPTH || p2.dz <= CAMERA_DEPTH) {
       continue;
@@ -343,24 +415,34 @@ function renderPlayer() {
   const baseY = height * 0.92;
   const baseX = halfWidth + state.lateral * width * 0.18;
 
+  ctx.save();
+  ctx.translate(baseX, baseY);
+
+  // Keep the drop shadow planted on the road surface.
   ctx.fillStyle = '#040205';
   ctx.beginPath();
-  ctx.ellipse(baseX, baseY - carHeight * 0.2, carWidth * 0.65, carHeight * 0.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -carHeight * 0.2, carWidth * 0.65, carHeight * 0.4, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.save();
+  ctx.rotate(state.tilt);
 
   ctx.fillStyle = '#ff2b88';
   ctx.beginPath();
-  ctx.moveTo(baseX, baseY - carHeight);
-  ctx.lineTo(baseX - carWidth * 0.6, baseY);
-  ctx.lineTo(baseX + carWidth * 0.6, baseY);
+  ctx.moveTo(0, -carHeight);
+  ctx.lineTo(-carWidth * 0.6, 0);
+  ctx.lineTo(carWidth * 0.6, 0);
   ctx.closePath();
   ctx.fill();
 
   ctx.fillStyle = '#ffe46c';
-  ctx.fillRect(baseX - carWidth * 0.2, baseY - carHeight * 0.4, carWidth * 0.4, carHeight * 0.22);
+  ctx.fillRect(-carWidth * 0.2, -carHeight * 0.4, carWidth * 0.4, carHeight * 0.22);
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-  ctx.fillRect(baseX - carWidth * 0.4, baseY - carHeight * 0.15, carWidth * 0.8, carHeight * 0.08);
+  ctx.fillRect(-carWidth * 0.4, -carHeight * 0.15, carWidth * 0.8, carHeight * 0.08);
+
+  ctx.restore();
+  ctx.restore();
 }
 
 function frame(now) {
