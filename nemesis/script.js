@@ -11,6 +11,7 @@ import {
 import { createScreenViewport } from '../shared/render/screenViewport.js';
 import { clamp } from '../shared/utils/math.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
+import { stepProjectiles } from '../shared/utils/projectiles.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -415,62 +416,55 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
   }
 
   function updateBullets(dt) {
-    for (let i = bullets.length - 1; i >= 0; i -= 1) {
-      const bullet = bullets[i];
-      bullet.x += bullet.vx * dt;
-      bullet.y += (bullet.vy ?? 0) * dt;
-      bullet.life -= dt;
-      if (
-        bullet.life <= 0 ||
-        bullet.x - state.cameraX > SCREEN_WIDTH + 40 ||
-        bullet.y < -40 ||
-        bullet.y > SCREEN_HEIGHT + 40
-      ) {
-        bullets.splice(i, 1);
-        continue;
-      }
-      if (isSolid(bullet.x, bullet.y)) {
-        spawnSpark(bullet.x, bullet.y);
-        bullets.splice(i, 1);
-        continue;
-      }
-      for (let j = enemies.length - 1; j >= 0; j -= 1) {
-        const enemy = enemies[j];
-        const dx = enemy.x - bullet.x;
-        const dy = enemy.y - bullet.y;
-        if (dx * dx + dy * dy < 18 * 18) {
-          damageEnemy(enemy, 1, bullet.x, bullet.y);
-          bullets.splice(i, 1);
-          break;
+    stepProjectiles(bullets, dt, {
+      shouldRemove(bullet) {
+        return (
+          bullet.x - state.cameraX > SCREEN_WIDTH + 40 ||
+          bullet.y < -40 ||
+          bullet.y > SCREEN_HEIGHT + 40
+        );
+      },
+      onActive(bullet) {
+        if (isSolid(bullet.x, bullet.y)) {
+          spawnSpark(bullet.x, bullet.y);
+          return true;
         }
-      }
-    }
+        for (let j = enemies.length - 1; j >= 0; j -= 1) {
+          const enemy = enemies[j];
+          const dx = enemy.x - bullet.x;
+          const dy = enemy.y - bullet.y;
+          if (dx * dx + dy * dy < 18 * 18) {
+            damageEnemy(enemy, 1, bullet.x, bullet.y);
+            return true;
+          }
+        }
+        return false;
+      },
+    });
   }
 
   function updateEnemyBullets(dt) {
-    for (let i = enemyBullets.length - 1; i >= 0; i -= 1) {
-      const shot = enemyBullets[i];
-      shot.x += shot.vx * dt;
-      shot.y += shot.vy * dt;
-      shot.life -= dt;
-      if (shot.life <= 0 || shot.x - state.cameraX < -40 || shot.x - state.cameraX > SCREEN_WIDTH + 40) {
-        enemyBullets.splice(i, 1);
-        continue;
-      }
-      if (isSolid(shot.x, shot.y)) {
-        spawnSpark(shot.x, shot.y, '#ff9ea8');
-        enemyBullets.splice(i, 1);
-        continue;
-      }
-      if (player.invincible <= 0) {
-        const dx = (state.cameraX + player.x) - shot.x;
-        const dy = player.y - shot.y;
-        if (dx * dx + dy * dy < 12 * 12) {
-          enemyBullets.splice(i, 1);
-          loseLife();
+    stepProjectiles(enemyBullets, dt, {
+      shouldRemove(shot) {
+        const screenX = shot.x - state.cameraX;
+        return screenX < -40 || screenX > SCREEN_WIDTH + 40;
+      },
+      onActive(shot) {
+        if (isSolid(shot.x, shot.y)) {
+          spawnSpark(shot.x, shot.y, '#ff9ea8');
+          return true;
         }
-      }
-    }
+        if (player.invincible <= 0) {
+          const dx = (state.cameraX + player.x) - shot.x;
+          const dy = player.y - shot.y;
+          if (dx * dx + dy * dy < 12 * 12) {
+            loseLife();
+            return true;
+          }
+        }
+        return false;
+      },
+    });
   }
 
   function updateEnemies(dt, now) {
