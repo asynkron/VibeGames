@@ -234,36 +234,27 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
       keys[prop] = pressed;
     });
   });
-  dpad.onKeyChange([' ', 'space'], (pressed) => {
+
+  const handleFireChange = (pressed) => {
+    // Ensure both keyboard and touch fire buttons share the same side-effects.
     keys.fire = pressed;
     if (pressed) beeper.resume();
-  });
-  dpad.onPause(() => {
+  };
+
+  const handlePauseToggle = () => {
+    // Guard against pausing when the game has already ended.
     if (state.gameOver) return;
     state.paused = !state.paused;
-  });
-  dpad.onRestart(() => {
+  };
+
+  const handleRestart = () => {
     beeper.resume();
     resetGame();
-  });
+  };
 
-  window.addEventListener('keydown', (event) => {
-    if (event.repeat) return;
-    const key = event.key.toLowerCase();
-    if (key === ' ') {
-      keys.fire = true;
-      beeper.resume();
-    } else if (key === 'p') {
-      if (!state.gameOver) state.paused = !state.paused;
-    } else if (key === 'r') {
-      beeper.resume();
-      resetGame();
-    }
-  });
-  window.addEventListener('keyup', (event) => {
-    const key = event.key.toLowerCase();
-    if (key === ' ') keys.fire = false;
-  });
+  dpad.onKeyChange([' ', 'space'], handleFireChange);
+  dpad.onPause(handlePauseToggle);
+  dpad.onRestart(handleRestart);
 
   function randRange(min, max) {
     return Math.random() * (max - min) + min;
