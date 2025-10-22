@@ -130,27 +130,16 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 
     // Wall collision (solid)
     if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
-      alive = false;
-      crashTone();
-      startIris('out', 900);
-      return;
+      if (handleCrash()) return;
     }
 
     if (terrainMask[head.y][head.x]) {
-      alive = false;
-      crashTone();
-      startIris('out', 900);
-      return;
+      if (handleCrash()) return;
     }
 
     // Self collision
-    for (let i = 0; i < snake.length; i++) {
-      if (snake[i].x === head.x && snake[i].y === head.y) {
-        alive = false;
-        crashTone();
-        startIris('out', 900);
-        return;
-      }
+    if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+      if (handleCrash()) return;
     }
 
     snake.unshift(head);
@@ -295,6 +284,14 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 
   init();
   requestAnimationFrame(frame);
+
+  function handleCrash() {
+    // Centralized crash handling keeps collision branches consistent.
+    alive = false;
+    crashTone();
+    startIris('out', 900);
+    return true;
+  }
 
   function buildTerrain() {
     // Build a light-touch obstacle layout so the arena stays mostly open.
