@@ -4,7 +4,6 @@
 }
 
 .boulderdash-screen {
-  --screen-width: min(94vw, 1040px);
   --screen-aspect: 20 / 11; /* 640x352 native playfield */
   --screen-padding: clamp(10px, 2vw, 26px);
   --crt-radius: 12px;

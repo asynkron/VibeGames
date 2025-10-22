@@ -4,7 +4,6 @@
 }
 
 .snake-screen {
-  --screen-width: min(92vw, 780px);
   --screen-aspect: 4 / 3;
   --screen-padding: clamp(10px, 2vw, 22px);
   --crt-radius: 12px;

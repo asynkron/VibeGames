@@ -10,7 +10,6 @@ body {
 }
 
 .defender-screen {
-  --screen-width: min(94vw, 860px);
   --screen-aspect: 10 / 7;
   --screen-padding: clamp(12px, 2.4vw, 26px);
   --crt-radius: 14px;

@@ -5,6 +5,7 @@ import { createOverlayFX } from '../../shared/fx/overlay.js';
 import {
   createDefaultCrtSettings,
 } from '../../shared/config/display.js';
+import { createScreenViewport } from '../../shared/render/screenViewport.js';
 
 const WIDTH = 28 * 32;  // 28 cols
 const HEIGHT = 16 * 32; // 16 rows
@@ -27,6 +28,17 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+
+createScreenViewport({
+  frame: document.querySelector('.lode-screen'),
+  logicalWidth: WIDTH,
+  logicalHeight: HEIGHT,
+  css: {
+    scale: 1.4,
+    minWidth: 820,
+    maxWidth: 1280,
+  },
+});
 
 const crtSettings = createDefaultCrtSettings();
 if (game && game.context && typeof game.context.drawImage === 'function' && game.events) {
