@@ -38,6 +38,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
   const scoreEl = document.getElementById('score');
   const livesEl = document.getElementById('lives');
+  const weaponEl = document.getElementById('weapon');
   const stageEl = document.getElementById('stage');
   const fpsEl = document.getElementById('fps');
   const fpsCounter = createFpsCounter({ element: fpsEl, intervalMs: 500 });
@@ -89,10 +90,88 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     enemy: '#ff9b5b',
     enemyAccent: '#ffe07d',
     enemyBullet: '#ff8a9f',
+    bombBullet: '#ffd8a6',
+    homingBullet: '#b7f1ff',
+    powerupBomb: '#ffcf6b',
+    powerupHoming: '#8ae8ff',
     turret: '#7e6bff',
     pause: 'rgba(14, 20, 40, 0.75)',
     text: '#f4faff',
   };
+
+  // Predefined enemy packs that fly in tight classic-style formations.
+  const FORMATION_TEMPLATES = [
+    {
+      name: 'arrow',
+      offsets: [
+        { x: 0, y: 0 },
+        { x: -24, y: -18 },
+        { x: -24, y: 18 },
+        { x: -48, y: -30 },
+        { x: -48, y: 30 },
+      ],
+      amplitude: 16,
+      frequency: 0.9,
+      speed: 82,
+      bobAmplitude: 5,
+      bobFrequency: 1.6,
+      canFire: false,
+      score: 180,
+    },
+    {
+      name: 'wall',
+      offsets: [
+        { x: 0, y: -24, canFire: true },
+        { x: -22, y: -8 },
+        { x: -44, y: 8, canFire: true },
+        { x: -66, y: 24 },
+        { x: -88, y: 40 },
+      ],
+      amplitude: 12,
+      frequency: 0.6,
+      speed: 72,
+      bobAmplitude: 4,
+      canFire: true,
+      fireChance: 0.35,
+      fireInterval: 2.4,
+      fireVariance: 0.7,
+      score: 200,
+    },
+    {
+      name: 'column',
+      offsets: [
+        { x: 0, y: -30 },
+        { x: -24, y: -10 },
+        { x: -48, y: 10 },
+        { x: -72, y: 30 },
+      ],
+      amplitude: 22,
+      frequency: 1.2,
+      speed: 88,
+      bobAmplitude: 7,
+      canFire: false,
+      score: 210,
+    },
+    {
+      name: 'loop',
+      offsets: [
+        { x: 0, y: 0, canFire: true },
+        { x: -20, y: -20 },
+        { x: -40, y: 20 },
+        { x: -60, y: -20 },
+        { x: -80, y: 20 },
+      ],
+      amplitude: 18,
+      frequency: 1.5,
+      speed: 94,
+      bobAmplitude: 10,
+      canFire: true,
+      fireChance: 0.4,
+      fireInterval: 1.9,
+      fireVariance: 0.8,
+      score: 220,
+    },
+  ];
 
   let terrain = buildTerrain(1);
 
@@ -100,6 +179,11 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   const bullets = [];
   const enemyBullets = [];
   const enemies = [];
+  // Floating pickups that upgrade the player's weapons temporarily.
+  const powerups = [];
+  const formations = new Map();
+  let nextFormationId = 1;
+  let nextFormationTemplate = 0;
   const particles = [];
   const lights = [];
 
@@ -114,6 +198,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     fireTimer: 0,
     invincible: 2,
     tilt: 0,
+    specialWeapon: null,
   };
 
   const state = {
@@ -124,6 +209,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     paused: false,
     gameOver: false,
     spawnTimer: 1.4,
+    powerupTimer: 5.5,
   };
 
   const keys = { up: false, down: false, left: false, right: false, fire: false };
@@ -173,16 +259,21 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     state.lives = 3;
     state.paused = false;
     state.gameOver = false;
-    state.spawnTimer = 1.4;
+    state.spawnTimer = 1.6;
+    state.powerupTimer = 5.5;
     player.x = SCREEN_WIDTH * 0.24;
     player.y = SCREEN_HEIGHT * 0.5;
     player.fireTimer = 0;
     player.invincible = 2;
     player.tilt = 0;
+    player.specialWeapon = null;
     bullets.length = 0;
     enemyBullets.length = 0;
     enemies.length = 0;
+    powerups.length = 0;
     particles.length = 0;
+    formations.clear();
+    nextFormationId = 1;
     terrain = buildTerrain(state.stage);
     startIris('in', 900);
     updateHud(true);
@@ -191,11 +282,14 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   function advanceStage() {
     state.stage += 1;
     state.cameraX = 0;
-    state.spawnTimer = Math.max(0.85, 1.4 - state.stage * 0.08);
+    state.spawnTimer = Math.max(1.1, 1.9 - state.stage * 0.06);
+    state.powerupTimer = Math.max(4.2, 6.5 - state.stage * 0.25);
     enemies.length = 0;
     enemyBullets.length = 0;
     bullets.length = 0;
+    powerups.length = 0;
     particles.length = 0;
+    formations.clear();
     terrain = buildTerrain(state.stage);
     player.x = SCREEN_WIDTH * 0.24;
     player.y = Math.min(player.y, SCREEN_HEIGHT - TILE * 4);
@@ -208,7 +302,17 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     scoreEl.textContent = `${state.score}`;
     livesEl.textContent = `${state.lives}`;
     stageEl.textContent = `${state.stage}`;
+    if (weaponEl) weaponEl.textContent = describeWeapon();
     if (force) fpsCounter.reset();
+  }
+
+  function describeWeapon() {
+    const special = player.specialWeapon;
+    if (!special || !special.type) return 'Laser';
+    const ammoLabel = typeof special.ammo === 'number' ? ` ×${Math.max(0, Math.ceil(special.ammo))}` : '';
+    if (special.type === 'bomb') return `Bomb${ammoLabel}`;
+    if (special.type === 'homing') return `Homing${ammoLabel}`;
+    return 'Laser';
   }
 
   function createStars(count) {
@@ -380,7 +484,6 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
   function spawnPlayerShot() {
     const angle = player.tilt * 0.6;
-    const speed = 380;
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     const muzzleOffsetX = player.width * 0.55;
@@ -389,15 +492,81 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     const shipWorldY = player.y;
     const spawnX = shipWorldX + muzzleOffsetX * cos - muzzleOffsetY * sin;
     const spawnY = shipWorldY + muzzleOffsetX * sin + muzzleOffsetY * cos;
+    const special = player.specialWeapon;
+
+    if (special && special.ammo > 0) {
+      if (special.type === 'bomb') {
+        spawnBombShot({ x: spawnX, y: spawnY, angle });
+        consumeSpecialCharge();
+        return;
+      }
+      if (special.type === 'homing') {
+        spawnHomingShot({ x: spawnX, y: spawnY, angle });
+        consumeSpecialCharge();
+        return;
+      }
+    }
+
+    spawnLaserShot({ x: spawnX, y: spawnY, cos, sin });
+  }
+
+  function spawnLaserShot({ x, y, cos, sin }) {
     bullets.push({
-      x: spawnX,
-      y: spawnY,
-      vx: cos * speed,
-      vy: sin * speed,
+      x,
+      y,
+      vx: cos * 380,
+      vy: sin * 380,
       life: 1.4,
     });
-    // Fire in the same direction the ship is currently tilted.
     shotTone();
+  }
+
+  function spawnBombShot({ x, y, angle }) {
+    const launchAngle = angle * 0.5;
+    const cos = Math.cos(launchAngle);
+    const sin = Math.sin(launchAngle);
+    const bomb = {
+      kind: 'bomb',
+      x,
+      y,
+      vx: cos * 260,
+      vy: sin * 260 - 40,
+      gravity: 110,
+      life: 1.8,
+    };
+    bomb.advance = (dt) => {
+      bomb.vy += bomb.gravity * dt;
+      bomb.x += bomb.vx * dt;
+      bomb.y += bomb.vy * dt;
+    };
+    bullets.push(bomb);
+    shotTone();
+  }
+
+  function spawnHomingShot({ x, y, angle }) {
+    const speed = 320;
+    const homing = {
+      kind: 'homing',
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      speed,
+      turnRate: 4.8,
+      life: 2.9,
+    };
+    homing.advance = createHomingAdvance(homing);
+    bullets.push(homing);
+    shotTone();
+  }
+
+  function consumeSpecialCharge() {
+    if (!player.specialWeapon) return;
+    player.specialWeapon.ammo = Math.max(0, (player.specialWeapon.ammo ?? 0) - 1);
+    if (player.specialWeapon.ammo <= 0) {
+      player.specialWeapon = null;
+    }
+    updateHud();
   }
 
   function spawnSpark(x, y, color = '#9de6ff') {
@@ -417,30 +586,121 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
   function updateBullets(dt) {
     stepProjectiles(bullets, dt, {
+      advance(bullet, delta) {
+        if (typeof bullet.advance === 'function') {
+          bullet.advance(delta);
+        } else {
+          if (typeof bullet.vx === 'number') bullet.x += bullet.vx * delta;
+          if (typeof bullet.vy === 'number') bullet.y += bullet.vy * delta;
+        }
+      },
       shouldRemove(bullet) {
+        const margin = bullet.kind === 'bomb' ? 80 : 40;
+        const screenX = bullet.x - state.cameraX;
         return (
-          bullet.x - state.cameraX > SCREEN_WIDTH + 40 ||
-          bullet.y < -40 ||
-          bullet.y > SCREEN_HEIGHT + 40
+          screenX > SCREEN_WIDTH + margin ||
+          screenX < -margin ||
+          bullet.y < -60 ||
+          bullet.y > SCREEN_HEIGHT + 60
         );
       },
       onActive(bullet) {
         if (isSolid(bullet.x, bullet.y)) {
-          spawnSpark(bullet.x, bullet.y);
+          if (bullet.kind === 'bomb') {
+            detonateBomb(bullet);
+          } else {
+            spawnSpark(bullet.x, bullet.y);
+          }
           return true;
         }
+        const radius = bullet.hitRadius ?? (bullet.kind === 'bomb'
+          ? 26
+          : bullet.kind === 'homing'
+            ? 16
+            : 12);
+        const radiusSq = radius * radius;
         for (let j = enemies.length - 1; j >= 0; j -= 1) {
           const enemy = enemies[j];
           const dx = enemy.x - bullet.x;
           const dy = enemy.y - bullet.y;
-          if (dx * dx + dy * dy < 18 * 18) {
-            damageEnemy(enemy, 1, bullet.x, bullet.y);
+          if (dx * dx + dy * dy < radiusSq) {
+            if (bullet.kind === 'bomb') {
+              detonateBomb(bullet);
+            } else {
+              damageEnemy(enemy, bullet.damage ?? 1, bullet.x, bullet.y);
+            }
             return true;
           }
         }
         return false;
       },
+      onRemove(bullet) {
+        if (bullet.kind === 'bomb') {
+          detonateBomb(bullet);
+        }
+      },
     });
+  }
+
+  function detonateBomb(bomb) {
+    if (!bomb || bomb.detonated) return;
+    bomb.detonated = true;
+    spawnExplosion(bomb.x, bomb.y, { count: 16, radius: 120 });
+    let damaged = false;
+    const blastRadius = 90;
+    const blastSq = blastRadius * blastRadius;
+    for (let i = enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = enemies[i];
+      const dx = enemy.x - bomb.x;
+      const dy = enemy.y - bomb.y;
+      if (dx * dx + dy * dy <= blastSq) {
+        damageEnemy(enemy, 3, bomb.x, bomb.y);
+        damaged = true;
+      }
+    }
+    if (!damaged) hitTone();
+  }
+
+  function createHomingAdvance(bullet) {
+    let heading = Math.atan2(bullet.vy ?? 0, bullet.vx ?? bullet.speed ?? 0);
+    return (dt) => {
+      const target = findNearestEnemy(bullet.x, bullet.y);
+      if (target) {
+        const desired = Math.atan2(target.y - bullet.y, target.x - bullet.x);
+        let delta = normalizeAngle(desired - heading);
+        const maxTurn = (bullet.turnRate ?? 4.8) * dt;
+        if (delta > maxTurn) delta = maxTurn;
+        if (delta < -maxTurn) delta = -maxTurn;
+        heading += delta;
+        const speed = bullet.speed ?? Math.hypot(bullet.vx ?? 0, bullet.vy ?? 0) || 280;
+        bullet.vx = Math.cos(heading) * speed;
+        bullet.vy = Math.sin(heading) * speed;
+      }
+      bullet.x += bullet.vx * dt;
+      bullet.y += bullet.vy * dt;
+    };
+  }
+
+  function findNearestEnemy(x, y) {
+    let closest = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const enemy of enemies) {
+      const dx = enemy.x - x;
+      const dy = enemy.y - y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < bestDist) {
+        bestDist = distSq;
+        closest = enemy;
+      }
+    }
+    return closest;
+  }
+
+  function normalizeAngle(angle) {
+    let result = angle;
+    while (result > Math.PI) result -= Math.PI * 2;
+    while (result < -Math.PI) result += Math.PI * 2;
+    return result;
   }
 
   function updateEnemyBullets(dt) {
@@ -468,92 +728,299 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   }
 
   function updateEnemies(dt, now) {
+    updateFormations(dt);
     state.spawnTimer -= dt;
     if (state.spawnTimer <= 0) {
       spawnEnemyWave();
-      state.spawnTimer = Math.max(0.75, 1.6 - state.stage * 0.09);
+      state.spawnTimer = Math.max(1.1, 1.9 - state.stage * 0.06) + Math.random() * 0.25;
     }
 
     for (let i = enemies.length - 1; i >= 0; i -= 1) {
       const enemy = enemies[i];
       if (enemy.type === 'fighter') {
-        enemy.x += enemy.vx * dt;
-        enemy.t += dt;
-        enemy.y = enemy.baseY + Math.sin(enemy.t * enemy.frequency) * enemy.amplitude;
-        if (enemy.fireTimer > 0) enemy.fireTimer -= dt;
-        if (enemy.fireTimer <= 0) {
-          enemy.fireTimer = 1.2 - Math.min(0.6, state.stage * 0.08) + Math.random() * 0.4;
-          enemyBullets.push({
-            x: enemy.x - enemy.width * 0.3,
-            y: enemy.y,
-            vx: -160,
-            vy: 60 * Math.sin(enemy.t * 1.4),
-            life: 2.4,
-          });
+        if (enemy.formationId) {
+          const formation = formations.get(enemy.formationId);
+          if (!formation) {
+            removeEnemyAt(i);
+            continue;
+          }
+          const bob = enemy.bobAmplitude
+            ? Math.sin(formation.t * (enemy.bobFrequency || 1) + enemy.bobPhase) * enemy.bobAmplitude
+            : 0;
+          enemy.x = formation.anchorX + enemy.offsetX;
+          enemy.y = formation.anchorY + enemy.offsetY + bob;
+
+          if (enemy.canFire) {
+            if (enemy.fireTimer > 0) enemy.fireTimer -= dt;
+            if (enemy.fireTimer <= 0) {
+              const vx = -140 - state.stage * 6;
+              const vy = Math.sin(formation.t * 1.3 + enemy.offsetX * 0.04) * 55;
+              enemyBullets.push({
+                x: enemy.x - enemy.width * 0.3,
+                y: enemy.y,
+                vx,
+                vy,
+                life: 2.8,
+              });
+              enemy.fireTimer = (enemy.fireCooldown ?? 2.3) + Math.random() * (enemy.fireVariance ?? 0.6);
+            }
+          }
+        } else {
+          enemy.x += (enemy.vx ?? -90) * dt;
+          enemy.y += (enemy.vy ?? 0) * dt;
         }
       } else if (enemy.type === 'turret') {
         if (enemy.fireTimer > 0) enemy.fireTimer -= dt;
         if (enemy.fireTimer <= 0) {
-          enemy.fireTimer = 1.6 - Math.min(0.7, state.stage * 0.05) + Math.random() * 0.6;
+          enemy.fireTimer = (enemy.fireCooldown ?? 2.5) + Math.random() * 0.6;
           const dir = Math.atan2(player.y - enemy.y, (state.cameraX + player.x) - enemy.x);
           enemyBullets.push({
             x: enemy.x,
             y: enemy.y - enemy.height * 0.3,
-            vx: Math.cos(dir) * 180,
-            vy: Math.sin(dir) * 180,
-            life: 2.8,
+            vx: Math.cos(dir) * 150,
+            vy: Math.sin(dir) * 150,
+            life: 3.2,
           });
         }
       }
 
       if (isSolid(enemy.x, enemy.y)) {
         spawnExplosion(enemy.x, enemy.y, { count: 8, radius: 70 });
-        enemies.splice(i, 1);
+        removeEnemyAt(i);
         continue;
       }
 
       const screenX = enemy.x - state.cameraX;
       if (screenX < -60) {
-        enemies.splice(i, 1);
+        removeEnemyAt(i);
       }
     }
   }
 
   function spawnEnemyWave() {
     const rightEdge = state.cameraX + SCREEN_WIDTH + TILE * 4;
-    const typeRoll = Math.random();
-    if (typeRoll < 0.65) {
-      const band = SCREEN_HEIGHT * 0.2;
-      for (let i = 0; i < 3; i += 1) {
-        const offsetY = band + i * (SCREEN_HEIGHT - band * 2) / 3 + Math.sin((state.stage + i) * 0.5) * 14;
-        enemies.push({
-          type: 'fighter',
-          x: rightEdge + i * 36,
-          y: offsetY,
-          baseY: offsetY,
-          amplitude: 16 + Math.random() * 18,
-          frequency: 1.5 + Math.random() * 0.6,
-          vx: -90 - state.stage * 8,
-          fireTimer: 0.6 + Math.random() * 0.4,
-          width: 16,
-          height: 12,
-          hp: 2,
-          t: Math.random() * Math.PI,
-          score: 180,
-        });
-      }
-    } else {
-      const spawnX = rightEdge + 40;
-      const floor = getFloor(spawnX) - TILE * 0.5;
+    const turretChance = clamp(0.14 + state.stage * 0.02, 0.14, 0.32);
+    if (Math.random() < turretChance) {
+      spawnTurret(rightEdge + 36);
+      return;
+    }
+
+    const template = FORMATION_TEMPLATES[nextFormationTemplate % FORMATION_TEMPLATES.length];
+    nextFormationTemplate = (nextFormationTemplate + 1) % FORMATION_TEMPLATES.length;
+    spawnFormationWave(template, rightEdge + 40);
+  }
+
+  function spawnFormationWave(template, spawnX) {
+    const formationId = nextFormationId++;
+    const sampleX = spawnX + TILE * 2;
+    const floor = getFloor(sampleX) - TILE * 2.5;
+    const ceiling = getCeiling(sampleX) + TILE * 2.5;
+    const minY = clamp(ceiling + 26, TILE * 3, SCREEN_HEIGHT - TILE * 5);
+    const maxY = clamp(floor - 26, TILE * 4, SCREEN_HEIGHT - TILE * 3);
+    const band = Math.max(12, maxY - minY);
+    const baseY = clamp(minY + Math.random() * band, TILE * 3, SCREEN_HEIGHT - TILE * 3);
+    const amplitude = (template.amplitude ?? 12) + Math.min(10, state.stage * 1.2);
+    const allowFire = template.canFire && Math.random() < (template.fireChance ?? 0.25);
+    const formation = {
+      id: formationId,
+      anchorX: spawnX,
+      baseY,
+      anchorY: baseY,
+      amplitude,
+      frequency: template.frequency ?? 1,
+      speed: -(template.speed + state.stage * 4.2),
+      bobFrequency: template.bobFrequency ?? 0,
+      t: 0,
+      members: template.offsets.length,
+      allowFire,
+      fireInterval: template.fireInterval ?? 2.2,
+      fireVariance: template.fireVariance ?? 0.6,
+    };
+    formations.set(formationId, formation);
+
+    for (const offset of template.offsets) {
+      const bobAmplitude = offset.bobAmplitude ?? template.bobAmplitude ?? 0;
+      const bobFrequency = offset.bobFrequency ?? template.bobFrequency ?? (bobAmplitude ? 1.2 + Math.random() * 0.6 : 0);
       enemies.push({
-        type: 'turret',
-        x: spawnX,
-        y: floor,
-        width: 18,
-        height: TILE * 2,
-        hp: 4,
-        fireTimer: 0.6,
-        score: 260,
+        type: 'fighter',
+        formationId,
+        offsetX: offset.x,
+        offsetY: offset.y,
+        bobAmplitude,
+        bobFrequency,
+        bobPhase: Math.random() * Math.PI * 2,
+        width: 16,
+        height: 12,
+        hp: 2,
+        score: template.score ?? 180,
+        canFire: formation.allowFire && (offset.canFire ?? false),
+        fireTimer: (formation.fireInterval ?? 2.2) * 0.6 + Math.random() * 0.5,
+        fireCooldown: formation.fireInterval,
+        fireVariance: formation.fireVariance,
+      });
+    }
+  }
+
+  function spawnTurret(spawnX) {
+    const floor = getFloor(spawnX) - TILE * 0.5;
+    enemies.push({
+      type: 'turret',
+      x: spawnX,
+      y: floor,
+      width: 18,
+      height: TILE * 2,
+      hp: 4,
+      fireTimer: 1.2,
+      fireCooldown: Math.max(1.8, 2.7 - state.stage * 0.1),
+      score: 260,
+    });
+  }
+
+  function updateFormations(dt) {
+    const expired = [];
+    for (const formation of formations.values()) {
+      formation.t += dt;
+      formation.anchorX += formation.speed * dt;
+      const wave = Math.sin(formation.t * (formation.frequency ?? 1)) * formation.amplitude;
+      const desiredY = formation.baseY + wave;
+      const floor = getFloor(formation.anchorX) - TILE * 2.4;
+      const ceiling = getCeiling(formation.anchorX) + TILE * 2.4;
+      const minY = clamp(ceiling + 24, TILE * 3, SCREEN_HEIGHT - TILE * 4);
+      const maxY = clamp(floor - 24, TILE * 4, SCREEN_HEIGHT - TILE * 3);
+      formation.anchorY = clamp(desiredY, minY, maxY);
+
+      if (formation.members <= 0 || formation.anchorX - state.cameraX < -SCREEN_WIDTH - 140) {
+        expired.push(formation.id);
+      }
+    }
+    for (const id of expired) {
+      formations.delete(id);
+    }
+  }
+
+  function detachEnemy(enemy) {
+    if (!enemy || !enemy.formationId) return;
+    const formation = formations.get(enemy.formationId);
+    if (formation) {
+      formation.members -= 1;
+      if (formation.members <= 0) formations.delete(enemy.formationId);
+    }
+  }
+
+  function removeEnemyAt(index) {
+    if (index < 0 || index >= enemies.length) return null;
+    const [enemy] = enemies.splice(index, 1);
+    detachEnemy(enemy);
+    return enemy;
+  }
+
+  function removeEnemy(enemy) {
+    const index = enemies.indexOf(enemy);
+    if (index !== -1) {
+      enemies.splice(index, 1);
+    }
+    detachEnemy(enemy);
+  }
+
+  function spawnPowerup() {
+    const spawnX = state.cameraX + SCREEN_WIDTH + TILE * 3;
+    const floor = getFloor(spawnX) - TILE * 2.2;
+    const ceiling = getCeiling(spawnX) + TILE * 2.2;
+    const minY = clamp(ceiling + 20, TILE * 3, SCREEN_HEIGHT - TILE * 4);
+    const maxY = clamp(floor - 20, TILE * 4, SCREEN_HEIGHT - TILE * 3);
+    const baseY = clamp(minY + Math.random() * Math.max(10, maxY - minY), TILE * 3, SCREEN_HEIGHT - TILE * 3);
+    const type = Math.random() < 0.5 ? 'bomb' : 'homing';
+    powerups.push({
+      type,
+      x: spawnX,
+      baseY,
+      y: baseY,
+      vx: -(settings.scrollSpeed * 0.6),
+      bobTimer: 0,
+      bobAmplitude: 18,
+      width: 14,
+      height: 12,
+    });
+  }
+
+  function activatePowerup(type) {
+    const payload = type === 'bomb' ? 6 : 10;
+    if (!player.specialWeapon || player.specialWeapon.type !== type) {
+      player.specialWeapon = { type, ammo: payload };
+    } else {
+      player.specialWeapon.ammo += payload;
+    }
+    hitTone();
+    updateHud();
+  }
+
+  function updatePowerups(dt) {
+    state.powerupTimer -= dt;
+    if (state.powerupTimer <= 0) {
+      spawnPowerup();
+      state.powerupTimer = Math.max(4, 6.2 - state.stage * 0.25) + Math.random() * 1.2;
+    }
+
+    for (let i = powerups.length - 1; i >= 0; i -= 1) {
+      const power = powerups[i];
+      power.x += power.vx * dt;
+      power.bobTimer += dt;
+      power.y = power.baseY + Math.sin(power.bobTimer * 2.6) * power.bobAmplitude;
+      const ceiling = clamp(getCeiling(power.x) + TILE * 2, TILE * 3, SCREEN_HEIGHT - TILE * 4);
+      const floor = clamp(getFloor(power.x) - TILE * 2, TILE * 4, SCREEN_HEIGHT - TILE * 3);
+      power.y = clamp(power.y, ceiling + 12, floor - 12);
+
+      const screenX = power.x - state.cameraX;
+      if (screenX < -30) {
+        powerups.splice(i, 1);
+        continue;
+      }
+
+      const dx = (state.cameraX + player.x) - power.x;
+      const dy = player.y - power.y;
+      const pickupRadius = player.invincible > 0 ? 22 : 18;
+      if (dx * dx + dy * dy < pickupRadius * pickupRadius) {
+        activatePowerup(power.type);
+        spawnSpark(power.x, power.y, power.type === 'bomb' ? '#ffe3a8' : '#b7f3ff');
+        powerups.splice(i, 1);
+      }
+    }
+  }
+
+  function drawPowerups() {
+    for (const power of powerups) {
+      const screenX = power.x - state.cameraX;
+      if (screenX < -20 || screenX > SCREEN_WIDTH + 40) continue;
+      ctx.save();
+      ctx.translate(screenX, power.y);
+      ctx.fillStyle = power.type === 'bomb' ? COLORS.powerupBomb : COLORS.powerupHoming;
+      ctx.beginPath();
+      ctx.arc(0, 0, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = COLORS.playerOutline;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = COLORS.space;
+      if (power.type === 'bomb') {
+        ctx.fillRect(-2, -2, 4, 4);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(-2, -3);
+        ctx.lineTo(3, 0);
+        ctx.lineTo(-2, 3);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+      lights.push({
+        x: screenX,
+        y: power.y,
+        radius: 60,
+        innerRadius: 6,
+        innerStop: 0.25,
+        color: power.type === 'bomb'
+          ? 'rgba(255, 190, 120, 0.45)'
+          : 'rgba(150, 240, 255, 0.45)',
       });
     }
   }
@@ -568,8 +1035,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   }
 
   function killEnemy(enemy) {
-    const index = enemies.indexOf(enemy);
-    if (index !== -1) enemies.splice(index, 1);
+    removeEnemy(enemy);
     state.score += enemy.score ?? 200;
     updateHud();
     spawnExplosion(enemy.x, enemy.y, { count: 14, radius: 96 });
@@ -622,6 +1088,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       state.gameOver = true;
       startIris('out', 1100);
     }
+    player.specialWeapon = null;
     updateHud();
   }
 
@@ -703,20 +1170,63 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       ) {
         continue;
       }
-      ctx.save();
-      ctx.translate(screenX, bullet.y);
-      const angle = Math.atan2(bullet.vy ?? 0, bullet.vx);
-      ctx.rotate(angle);
-      ctx.fillRect(-1, -1, 4, 2);
-      ctx.restore();
-      lights.push({
-        x: screenX + Math.cos(angle) * 1,
-        y: bullet.y + Math.sin(angle) * 1,
-        radius: 34,
-        innerRadius: 4,
-        innerStop: 0.1,
-        color: 'rgba(140, 230, 255, 0.55)',
-      });
+      if (bullet.kind === 'bomb') {
+        ctx.save();
+        ctx.translate(screenX, bullet.y);
+        ctx.fillStyle = COLORS.bombBullet;
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = COLORS.playerOutline;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+        lights.push({
+          x: screenX,
+          y: bullet.y,
+          radius: 70,
+          innerRadius: 6,
+          innerStop: 0.2,
+          color: 'rgba(255, 210, 150, 0.55)',
+        });
+      } else if (bullet.kind === 'homing') {
+        ctx.save();
+        ctx.translate(screenX, bullet.y);
+        const angle = Math.atan2(bullet.vy ?? 0, bullet.vx ?? 1);
+        ctx.rotate(angle);
+        ctx.fillStyle = COLORS.homingBullet;
+        ctx.beginPath();
+        ctx.moveTo(4, 0);
+        ctx.lineTo(-3, -2);
+        ctx.lineTo(-3, 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        lights.push({
+          x: screenX + Math.cos(angle) * 2,
+          y: bullet.y + Math.sin(angle) * 2,
+          radius: 50,
+          innerRadius: 5,
+          innerStop: 0.15,
+          color: 'rgba(160, 240, 255, 0.55)',
+        });
+      } else {
+        ctx.save();
+        ctx.translate(screenX, bullet.y);
+        const angle = Math.atan2(bullet.vy ?? 0, bullet.vx);
+        ctx.rotate(angle);
+        ctx.fillStyle = COLORS.bullet;
+        ctx.fillRect(-1, -1, 4, 2);
+        ctx.restore();
+        lights.push({
+          x: screenX + Math.cos(angle) * 1,
+          y: bullet.y + Math.sin(angle) * 1,
+          radius: 34,
+          innerRadius: 4,
+          innerStop: 0.1,
+          color: 'rgba(140, 230, 255, 0.55)',
+        });
+      }
     }
   }
 
@@ -929,6 +1439,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     updateBullets(dt);
     updateEnemyBullets(dt);
     updateEnemies(dt, now);
+    updatePowerups(dt);
     updateParticles(dt);
   }
 
@@ -938,6 +1449,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     drawTerrain();
     drawParticles();
     drawEnemies();
+    drawPowerups();
     drawBullets();
     drawEnemyBullets();
     drawPlayer(now);
