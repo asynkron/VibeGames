@@ -79,36 +79,47 @@ function solidAt(tx, ty) { return tileTypeAt(tx, ty) === 1; }
 function groundAt(tx, ty) { const t = tileTypeAt(tx, ty); return t === 1 || t === 2; }
 // Input
 const keys = { left: false, right: false, up: false, down: false, shoot: false };
+// Map normalized keyboard inputs to the corresponding in-game flags.
+const KEY_BINDINGS = {
+  arrowleft: 'left',
+  a: 'left',
+  arrowright: 'right',
+  d: 'right',
+  arrowup: 'up',
+  w: 'up',
+  arrowdown: 'down',
+  s: 'down',
+  space: 'shoot',
+  spacebar: 'shoot',
+};
+// Normalise keys/codes so variations like "Space" and " " hit the same entry.
+function normalizeKey(raw) {
+  if (!raw) return '';
+  if (raw === ' ') return 'space';
+  return raw.toLowerCase();
+}
+function setKeyState(event, pressed) {
+  const normalizedKey = normalizeKey(event.key);
+  let action = KEY_BINDINGS[normalizedKey];
+  if (!action) {
+    const normalizedCode = normalizeKey(event.code);
+    action = KEY_BINDINGS[normalizedCode];
+  }
+  if (action) keys[action] = pressed;
+}
 let SHOW_OVERLAY = false;
 addEventListener('keydown', (e) => {
   const k = e.key;
   BACKDROP_8.dirty = true;
   if (e.repeat) return;
   if (k === 'o' || k === 'O') { SHOW_OVERLAY = !SHOW_OVERLAY; return; }
-  const c = e.code;
-  switch (k) {
-    case 'ArrowLeft': case 'a': case 'A': keys.left = true; break;
-    case 'ArrowRight': case 'd': case 'D': keys.right = true; break;
-    case 'ArrowUp': case 'w': case 'W': keys.up = true; break;
-    case 'ArrowDown': case 's': case 'S': keys.down = true; break;
-    case ' ': case 'Spacebar': keys.shoot = true; break;
-    default: if (c === 'Space') keys.shoot = true; break;
-  }
+  setKeyState(e, true);
   if (k === 'm' || k === 'M') toggleMusicMute();
   if (k === 'p' || k === 'P') { running = !running; setMusicPaused(!running); if (running) requestAnimationFrame(loop); }
   if ((k === 'Enter' || k === 'r' || k === 'R') && gameState === 'gameOver') restartGame();
 });
 addEventListener('keyup', (e) => {
-  const k = e.key;
-  const c = e.code;
-  switch (k) {
-    case 'ArrowLeft': case 'a': case 'A': keys.left = false; break;
-    case 'ArrowRight': case 'd': case 'D': keys.right = false; break;
-    case 'ArrowUp': case 'w': case 'W': keys.up = false; break;
-    case 'ArrowDown': case 's': case 'S': keys.down = false; break;
-    case ' ': case 'Spacebar': keys.shoot = false; break;
-  }
-  if (c === 'Space') keys.shoot = false;
+  setKeyState(e, false);
 });
 
 // World state
