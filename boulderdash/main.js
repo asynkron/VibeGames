@@ -74,53 +74,46 @@ function updateHUD() {
   }
 }
 
+// Map game events to their audio/message side-effects so related work stays together.
+const handlers = {
+  collect: () => audio.collect(),
+  dig: () => audio.dig(),
+  step: () => audio.step(),
+  push: () => audio.push(),
+  fall: () => audio.fall(),
+  land: () => audio.land(),
+  key: () => {
+    audio.key();
+    showMessage('Key collected');
+  },
+  unlock: () => {
+    audio.unlock();
+    showMessage('Door unlocked');
+  },
+  'exit-open': () => {
+    audio.exitOpen();
+    showMessage('Exit is open!');
+  },
+  win: () => {
+    audio.win();
+    showMessage('Cavern cleared!');
+  },
+};
+
+function handleDeath(payload) {
+  audio.die();
+  const reason = payload?.reason === 'time' ? 'Out of time!' : 'Crushed!';
+  showMessage(`${reason} Press R to restart.`, 2800);
+  renderer.syncOverlayBounds(world);
+  renderer.startIris('out', 900);
+}
+
 function onEvent(evt, payload) {
-  switch (evt) {
-    case 'collect':
-      audio.collect();
-      break;
-    case 'dig':
-      audio.dig();
-      break;
-    case 'step':
-      audio.step();
-      break;
-    case 'push':
-      audio.push();
-      break;
-    case 'fall':
-      audio.fall();
-      break;
-    case 'land':
-      audio.land();
-      break;
-    case 'key':
-      audio.key();
-      showMessage('Key collected');
-      break;
-    case 'unlock':
-      audio.unlock();
-      showMessage('Door unlocked');
-      break;
-    case 'exit-open':
-      audio.exitOpen();
-      showMessage('Exit is open!');
-      break;
-    case 'win':
-      audio.win();
-      showMessage('Cavern cleared!');
-      break;
-    case 'die': {
-      audio.die();
-      const reason = payload?.reason === 'time' ? 'Out of time!' : 'Crushed!';
-      showMessage(`${reason} Press R to restart.`, 2800);
-      renderer.syncOverlayBounds(world);
-      renderer.startIris('out', 900);
-      break;
-    }
-    default:
-      break;
+  if (evt === 'die') {
+    handleDeath(payload);
+    return;
   }
+  handlers[evt]?.(payload);
 }
 
 const engine = new GameEngine(world, renderer, onEvent);
