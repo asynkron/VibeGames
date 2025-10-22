@@ -537,34 +537,42 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
     });
   }
 
-  function updateBullets(dt) {
-    for (let i = bullets.length - 1; i >= 0; i -= 1) {
-      const bullet = bullets[i];
-      bullet.x += bullet.vx * dt;
-      bullet.y += bullet.vy * dt;
-      bullet.life -= dt;
-      if (bullet.life <= 0) {
-        bullets.splice(i, 1);
+  // Shared projectile stepping keeps bullet integration and removal behavior consistent.
+  function stepProjectiles(list, dt, onActive) {
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const projectile = list[i];
+      projectile.x += projectile.vx * dt;
+      projectile.y += projectile.vy * dt;
+      projectile.life -= dt;
+      if (projectile.life <= 0) {
+        list.splice(i, 1);
         continue;
       }
+      // The callback returns true when it consumes the projectile (e.g. on hit).
+      if (onActive(projectile, i, list)) {
+        list.splice(i, 1);
+      }
+    }
+  }
+
+  function updateBullets(dt) {
+    stepProjectiles(bullets, dt, (bullet) => {
       for (let j = enemies.length - 1; j >= 0; j -= 1) {
         const enemy = enemies[j];
         const dx = bullet.x - enemy.x;
         const dy = bullet.y - enemy.y;
         if (dx * dx + dy * dy <= (enemy.radius + bullet.radius) ** 2) {
-          bullets.splice(i, 1);
           const killed = handleEnemyHit(enemy);
           if (killed) enemies.splice(j, 1);
-          break;
+          return true;
         }
       }
-      if (!state.portal) continue;
+      if (!state.portal) return false;
       const portal = state.portal;
       const dx = bullet.x - portal.x;
       const dy = bullet.y - portal.y;
       const radius = portal.radius + bullet.radius;
       if (dx * dx + dy * dy <= radius * radius) {
-        bullets.splice(i, 1);
         portal.hp -= 1;
         spawnParticles({
           x: portal.x + dx * 0.1,
@@ -583,27 +591,22 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
           addScore(500);
           warpToNextEra();
         }
+        return true;
       }
-    }
+      return false;
+    });
   }
 
   function updateEnemyBullets(dt) {
-    for (let i = enemyBullets.length - 1; i >= 0; i -= 1) {
-      const bullet = enemyBullets[i];
-      bullet.x += bullet.vx * dt;
-      bullet.y += bullet.vy * dt;
-      bullet.life -= dt;
-      if (bullet.life <= 0) {
-        enemyBullets.splice(i, 1);
-        continue;
-      }
+    stepProjectiles(enemyBullets, dt, (bullet) => {
       const dx = bullet.x - player.x;
       const dy = bullet.y - player.y;
       if (dx * dx + dy * dy <= (bullet.radius + 12) ** 2) {
-        enemyBullets.splice(i, 1);
         damagePlayer();
+        return true;
       }
-    }
+      return false;
+    });
   }
 
   function updateEnemies(dt) {
