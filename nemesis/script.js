@@ -882,6 +882,7 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
       ambient: settings.ambientLight,
       sources,
       sourceCanvas: sources.length ? lightCanvas : null,
+      sourceCanvasIsLightBuffer: sources.length > 0,
     });
 
     lights.length = 0;

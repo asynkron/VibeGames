@@ -23,6 +23,7 @@ export function applyAmbientLighting({
   ambient = 0,
   sources = [],
   sourceCanvas = null,
+  sourceCanvasIsLightBuffer = false,
 }) {
   if (!ctx) return;
 
@@ -83,7 +84,7 @@ export function applyAmbientLighting({
   // Blend light sources additively so they bloom over the scene instead of
   // darkening it further.
   ctx.globalCompositeOperation = 'lighter';
-  if (sourceCanvas) {
+  if (sourceCanvas && sourceCanvasIsLightBuffer) {
     ctx.drawImage(sourceCanvas, 0, 0);
   } else {
     for (const source of sources) {
