@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Time Pilot CRT</title>
+  <meta name="color-scheme" content="dark light" />
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="screen time-pilot-screen crt-frame">
+    <canvas id="game" width="352" height="224" aria-label="Time Pilot"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud time-pilot-hud">
+      <div class="retro-controls">
+        <span class="title">Time Pilot</span>
+        <span>Score: <span id="score">0</span></span>
+        <span>Year: <span id="era">1910</span></span>
+        <span>Kills: <span id="kills">0</span></span>
+        <span>Lives: <span id="lives">3</span></span>
+        <span class="fps" id="fps"></span>
+      </div>
+      <div class="retro-hud-footer time-pilot-controls">
+        Arrows/A&D rotate · Up/W thrust · Down/S brake · Space to fire · P pause · R restart
+      </div>
+    </div>
+  </div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
