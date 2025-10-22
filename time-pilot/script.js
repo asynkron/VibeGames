@@ -11,6 +11,7 @@ import {
 import { createScreenViewport } from '../shared/render/screenViewport.js';
 import { clamp } from '../shared/utils/math.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
+import { stepProjectiles } from '../shared/utils/projectiles.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -528,24 +529,7 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
     });
   }
 
-  // Shared projectile stepping keeps bullet integration and removal behavior consistent.
-  function stepProjectiles(list, dt, onActive) {
-    for (let i = list.length - 1; i >= 0; i -= 1) {
-      const projectile = list[i];
-      projectile.x += projectile.vx * dt;
-      projectile.y += projectile.vy * dt;
-      projectile.life -= dt;
-      if (projectile.life <= 0) {
-        list.splice(i, 1);
-        continue;
-      }
-      // The callback returns true when it consumes the projectile (e.g. on hit).
-      if (onActive(projectile, i, list)) {
-        list.splice(i, 1);
-      }
-    }
-  }
-
+  // Shared projectile stepping (imported from the shared utils) keeps bullet integration and removal behavior consistent.
   function updateBullets(dt) {
     stepProjectiles(bullets, dt, (bullet) => {
       for (let j = enemies.length - 1; j >= 0; j -= 1) {
