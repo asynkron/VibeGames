@@ -7,6 +7,7 @@ import {
   DEFAULT_TILE_SIZE,
   createDefaultCrtSettings,
 } from '../shared/config/display.js';
+import { createScreenViewport } from '../shared/render/screenViewport.js';
 import { clamp } from '../shared/utils/math.js';
 import { mulberry32 } from '../shared/utils/random.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
@@ -45,6 +46,14 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
   const COLS = 40;
   const ROWS = 28;
   pixel.resizeToGrid(COLS, ROWS, TILE);
+  createScreenViewport({
+    canvas,
+    css: {
+      scale: 3,
+      minWidth: 720,
+      maxWidth: 1200,
+    },
+  });
 
   const SCREEN_WIDTH = canvas.width;
   const SCREEN_HEIGHT = canvas.height;

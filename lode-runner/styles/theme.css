@@ -1,5 +1,4 @@
 .lode-screen {
-  --screen-width: min(94vw, 980px);
   --screen-aspect: 28 / 16; /* Phaser scene is 896x512 */
   --screen-padding: clamp(10px, 2vw, 26px);
   --crt-radius: 14px;

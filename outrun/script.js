@@ -1,10 +1,20 @@
 import { createDPad } from '../shared/input/dpad.js';
 import { clamp } from '../shared/utils/math.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
+import { createScreenViewport } from '../shared/render/screenViewport.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+
+createScreenViewport({
+  canvas,
+  css: {
+    scale: 3.1,
+    minWidth: 720,
+    maxWidth: 1200,
+  },
+});
 
 const width = canvas.width;
 const height = canvas.height;

@@ -5,6 +5,7 @@ import { createWorld, TILE } from './game/world.js';
 import { LEVELS } from './game/levels.js';
 import { createAudio } from './game/audio.js';
 import { startCrtJitter } from '../shared/ui/crt.js';
+import { createScreenViewport } from '../shared/render/screenViewport.js';
 
 const canvas = document.getElementById('game');
 const hudGems = document.getElementById('hud-gems');
@@ -16,6 +17,17 @@ const hudKeys = document.getElementById('hud-keys');
 
 const assets = createAssets();
 const audio = createAudio();
+
+createScreenViewport({
+  canvas,
+  frame: document.getElementById('root'),
+  css: {
+    scale: 1.75,
+    minWidth: 720,
+    maxWidth: 1180,
+  },
+});
+
 const renderer = createRenderer(canvas, assets);
 startCrtJitter({ element: document.getElementById('root'), amplitude: 0.3 });
 

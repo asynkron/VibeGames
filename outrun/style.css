@@ -18,7 +18,6 @@ body {
 }
 
 .outrun-screen {
-  --screen-width: min(92vw, 960px);
   --screen-aspect: 4 / 3;
   --screen-padding: clamp(12px, 1.8vw, 24px);
   --screen-bg: rgba(4, 6, 12, 0.88);

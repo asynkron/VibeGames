@@ -7,6 +7,7 @@ import {
   DEFAULT_TILE_SIZE,
   createDefaultCrtSettings,
 } from '../shared/config/display.js';
+import { createScreenViewport } from '../shared/render/screenViewport.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 
 (() => {
@@ -27,6 +28,14 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
   const TILE = DEFAULT_TILE_SIZE; // shared pixel density across games
 
   pixel.resizeToGrid(COLS, ROWS, TILE);
+  createScreenViewport({
+    canvas,
+    css: {
+      scale: 3.2,
+      minWidth: 600,
+      maxWidth: 1120,
+    },
+  });
   const { startIris, drawIris, setBounds } = createOverlayFX({ ctx, width: canvas.width, height: canvas.height });
 
   // Colors (retro green phosphor vibe)
