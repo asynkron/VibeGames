@@ -56,7 +56,7 @@ const DISTANCE_TO_KM = SPEED_TO_KMH / 3600;
 
 const CURVE_LOOKAHEAD_STEP = SEGMENT_LENGTH * 2;
 const CURVE_LOOKAHEAD_STEPS = 20;
-const HORIZON_LOOK_STRENGTH = 2.8;
+const HORIZON_LOOK_STRENGTH = 6.5; // keeps the horizon lead-in noticeable once curvature is measured in world units.
 
 function easeOutQuad(t) {
   const clamped = clamp(t, 0, 1);
@@ -418,12 +418,15 @@ function renderRoad() {
   const horizonOffset = state.horizonOffset;
 
   let x = 0;
-  let dx = -baseSegment.curve * basePercent;
+  // Start with the fractional curve already travelled so the visible segment matches the active centerline.
+  let dx = -baseSegment.curve * basePercent * SEGMENT_LENGTH;
   let maxY = height;
 
   for (let n = 0; n < DRAW_DISTANCE; n += 1) {
     const segment = segments[(baseIndex + n) % segments.length];
     const next = segments[(baseIndex + n + 1) % segments.length];
+
+    const curveStep = segment.curve * SEGMENT_LENGTH; // convert curve scalar into world-space displacement.
 
     const looped = segment.index < baseIndex;
     const nextLooped = next.index < baseIndex;
@@ -432,13 +435,15 @@ function renderRoad() {
     const nextZ = next.z + (nextLooped ? trackLength : 0);
 
     x += dx;
-    dx += segment.curve;
+    const worldX1 = x;
+    dx += curveStep;
+    const worldX2 = x + dx;
 
     // Blend the horizon offset so far-away slices hint at the upcoming turn.
     const offset1 = horizonOffset * easeOutQuad(n / DRAW_DISTANCE);
     const offset2 = horizonOffset * easeOutQuad((n + 1) / DRAW_DISTANCE);
-    const p1 = project(x + offset1, segment.y, segmentZ, cameraX, cameraY, cameraZ);
-    const p2 = project(x + dx + offset2, next.y, nextZ, cameraX, cameraY, cameraZ);
+    const p1 = project(worldX1 + offset1, segment.y, segmentZ, cameraX, cameraY, cameraZ);
+    const p2 = project(worldX2 + offset2, next.y, nextZ, cameraX, cameraY, cameraZ);
 
     if (p1.dz <= CAMERA_DEPTH || p2.dz <= CAMERA_DEPTH) {
       continue;
