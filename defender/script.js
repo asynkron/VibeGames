@@ -128,28 +128,6 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
     if (pressed) beeper.resume();
   });
 
-  window.addEventListener('keydown', (event) => {
-    if (event.repeat) return;
-    const key = event.key.toLowerCase();
-    if (key === ' ') {
-      keys.fire = true;
-      beeper.resume();
-    } else if (key === 'shift') {
-      keys.boost = true;
-      beeper.resume();
-    } else if (key === 'p') {
-      if (!state.gameOver) state.paused = !state.paused;
-    } else if (key === 'r') {
-      beeper.resume();
-      resetGame();
-    }
-  });
-  window.addEventListener('keyup', (event) => {
-    const key = event.key.toLowerCase();
-    if (key === ' ') keys.fire = false;
-    if (key === 'shift') keys.boost = false;
-  });
-
   // Reset the world back to the first wave and rebuild colonist placements.
   function resetGame() {
     lasers.length = 0;
