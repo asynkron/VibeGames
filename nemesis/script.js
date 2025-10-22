@@ -672,7 +672,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         if (delta > maxTurn) delta = maxTurn;
         if (delta < -maxTurn) delta = -maxTurn;
         heading += delta;
-        const speed = bullet.speed ?? Math.hypot(bullet.vx ?? 0, bullet.vy ?? 0) || 280;
+        const speed = bullet.speed ?? (Math.hypot(bullet.vx ?? 0, bullet.vy ?? 0) || 280);
         bullet.vx = Math.cos(heading) * speed;
         bullet.vy = Math.sin(heading) * speed;
       }
