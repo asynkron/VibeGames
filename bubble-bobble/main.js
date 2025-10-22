@@ -4,6 +4,7 @@ import { createDefaultCrtSettings } from '../shared/config/display.js';
 import { LEVELS } from './assets/levels/index.js';
 import { loadSprites, drawSprite } from './sprites.js';
 import { playJump, playBubble, playPop, playPickup, playCapture, primeOnFirstKeydown, loadAndLoopMusic, toggleMusicMute, setMusicPaused } from './audio.js';
+import { clamp } from '../shared/utils/math.js';
 
 // Canvas + CRT setup
 const canvas = document.getElementById('game');
@@ -149,8 +150,6 @@ const BUBBLE_WOBBLE_AMPLITUDE = 16; // px/s amplitude of the sway velocity
 const BUBBLE_CARRY_WOBBLE_SCALE = 0.55; // captured enemies sway less
 const BUBBLE_WALL_BOUNCE = 0.85; // slight damping when bouncing off walls
 const BUBBLE_SLIDE_SPEED = 34; // px/s while gliding under a ceiling
-
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function approach(value, target, maxDelta) {
   if (value < target) return Math.min(target, value + maxDelta);
   if (value > target) return Math.max(target, value - maxDelta);

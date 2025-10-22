@@ -1,13 +1,7 @@
 // Lightweight canvas post-processor that applies CRT-inspired warp and
 // chromatic aberration. Designed to be reusable across games that render to a
 // 2D canvas.
-
-function clamp01(value) {
-  const v = Number.isFinite(value) ? value : 0;
-  if (v < 0) return 0;
-  if (v > 1) return 1;
-  return v;
-}
+import { clamp01 } from '../utils/math.js';
 
 function disableSmoothing(ctx) {
   if (!ctx) return;

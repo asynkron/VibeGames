@@ -8,6 +8,8 @@ import {
   DEFAULT_TILE_SIZE,
   createDefaultCrtSettings,
 } from '../shared/config/display.js';
+import { clamp } from '../shared/utils/math.js';
+import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -36,6 +38,7 @@ import {
   const livesEl = document.getElementById('lives');
   const stageEl = document.getElementById('stage');
   const fpsEl = document.getElementById('fps');
+  const fpsCounter = createFpsCounter({ element: fpsEl, intervalMs: 500 });
 
   const TILE = DEFAULT_TILE_SIZE;
   const COLS = 40;
@@ -111,8 +114,6 @@ import {
     paused: false,
     gameOver: false,
     spawnTimer: 1.4,
-    fpsTimer: 0,
-    fpsFrames: 0,
   };
 
   const keys = { up: false, down: false, left: false, right: false, fire: false };
@@ -197,7 +198,7 @@ import {
     scoreEl.textContent = `${state.score}`;
     livesEl.textContent = `${state.lives}`;
     stageEl.textContent = `${state.stage}`;
-    if (force) fpsEl.textContent = '';
+    if (force) fpsCounter.reset();
   }
 
   function createStars(count) {
@@ -237,10 +238,6 @@ import {
     ctx.fillStyle = COLORS.space;
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     drawStars(now);
-  }
-
-  function clamp(value, min, max) {
-    return Math.min(max, Math.max(min, value));
   }
 
   function wrapColumn(index) {
@@ -961,14 +958,7 @@ import {
 
     render(now);
 
-    state.fpsTimer += dt;
-    state.fpsFrames += 1;
-    if (state.fpsTimer >= 0.5) {
-      const fps = Math.round(state.fpsFrames / state.fpsTimer);
-      fpsEl.textContent = `${fps} FPS`;
-      state.fpsTimer = 0;
-      state.fpsFrames = 0;
-    }
+    fpsCounter.frame(now);
 
     requestAnimationFrame(frame);
   }

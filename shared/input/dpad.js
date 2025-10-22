@@ -2,12 +2,16 @@
 const DIR_KEY_MAP = {
   arrowup: 'up',
   w: 'up',
+  i: 'up',
   arrowdown: 'down',
   s: 'down',
+  k: 'down',
   arrowleft: 'left',
   a: 'left',
+  j: 'left',
   arrowright: 'right',
   d: 'right',
+  l: 'right',
 };
 
 const DIRS = ['up', 'down', 'left', 'right'];

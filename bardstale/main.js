@@ -4,6 +4,8 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
 import { createCanvasResolutionManager, projectLogicalRect } from '../shared/render/hudCanvas.js';
+import { clamp } from '../shared/utils/math.js';
+import { rngFromSeed } from '../shared/utils/random.js';
 import {
   UI_SETTINGS,
   createPartyPanelRect,
@@ -71,35 +73,6 @@ function getWall(cells, w, h, x, y, dir) {
   return WALL.WALL;
 }
 
-// PRNG (mulberry32) and seed helpers
-function mulberry32(seed) {
-  return function() {
-    let t = seed += 0x6D2B79F5;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function hashString(str) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function rngFromSeed(seedStr) {
-  const s = seedStr ? hashString(seedStr) : Math.floor(Math.random() * 2**32);
-  const r = mulberry32(s);
-  return {
-    seed: s,
-    next() { return r(); },
-    int(min, max) { return Math.floor(r() * (max - min + 1)) + min; },
-    choice(arr) { return arr[Math.floor(r() * arr.length)]; }
-  };
-}
-
 function shuffleInPlace(arr, rnd) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rnd.next() * (i + 1));
@@ -118,10 +91,6 @@ function hexToRgb(hex) {
     g: (bigint >> 8) & 255,
     b: bigint & 255
   };
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function createStoneTexture(baseHex, options = {}) {
