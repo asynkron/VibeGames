@@ -4,15 +4,9 @@ import {
   DEFAULT_SCANLINE_ALPHA_RANGE,
   createDefaultCrtSettings,
 } from '../config/display.js';
+import { clamp01 } from '../utils/math.js';
 
 const DEFAULTS = Object.freeze(createDefaultCrtSettings());
-
-function clamp01(value) {
-  const v = Number.isFinite(value) ? value : 0;
-  if (v < 0) return 0;
-  if (v > 1) return 1;
-  return v;
-}
 
 function loadState(storageKey, defaults) {
   const state = { ...DEFAULTS, ...defaults };

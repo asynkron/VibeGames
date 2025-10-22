@@ -7,6 +7,7 @@ import {
   DEFAULT_TILE_SIZE,
   createDefaultCrtSettings,
 } from '../shared/config/display.js';
+import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -60,7 +61,11 @@ import {
   let lastTime = 0, acc = 0;
   let stepPerSec = 12; // ticks per second
   let stepMs = 1000 / stepPerSec;
-  let frames = 0, fpsTime = 0;
+  const fpsCounter = createFpsCounter({
+    element: fpsEl,
+    intervalMs: 500,
+    formatter: (fps) => ` ${fps} FPS`,
+  });
 
   function init() {
     const startLen = 4;
@@ -258,12 +263,7 @@ import {
     if (!lastTime) { lastTime = t; }
     const dt = t - lastTime; lastTime = t;
     acc += dt;
-    fpsTime += dt; frames += 1;
-    if (fpsTime >= 500) { // update fps every 0.5s
-      const fps = Math.round(frames * 1000 / fpsTime);
-      fpsEl.textContent = ` ${fps} FPS`;
-      frames = 0; fpsTime = 0;
-    }
+    fpsCounter.frame(t);
 
     while (acc >= stepMs) { acc -= stepMs; update(); }
 

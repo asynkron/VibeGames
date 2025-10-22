@@ -7,6 +7,9 @@ import {
   DEFAULT_TILE_SIZE,
   createDefaultCrtSettings,
 } from '../shared/config/display.js';
+import { clamp } from '../shared/utils/math.js';
+import { mulberry32 } from '../shared/utils/random.js';
+import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -900,45 +903,26 @@ import {
     update(now, dt);
     draw(now);
 
-    updateFps(now);
+    fpsCounter.frame(now);
     setBounds({ width: canvas.width, height: canvas.height });
 
     requestAnimationFrame(loop);
   }
 
-  let fpsCounter = { frames: 0, time: 0 };
-  function updateFps(now) {
-    fpsCounter.frames += 1;
-    if (!fpsCounter.time) fpsCounter.time = now;
-    if (now - fpsCounter.time >= 500) {
-      const fps = Math.round((fpsCounter.frames * 1000) / (now - fpsCounter.time));
-      fpsEl.textContent = ` ${fps} FPS`;
-      fpsCounter.frames = 0;
-      fpsCounter.time = now;
-    }
-  }
+  const fpsCounter = createFpsCounter({
+    element: fpsEl,
+    intervalMs: 500,
+    formatter: (fps) => ` ${fps} FPS`,
+  });
 
   function addLight(light) {
     lights.push(light);
-  }
-
-  function clamp(v, min, max) {
-    return Math.min(Math.max(v, min), max);
   }
 
   function distanceSq(x1, y1, x2, y2) {
     const dx = x2 - x1;
     const dy = y2 - y1;
     return dx * dx + dy * dy;
-  }
-
-  function mulberry32(seed) {
-    return function next() {
-      let t = (seed += 0x6d2b79f5);
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
   }
 
   resetGame();

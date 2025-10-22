@@ -1,4 +1,4 @@
-const clamp01 = (value) => Math.min(1, Math.max(0, value));
+import { clamp01 } from '../utils/math.js';
 const defaultEase = (t) => 1 - Math.pow(1 - t, 3);
 
 /**

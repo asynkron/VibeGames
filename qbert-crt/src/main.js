@@ -7,6 +7,7 @@ import {
   DEFAULT_FONT_STACK,
   createDefaultCrtSettings,
 } from '../../shared/config/display.js';
+import { createDPad } from '../../shared/input/dpad.js';
 
 // Q*bert CRT - Pixel-locked CRT overlay, integer scaling, Pause/Help, persisted prefs
 
@@ -393,15 +394,23 @@ function startDiskRide(diskIndex) {
 
 // Input
 const input = { ul: false, ur: false, dl: false, dr: false, start: false };
+const dpad = createDPad({ preventDefault: true });
+const syncDirectionalInput = () => {
+  input.ul = dpad.isPressed('up');
+  input.ur = dpad.isPressed('right');
+  input.dr = dpad.isPressed('down');
+  input.dl = dpad.isPressed('left');
+};
+dpad.onDirectionChange(() => {
+  syncDirectionalInput();
+});
+dpad.onKeyChange(['Enter'], (pressed) => {
+  input.start = pressed;
+});
+syncDirectionalInput();
+
 addEventListener('keydown', (e) => {
   switch (e.key) {
-    // Movement
-    case 'ArrowUp': case 'w': case 'W': case 'i': case 'I': input.ul = true; break;
-    case 'ArrowRight': case 'd': case 'D': case 'l': case 'L': input.ur = true; break;
-    case 'ArrowDown': case 's': case 'S': case 'k': case 'K': input.dr = true; break;
-    case 'ArrowLeft': case 'a': case 'A': case 'j': case 'J': input.dl = true; break;
-    case 'Enter': input.start = true; break;
-    // Visual controls
     case 'm': case 'M': toggleCrtEnabled(); break;
     case 'n': case 'N': toggleScanlines(); break;
     case 'g': case 'G': lightIdx = (lightIdx + 1) % LIGHT_PRESETS.length; applyLightingPreset(lightIdx); savePrefs(); break;
@@ -411,12 +420,8 @@ addEventListener('keydown', (e) => {
   }
 });
 addEventListener('keyup', (e) => {
-  switch (e.key) {
-    case 'ArrowUp': case 'w': case 'W': case 'i': case 'I': input.ul = false; break;
-    case 'ArrowRight': case 'd': case 'D': case 'l': case 'L': input.ur = false; break;
-    case 'ArrowDown': case 's': case 'S': case 'k': case 'K': input.dr = false; break;
-    case 'ArrowLeft': case 'a': case 'A': case 'j': case 'J': input.dl = false; break;
-    case 'Enter': input.start = false; break;
+  if (e.key === 'Enter') {
+    input.start = false;
   }
 });
 

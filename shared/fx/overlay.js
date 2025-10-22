@@ -1,7 +1,7 @@
+import { clamp01 } from '../utils/math.js';
 import { createIrisTransition } from './irisTransition.js';
 
 const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
-const clamp01 = v => Math.min(1, Math.max(0, v));
 
 export function createOverlayFX({ ctx, width, height }) {
   let boundsWidth = typeof width === 'number' ? width : ctx?.canvas?.width ?? 0;

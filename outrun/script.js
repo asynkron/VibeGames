@@ -1,3 +1,7 @@
+import { createDPad } from '../shared/input/dpad.js';
+import { clamp } from '../shared/utils/math.js';
+import { createFpsCounter } from '../shared/utils/fpsCounter.js';
+
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
@@ -43,10 +47,6 @@ const DISTANCE_TO_KM = SPEED_TO_KMH / 3600;
 const CURVE_LOOKAHEAD_STEP = SEGMENT_LENGTH * 2;
 const CURVE_LOOKAHEAD_STEPS = 20;
 const HORIZON_LOOK_STRENGTH = 2.8;
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function easeOutQuad(t) {
   const clamped = clamp(t, 0, 1);
@@ -171,20 +171,19 @@ const gauges = {
   fps: document.getElementById('fps')
 };
 
-const input = new Set();
-
-const blockKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight']);
-
-document.addEventListener('keydown', (event) => {
-  if (blockKeys.has(event.code)) {
-    event.preventDefault();
-  }
-  input.add(event.code);
+const controls = { up: false, down: false, left: false, right: false, turbo: false };
+const dpad = createDPad({ preventDefault: true });
+const syncDirections = () => {
+  controls.up = dpad.isPressed('up');
+  controls.down = dpad.isPressed('down');
+  controls.left = dpad.isPressed('left');
+  controls.right = dpad.isPressed('right');
+};
+dpad.onDirectionChange(syncDirections);
+dpad.onKeyChange(['ShiftLeft', 'ShiftRight'], (pressed) => {
+  controls.turbo = pressed;
 });
-
-document.addEventListener('keyup', (event) => {
-  input.delete(event.code);
-});
+syncDirections();
 
 const MAX_SPEED = SEGMENT_LENGTH * 90;
 const ACCELERATION = MAX_SPEED / 2.8;
@@ -196,11 +195,11 @@ const TURBO_MULTIPLIER = 1.35;
 
 // Apply throttle/brake/steering input and keep the car glued to the current segment.
 function update(dt) {
-  const hasTurbo = input.has('ShiftLeft') || input.has('ShiftRight');
-  const accelerating = input.has('ArrowUp') || input.has('KeyW');
-  const braking = input.has('ArrowDown') || input.has('KeyS');
-  const steeringLeft = input.has('ArrowLeft') || input.has('KeyA');
-  const steeringRight = input.has('ArrowRight') || input.has('KeyD');
+  const hasTurbo = controls.turbo;
+  const accelerating = controls.up;
+  const braking = controls.down;
+  const steeringLeft = controls.left;
+  const steeringRight = controls.right;
   const steeringInput = (steeringRight ? 1 : 0) - (steeringLeft ? 1 : 0);
 
   if (accelerating) {
@@ -264,9 +263,7 @@ function update(dt) {
   gauges.distance.textContent = (state.distanceTravelled * DISTANCE_TO_KM).toFixed(1);
 }
 
-let frameCounter = 0;
-let fpsAccumulator = 0;
-const FPS_UPDATE_INTERVAL = 0.25;
+const fpsCounter = createFpsCounter({ element: gauges.fps, intervalMs: 250 });
 
 function project(worldX, worldY, worldZ, cameraX, cameraY, cameraZ) {
   const dx = worldX - cameraX;
@@ -459,14 +456,7 @@ function frame(now) {
   renderRoad();
   renderPlayer();
 
-  frameCounter += 1;
-  fpsAccumulator += dt;
-  if (fpsAccumulator >= FPS_UPDATE_INTERVAL) {
-    const fps = Math.round(frameCounter / fpsAccumulator);
-    gauges.fps.textContent = `${fps} FPS`;
-    frameCounter = 0;
-    fpsAccumulator = 0;
-  }
+  fpsCounter.frame(now);
 
   requestAnimationFrame(frame);
 }
