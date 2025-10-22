@@ -66,6 +66,7 @@ function easeOutQuad(t) {
 const segments = [];
 let trackLength = 0;
 let lastY = 0;
+let lastCurve = 0;
 
 function addSegment(curve, elevationDelta = 0) {
   const index = segments.length;
@@ -84,11 +85,56 @@ function addSegment(curve, elevationDelta = 0) {
   });
 }
 
-// Create a run of segments that share curvature, elevation delta, and billboard cadence.
+function applyCurveEase(t, ease) {
+  const clamped = clamp(t, 0, 1);
+  switch (ease) {
+    case 'in':
+      return clamped * clamped;
+    case 'out':
+      return easeOutQuad(clamped);
+    case 'inOut':
+      if (clamped < 0.5) {
+        return 2 * clamped * clamped;
+      }
+      return 1 - ((-2 * clamped + 2) ** 2) / 2;
+    default:
+      return clamped;
+  }
+}
+
+// Create a run of segments that smoothly blend between curvature values while
+// also handling elevation changes and billboard cadence. `curve` can be either a
+// number (target curve) or an object like { from, to, ease } for custom ramps.
 function addStretch(length, curve = 0, elevation = 0, spriteEvery = 0, spriteOffset = 2.6) {
+  if (length <= 0) {
+    return;
+  }
+
   const elevationStep = elevation / length;
+
+  let curveFrom = lastCurve;
+  let curveTo = typeof curve === 'number' ? curve : lastCurve;
+  let curveEase = 'linear';
+
+  if (typeof curve === 'object') {
+    if (typeof curve.from === 'number') {
+      curveFrom = curve.from;
+    }
+    if (typeof curve.to === 'number') {
+      curveTo = curve.to;
+    }
+    if (typeof curve.ease === 'string') {
+      curveEase = curve.ease;
+    }
+  }
+
+  const denominator = Math.max(1, length - 1);
+
   for (let i = 0; i < length; i += 1) {
-    addSegment(curve, elevationStep);
+    const t = length === 1 ? 0 : i / denominator;
+    const easedT = applyCurveEase(t, curveEase);
+    const curveValue = curveFrom + (curveTo - curveFrom) * easedT;
+    addSegment(curveValue, elevationStep);
     if (spriteEvery && i % spriteEvery === 0) {
       const segmentIndex = segments.length - 1;
       const themeIndex = Math.floor(segmentIndex / spriteEvery) % billboardThemes.length;
@@ -102,41 +148,45 @@ function addStretch(length, curve = 0, elevation = 0, spriteEvery = 0, spriteOff
       });
     }
   }
+
+  lastCurve = curveTo;
 }
 
-// Assemble a looping course that mixes straights, sweepers, and rolling hills.
+// Assemble a looping course with flowing sweepers, sharp chicanes, and rolling hills.
 function buildTrack() {
-  addStretch(90, 0, 0, 18, 2.8);
+  segments.length = 0;
+  lastY = 0;
+  lastCurve = 0;
 
-  // Sweeping right-hander that climbs and then drops away.
-  addStretch(30, 0.0018, 80, 0);
-  addStretch(50, 0.0034, 160, 14, 2.6);
-  addStretch(70, 0.004, -200, 0);
+  addStretch(90, { to: 0, ease: 'out' }, 0, 18, 2.8);
 
-  // Quick change of direction into a left curve.
-  addStretch(25, -0.0024, 100, 12, 2.3);
-  addStretch(45, -0.0036, 180, 0);
-  addStretch(45, -0.0036, -180, 0);
+  // Lean into a long right-hand climb that tightens as the player crests the hill.
+  addStretch(40, { to: 0.003, ease: 'inOut' }, 60, 0);
+  addStretch(70, { to: 0.0065, ease: 'inOut' }, 160, 14, 2.6);
+  addStretch(60, { to: -0.002, ease: 'out' }, -200, 0);
+  addStretch(60, { to: -0.006, ease: 'inOut' }, 80, 0);
+  addStretch(40, { to: 0, ease: 'out' }, -100, 0);
 
-  // Time to breathe with a rolling straight.
-  addStretch(110, 0, 0, 16, 2.8);
-  addStretch(40, 0, 120, 10, 2.8);
-  addStretch(40, 0, -120, 0);
+  // Cruise through a straight that rises gently before diving into an S-turn sequence.
+  addStretch(90, { to: 0, ease: 'linear' }, 60, 16, 2.8);
+  addStretch(30, { to: 0.0045, ease: 'inOut' }, 100, 12, 2.6);
+  addStretch(30, { to: -0.0045, ease: 'inOut' }, -180, 0);
 
-  // A fast chicane that sets up a long left sweeper.
-  addStretch(20, 0.0036, 40, 0);
-  addStretch(20, -0.0038, 40, 0);
-  addStretch(20, 0.0038, -40, 0);
-  addStretch(20, -0.004, -40, 0);
-  addStretch(60, -0.0042, 200, 14, 2.6);
-  addStretch(70, -0.0032, -200, 0);
+  // Thread a neon canyon with quick left-right direction changes.
+  addStretch(20, { to: 0.006, ease: 'inOut' }, 120, 0);
+  addStretch(20, { to: -0.006, ease: 'inOut' }, -120, 0);
+  addStretch(20, { to: 0.007, ease: 'inOut' }, 140, 0);
+  addStretch(20, { to: -0.007, ease: 'inOut' }, -140, 0);
 
-  // Finish with a flowing right turn back onto the highway.
-  addStretch(35, 0.0022, 0, 12, 2.4);
-  addStretch(60, 0.0038, 160, 0);
-  addStretch(80, 0.0032, -160, 0);
+  // A sweeping left carries the player out toward the coast before unwinding.
+  addStretch(60, { to: -0.008, ease: 'inOut' }, 200, 14, 2.6);
+  addStretch(50, { to: -0.002, ease: 'out' }, -200, 0);
 
-  addStretch(140, 0, 0, 20, 2.6);
+  // One more rhythmic chicane before settling back on the highway.
+  addStretch(40, { to: 0.005, ease: 'inOut' }, 80, 12, 2.4);
+  addStretch(30, { to: -0.004, ease: 'inOut' }, -60, 0);
+
+  addStretch(140, { to: 0, ease: 'linear' }, 0, 20, 2.6);
 
   trackLength = segments.length * SEGMENT_LENGTH;
 }
