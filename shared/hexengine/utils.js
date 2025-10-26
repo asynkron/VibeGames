@@ -1,4 +1,4 @@
-// Shared helper utilities lifted from the Battle Isle project.
+// Shared helper utilities for the hex engine.
 function addColorVariation(color, variation = 0.05) {
   const baseColor = new THREE.Color(color);
   baseColor.r += (Math.random() - 0.5) * variation;
@@ -34,4 +34,11 @@ function getHexIntersects(raycaster) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+if (typeof window !== 'undefined') {
+  window.addColorVariation = addColorVariation;
+  window.getVertexOffsets = getVertexOffsets;
+  window.getHexIntersects = getHexIntersects;
+  window.clamp = clamp;
 }

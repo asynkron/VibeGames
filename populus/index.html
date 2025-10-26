@@ -63,13 +63,22 @@
   </aside>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="js/constants.js"></script>
-  <script src="js/perlinNoise.js"></script>
-  <script src="js/utils.js"></script>
+  <script>
+    window.HEX_ENGINE_OPTIONS = {
+      loadModels: false,
+      enableDecorations: false,
+      enableUnitSystems: false,
+      enableRoads: false,
+    };
+  </script>
+  <script src="../shared/hexengine/options.js"></script>
+  <script src="../shared/hexengine/perlinNoise.js"></script>
+  <script src="../shared/hexengine/utils.js"></script>
+  <script src="../shared/hexengine/TerrainSystem.js"></script>
+  <script src="../shared/hexengine/HexCoord.js"></script>
+  <script src="../shared/hexengine/MapSystem.js"></script>
+  <script src="../shared/hexengine/GridSystem.js"></script>
   <script src="js/render.js"></script>
-  <script src="js/systems/TerrainSystem.js"></script>
-  <script src="js/systems/HexCoord.js"></script>
-  <script src="js/systems/GridSystem.js"></script>
-  <script src="js/systems/MapSystem.js"></script>
   <script src="js/systems/VisualizationSystem.js"></script>
   <script src="js/game.js"></script>
 </body>

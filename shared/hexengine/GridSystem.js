@@ -8,6 +8,17 @@ class GridSystem {
     static materialCache = new Map(); // Cache for materials
     static miniHexGeometry = null; // Shared geometry for minimap hexes
 
+    static getOption(key, fallback = true) {
+        const engine = typeof window !== 'undefined' ? window.HEX_ENGINE : null;
+        if (engine?.getOption) {
+            const value = engine.getOption(key);
+            if (typeof value !== 'undefined') {
+                return value;
+            }
+        }
+        return fallback;
+    }
+
     // ---------------------------
     // Geometry Helpers
     // ---------------------------
@@ -242,8 +253,9 @@ class GridSystem {
         boundingMesh.userData = { ...userData, isBoundingMesh: true };
 
         // Add decoration if available
-        const decoration = TerrainSystem.getRandomDecoration(type.toUpperCase());
-        if (decoration && ModelSystem.getModel(decoration.model)) {
+        const shouldDecorate = this.getOption('enableDecorations', true) && typeof ModelSystem !== 'undefined';
+        const decoration = shouldDecorate ? TerrainSystem.getRandomDecoration(type.toUpperCase()) : null;
+        if (decoration && ModelSystem.getModel && ModelSystem.getModel(decoration.model)) {
             const decorMesh = ModelSystem.getModel(decoration.model).clone();
             const decoratorColor = addColorVariation(decoration.color, 0.1);
             const decorMaterial = this.createDecoratorMaterial(decoratorColor);
@@ -303,22 +315,26 @@ class GridSystem {
     // ---------------------------
     // Map & Coordinate Helpers
     // ---------------------------
-    static async createMap(gameState) {
+    static async createMap(mapSource) {
         console.log("Starting map creation...");
 
-        await this.loadTileModels();
-        console.log("3D models loaded");
+        if (this.getOption('loadModels', true) && typeof ModelSystem !== 'undefined') {
+            await this.loadTileModels();
+            console.log("3D models loaded");
+        }
 
         this.clear();
 
         const mapCenterX = (MAP_CONFIG.COLS * MAP_CONFIG.HEX_RADIUS * 1.5) / 2;
         const mapCenterZ = (MAP_CONFIG.ROWS * MAP_CONFIG.HEX_RADIUS * Math.sqrt(3)) / 2;
 
+        const mapData = mapSource?.map ? mapSource.map : mapSource;
+
         for (let q = 0; q < MAP_CONFIG.COLS; q++) {
             for (let r = 0; r < MAP_CONFIG.ROWS; r++) {
                 const x = MAP_CONFIG.HEX_RADIUS * 1.5 * q;
                 const z = MAP_CONFIG.HEX_RADIUS * Math.sqrt(3) * (r + (q % 2) / 2);
-                const tile = gameState.map.getTile(q, r);
+                const tile = mapData?.getTile(q, r);
                 if (tile) {
                     const type = tile.type.toLowerCase();
                     const { color, height, moveCost } = tile;
@@ -668,6 +684,9 @@ class GridSystem {
     }
 
     static modifyHexHeight(coord, heightFactor) {
+        if (typeof gameState === 'undefined' || !gameState?.map) {
+            return false;
+        }
         const hex = this.findHex(coord.q, coord.r);
         const tile = gameState.map.getTile(coord.q, coord.r);
         if (!hex || !tile || hex.userData.type === 'water') return false;
@@ -699,6 +718,9 @@ class GridSystem {
 
     static getUnitAtHex(hex) {
         if (!hex) return null;
+        if (typeof gameState === 'undefined' || !gameState?.units) {
+            return null;
+        }
         return gameState.units.find(
             (unit) => unit.q === hex.userData.q && unit.r === hex.userData.r
         );
@@ -706,6 +728,9 @@ class GridSystem {
 
     static async loadTileModels() {
         try {
+            if (!this.getOption('enableDecorations', true) || typeof ModelSystem === 'undefined') {
+                return false;
+            }
             const modelConfigs = {};
             Object.values(TerrainSystem.terrainTypes).forEach((terrain) => {
                 terrain.decorations.forEach((decoration) => {
