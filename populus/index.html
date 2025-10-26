@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Populus Plateau</title>
+  <meta name="color-scheme" content="dark light" />
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="screen crt-frame populus-screen">
+    <canvas id="populus-canvas" aria-label="Populus Plateau terrain editor"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <section class="populus-hud retro-hud" aria-live="polite">
+      <div class="retro-controls">
+        <h1 class="title">Populus Plateau</h1>
+        <p class="tagline">Raise or lower land while keeping neighbouring heights within one level.</p>
+        <p class="selection">Selected tile: <span id="selected-tile">—</span></p>
+        <p class="height">Height: <span id="selected-height">0</span></p>
+      </div>
+      <div class="retro-hud-footer populus-controls">
+        <button id="raise-button" type="button">Raise</button>
+        <button id="lower-button" type="button">Lower</button>
+        <span>Click tiles to select · Use R/F or ↑/↓ to shape terrain</span>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
