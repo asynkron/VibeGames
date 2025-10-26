@@ -17,7 +17,10 @@ function hash(seed) {
 
 function getVertexOffset(seed) {
   const hashValue = hash(seed);
-  return ((hashValue & 0xff) / 255.0 - 0.5) * 0.08;
+  // Battle Isle's original smoothing kept the top vertices aligned by
+  // effectively disabling lateral offsets. Restoring that behavior prevents
+  // roads from drifting after smoothing.
+  return ((hashValue & 0xff) / 255.0 - 0.5) * 0.0;
 }
 
 function getVertexOffsets(seed) {
