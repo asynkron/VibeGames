@@ -99,6 +99,9 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     bulletMinigun: '#c6f8ff',
     bulletPlasma: '#d7c6ff',
     bulletFireball: '#ffb88a',
+    helperBody: '#baf2ff',
+    helperAccent: '#4cd2ff',
+    helperBullet: '#e0fbff',
     missileGround: '#ffe9a1',
     turret: '#7e6bff',
     pause: 'rgba(14, 20, 40, 0.75)',
@@ -263,6 +266,28 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     },
   };
 
+  // Lightweight drone companion that stays near the player and provides fire support.
+  const helper = {
+    mode: 'docked',
+    x: SCREEN_WIDTH * 0.24 + 20,
+    y: SCREEN_HEIGHT * 0.5 - 6,
+    vx: 0,
+    vy: 0,
+    cooldown: 0,
+    fireInterval: 0.36,
+    fireRange: 220,
+    shotSpeed: 360,
+    standoffDistance: 32,
+    maxDistance: 140,
+    chaseStrength: 4,
+    damping: 7,
+    maxSpeed: 200,
+    dockOffsetX: 22,
+    dockOffsetY: -6,
+    standbyOffsetX: 36,
+    standbyOffsetY: -10,
+  };
+
   const state = {
     cameraX: 0,
     stage: 1,
@@ -273,6 +298,34 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     spawnTimer: 1.4,
     powerupTimer: 5.5,
   };
+
+  function snapHelperToPlayer() {
+    helper.x = state.cameraX + player.x + helper.dockOffsetX;
+    helper.y = player.y + helper.dockOffsetY;
+  }
+
+  function dockHelper(immediate = false) {
+    helper.mode = 'docked';
+    helper.cooldown = 0;
+    helper.vx = 0;
+    helper.vy = 0;
+    if (immediate) snapHelperToPlayer();
+  }
+
+  function deployHelper() {
+    helper.mode = 'deployed';
+  }
+
+  function toggleHelper() {
+    if (state.gameOver) return;
+    if (helper.mode === 'docked') {
+      deployHelper();
+    } else {
+      dockHelper();
+    }
+  }
+
+  snapHelperToPlayer();
 
   const keys = { up: false, down: false, left: false, right: false, fire: false };
 
@@ -307,6 +360,8 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     } else if (key === 'r') {
       beeper.resume();
       resetGame();
+    } else if (key === 'enter') {
+      toggleHelper();
     }
   });
   window.addEventListener('keyup', (event) => {
@@ -335,6 +390,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     player.weapons.missile.type = null;
     player.weapons.shield.type = null;
     player.weapons.shield.cooldown = 0;
+    dockHelper(true);
     bullets.length = 0;
     enemyBullets.length = 0;
     enemies.length = 0;
@@ -365,6 +421,15 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     player.fireTimers.main = 0;
     player.fireTimers.bomb = 0;
     player.fireTimers.missile = 0;
+    if (helper.mode === 'docked') {
+      snapHelperToPlayer();
+    } else {
+      helper.x = state.cameraX + player.x + helper.standbyOffsetX;
+      helper.y = player.y + helper.standbyOffsetY;
+      helper.vx = 0;
+      helper.vy = 0;
+      helper.cooldown = 0;
+    }
     startIris('in', 750);
     updateHud(true);
   }
@@ -566,6 +631,100 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         loseLife();
       }
     }
+  }
+
+  function updateHelper(dt) {
+    helper.cooldown = Math.max(0, helper.cooldown - dt);
+    const playerWorldX = state.cameraX + player.x;
+    const playerWorldY = player.y;
+
+    if (helper.mode === 'docked') {
+      const targetX = playerWorldX + helper.dockOffsetX;
+      const targetY = playerWorldY + helper.dockOffsetY;
+      const lerp = Math.min(1, dt * 12);
+      helper.x += (targetX - helper.x) * lerp;
+      helper.y += (targetY - helper.y) * lerp;
+      helper.vx = 0;
+      helper.vy = 0;
+      return;
+    }
+
+    const standbyX = playerWorldX + helper.standbyOffsetX;
+    const standbyY = playerWorldY + helper.standbyOffsetY;
+    let desiredX = standbyX;
+    let desiredY = standbyY;
+    const target = findNearestEnemy(helper.x, helper.y);
+
+    if (target) {
+      const offsetX = target.x - helper.x;
+      const offsetY = target.y - helper.y;
+      const distance = Math.hypot(offsetX, offsetY) || 1;
+      desiredX = target.x - (offsetX / distance) * helper.standoffDistance;
+      desiredY = target.y - (offsetY / distance) * helper.standoffDistance;
+
+      const relPlayerX = desiredX - playerWorldX;
+      const relPlayerY = desiredY - playerWorldY;
+      const desiredDist = Math.hypot(relPlayerX, relPlayerY);
+      if (desiredDist > helper.maxDistance * 0.95) {
+        const angle = Math.atan2(target.y - playerWorldY, target.x - playerWorldX);
+        desiredX = playerWorldX + Math.cos(angle) * helper.maxDistance * 0.75;
+        desiredY = playerWorldY + Math.sin(angle) * helper.maxDistance * 0.75;
+      }
+    }
+
+    const dxPlayer = helper.x - playerWorldX;
+    const dyPlayer = helper.y - playerWorldY;
+    const distPlayer = Math.hypot(dxPlayer, dyPlayer);
+    if (distPlayer > helper.maxDistance) {
+      const scale = (helper.maxDistance * 0.9) / distPlayer;
+      desiredX = playerWorldX + dxPlayer * scale;
+      desiredY = playerWorldY + dyPlayer * scale;
+    }
+
+    const desiredVX = clamp((desiredX - helper.x) * helper.chaseStrength, -helper.maxSpeed, helper.maxSpeed);
+    const desiredVY = clamp((desiredY - helper.y) * helper.chaseStrength, -helper.maxSpeed, helper.maxSpeed);
+    const blend = Math.min(1, dt * helper.damping);
+    helper.vx += (desiredVX - helper.vx) * blend;
+    helper.vy += (desiredVY - helper.vy) * blend;
+
+    helper.x += helper.vx * dt;
+    helper.y += helper.vy * dt;
+
+    const floor = getFloor(helper.x) - TILE * 1.2;
+    const ceiling = getCeiling(helper.x) + TILE * 1.2;
+    helper.y = clamp(helper.y, ceiling + 10, floor - 10);
+
+    if (target) {
+      const distance = Math.hypot(target.x - helper.x, target.y - helper.y);
+      if (distance < helper.fireRange && helper.cooldown <= 0) {
+        fireHelperAt(target);
+      }
+    }
+  }
+
+  function fireHelperAt(target) {
+    const angle = Math.atan2(target.y - helper.y, target.x - helper.x);
+    spawnHelperShot({
+      x: helper.x,
+      y: helper.y,
+      angle,
+    });
+    helper.cooldown = helper.fireInterval;
+  }
+
+  function spawnHelperShot({ x, y, angle }) {
+    const speed = helper.shotSpeed;
+    bullets.push({
+      kind: 'drone',
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1.2,
+      damage: 1,
+      color: COLORS.helperBullet,
+    });
+    shotTone();
   }
 
   function firePlayerWeapons() {
@@ -1409,6 +1568,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     player.invincible = 2.4;
     screenFlash({ strength: 0.22, duration: 260 });
     spawnExplosion(state.cameraX + player.x, player.y, { count: 18, radius: 110 });
+    dockHelper(true);
     if (state.lives <= 0) {
       state.gameOver = true;
       startIris('out', 1100);
@@ -1595,6 +1755,24 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
           innerStop: 0.18,
           color: 'rgba(255, 180, 120, 0.4)',
         });
+      } else if (bullet.kind === 'drone') {
+        ctx.save();
+        ctx.translate(screenX, bullet.y);
+        const angle = Math.atan2(bullet.vy ?? 0, bullet.vx ?? 1);
+        ctx.rotate(angle);
+        ctx.fillStyle = bullet.color ?? COLORS.helperBullet;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        lights.push({
+          x: screenX,
+          y: bullet.y,
+          radius: 40,
+          innerRadius: 5,
+          innerStop: 0.18,
+          color: 'rgba(170, 240, 255, 0.45)',
+        });
       } else if (bullet.kind === 'missile') {
         ctx.save();
         ctx.translate(screenX, bullet.y);
@@ -1711,6 +1889,48 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
           : 'rgba(255, 170, 120, 0.35)',
       });
     }
+  }
+
+  function drawHelper(now) {
+    const screenX = helper.x - state.cameraX;
+    if (screenX < -40 || screenX > SCREEN_WIDTH + 40) return;
+    const bob = helper.mode === 'docked'
+      ? Math.sin(now * 0.01) * 0.6
+      : Math.sin((now + helper.x) * 0.004) * 1.2;
+
+    ctx.save();
+    ctx.translate(screenX, helper.y + bob);
+    const heading = helper.mode === 'docked'
+      ? player.tilt * 0.4
+      : Math.atan2(helper.vy || 0, helper.vx || 1) * 0.3;
+    ctx.rotate(heading);
+    ctx.fillStyle = COLORS.helperBody;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 5, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = COLORS.playerOutline;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = COLORS.helperAccent;
+    ctx.fillRect(1.5, -1.4, 3.8, 2.8);
+    ctx.fillStyle = COLORS.playerEngine;
+    ctx.beginPath();
+    const flame = 1 + Math.sin(now * 0.03 + helper.x * 0.01) * 0.5;
+    ctx.moveTo(-4.6, -1);
+    ctx.lineTo(-6.6 - flame * 1.8, 0);
+    ctx.lineTo(-4.6, 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    lights.push({
+      x: screenX,
+      y: helper.y,
+      radius: 58,
+      innerRadius: 10,
+      innerStop: 0.22,
+      color: 'rgba(150, 235, 255, 0.42)',
+    });
   }
 
   function drawPlayer(now) {
@@ -1864,6 +2084,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
     updateStars(dt);
     updatePlayer(dt);
+    updateHelper(dt);
     updateBullets(dt);
     updateEnemyBullets(dt);
     updateEnemies(dt, now);
@@ -1880,6 +2101,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     drawPowerups();
     drawBullets();
     drawEnemyBullets();
+    drawHelper(now);
     drawPlayer(now);
     renderLighting();
     drawShockwave(now);
