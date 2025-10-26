@@ -77,11 +77,23 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/Line2.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
     <script src="constants.js"></script>
-    <script src="systems/HexCoord.js"></script>
+    <script>
+        window.HEX_ENGINE_OPTIONS = {
+            loadModels: true,
+            enableDecorations: true,
+            enableUnitSystems: true,
+            enableRoads: true,
+        };
+    </script>
+    <script src="../shared/hexengine/options.js"></script>
+    <script src="../shared/hexengine/perlinNoise.js"></script>
+    <script src="../shared/hexengine/utils.js"></script>
+    <script src="../shared/hexengine/TerrainSystem.js"></script>
+    <script src="../shared/hexengine/HexCoord.js"></script>
+    <script src="../shared/hexengine/MapSystem.js"></script>
+    <script src="../shared/hexengine/GridSystem.js"></script>
     <script src="systems/ModelSystem.js"></script>
     <script src="systems/AudioSystem.js"></script>
-    <script src="systems/GridSystem.js"></script>
-    <script src="systems/TerrainSystem.js"></script>
     <script src="systems/UnitSystem.js"></script>
     <script src="systems/PathfindingSystem.js"></script>
     <script src="systems/FootprintSystem.js"></script>
@@ -97,8 +109,6 @@
     <script src="systems/ai/commands/MoveAwayFromEnemyCommand.js"></script>
     <script src="systems/ai/commands/DoNothingCommand.js"></script>
     <script src="systems/ai/AISystem.js"></script>
-    <script src="perlinNoise.js"></script>
-    <script src="utils.js"></script>
     <script src="render.js"></script>
     <script src="systems/SkyboxSystem.js"></script>
     <script src="game.js"></script>
