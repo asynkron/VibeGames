@@ -2,33 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Populus Plateau</title>
-  <meta name="color-scheme" content="dark light" />
-  <link rel="stylesheet" href="../shared/styles/hud.css" />
-  <link rel="stylesheet" href="../shared/styles/crt.css" />
-  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Populus Sandbox</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #10161d;
+      color: #f5f7fa;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+
+    #minimap-overlay {
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      top: 16px;
+      right: 16px;
+      pointer-events: auto;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .ui-panel {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      max-width: 300px;
+      line-height: 1.4;
+    }
+
+    .ui-panel h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .ui-panel p {
+      margin: 4px 0;
+      font-size: 14px;
+      color: rgba(230, 236, 245, 0.85);
+    }
+  </style>
 </head>
 <body>
-  <div class="screen crt-frame populus-screen">
-    <canvas id="populus-canvas" aria-label="Populus Plateau terrain editor"></canvas>
-    <div class="crt-overlay"></div>
-    <div class="crt-glow"></div>
-    <section class="populus-hud retro-hud" aria-live="polite">
-      <div class="retro-controls">
-        <h1 class="title">Populus Plateau</h1>
-        <p class="tagline">Raise or lower land while keeping neighbouring heights within one level.</p>
-        <p class="selection">Selected tile: <span id="selected-tile">—</span></p>
-        <p class="height">Height: <span id="selected-height">0</span></p>
-      </div>
-      <div class="retro-hud-footer populus-controls">
-        <button id="raise-button" type="button">Raise</button>
-        <button id="lower-button" type="button">Lower</button>
-        <span>Click tiles to select · Use R/F or ↑/↓ to shape terrain · Shift/right-drag to pan</span>
-      </div>
-    </section>
-  </div>
-  <script type="module" src="main.js"></script>
+  <div id="minimap-overlay"></div>
+  <aside class="ui-panel">
+    <h1>Populus Sandbox</h1>
+    <p>Drag with the left mouse button to pan, right click to orbit and use the wheel to zoom.</p>
+    <p>Hover any hex tile to highlight it and inspect its terrain type.</p>
+    <p id="tile-readout">No tile selected.</p>
+  </aside>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/constants.js"></script>
+  <script src="js/perlinNoise.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/systems/TerrainSystem.js"></script>
+  <script src="js/systems/HexCoord.js"></script>
+  <script src="js/systems/GridSystem.js"></script>
+  <script src="js/systems/MapSystem.js"></script>
+  <script src="js/systems/VisualizationSystem.js"></script>
+  <script src="js/game.js"></script>
 </body>
 </html>

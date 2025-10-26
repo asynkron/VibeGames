@@ -1,17 +1,23 @@
-# Populus Plateau
+# Populus Sandbox
 
-A miniature Populus-inspired terrain toy rendered with Three.js. The 8×8 grid of vertices can only differ by one level from their neighbours, so every sculpting move must respect the classic rule set. Heights now span from `0` up to `6`, with a translucent sea settling at height `1`—flooding low spots while higher peaks poke through above the waterline.
+This version of **Populus** reuses the Battle Isle hexagonal terrain pipeline so the two projects share identical world generation and camera behaviour. The prototype keeps only the realtime exploration pieces—there are no turns, roads or units—making it a light-weight sandbox for experimenting with the hex map stack.
+
+## Features
+
+- Procedurally generated 48×48 hex grid driven by the same Perlin noise settings as Battle Isle.
+- Smoothly blended vertex normals and shoreline foam to match the presentation of the turn-based game.
+- Shared camera workflow: drag to pan, right-click to orbit and use the mouse wheel to zoom.
+- Hover and click highlights for quickly inspecting terrain type and elevation.
+- Minimap viewport for quick jumps across the island.
 
 ## Controls
 
-- Click a tile to focus it.
-- Press **Raise**/**Lower** or use `R`/`F` (`↑`/`↓`) to nudge the selected vertex.
-- The HUD displays the currently selected coordinate and height.
+- **Left drag** – pan across the terrain.
+- **Right drag** – orbit around the current focus point.
+- **Mouse wheel** – zoom in or out.
+- **Left click** – lock a tile selection.
+- **Minimap drag** – reposition the camera instantly.
 
 ## Development notes
 
-The scene is built with a single `PlaneGeometry` (7×7 quads = 8×8 vertices). Each adjustment updates vertex positions and colours before recomputing normals for crisp shading. The `canSetHeight` helper refuses edits that would exceed ±1 difference relative to orthogonal neighbours. The playfield sits inside a broader 10×10 presentation grid so the plateau feels embedded within a stylised arena.
-
-## Screenshot
-
-![Randomised Populus Plateau terrain](./populus-randomized.png)
+The sandbox loads the same `TerrainSystem`, `GridSystem` and Perlin noise parameters as Battle Isle, but trims any dependencies on unit, road or AI systems. Common pieces—camera setup, minimap rendering and tile interaction—are split into small modules so new modes can mix and match systems as needed.
