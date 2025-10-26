@@ -92,11 +92,64 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     enemyBullet: '#ff8a9f',
     bombBullet: '#ffd8a6',
     homingBullet: '#b7f1ff',
+    powerupMain: '#8ae8ff',
     powerupBomb: '#ffcf6b',
-    powerupHoming: '#8ae8ff',
+    powerupMissile: '#b7f1ff',
+    powerupShield: '#a4ffcf',
+    bulletMinigun: '#c6f8ff',
+    bulletPlasma: '#d7c6ff',
+    bulletFireball: '#ffb88a',
+    missileGround: '#ffe9a1',
     turret: '#7e6bff',
     pause: 'rgba(14, 20, 40, 0.75)',
     text: '#f4faff',
+  };
+
+  const POWERUP_TYPES = {
+    main: [
+      { type: 'laser', label: 'Lazer Cannon' },
+      { type: 'minigun', label: 'Minigun' },
+      { type: 'plasma', label: 'Plasma Lance' },
+      { type: 'fireball', label: 'Fireball' },
+    ],
+    bomb: [
+      { type: 'bomb', label: 'Impact Bombs' },
+      { type: 'firebomb', label: 'Firebombs' },
+      { type: 'cluster', label: 'Cluster Bombs' },
+    ],
+    missile: [
+      { type: 'homing', label: 'Homing Missiles' },
+      { type: 'ground', label: 'Ground Missiles' },
+    ],
+    shield: [
+      { type: 'aegis', label: 'Aegis Shield' },
+      { type: 'phase', label: 'Phase Shield' },
+      { type: 'pulse', label: 'Pulse Shield' },
+    ],
+  };
+
+  const MAIN_WEAPON_DATA = {
+    laser: { cooldown: () => Math.max(0.08, settings.fireInterval * (0.95 - state.stage * 0.02)), spread: 0 },
+    minigun: { cooldown: () => 0.06, spread: 0.12 },
+    plasma: { cooldown: () => 0.16, spread: 0.05 },
+    fireball: { cooldown: () => 0.22, spread: 0.08 },
+  };
+
+  const BOMB_DATA = {
+    bomb: { cooldown: 0.8 },
+    firebomb: { cooldown: 1.05 },
+    cluster: { cooldown: 1.2 },
+  };
+
+  const MISSILE_DATA = {
+    homing: { cooldown: 0.6 },
+    ground: { cooldown: 0.75 },
+  };
+
+  const SHIELD_DATA = {
+    aegis: { cooldown: 5, invincible: 1.2 },
+    phase: { cooldown: 6, invincible: 1.6 },
+    pulse: { cooldown: 4.5, invincible: 1, shockwave: true },
   };
 
   // Predefined enemy packs that fly in tight classic-style formations.
@@ -195,10 +248,19 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     y: SCREEN_HEIGHT * 0.5,
     width: 18,
     height: 12,
-    fireTimer: 0,
     invincible: 2,
     tilt: 0,
-    specialWeapon: null,
+    fireTimers: {
+      main: 0,
+      bomb: 0,
+      missile: 0,
+    },
+    weapons: {
+      main: { type: 'laser' },
+      bomb: { type: null },
+      missile: { type: null },
+      shield: { type: null, cooldown: 0 },
+    },
   };
 
   const state = {
@@ -263,10 +325,16 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     state.powerupTimer = 5.5;
     player.x = SCREEN_WIDTH * 0.24;
     player.y = SCREEN_HEIGHT * 0.5;
-    player.fireTimer = 0;
     player.invincible = 2;
     player.tilt = 0;
-    player.specialWeapon = null;
+    player.fireTimers.main = 0;
+    player.fireTimers.bomb = 0;
+    player.fireTimers.missile = 0;
+    player.weapons.main.type = 'laser';
+    player.weapons.bomb.type = null;
+    player.weapons.missile.type = null;
+    player.weapons.shield.type = null;
+    player.weapons.shield.cooldown = 0;
     bullets.length = 0;
     enemyBullets.length = 0;
     enemies.length = 0;
@@ -294,6 +362,9 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     player.x = SCREEN_WIDTH * 0.24;
     player.y = Math.min(player.y, SCREEN_HEIGHT - TILE * 4);
     player.invincible = 2;
+    player.fireTimers.main = 0;
+    player.fireTimers.bomb = 0;
+    player.fireTimers.missile = 0;
     startIris('in', 750);
     updateHud(true);
   }
@@ -307,12 +378,23 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   }
 
   function describeWeapon() {
-    const special = player.specialWeapon;
-    if (!special || !special.type) return 'Laser';
-    const ammoLabel = typeof special.ammo === 'number' ? ` ×${Math.max(0, Math.ceil(special.ammo))}` : '';
-    if (special.type === 'bomb') return `Bomb${ammoLabel}`;
-    if (special.type === 'homing') return `Homing${ammoLabel}`;
-    return 'Laser';
+    const segments = [];
+    segments.push(`Main: ${getPowerupLabel('main', player.weapons.main.type ?? 'laser')}`);
+    segments.push(`Bomb: ${getPowerupLabel('bomb', player.weapons.bomb.type)}`);
+    segments.push(`Missile: ${getPowerupLabel('missile', player.weapons.missile.type)}`);
+    segments.push(`Shield: ${getPowerupLabel('shield', player.weapons.shield.type)}`);
+    return segments.join(' | ');
+  }
+
+  function getPowerupLabel(category, type) {
+    if (!type) return 'None';
+    const options = POWERUP_TYPES[category] ?? [];
+    const found = options.find((entry) => entry.type === type);
+    if (found) return found.label;
+    if (typeof type === 'string') {
+      return type.charAt(0).toUpperCase() + type.slice(1);
+    }
+    return 'Unknown';
   }
 
   function createStars(count) {
@@ -444,7 +526,12 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   }
 
   function updatePlayer(dt) {
-    player.fireTimer = Math.max(0, player.fireTimer - dt);
+    player.fireTimers.main = Math.max(0, player.fireTimers.main - dt);
+    player.fireTimers.bomb = Math.max(0, player.fireTimers.bomb - dt);
+    player.fireTimers.missile = Math.max(0, player.fireTimers.missile - dt);
+    if (player.weapons.shield.cooldown > 0) {
+      player.weapons.shield.cooldown = Math.max(0, player.weapons.shield.cooldown - dt);
+    }
     if (player.invincible > 0) player.invincible = Math.max(0, player.invincible - dt);
 
     const horiz = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
@@ -458,9 +545,8 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
     player.tilt = player.tilt * 0.9 + (-vert) * 0.18;
 
-    if (keys.fire && player.fireTimer <= 0 && !state.gameOver) {
-      spawnPlayerShot();
-      player.fireTimer = Math.max(0.08, settings.fireInterval * (0.95 - state.stage * 0.02));
+    if (keys.fire && !state.gameOver) {
+      firePlayerWeapons();
     }
 
     const worldLeft = state.cameraX + player.x - player.width * 0.45;
@@ -482,7 +568,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     }
   }
 
-  function spawnPlayerShot() {
+  function firePlayerWeapons() {
     const angle = player.tilt * 0.6;
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
@@ -492,22 +578,52 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     const shipWorldY = player.y;
     const spawnX = shipWorldX + muzzleOffsetX * cos - muzzleOffsetY * sin;
     const spawnY = shipWorldY + muzzleOffsetX * sin + muzzleOffsetY * cos;
-    const special = player.specialWeapon;
+    const muzzle = { x: spawnX, y: spawnY, angle, cos, sin };
 
-    if (special && special.ammo > 0) {
-      if (special.type === 'bomb') {
-        spawnBombShot({ x: spawnX, y: spawnY, angle });
-        consumeSpecialCharge();
-        return;
-      }
-      if (special.type === 'homing') {
-        spawnHomingShot({ x: spawnX, y: spawnY, angle });
-        consumeSpecialCharge();
-        return;
-      }
+    fireMainWeapon(muzzle);
+    fireBombWeapon(muzzle);
+    fireMissileWeapon(muzzle);
+  }
+
+  function fireMainWeapon(muzzle) {
+    const type = player.weapons.main.type ?? 'laser';
+    const data = MAIN_WEAPON_DATA[type] ?? MAIN_WEAPON_DATA.laser;
+    const cooldown = typeof data.cooldown === 'function' ? data.cooldown() : data.cooldown;
+    if (player.fireTimers.main > 0 || cooldown == null) return;
+
+    if (type === 'minigun') {
+      spawnMinigunBurst(muzzle, data.spread ?? 0);
+    } else if (type === 'plasma') {
+      spawnPlasmaShot(muzzle, data.spread ?? 0.05);
+    } else if (type === 'fireball') {
+      spawnFireballShot(muzzle, data.spread ?? 0.08);
+    } else {
+      spawnLaserShot(muzzle);
     }
 
-    spawnLaserShot({ x: spawnX, y: spawnY, cos, sin });
+    player.fireTimers.main = cooldown;
+  }
+
+  function fireBombWeapon(muzzle) {
+    const type = player.weapons.bomb.type;
+    if (!type) return;
+    const data = BOMB_DATA[type];
+    if (!data || player.fireTimers.bomb > 0) return;
+    spawnBombShot({ ...muzzle, variant: type });
+    player.fireTimers.bomb = data.cooldown;
+  }
+
+  function fireMissileWeapon(muzzle) {
+    const type = player.weapons.missile.type;
+    if (!type) return;
+    const data = MISSILE_DATA[type];
+    if (!data || player.fireTimers.missile > 0) return;
+    if (type === 'ground') {
+      spawnGroundMissile({ ...muzzle });
+    } else {
+      spawnHomingShot({ ...muzzle });
+    }
+    player.fireTimers.missile = data.cooldown;
   }
 
   function spawnLaserShot({ x, y, cos, sin }) {
@@ -521,17 +637,74 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     shotTone();
   }
 
-  function spawnBombShot({ x, y, angle }) {
+  function spawnMinigunBurst({ x, y, angle }, spread) {
+    const bulletsPerBurst = 2;
+    for (let i = 0; i < bulletsPerBurst; i += 1) {
+      const offset = (i - (bulletsPerBurst - 1) / 2) * spread;
+      const theta = angle + offset * 0.6 + (Math.random() - 0.5) * spread * 0.3;
+      bullets.push({
+        x,
+        y: y + (i === 0 ? -1 : 1),
+        vx: Math.cos(theta) * 420,
+        vy: Math.sin(theta) * 420,
+        life: 0.9,
+        damage: 0.7,
+        color: COLORS.bulletMinigun,
+      });
+    }
+    shotTone();
+  }
+
+  function spawnPlasmaShot({ x, y, angle }, spread) {
+    const theta = angle + (Math.random() - 0.5) * spread;
+    bullets.push({
+      kind: 'plasma',
+      x,
+      y,
+      vx: Math.cos(theta) * 320,
+      vy: Math.sin(theta) * 320,
+      life: 1.6,
+      damage: 2,
+      hitRadius: 18,
+      color: COLORS.bulletPlasma,
+    });
+    shotTone();
+  }
+
+  function spawnFireballShot({ x, y, angle }, spread) {
+    const theta = angle + (Math.random() - 0.5) * spread;
+    const speed = 260;
+    bullets.push({
+      kind: 'fireball',
+      x,
+      y,
+      vx: Math.cos(theta) * speed,
+      vy: Math.sin(theta) * speed,
+      life: 1.9,
+      damage: 1.5,
+      hitRadius: 20,
+      color: COLORS.bulletFireball,
+      onHit(hitX, hitY) {
+        spawnExplosion(hitX, hitY, { count: 10, radius: 70 });
+      },
+    });
+    shotTone();
+  }
+
+  function spawnBombShot({ x, y, angle, variant }) {
     const launchAngle = angle * 0.5;
     const cos = Math.cos(launchAngle);
     const sin = Math.sin(launchAngle);
+    const baseSpeed = variant === 'firebomb' ? 240 : 260;
+    const gravity = variant === 'cluster' ? 120 : 110;
     const bomb = {
       kind: 'bomb',
+      variant: variant ?? 'bomb',
       x,
       y,
-      vx: cos * 260,
-      vy: sin * 260 - 40,
-      gravity: 110,
+      vx: cos * baseSpeed,
+      vy: sin * baseSpeed - 40,
+      gravity,
       life: 1.8,
     };
     bomb.advance = (dt) => {
@@ -560,13 +733,22 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     shotTone();
   }
 
-  function consumeSpecialCharge() {
-    if (!player.specialWeapon) return;
-    player.specialWeapon.ammo = Math.max(0, (player.specialWeapon.ammo ?? 0) - 1);
-    if (player.specialWeapon.ammo <= 0) {
-      player.specialWeapon = null;
-    }
-    updateHud();
+  function spawnGroundMissile({ x, y, angle }) {
+    const speed = 300;
+    const missile = {
+      kind: 'missile',
+      variant: 'ground',
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      speed,
+      turnRate: 3.4,
+      life: 2.6,
+    };
+    missile.advance = createGroundSeekingAdvance(missile);
+    bullets.push(missile);
+    shotTone();
   }
 
   function spawnSpark(x, y, color = '#9de6ff') {
@@ -582,6 +764,34 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       gravity: 60,
       glow: { radius: 28, color: 'rgba(140, 220, 255, 0.4)' },
     });
+  }
+
+  function spawnFlameField(x, y) {
+    for (let i = 0; i < 14; i += 1) {
+      particles.push({
+        x: x + (Math.random() - 0.5) * 16,
+        y: y + (Math.random() - 0.5) * 16,
+        vx: (Math.random() - 0.5) * 40,
+        vy: (Math.random() - 1.2) * 30,
+        life: 0.5 + Math.random() * 0.4,
+        maxLife: 0.8,
+        size: 2 + Math.random() * 1.6,
+        color: '#ff9c64',
+        gravity: -10,
+        glow: { radius: 48, color: 'rgba(255, 150, 90, 0.32)' },
+      });
+    }
+  }
+
+  function spawnClusterBursts(x, y) {
+    const bursts = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < bursts; i += 1) {
+      const angle = (Math.PI * 2 * i) / bursts + Math.random() * 0.3;
+      const distance = 20 + Math.random() * 16;
+      const px = x + Math.cos(angle) * distance;
+      const py = y + Math.sin(angle) * distance;
+      spawnExplosion(px, py, { count: 6, radius: 60 });
+    }
   }
 
   function updateBullets(dt) {
@@ -608,6 +818,8 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         if (isSolid(bullet.x, bullet.y)) {
           if (bullet.kind === 'bomb') {
             detonateBomb(bullet);
+          } else if (bullet.kind === 'fireball') {
+            if (typeof bullet.onHit === 'function') bullet.onHit(bullet.x, bullet.y);
           } else {
             spawnSpark(bullet.x, bullet.y);
           }
@@ -615,7 +827,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         }
         const radius = bullet.hitRadius ?? (bullet.kind === 'bomb'
           ? 26
-          : bullet.kind === 'homing'
+          : bullet.kind === 'homing' || bullet.kind === 'missile'
             ? 16
             : 12);
         const radiusSq = radius * radius;
@@ -628,6 +840,9 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
               detonateBomb(bullet);
             } else {
               damageEnemy(enemy, bullet.damage ?? 1, bullet.x, bullet.y);
+              if (typeof bullet.onHit === 'function') {
+                bullet.onHit(enemy.x, enemy.y);
+              }
             }
             return true;
           }
@@ -637,6 +852,8 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       onRemove(bullet) {
         if (bullet.kind === 'bomb') {
           detonateBomb(bullet);
+        } else if (bullet.kind === 'fireball' && typeof bullet.onHit === 'function') {
+          bullet.onHit(bullet.x, bullet.y);
         }
       },
     });
@@ -645,7 +862,10 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   function detonateBomb(bomb) {
     if (!bomb || bomb.detonated) return;
     bomb.detonated = true;
-    spawnExplosion(bomb.x, bomb.y, { count: 16, radius: 120 });
+    const variant = bomb.variant ?? 'bomb';
+    const explosionRadius = variant === 'firebomb' ? 130 : variant === 'cluster' ? 100 : 110;
+    const particleCount = variant === 'firebomb' ? 20 : 16;
+    spawnExplosion(bomb.x, bomb.y, { count: particleCount, radius: explosionRadius });
     let damaged = false;
     const blastRadius = 90;
     const blastSq = blastRadius * blastRadius;
@@ -659,6 +879,11 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       }
     }
     if (!damaged) hitTone();
+    if (variant === 'firebomb') {
+      spawnFlameField(bomb.x, bomb.y);
+    } else if (variant === 'cluster') {
+      spawnClusterBursts(bomb.x, bomb.y);
+    }
   }
 
   function createHomingAdvance(bullet) {
@@ -681,10 +906,52 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     };
   }
 
+  function createGroundSeekingAdvance(bullet) {
+    let heading = Math.atan2(bullet.vy ?? 0, bullet.vx ?? bullet.speed ?? 0);
+    return (dt) => {
+      const target = findGroundEnemy(bullet.x, bullet.y);
+      if (target) {
+        const desired = Math.atan2(target.y - bullet.y, target.x - bullet.x);
+        let delta = normalizeAngle(desired - heading);
+        const maxTurn = (bullet.turnRate ?? 3.4) * dt;
+        if (delta > maxTurn) delta = maxTurn;
+        if (delta < -maxTurn) delta = -maxTurn;
+        heading += delta;
+      } else {
+        heading += (Math.sin(Date.now() * 0.0015 + bullet.x * 0.01) * 0.12) * dt;
+      }
+      const speed = bullet.speed ?? 280;
+      bullet.vx = Math.cos(heading) * speed;
+      bullet.vy = Math.sin(heading) * speed;
+      if (bullet.vy > 180) bullet.vy = 180;
+      bullet.x += bullet.vx * dt;
+      bullet.y += bullet.vy * dt;
+      const floor = getFloor(bullet.x) - TILE * 0.5;
+      if (bullet.y > floor) bullet.y = floor;
+    };
+  }
+
   function findNearestEnemy(x, y) {
     let closest = null;
     let bestDist = Number.POSITIVE_INFINITY;
     for (const enemy of enemies) {
+      const dx = enemy.x - x;
+      const dy = enemy.y - y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < bestDist) {
+        bestDist = distSq;
+        closest = enemy;
+      }
+    }
+    return closest;
+  }
+
+  function findGroundEnemy(x, y) {
+    let closest = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const enemy of enemies) {
+      const nearGround = enemy.type === 'turret' || enemy.y > getFloor(enemy.x) - TILE * 1.5;
+      if (!nearGround) continue;
       const dx = enemy.x - x;
       const dy = enemy.y - y;
       const distSq = dx * dx + dy * dy;
@@ -922,6 +1189,24 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     detachEnemy(enemy);
   }
 
+  function chooseRandomPowerup() {
+    const options = [];
+    for (const [category, variants] of Object.entries(POWERUP_TYPES)) {
+      for (const variant of variants) {
+        options.push({ category, type: variant.type });
+      }
+    }
+    const filtered = options.filter((option) => {
+      if (option.category === 'main') return option.type !== (player.weapons.main.type ?? 'laser');
+      if (option.category === 'bomb') return option.type !== player.weapons.bomb.type;
+      if (option.category === 'missile') return option.type !== player.weapons.missile.type;
+      if (option.category === 'shield') return option.type !== player.weapons.shield.type;
+      return true;
+    });
+    const pool = filtered.length ? filtered : options;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
   function spawnPowerup() {
     const spawnX = state.cameraX + SCREEN_WIDTH + TILE * 3;
     const floor = getFloor(spawnX) - TILE * 2.2;
@@ -929,9 +1214,10 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     const minY = clamp(ceiling + 20, TILE * 3, SCREEN_HEIGHT - TILE * 4);
     const maxY = clamp(floor - 20, TILE * 4, SCREEN_HEIGHT - TILE * 3);
     const baseY = clamp(minY + Math.random() * Math.max(10, maxY - minY), TILE * 3, SCREEN_HEIGHT - TILE * 3);
-    const type = Math.random() < 0.5 ? 'bomb' : 'homing';
+    const selection = chooseRandomPowerup();
     powerups.push({
-      type,
+      type: selection.type,
+      category: selection.category,
       x: spawnX,
       baseY,
       y: baseY,
@@ -943,12 +1229,21 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     });
   }
 
-  function activatePowerup(type) {
-    const payload = type === 'bomb' ? 6 : 10;
-    if (!player.specialWeapon || player.specialWeapon.type !== type) {
-      player.specialWeapon = { type, ammo: payload };
-    } else {
-      player.specialWeapon.ammo += payload;
+  function activatePowerup(power) {
+    if (!power || !power.category || !power.type) return;
+    if (power.category === 'main') {
+      player.weapons.main.type = power.type;
+      player.fireTimers.main = 0;
+    } else if (power.category === 'bomb') {
+      player.weapons.bomb.type = power.type;
+      player.fireTimers.bomb = 0;
+    } else if (power.category === 'missile') {
+      player.weapons.missile.type = power.type;
+      player.fireTimers.missile = 0;
+    } else if (power.category === 'shield') {
+      player.weapons.shield.type = power.type;
+      player.weapons.shield.cooldown = 0;
+      screenFlash({ strength: 0.12, duration: 200 });
     }
     hitTone();
     updateHud();
@@ -980,8 +1275,15 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       const dy = player.y - power.y;
       const pickupRadius = player.invincible > 0 ? 22 : 18;
       if (dx * dx + dy * dy < pickupRadius * pickupRadius) {
-        activatePowerup(power.type);
-        spawnSpark(power.x, power.y, power.type === 'bomb' ? '#ffe3a8' : '#b7f3ff');
+        activatePowerup(power);
+        const sparkColor = power.category === 'bomb'
+          ? '#ffe3a8'
+          : power.category === 'missile'
+            ? '#b7f3ff'
+            : power.category === 'shield'
+              ? '#a2ffd2'
+              : '#d0f0ff';
+        spawnSpark(power.x, power.y, sparkColor);
         powerups.splice(i, 1);
       }
     }
@@ -993,7 +1295,14 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       if (screenX < -20 || screenX > SCREEN_WIDTH + 40) continue;
       ctx.save();
       ctx.translate(screenX, power.y);
-      ctx.fillStyle = power.type === 'bomb' ? COLORS.powerupBomb : COLORS.powerupHoming;
+      const fillColor = power.category === 'bomb'
+        ? COLORS.powerupBomb
+        : power.category === 'missile'
+          ? COLORS.powerupMissile
+          : power.category === 'shield'
+            ? COLORS.powerupShield
+            : COLORS.powerupMain;
+      ctx.fillStyle = fillColor;
       ctx.beginPath();
       ctx.arc(0, 0, 6, 0, Math.PI * 2);
       ctx.fill();
@@ -1001,15 +1310,26 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = COLORS.space;
-      if (power.type === 'bomb') {
+      if (power.category === 'bomb') {
         ctx.fillRect(-2, -2, 4, 4);
-      } else {
+      } else if (power.category === 'missile') {
         ctx.beginPath();
         ctx.moveTo(-2, -3);
         ctx.lineTo(3, 0);
         ctx.lineTo(-2, 3);
         ctx.closePath();
         ctx.fill();
+      } else if (power.category === 'shield') {
+        ctx.beginPath();
+        ctx.moveTo(0, -3);
+        ctx.lineTo(3, 0);
+        ctx.lineTo(0, 3);
+        ctx.lineTo(-3, 0);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(-1, -3, 2, 6);
+        ctx.fillRect(-3, -1, 6, 2);
       }
       ctx.restore();
       lights.push({
@@ -1018,9 +1338,13 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         radius: 60,
         innerRadius: 6,
         innerStop: 0.25,
-        color: power.type === 'bomb'
-          ? 'rgba(255, 190, 120, 0.45)'
-          : 'rgba(150, 240, 255, 0.45)',
+        color: power.category === 'bomb'
+          ? 'rgba(255, 190, 120, 0.38)'
+          : power.category === 'missile'
+            ? 'rgba(150, 240, 255, 0.38)'
+            : power.category === 'shield'
+              ? 'rgba(160, 255, 200, 0.38)'
+              : 'rgba(170, 220, 255, 0.38)',
       });
     }
   }
@@ -1058,7 +1382,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         size: 2 + Math.random() * 2,
         color: i % 2 === 0 ? '#ffdca1' : '#ff7e4d',
         gravity: 30,
-        glow: { radius, color: 'rgba(255, 180, 120, 0.45)' },
+        glow: { radius: radius * 0.65, color: 'rgba(255, 180, 120, 0.28)' },
       });
     }
     startShockwave(x - state.cameraX, y, { innerRadius: 12, duration: 520 });
@@ -1080,6 +1404,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
   function loseLife() {
     if (player.invincible > 0 || state.gameOver) return;
+    if (absorbDamageWithShield()) return;
     state.lives -= 1;
     player.invincible = 2.4;
     screenFlash({ strength: 0.22, duration: 260 });
@@ -1088,8 +1413,53 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       state.gameOver = true;
       startIris('out', 1100);
     }
-    player.specialWeapon = null;
     updateHud();
+  }
+
+  function absorbDamageWithShield() {
+    const shield = player.weapons.shield;
+    if (!shield || !shield.type) return false;
+    if (shield.cooldown > 0) return false;
+    const data = SHIELD_DATA[shield.type];
+    if (!data) return false;
+    shield.cooldown = data.cooldown ?? 4.5;
+    player.invincible = Math.max(player.invincible, data.invincible ?? 1);
+    triggerShieldEffect(shield.type);
+    updateHud();
+    return true;
+  }
+
+  function triggerShieldEffect(type) {
+    const px = state.cameraX + player.x;
+    const py = player.y;
+    if (type === 'aegis') {
+      screenFlash({ strength: 0.16, duration: 220 });
+      spawnExplosion(px, py, { count: 10, radius: 90 });
+      damageEnemiesInRadius(px, py, 90, 2);
+    } else if (type === 'phase') {
+      screenFlash({ strength: 0.12, duration: 180 });
+      player.x = clamp(player.x + TILE * 1.5, TILE * 2, SCREEN_WIDTH * 0.7);
+      player.y = clamp(player.y - TILE * 1.5, TILE * 2, SCREEN_HEIGHT - TILE * 2);
+      spawnSpark(px, py, '#c0f7ff');
+    } else if (type === 'pulse') {
+      startShockwave(player.x, player.y, { innerRadius: 20, duration: 420 });
+      damageEnemiesInRadius(px, py, 110, 1);
+      for (let i = 0; i < 6; i += 1) {
+        spawnSpark(px + (Math.random() - 0.5) * 20, py + (Math.random() - 0.5) * 20, '#a8ffda');
+      }
+    }
+  }
+
+  function damageEnemiesInRadius(x, y, radius, damage = 1) {
+    const radiusSq = radius * radius;
+    for (let i = enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = enemies[i];
+      const dx = enemy.x - x;
+      const dy = enemy.y - y;
+      if (dx * dx + dy * dy <= radiusSq) {
+        damageEnemy(enemy, damage, x, y);
+      }
+    }
   }
 
   function drawTerrain() {
@@ -1184,10 +1554,67 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         lights.push({
           x: screenX,
           y: bullet.y,
-          radius: 70,
+          radius: bullet.variant === 'firebomb' ? 80 : 60,
           innerRadius: 6,
           innerStop: 0.2,
-          color: 'rgba(255, 210, 150, 0.55)',
+          color: bullet.variant === 'firebomb'
+            ? 'rgba(255, 170, 120, 0.45)'
+            : 'rgba(255, 210, 150, 0.45)',
+        });
+      } else if (bullet.kind === 'plasma') {
+        ctx.save();
+        ctx.translate(screenX, bullet.y);
+        const angle = Math.atan2(bullet.vy ?? 0, bullet.vx ?? 1);
+        ctx.rotate(angle);
+        ctx.fillStyle = bullet.color ?? COLORS.bulletPlasma;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        lights.push({
+          x: screenX,
+          y: bullet.y,
+          radius: 46,
+          innerRadius: 6,
+          innerStop: 0.15,
+          color: 'rgba(200, 190, 255, 0.45)',
+        });
+      } else if (bullet.kind === 'fireball') {
+        ctx.save();
+        ctx.translate(screenX, bullet.y);
+        ctx.fillStyle = bullet.color ?? COLORS.bulletFireball;
+        ctx.beginPath();
+        ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        lights.push({
+          x: screenX,
+          y: bullet.y,
+          radius: 54,
+          innerRadius: 7,
+          innerStop: 0.18,
+          color: 'rgba(255, 180, 120, 0.4)',
+        });
+      } else if (bullet.kind === 'missile') {
+        ctx.save();
+        ctx.translate(screenX, bullet.y);
+        const angle = Math.atan2(bullet.vy ?? 0, bullet.vx ?? 1);
+        ctx.rotate(angle);
+        ctx.fillStyle = COLORS.missileGround;
+        ctx.beginPath();
+        ctx.moveTo(4, 0);
+        ctx.lineTo(-3, -2.5);
+        ctx.lineTo(-3, 2.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        lights.push({
+          x: screenX + Math.cos(angle) * 2,
+          y: bullet.y + Math.sin(angle) * 2,
+          radius: 46,
+          innerRadius: 5,
+          innerStop: 0.15,
+          color: 'rgba(255, 230, 150, 0.45)',
         });
       } else if (bullet.kind === 'homing') {
         ctx.save();
@@ -1215,16 +1642,16 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         ctx.translate(screenX, bullet.y);
         const angle = Math.atan2(bullet.vy ?? 0, bullet.vx);
         ctx.rotate(angle);
-        ctx.fillStyle = COLORS.bullet;
+        ctx.fillStyle = bullet.color ?? COLORS.bullet;
         ctx.fillRect(-1, -1, 4, 2);
         ctx.restore();
         lights.push({
           x: screenX + Math.cos(angle) * 1,
           y: bullet.y + Math.sin(angle) * 1,
-          radius: 34,
+          radius: 30,
           innerRadius: 4,
           innerStop: 0.1,
-          color: 'rgba(140, 230, 255, 0.55)',
+          color: 'rgba(140, 230, 255, 0.45)',
         });
       }
     }
@@ -1359,6 +1786,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
     const sources = [];
     for (const light of lights) {
+      if (sources.length > 240) break;
       const radius = light.radius ?? 0;
       if (radius <= 0) continue;
       const innerRadius = Math.max(0, light.innerRadius ?? 0);
