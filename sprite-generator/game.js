@@ -504,9 +504,9 @@ function drawTopDownSpaceship(root, config, defs) {
 
 function drawSideViewSpaceship(root, config, defs) {
   const geometry = deriveSideViewGeometry(config);
+  drawSideHull(root, config, geometry);
   drawSideWing(root, config, geometry);
   drawSideStabiliser(root, config, geometry);
-  drawSideHull(root, config, geometry);
   drawSideMarkings(root, config, geometry);
   drawSideCanopy(root, config, geometry, defs);
   drawSideThrusters(root, config, geometry);
@@ -611,13 +611,45 @@ function deriveSideViewGeometry(config) {
     : null;
 
   const heavyArmament = (engine?.count ?? 1) > 2 || (details?.antenna ?? false);
-  const armament = {
-    barrels: heavyArmament ? 2 : 1,
-    length: Math.max(18, body.length * 0.12 + (wings?.forward ?? 18) * 0.4),
-    spacing: heavyArmament ? Math.max(6, (wings?.thickness ?? 12) * 0.35) : Math.max(4, (wings?.thickness ?? 10) * 0.25),
-    offsetY: -((cockpit?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.2),
-    housingHeight: Math.max(6, (cockpit?.height ?? 18) * 0.55),
-  };
+  const wingMountViable = wingEnabled && wing.length > 0;
+  const preferWingMount = wingMountViable && Math.random() < (heavyArmament ? 0.65 : 0.45);
+  let armament;
+
+  if (preferWingMount) {
+    // Allow the generator to hang missiles or bombs directly from the wing profile.
+    const ordnanceType = Math.random() < 0.55 ? "missile" : "bomb";
+    const hardpointCount = heavyArmament ? 2 : 1;
+    const basePayloadLength = clamp(body.length * 0.2, 16, Math.min(wing.length * 0.85, 42));
+    const basePayloadRadius = clamp(wing.thickness * 0.45, 5, 14);
+    const basePylonLength = clamp(wing.thickness * 0.7, 8, 26);
+    const chordAnchors = hardpointCount === 1 ? [0.48] : [0.38, 0.68];
+    armament = {
+      mount: "wing",
+      type: ordnanceType,
+      barrels: hardpointCount,
+      hardpoints: chordAnchors.map((ratio) => ({
+        chordRatio: clamp(ratio + randomBetween(-0.04, 0.04), 0.25, 0.78),
+        pylonLength: clamp(basePylonLength + randomBetween(-2, 3), 6, 28),
+        payloadLength: clamp(basePayloadLength * (1 + randomBetween(-0.12, 0.12)), 14, 48),
+        payloadRadius: clamp(
+          basePayloadRadius * (ordnanceType === "bomb" ? 1.12 : 0.88),
+          4.5,
+          16,
+        ),
+      })),
+    };
+  } else {
+    armament = {
+      mount: "nose",
+      barrels: heavyArmament ? 2 : 1,
+      length: Math.max(18, body.length * 0.12 + (wings?.forward ?? 18) * 0.4),
+      spacing: heavyArmament
+        ? Math.max(6, (wings?.thickness ?? 12) * 0.35)
+        : Math.max(4, (wings?.thickness ?? 10) * 0.25),
+      offsetY: -((cockpit?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.2),
+      housingHeight: Math.max(6, (cockpit?.height ?? 18) * 0.55),
+    };
+  }
 
   const markings = {
     enabled: Boolean(details?.stripe),
@@ -867,7 +899,7 @@ function drawSideThrusters(root, config, geometry) {
     flame.setAttribute("points", pointsToString(flamePoints));
     flame.setAttribute("fill", exhaustColor);
     flame.setAttribute("opacity", "0.85");
-    flame.classList.add("thruster-flame");
+    flame.classList.add("thruster-flame", "thruster-flame--horizontal");
 
     const glow = document.createElementNS(SVG_NS, "circle");
     glow.setAttribute("cx", tailX.toString());
@@ -894,10 +926,112 @@ function drawSideThrusters(root, config, geometry) {
 
 function drawSideWeapons(root, config, geometry) {
   const { palette } = config;
-  const { armament, profile } = geometry;
+  const { armament, profile, wing } = geometry;
   if (!armament) {
     return;
   }
+
+  if (armament.mount === "wing" && wing?.enabled && armament.hardpoints?.length) {
+    // Render ordnance pods under the visible wing hardpoints so they remain readable in profile.
+    const noseX = 100 - profile.length / 2;
+    const centerY = 100 + (profile.offsetY ?? 0);
+    const wingBaseY = centerY + wing.mountHeight + wing.thickness;
+    const ordnanceColor = partColor("weapons", shadeColor(palette.secondary, -0.1));
+    const pylonColor = partColor("weapons", shadeColor(palette.secondary, -0.25));
+    const accentColor = partStroke("weapons", palette.trim);
+    const tipColor = partColor("weapons", mixColor(palette.accent, palette.secondary, 0.4));
+
+    armament.hardpoints.forEach((hardpoint) => {
+      const anchorX = noseX + wing.position + wing.length * hardpoint.chordRatio;
+      const pylonLength = hardpoint.pylonLength ?? Math.max(wing.thickness * 0.6, 8);
+      const payloadLength = hardpoint.payloadLength ?? Math.max(18, wing.length * 0.3);
+      const payloadRadius = hardpoint.payloadRadius ?? Math.max(5, wing.thickness * 0.35);
+      const pylonTop = wingBaseY - 1;
+      const pylonBottom = pylonTop + pylonLength;
+      const payloadCenterY = pylonBottom + payloadRadius;
+      const bodyHeight = payloadRadius * 2;
+      const bodyX = anchorX - payloadLength * 0.55;
+
+      const group = document.createElementNS(SVG_NS, "g");
+      group.classList.add("wing-ordnance");
+
+      const pylon = document.createElementNS(SVG_NS, "rect");
+      pylon.setAttribute("x", (anchorX - 2).toString());
+      pylon.setAttribute("y", pylonTop.toString());
+      pylon.setAttribute("width", "4");
+      pylon.setAttribute("height", (pylonLength + 2).toString());
+      pylon.setAttribute("rx", "1.6");
+      pylon.setAttribute("fill", pylonColor);
+      pylon.setAttribute("stroke", accentColor);
+      pylon.setAttribute("stroke-width", 1);
+
+      const body = document.createElementNS(SVG_NS, "rect");
+      body.setAttribute("x", bodyX.toString());
+      body.setAttribute("y", (payloadCenterY - bodyHeight / 2).toString());
+      body.setAttribute("width", payloadLength.toString());
+      body.setAttribute("height", bodyHeight.toString());
+      body.setAttribute("rx", (armament.type === "bomb" ? payloadRadius : payloadRadius * 0.5).toString());
+      body.setAttribute("fill", ordnanceColor);
+      body.setAttribute("stroke", accentColor);
+      body.setAttribute("stroke-width", 1.1);
+
+      group.append(pylon, body);
+
+      if (armament.type === "missile") {
+        const tip = document.createElementNS(SVG_NS, "polygon");
+        const tipPoints = [
+          [bodyX, payloadCenterY - bodyHeight / 2],
+          [bodyX - payloadLength * 0.22, payloadCenterY],
+          [bodyX, payloadCenterY + bodyHeight / 2],
+        ];
+        tip.setAttribute("points", pointsToString(tipPoints));
+        tip.setAttribute("fill", tipColor);
+        tip.setAttribute("stroke", accentColor);
+        tip.setAttribute("stroke-width", 1);
+
+        const fins = document.createElementNS(SVG_NS, "polygon");
+        const finBaseX = bodyX + payloadLength;
+        const finSpread = Math.max(3, payloadRadius * 0.8);
+        const finPoints = [
+          [finBaseX, payloadCenterY - finSpread],
+          [finBaseX + payloadLength * 0.18, payloadCenterY],
+          [finBaseX, payloadCenterY + finSpread],
+        ];
+        fins.setAttribute("points", pointsToString(finPoints));
+        fins.setAttribute("fill", partColor("weapons", shadeColor(palette.accent, -0.15)));
+        fins.setAttribute("opacity", "0.75");
+
+        group.append(tip, fins);
+      } else {
+        const noseCap = document.createElementNS(SVG_NS, "circle");
+        noseCap.setAttribute("cx", (bodyX - payloadRadius * 0.15).toString());
+        noseCap.setAttribute("cy", payloadCenterY.toString());
+        noseCap.setAttribute("r", (payloadRadius * 0.45).toString());
+        noseCap.setAttribute("fill", tipColor);
+        noseCap.setAttribute("stroke", accentColor);
+        noseCap.setAttribute("stroke-width", 0.9);
+
+        const band = document.createElementNS(SVG_NS, "rect");
+        band.setAttribute("x", (bodyX + payloadLength * 0.42).toString());
+        band.setAttribute("y", (payloadCenterY - bodyHeight / 2).toString());
+        band.setAttribute("width", (payloadLength * 0.16).toString());
+        band.setAttribute("height", bodyHeight.toString());
+        band.setAttribute("fill", partColor("weapons", mixColor(palette.accent, palette.trim, 0.45)));
+        band.setAttribute("opacity", "0.65");
+
+        group.append(noseCap, band);
+      }
+
+      root.appendChild(group);
+    });
+
+    return;
+  }
+
+  if (armament.mount !== "nose") {
+    return;
+  }
+
   const noseX = 100 - profile.length / 2;
   const baseX = noseX - armament.length;
   const baseY = 100 + (profile.offsetY ?? 0) + (armament.offsetY ?? 0);
@@ -1187,7 +1321,7 @@ function drawEngines(root, config) {
     flame.setAttribute("points", pointsToString(flamePoints));
     flame.setAttribute("fill", exhaustColor);
     flame.setAttribute("opacity", "0.85");
-    flame.classList.add("thruster-flame");
+    flame.classList.add("thruster-flame", "thruster-flame--vertical");
 
     group.append(nozzle, cap, thruster, flame);
   }

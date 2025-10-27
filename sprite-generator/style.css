@@ -216,8 +216,20 @@ svg {
 }
 
 .thruster-flame {
+  animation-duration: 620ms;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+.thruster-flame--vertical {
   transform-origin: 50% 100%;
-  animation: flame 620ms ease-in-out infinite alternate;
+  animation-name: flame-vertical;
+}
+
+.thruster-flame--horizontal {
+  transform-origin: 0% 50%;
+  animation-name: flame-horizontal;
 }
 
 .thruster-flame:nth-child(odd) {
@@ -240,13 +252,24 @@ svg {
   }
 }
 
-@keyframes flame {
+@keyframes flame-vertical {
   0% {
     transform: scaleY(0.85);
     opacity: 0.7;
   }
   100% {
     transform: scaleY(1.15);
+    opacity: 1;
+  }
+}
+
+@keyframes flame-horizontal {
+  0% {
+    transform: scaleX(0.85);
+    opacity: 0.72;
+  }
+  100% {
+    transform: scaleX(1.12);
     opacity: 1;
   }
 }
