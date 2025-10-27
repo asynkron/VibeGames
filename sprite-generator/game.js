@@ -967,7 +967,8 @@ function deriveSideViewGeometry(config) {
         thickness: planform.thickness,
         dihedral: planform.dihedral,
         drop: planform.drop,
-        mountHeight: (planform.mountOffset / Math.max(halfLength, 1)) * (baseHeight * 0.35),
+        // Preserve any explicit vertical offset instead of inferring it from the fore/aft mount.
+        mountHeight: planform.mountHeight ?? 0,
         accent: Boolean(wings?.tipAccent),
       }
     : {
@@ -2448,7 +2449,17 @@ function computeCanopyPlacement(body, cockpit) {
 
 function computeWingPlanform(body, wings) {
   if (!wings?.enabled) {
-    return { enabled: false, position: 0, length: 0, span: 0, thickness: 0, dihedral: 0, drop: 0, mountOffset: 0 };
+    return {
+      enabled: false,
+      position: 0,
+      length: 0,
+      span: 0,
+      thickness: 0,
+      dihedral: 0,
+      drop: 0,
+      mountOffset: 0,
+      mountHeight: 0,
+    };
   }
 
   const halfLength = body.length / 2;
@@ -2466,6 +2477,7 @@ function computeWingPlanform(body, wings) {
   const drop = Math.max(6, sweep * 0.6, span * 0.25, chord * 0.22);
   const positionPercent = position / body.length;
   const lengthPercent = length / body.length;
+  const mountHeight = wings.mountHeight ?? wings.verticalOffset ?? 0;
 
   return {
     enabled: true,
@@ -2478,6 +2490,7 @@ function computeWingPlanform(body, wings) {
     dihedral,
     drop,
     mountOffset: wings.offsetY ?? 0,
+    mountHeight,
   };
 }
 
@@ -3251,6 +3264,7 @@ function normaliseTopDownConfig(copy) {
       copy.wings.mount = "none";
       copy.wings.tipAccent = false;
       copy.wings.offsetY = 0;
+      copy.wings.mountHeight = 0;
       copy.wings.span = Math.max(0, copy.wings.span ?? 0);
       copy.wings.thickness = Math.max(0, copy.wings.thickness ?? 0);
     } else {
@@ -3266,6 +3280,9 @@ function normaliseTopDownConfig(copy) {
       }
       copy.wings.span = Math.max(12, copy.wings.span);
       copy.wings.thickness = Math.max(4, copy.wings.thickness);
+      if (!Number.isFinite(copy.wings.mountHeight)) {
+        copy.wings.mountHeight = 0;
+      }
     }
   }
   if (copy.body?.segments) {
