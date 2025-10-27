@@ -171,6 +171,12 @@ header.panel p {
   align-items: center;
 }
 
+.detail-visual svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .detail-definition h2 {
   margin: 0 0 0.75rem;
   font-size: 1rem;

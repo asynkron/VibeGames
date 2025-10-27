@@ -1,7 +1,12 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const GRID_SIZE = 9;
 
-const GAME_MODES = {
+const VIEW_MODES = {
+  both: {
+    label: "Dual projection",
+    shortLabel: "Both",
+    description: "Show top-down and side views together for comparison.",
+  },
   side: {
     label: "Side-scrolling shooter",
     shortLabel: "Side",
@@ -271,7 +276,7 @@ const shufflePaletteButton = document.getElementById("shufflePalette");
 let renderCounter = 0;
 
 let currentCategory = "fighter";
-let currentGameMode = "side";
+let currentViewMode = "both";
 let parentConfig = null;
 let selectedConfig = null;
 
@@ -280,14 +285,14 @@ populateCategorySelect();
 initialise();
 
 function populateModeSelect() {
-  Object.entries(GAME_MODES).forEach(([key, def]) => {
+  Object.entries(VIEW_MODES).forEach(([key, def]) => {
     const option = document.createElement("option");
     option.value = key;
     option.textContent = `${def.label}`;
     option.title = def.description;
     modeSelect.appendChild(option);
   });
-  modeSelect.value = currentGameMode;
+  modeSelect.value = currentViewMode;
 }
 
 function populateCategorySelect() {
@@ -301,29 +306,27 @@ function populateCategorySelect() {
 }
 
 function initialise() {
-  parentConfig = createBaseConfig(currentCategory, currentGameMode);
+  parentConfig = createBaseConfig(currentCategory);
   selectedConfig = cloneConfig(parentConfig);
   renderDetail(selectedConfig);
   renderGrid();
 
   modeSelect.addEventListener("change", () => {
-    currentGameMode = modeSelect.value;
-    parentConfig = createBaseConfig(currentCategory, currentGameMode);
-    selectedConfig = cloneConfig(parentConfig);
+    currentViewMode = modeSelect.value;
     renderDetail(selectedConfig);
     renderGrid();
   });
 
   categorySelect.addEventListener("change", () => {
     currentCategory = categorySelect.value;
-    parentConfig = createBaseConfig(currentCategory, currentGameMode);
+    parentConfig = createBaseConfig(currentCategory);
     selectedConfig = cloneConfig(parentConfig);
     renderDetail(selectedConfig);
     renderGrid();
   });
 
   newSeedButton.addEventListener("click", () => {
-    parentConfig = createBaseConfig(currentCategory, currentGameMode);
+    parentConfig = createBaseConfig(currentCategory);
     selectedConfig = cloneConfig(parentConfig);
     renderDetail(selectedConfig);
     renderGrid();
@@ -351,8 +354,6 @@ function renderGrid() {
   configs.forEach((config, index) => {
     const card = createSpriteCard(config, index === 0);
     card.addEventListener("click", () => {
-      currentGameMode = config.gameMode;
-      modeSelect.value = currentGameMode;
       parentConfig = cloneConfig(config);
       selectedConfig = cloneConfig(config);
       renderDetail(selectedConfig);
@@ -371,8 +372,7 @@ function createSpriteCard(config, isParent) {
   }
 
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", "0 0 200 200");
-  renderSpaceship(svg, config, { scale: 0.8 });
+  renderSpaceship(svg, config, { scale: 0.8, viewMode: currentViewMode });
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -381,8 +381,8 @@ function createSpriteCard(config, isParent) {
   const category = document.createElement("span");
   category.textContent = config.label || config.category;
   const mode = document.createElement("span");
-  const gameModeDef = GAME_MODES[config.gameMode];
-  mode.textContent = gameModeDef ? gameModeDef.shortLabel : config.gameMode;
+  const viewDef = VIEW_MODES[currentViewMode];
+  mode.textContent = viewDef ? viewDef.shortLabel : currentViewMode;
   meta.append(category, mode, palette);
 
   button.append(svg, meta);
@@ -390,7 +390,7 @@ function createSpriteCard(config, isParent) {
 }
 
 function renderDetail(config) {
-  renderSpaceship(detailSprite, config, { scale: 1 });
+  renderSpaceship(detailSprite, config, { scale: 1, viewMode: currentViewMode });
   definition.textContent = JSON.stringify(
     config,
     (key, value) => (typeof value === "number" ? Number(value.toFixed(2)) : value),
@@ -400,25 +400,53 @@ function renderDetail(config) {
 
 function renderSpaceship(svg, config, options = {}) {
   const scale = options.scale ?? 1;
-  const mode = config.gameMode ?? "vertical";
+  const viewMode = options.viewMode ?? currentViewMode ?? "both";
   svg.innerHTML = "";
-  svg.setAttribute("viewBox", "0 0 200 200");
+  svg.setAttribute("data-view-mode", viewMode);
 
   const defs = document.createElementNS(SVG_NS, "defs");
   svg.appendChild(defs);
 
-  const root = document.createElementNS(SVG_NS, "g");
-  if (scale !== 1) {
-    root.setAttribute("transform", `translate(${100 - 100 * scale} ${100 - 100 * scale}) scale(${scale})`);
+  if (viewMode === "both") {
+    svg.setAttribute("viewBox", "0 0 400 200");
+    const projectionScale = scale * 0.9;
+    const topRoot = createShipRootGroup(projectionScale, 0, 0);
+    const sideRoot = createShipRootGroup(projectionScale, 200, 0);
+    svg.append(topRoot, sideRoot);
+    drawTopDownSpaceship(topRoot, config, defs);
+    drawSideViewSpaceship(sideRoot, config, defs);
+    return;
   }
-  root.classList.add("ship-root");
+
+  svg.setAttribute("viewBox", "0 0 200 200");
+  const root = createShipRootGroup(scale, 0, 0);
   svg.appendChild(root);
 
-  if (mode === "side") {
+  if (viewMode === "side") {
     drawSideViewSpaceship(root, config, defs);
   } else {
     drawTopDownSpaceship(root, config, defs);
   }
+}
+
+function createShipRootGroup(scale, offsetX, offsetY) {
+  const root = document.createElementNS(SVG_NS, "g");
+  const transforms = [];
+  const baseX = offsetX + 100;
+  const baseY = offsetY + 100;
+  const translateX = baseX - 100 * scale;
+  const translateY = baseY - 100 * scale;
+  if (translateX !== 0 || translateY !== 0) {
+    transforms.push(`translate(${translateX} ${translateY})`);
+  }
+  if (scale !== 1) {
+    transforms.push(`scale(${scale})`);
+  }
+  if (transforms.length > 0) {
+    root.setAttribute("transform", transforms.join(" "));
+  }
+  root.classList.add("ship-root");
+  return root;
 }
 
 function drawTopDownSpaceship(root, config, defs) {
@@ -431,31 +459,158 @@ function drawTopDownSpaceship(root, config, defs) {
 }
 
 function drawSideViewSpaceship(root, config, defs) {
-  drawSideWing(root, config);
-  drawSideStabiliser(root, config);
-  drawSideHull(root, config);
-  drawSideMarkings(root, config);
-  drawSideCanopy(root, config, defs);
-  drawSideThrusters(root, config);
-  drawSideWeapons(root, config);
-  drawSideLights(root, config);
+  const geometry = deriveSideViewGeometry(config);
+  drawSideWing(root, config, geometry);
+  drawSideStabiliser(root, config, geometry);
+  drawSideHull(root, config, geometry);
+  drawSideMarkings(root, config, geometry);
+  drawSideCanopy(root, config, geometry, defs);
+  drawSideThrusters(root, config, geometry);
+  drawSideWeapons(root, config, geometry);
+  drawSideLights(root, config, geometry);
 }
 
-function drawSideHull(root, config) {
-  const { sideProfile, palette } = config;
+function deriveSideViewGeometry(config) {
+  // Translate the shared top-down configuration into approximate side-view dimensions.
+  const { body, cockpit, engine, wings, fins, details } = config;
+
+  const halfLength = body.length / 2;
+  const fuselageRadius = Math.max(body.halfWidth, 12);
+  const baseHeight = Math.max(fuselageRadius * 1.4, (cockpit?.height ?? 18) + 8, (fins?.height ?? 24) * 0.55);
+
+  const noseLength = clamp(body.length * 0.18 + body.noseCurve * 0.35, body.length * 0.16, body.length * 0.32);
+  const tailLength = clamp(body.length * 0.22 + body.tailCurve * 0.3, body.length * 0.16, body.length * 0.36);
+  const noseHeight = Math.max(8, body.noseCurve * 0.55);
+  const dorsalHeight = Math.max((cockpit?.height ?? 18) + 6, (fins?.height ?? 28) * 0.55);
+  const tailHeight = Math.max(6, (fins?.height ?? 24) * 0.4);
+  const bellyDrop = clamp(body.midInset * 1.6, baseHeight * 0.22, baseHeight * 0.48);
+  const ventralDepth = bellyDrop + Math.max(6, body.midInset * 0.6);
+  const hasIntakes = (engine?.count ?? 0) > 1;
+  const intakeHeight = hasIntakes ? Math.min(baseHeight * 0.45, (engine?.size ?? 18) * 0.9) : 0;
+  const intakeDepth = hasIntakes ? Math.min(fuselageRadius * 1.2, (engine?.spacing ?? 24) * 0.6) : 0;
+
+  const profile = {
+    length: body.length,
+    height: baseHeight,
+    noseLength,
+    tailLength,
+    noseHeight,
+    dorsalHeight,
+    tailHeight,
+    bellyDrop,
+    ventralDepth,
+    intakeHeight,
+    intakeDepth,
+    offsetY: 0,
+    plating: Boolean(body.plating),
+  };
+
+  const canopyLength = clamp((cockpit?.width ?? 28) * 1.1, body.length * 0.16, body.length * 0.32);
+  const canopyHeight = clamp((cockpit?.height ?? 18) * 1.05, (cockpit?.height ?? 18) * 0.85, dorsalHeight - 4);
+  const canopyOffset = clamp(
+    halfLength + (cockpit?.offsetY ?? 0) + noseLength * 0.4,
+    noseLength * 0.6,
+    body.length * 0.58,
+  );
+  const canopy = {
+    length: canopyLength,
+    height: canopyHeight,
+    offset: canopyOffset,
+    offsetY: -(cockpit?.offsetY ?? 0) * 0.25,
+    frame: clamp((cockpit?.width ?? 28) * 0.08, 1.8, 3.8),
+    tint: cockpit?.tint ?? "#7ed4ff",
+  };
+
+  const wingEnabled = Boolean(wings?.enabled);
+  const wingPosition = clamp(
+    noseLength + halfLength + (wings?.offsetY ?? 0),
+    noseLength * 0.9,
+    body.length * 0.78,
+  );
+  const wing = {
+    enabled: wingEnabled,
+    position: wingPosition,
+    length: wingEnabled ? Math.max(24, (wings?.span ?? 0) * 0.6) : 0,
+    thickness: wingEnabled ? Math.max(6, (wings?.thickness ?? 0) * 0.55) : 0,
+    dihedral: wingEnabled ? Math.max(0, (wings?.dihedral ?? 0) * 0.8) : 0,
+    drop: wingEnabled ? Math.max(6, (wings?.sweep ?? 0) * 0.6) : 0,
+    mountHeight: wingEnabled ? ((wings?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.35) : 0,
+    accent: Boolean(wings?.tipAccent),
+  };
+
+  const stabiliser = fins
+    ? {
+        height: Math.max(8, fins.height),
+        length: Math.max(12, fins.width * 1.6),
+        sweep: Math.max(10, (wings?.forward ?? 18) * 0.5),
+        thickness: Math.max(5, fins.width * 0.7),
+        offsetY: ((fins.side ?? 0) - (fins.bottom ?? 0)) * baseHeight * 0.06,
+        ventral: (fins.bottom ?? 0) > 0,
+      }
+    : null;
+
+  const thruster = engine
+    ? {
+        count: Math.max(1, Math.round(engine.count)),
+        radius: Math.max(4, engine.size * 0.45),
+        spacing: Math.max(8, engine.spacing * 0.45),
+        offsetY: 0,
+        nozzleLength: Math.max(6, engine.nozzleLength * 0.65),
+        glow: engine.glow,
+      }
+    : null;
+
+  const heavyArmament = (engine?.count ?? 1) > 2 || (details?.antenna ?? false);
+  const armament = {
+    barrels: heavyArmament ? 2 : 1,
+    length: Math.max(18, body.length * 0.12 + (wings?.forward ?? 18) * 0.4),
+    spacing: heavyArmament ? Math.max(6, (wings?.thickness ?? 12) * 0.35) : Math.max(4, (wings?.thickness ?? 10) * 0.25),
+    offsetY: -((cockpit?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.2),
+    housingHeight: Math.max(6, (cockpit?.height ?? 18) * 0.55),
+  };
+
+  const markings = {
+    enabled: Boolean(details?.stripe),
+    stripeLength: clamp(body.length * 0.24, body.length * 0.16, body.length * 0.34),
+    stripeHeight: clamp(baseHeight * 0.3, baseHeight * 0.2, baseHeight * 0.45),
+    stripeOffset: clamp(noseLength * 0.8 + (details?.stripeOffset ?? body.length * 0.3), noseLength * 0.6, body.length * 0.78),
+    stripeLift: clamp(-(cockpit?.offsetY ?? 0) * 0.4, -baseHeight * 0.3, baseHeight * 0.3),
+  };
+
+  const lights = {
+    nose: Boolean(details?.antenna),
+    dorsal: (fins?.top ?? 0) > 0,
+    intake: hasIntakes,
+  };
+
+  return {
+    profile,
+    canopy,
+    wing,
+    stabiliser,
+    thruster,
+    armament,
+    markings,
+    lights,
+  };
+}
+
+function drawSideHull(root, config, geometry) {
+  const { palette } = config;
+  const { profile } = geometry;
   const group = document.createElementNS(SVG_NS, "g");
 
   const hull = document.createElementNS(SVG_NS, "path");
-  hull.setAttribute("d", buildSideHullPath(sideProfile));
+  hull.setAttribute("d", buildSideHullPath(profile));
   hull.setAttribute("fill", palette.primary);
   hull.setAttribute("stroke", palette.accent);
   hull.setAttribute("stroke-width", 2.4);
   hull.setAttribute("stroke-linejoin", "round");
   group.appendChild(hull);
 
-  if (sideProfile.plating) {
+  if (profile.plating) {
     const plating = document.createElementNS(SVG_NS, "path");
-    plating.setAttribute("d", buildSidePanelLines(sideProfile));
+    plating.setAttribute("d", buildSidePanelLines(profile));
     plating.setAttribute("stroke", mixColor(palette.trim, palette.accent, 0.4));
     plating.setAttribute("stroke-width", 1.2);
     plating.setAttribute("stroke-linecap", "round");
@@ -464,9 +619,9 @@ function drawSideHull(root, config) {
     group.appendChild(plating);
   }
 
-  if (sideProfile.intakeHeight > 0 && sideProfile.intakeDepth > 0) {
+  if (profile.intakeHeight > 0 && profile.intakeDepth > 0) {
     const intake = document.createElementNS(SVG_NS, "path");
-    intake.setAttribute("d", buildSideIntakePath(sideProfile));
+    intake.setAttribute("d", buildSideIntakePath(profile));
     intake.setAttribute("fill", shadeColor(palette.secondary, -0.2));
     intake.setAttribute("stroke", palette.trim);
     intake.setAttribute("stroke-width", 1.2);
@@ -476,13 +631,14 @@ function drawSideHull(root, config) {
   root.appendChild(group);
 }
 
-function drawSideWing(root, config) {
-  const { wingProfile, sideProfile, palette } = config;
+function drawSideWing(root, config, geometry) {
+  const { palette } = config;
+  const { wing: wingProfile, profile } = geometry;
   if (!wingProfile?.enabled) {
     return;
   }
 
-  const points = buildSideWingPoints(wingProfile, sideProfile);
+  const points = buildSideWingPoints(wingProfile, profile);
   const wing = document.createElementNS(SVG_NS, "polygon");
   wing.setAttribute("points", pointsToString(points));
   wing.setAttribute("fill", shadeColor(palette.secondary, -0.1));
@@ -501,14 +657,15 @@ function drawSideWing(root, config) {
   }
 }
 
-function drawSideStabiliser(root, config) {
-  const { stabiliser, sideProfile, palette } = config;
+function drawSideStabiliser(root, config, geometry) {
+  const { palette } = config;
+  const { stabiliser, profile } = geometry;
   if (!stabiliser) {
     return;
   }
-  const noseX = 100 - sideProfile.length / 2;
-  const tailBase = noseX + sideProfile.length - stabiliser.length;
-  const baseY = 100 + (sideProfile.offsetY ?? 0) + (stabiliser.offsetY ?? 0);
+  const noseX = 100 - profile.length / 2;
+  const tailBase = noseX + profile.length - stabiliser.length;
+  const baseY = 100 + (profile.offsetY ?? 0) + (stabiliser.offsetY ?? 0);
 
   const fin = document.createElementNS(SVG_NS, "polygon");
   const finPoints = [
@@ -541,9 +698,10 @@ function drawSideStabiliser(root, config) {
   }
 }
 
-function drawSideCanopy(root, config, defs) {
-  const { canopySide, palette, sideProfile } = config;
-  if (!canopySide) {
+function drawSideCanopy(root, config, geometry, defs) {
+  const { palette } = config;
+  const { canopy, profile } = geometry;
+  if (!canopy) {
     return;
   }
 
@@ -557,63 +715,64 @@ function drawSideCanopy(root, config, defs) {
 
   const stop1 = document.createElementNS(SVG_NS, "stop");
   stop1.setAttribute("offset", "0%");
-  stop1.setAttribute("stop-color", mixColor(canopySide.tint, "#ffffff", 0.4));
+  stop1.setAttribute("stop-color", mixColor(canopy.tint, "#ffffff", 0.4));
   stop1.setAttribute("stop-opacity", "0.9");
   const stop2 = document.createElementNS(SVG_NS, "stop");
   stop2.setAttribute("offset", "65%");
-  stop2.setAttribute("stop-color", canopySide.tint);
+  stop2.setAttribute("stop-color", canopy.tint);
   stop2.setAttribute("stop-opacity", "0.95");
   const stop3 = document.createElementNS(SVG_NS, "stop");
   stop3.setAttribute("offset", "100%");
-  stop3.setAttribute("stop-color", shadeColor(canopySide.tint, -0.3));
+  stop3.setAttribute("stop-color", shadeColor(canopy.tint, -0.3));
   stop3.setAttribute("stop-opacity", "0.9");
   gradient.append(stop1, stop2, stop3);
   defs.appendChild(gradient);
 
-  const noseX = 100 - sideProfile.length / 2;
-  const baseX = noseX + canopySide.offset;
-  const baseY = 100 + (sideProfile.offsetY ?? 0) - canopySide.height * 0.1 + (canopySide.offsetY ?? 0);
+  const noseX = 100 - profile.length / 2;
+  const baseX = noseX + canopy.offset;
+  const baseY = 100 + (profile.offsetY ?? 0) - canopy.height * 0.1 + (canopy.offsetY ?? 0);
 
-  const canopy = document.createElementNS(SVG_NS, "path");
+  const canopyShape = document.createElementNS(SVG_NS, "path");
   const canopyPath = [
     `M ${baseX} ${baseY}`,
-    `L ${baseX + canopySide.length * 0.12} ${baseY - canopySide.height * 0.7}`,
-    `L ${baseX + canopySide.length * 0.82} ${baseY - canopySide.height}`,
-    `L ${baseX + canopySide.length} ${baseY - canopySide.height * 0.18}`,
-    `L ${baseX + canopySide.length * 0.92} ${baseY + canopySide.height * 0.24}`,
-    `L ${baseX + canopySide.length * 0.1} ${baseY + canopySide.height * 0.32}`,
+    `L ${baseX + canopy.length * 0.12} ${baseY - canopy.height * 0.7}`,
+    `L ${baseX + canopy.length * 0.82} ${baseY - canopy.height}`,
+    `L ${baseX + canopy.length} ${baseY - canopy.height * 0.18}`,
+    `L ${baseX + canopy.length * 0.92} ${baseY + canopy.height * 0.24}`,
+    `L ${baseX + canopy.length * 0.1} ${baseY + canopy.height * 0.32}`,
     "Z",
   ].join(" ");
-  canopy.setAttribute("d", canopyPath);
-  canopy.setAttribute("fill", `url(#${gradientId})`);
-  canopy.setAttribute("stroke", palette.trim);
-  canopy.setAttribute("stroke-width", canopySide.frame);
-  canopy.setAttribute("stroke-linejoin", "round");
-  root.appendChild(canopy);
+  canopyShape.setAttribute("d", canopyPath);
+  canopyShape.setAttribute("fill", `url(#${gradientId})`);
+  canopyShape.setAttribute("stroke", palette.trim);
+  canopyShape.setAttribute("stroke-width", canopy.frame);
+  canopyShape.setAttribute("stroke-linejoin", "round");
+  root.appendChild(canopyShape);
 
   const frame = document.createElementNS(SVG_NS, "polyline");
   frame.setAttribute(
     "points",
     pointsToString([
-      [baseX + canopySide.length * 0.18, baseY - canopySide.height * 0.6],
-      [baseX + canopySide.length * 0.48, baseY - canopySide.height * 0.82],
-      [baseX + canopySide.length * 0.76, baseY - canopySide.height * 0.7],
+      [baseX + canopy.length * 0.18, baseY - canopy.height * 0.6],
+      [baseX + canopy.length * 0.48, baseY - canopy.height * 0.82],
+      [baseX + canopy.length * 0.76, baseY - canopy.height * 0.7],
     ]),
   );
   frame.setAttribute("stroke", mixColor(palette.trim, palette.accent, 0.5));
-  frame.setAttribute("stroke-width", canopySide.frame * 0.7);
+  frame.setAttribute("stroke-width", canopy.frame * 0.7);
   frame.setAttribute("stroke-linecap", "round");
   frame.setAttribute("fill", "none");
   root.appendChild(frame);
 }
 
-function drawSideThrusters(root, config) {
-  const { thruster, sideProfile, palette } = config;
+function drawSideThrusters(root, config, geometry) {
+  const { palette } = config;
+  const { thruster, profile } = geometry;
   if (!thruster) {
     return;
   }
-  const tailX = 100 + sideProfile.length / 2;
-  const baseY = 100 + (sideProfile.offsetY ?? 0) + (thruster.offsetY ?? 0);
+  const tailX = 100 + profile.length / 2;
+  const baseY = 100 + (profile.offsetY ?? 0) + (thruster.offsetY ?? 0);
   const group = document.createElementNS(SVG_NS, "g");
 
   for (let i = 0; i < thruster.count; i += 1) {
@@ -661,14 +820,15 @@ function drawSideThrusters(root, config) {
   root.appendChild(group);
 }
 
-function drawSideWeapons(root, config) {
-  const { armament, sideProfile, palette } = config;
+function drawSideWeapons(root, config, geometry) {
+  const { palette } = config;
+  const { armament, profile } = geometry;
   if (!armament) {
     return;
   }
-  const noseX = 100 - sideProfile.length / 2;
+  const noseX = 100 - profile.length / 2;
   const baseX = noseX - armament.length;
-  const baseY = 100 + (sideProfile.offsetY ?? 0) + (armament.offsetY ?? 0);
+  const baseY = 100 + (profile.offsetY ?? 0) + (armament.offsetY ?? 0);
 
   for (let i = 0; i < armament.barrels; i += 1) {
     const offset = i - (armament.barrels - 1) / 2;
@@ -704,15 +864,16 @@ function drawSideWeapons(root, config) {
   }
 }
 
-function drawSideMarkings(root, config) {
-  const { markings, sideProfile, palette } = config;
+function drawSideMarkings(root, config, geometry) {
+  const { palette } = config;
+  const { markings, profile } = geometry;
   if (!markings?.enabled) {
     return;
   }
-  const noseX = 100 - sideProfile.length / 2;
+  const noseX = 100 - profile.length / 2;
   const startX = noseX + markings.stripeOffset;
-  const endX = Math.min(startX + markings.stripeLength, noseX + sideProfile.length - sideProfile.tailLength * 0.6);
-  const midY = 100 + (sideProfile.offsetY ?? 0) + (markings.stripeLift ?? 0);
+  const endX = Math.min(startX + markings.stripeLength, noseX + profile.length - profile.tailLength * 0.6);
+  const midY = 100 + (profile.offsetY ?? 0) + (markings.stripeLift ?? 0);
   const stripeHeight = markings.stripeHeight;
 
   const stripe = document.createElementNS(SVG_NS, "path");
@@ -732,19 +893,20 @@ function drawSideMarkings(root, config) {
   root.appendChild(stripe);
 }
 
-function drawSideLights(root, config) {
-  const { lights, sideProfile, palette } = config;
+function drawSideLights(root, config, geometry) {
+  const { palette } = config;
+  const { lights, profile } = geometry;
   if (!lights) {
     return;
   }
-  const noseX = 100 - sideProfile.length / 2;
-  const tailX = 100 + sideProfile.length / 2;
-  const centerY = 100 + (sideProfile.offsetY ?? 0);
+  const noseX = 100 - profile.length / 2;
+  const tailX = 100 + profile.length / 2;
+  const centerY = 100 + (profile.offsetY ?? 0);
 
   if (lights.nose) {
     const noseLight = document.createElementNS(SVG_NS, "circle");
     noseLight.setAttribute("cx", (noseX - 4).toString());
-    noseLight.setAttribute("cy", (centerY - sideProfile.noseHeight * 0.1).toString());
+    noseLight.setAttribute("cy", (centerY - profile.noseHeight * 0.1).toString());
     noseLight.setAttribute("r", "2.6");
     noseLight.setAttribute("fill", palette.glow);
     noseLight.setAttribute("opacity", "0.85");
@@ -753,18 +915,18 @@ function drawSideLights(root, config) {
 
   if (lights.dorsal) {
     const dorsal = document.createElementNS(SVG_NS, "circle");
-    dorsal.setAttribute("cx", (noseX + sideProfile.noseLength + sideProfile.length * 0.36).toString());
-    dorsal.setAttribute("cy", (centerY - sideProfile.dorsalHeight - 6).toString());
+    dorsal.setAttribute("cx", (noseX + profile.noseLength + profile.length * 0.36).toString());
+    dorsal.setAttribute("cy", (centerY - profile.dorsalHeight - 6).toString());
     dorsal.setAttribute("r", "2.2");
     dorsal.setAttribute("fill", mixColor(palette.glow, "#ffffff", 0.2));
     dorsal.setAttribute("opacity", "0.75");
     root.appendChild(dorsal);
   }
 
-  if (lights.intake) {
+  if (lights.intake && profile.intakeHeight > 0) {
     const intake = document.createElementNS(SVG_NS, "circle");
-    intake.setAttribute("cx", (noseX + sideProfile.noseLength * 0.7).toString());
-    intake.setAttribute("cy", (centerY + sideProfile.ventralDepth - 6).toString());
+    intake.setAttribute("cx", (noseX + profile.noseLength * 0.7).toString());
+    intake.setAttribute("cy", (centerY + profile.ventralDepth - 6).toString());
     intake.setAttribute("r", "2.4");
     intake.setAttribute("fill", mixColor(palette.glow, palette.trim, 0.4));
     intake.setAttribute("opacity", "0.7");
@@ -773,7 +935,7 @@ function drawSideLights(root, config) {
 
   const tailBeacon = document.createElementNS(SVG_NS, "circle");
   tailBeacon.setAttribute("cx", tailX.toString());
-  tailBeacon.setAttribute("cy", (centerY - sideProfile.tailHeight * 0.3).toString());
+  tailBeacon.setAttribute("cy", (centerY - profile.tailHeight * 0.3).toString());
   tailBeacon.setAttribute("r", "2");
   tailBeacon.setAttribute("fill", palette.trim);
   tailBeacon.setAttribute("opacity", "0.6");
@@ -1265,17 +1427,21 @@ function choose(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-
-function createBaseConfig(categoryKey, gameMode = currentGameMode) {
-  const def = CATEGORY_DEFINITIONS[categoryKey];
-  const palette = pickPalette();
-  if (gameMode === "side") {
-    return normaliseConfig(createSideViewConfig(categoryKey, def, palette, gameMode));
+function clamp(value, min, max) {
+  if (max < min) {
+    [min, max] = [max, min];
   }
-  return normaliseConfig(createTopDownConfig(categoryKey, def, palette, gameMode));
+  return Math.min(Math.max(value, min), max);
 }
 
-function createTopDownConfig(categoryKey, def, palette, gameMode) {
+
+function createBaseConfig(categoryKey) {
+  const def = CATEGORY_DEFINITIONS[categoryKey];
+  const palette = pickPalette();
+  return normaliseConfig(createTopDownConfig(categoryKey, def, palette));
+}
+
+function createTopDownConfig(categoryKey, def, palette) {
   const ranges = def.ranges;
 
   const sideFinCount = Math.random() < def.features.sideFinProbability ? randomInt(...ranges.finCount) : 0;
@@ -1323,7 +1489,6 @@ function createTopDownConfig(categoryKey, def, palette, gameMode) {
     category: categoryKey,
     label: def.label,
     description: def.description,
-    gameMode,
     palette,
     body: {
       length: bodyLength,
@@ -1376,106 +1541,11 @@ function createTopDownConfig(categoryKey, def, palette, gameMode) {
 }
 
 
-function createSideViewConfig(categoryKey, def, palette, gameMode) {
-  const ranges = def.ranges;
-  const hullLength = randomBetween(...ranges.bodyLength);
-  const hullHeight = randomBetween(...ranges.bodyWidth) * 0.9;
-  const noseLength = randomBetween(hullLength * 0.18, hullLength * 0.28);
-  const tailLength = randomBetween(hullLength * 0.18, hullLength * 0.32);
-  const noseHeight = randomBetween(Math.max(10, ranges.noseCurve[0] * 0.6), ranges.noseCurve[1]);
-  const dorsalHeight = randomBetween(ranges.cockpitHeight[0] + 6, Math.max(ranges.finHeight[1] * 0.6, ranges.cockpitHeight[1] + 8));
-  const tailHeight = randomBetween(Math.max(8, ranges.tailCurve[0] * 0.6), ranges.tailCurve[1]);
-  const bellyDrop = randomBetween(hullHeight * 0.25, hullHeight * 0.45);
-  const ventralDepth = bellyDrop + randomBetween(6, 22);
-  const winglessChance = def.features.winglessProbability ?? 0;
-  const wingEnabled = Math.random() >= winglessChance;
-
-  const config = {
-    id: randomId(),
-    category: categoryKey,
-    label: def.label,
-    description: def.description,
-    gameMode,
-    palette,
-    sideProfile: {
-      length: hullLength,
-      height: hullHeight,
-      noseLength,
-      tailLength,
-      noseHeight,
-      dorsalHeight,
-      tailHeight,
-      bellyDrop,
-      ventralDepth,
-      intakeHeight: randomBetween(8, 18),
-      intakeDepth: randomBetween(6, 14),
-      offsetY: randomBetween(-6, 6),
-      plating: Math.random() < def.features.platingProbability,
-    },
-    canopySide: {
-      length: randomBetween(hullLength * 0.18, hullLength * 0.28),
-      height: randomBetween(ranges.cockpitHeight[0], ranges.cockpitHeight[1] + 6),
-      offset: randomBetween(noseLength * 0.6, hullLength * 0.45),
-      offsetY: randomBetween(-8, 6),
-      frame: randomBetween(2.2, 3.6),
-      tint: palette.cockpit,
-    },
-    wingProfile: {
-      enabled: wingEnabled,
-      position: randomBetween(noseLength * 0.8, hullLength * 0.55),
-      length: randomBetween(hullLength * 0.28, hullLength * 0.42),
-      thickness: randomBetween(hullHeight * 0.22, hullHeight * 0.45),
-      dihedral: randomBetween(8, 22),
-      drop: randomBetween(12, 26),
-      mountHeight: randomBetween(-hullHeight * 0.25, hullHeight * 0.35),
-      accent: wingEnabled && Math.random() < def.features.wingTipAccentProbability,
-    },
-    stabiliser: {
-      height: randomBetween(ranges.finHeight[0], ranges.finHeight[1]),
-      length: randomBetween(hullLength * 0.12, hullLength * 0.2),
-      sweep: randomBetween(12, 28),
-      thickness: randomBetween(8, 16),
-      offsetY: randomBetween(-hullHeight * 0.1, hullHeight * 0.2),
-      ventral: Math.random() < def.features.bottomFinProbability,
-    },
-    thruster: {
-      count: randomInt(...ranges.engineCount),
-      radius: randomBetween(ranges.engineSize[0] * 0.4, ranges.engineSize[1] * 0.6),
-      spacing: randomBetween(14, Math.max(18, ranges.engineSpacing[1] * 0.5)),
-      offsetY: randomBetween(-hullHeight * 0.25, hullHeight * 0.3),
-      nozzleLength: randomBetween(ranges.nozzleLength[0] * 0.6, ranges.nozzleLength[1] * 0.85),
-      glow: palette.glow,
-    },
-    armament: {
-      barrels: Math.random() < 0.6 ? 2 : 1,
-      length: randomBetween(18, 38),
-      spacing: randomBetween(6, 12),
-      offsetY: randomBetween(-hullHeight * 0.25, hullHeight * 0.2),
-      housingHeight: randomBetween(6, 12),
-    },
-    markings: {
-      enabled: Math.random() < def.features.stripeProbability,
-      stripeLength: randomBetween(hullLength * 0.18, hullLength * 0.34),
-      stripeHeight: randomBetween(hullHeight * 0.24, hullHeight * 0.42),
-      stripeOffset: randomBetween(noseLength * 0.3, hullLength * 0.55),
-      stripeLift: randomBetween(-hullHeight * 0.2, hullHeight * 0.2),
-    },
-    lights: {
-      nose: Math.random() < 0.4,
-      dorsal: Math.random() < 0.35,
-      intake: Math.random() < 0.5,
-    },
-  };
-
-  return config;
-}
-
 function mutateConfig(base) {
-  const fresh = createBaseConfig(base.category, base.gameMode);
+  const fresh = createBaseConfig(base.category);
   const ratio = 0.35 + Math.random() * 0.4;
   const mixed = mixConfigs(base, fresh, ratio);
   mixed.id = randomId();
-  mixed.gameMode = base.gameMode;
   return normaliseConfig(mixed);
 }
 
@@ -1522,10 +1592,6 @@ function cloneConfig(config) {
 
 function normaliseConfig(config) {
   const copy = cloneConfig(config);
-  copy.gameMode = copy.gameMode || currentGameMode;
-  if (copy.gameMode === "side") {
-    return normaliseSideViewConfig(copy);
-  }
   return normaliseTopDownConfig(copy);
 }
 
@@ -1561,74 +1627,6 @@ function normaliseTopDownConfig(copy) {
       copy.wings.thickness = Math.max(4, copy.wings.thickness);
     }
   }
-  return copy;
-}
-
-function normaliseSideViewConfig(copy) {
-  copy.sideProfile.length = Math.max(90, copy.sideProfile.length);
-  copy.sideProfile.height = Math.max(20, copy.sideProfile.height);
-  copy.sideProfile.noseLength = Math.min(Math.max(copy.sideProfile.noseLength, 12), copy.sideProfile.length * 0.45);
-  copy.sideProfile.tailLength = Math.min(Math.max(copy.sideProfile.tailLength, 14), copy.sideProfile.length * 0.5);
-  copy.sideProfile.noseHeight = Math.max(6, copy.sideProfile.noseHeight);
-  copy.sideProfile.dorsalHeight = Math.max(6, copy.sideProfile.dorsalHeight);
-  copy.sideProfile.tailHeight = Math.max(4, copy.sideProfile.tailHeight);
-  copy.sideProfile.bellyDrop = Math.max(6, copy.sideProfile.bellyDrop);
-  copy.sideProfile.ventralDepth = Math.max(copy.sideProfile.bellyDrop + 2, copy.sideProfile.ventralDepth);
-  copy.sideProfile.intakeHeight = Math.max(0, copy.sideProfile.intakeHeight ?? 0);
-  copy.sideProfile.intakeDepth = Math.max(0, copy.sideProfile.intakeDepth ?? 0);
-  copy.sideProfile.offsetY = copy.sideProfile.offsetY ?? 0;
-
-  if (copy.wingProfile) {
-    copy.wingProfile.enabled = Boolean(copy.wingProfile.enabled);
-    const noseLimit = copy.sideProfile.noseLength * 0.6;
-    const tailLimit = copy.sideProfile.length * 0.75;
-    copy.wingProfile.position = Math.min(Math.max(copy.wingProfile.position, noseLimit), tailLimit);
-    copy.wingProfile.length = Math.max(24, copy.wingProfile.length);
-    copy.wingProfile.thickness = Math.max(6, copy.wingProfile.thickness);
-    copy.wingProfile.dihedral = Math.max(0, copy.wingProfile.dihedral);
-    copy.wingProfile.drop = Math.max(4, copy.wingProfile.drop);
-    copy.wingProfile.mountHeight = Math.max(-copy.sideProfile.height * 0.6, Math.min(copy.sideProfile.height * 0.6, copy.wingProfile.mountHeight));
-  }
-
-  if (copy.stabiliser) {
-    copy.stabiliser.height = Math.max(8, copy.stabiliser.height);
-    copy.stabiliser.length = Math.max(12, copy.stabiliser.length);
-    copy.stabiliser.thickness = Math.max(4, copy.stabiliser.thickness);
-    copy.stabiliser.sweep = Math.max(4, copy.stabiliser.sweep);
-    copy.stabiliser.offsetY = Math.max(-copy.sideProfile.height * 0.6, Math.min(copy.sideProfile.height * 0.6, copy.stabiliser.offsetY ?? 0));
-    copy.stabiliser.ventral = Boolean(copy.stabiliser.ventral);
-  }
-
-  if (copy.thruster) {
-    copy.thruster.count = Math.max(1, Math.round(copy.thruster.count));
-    copy.thruster.radius = Math.max(4, copy.thruster.radius);
-    copy.thruster.spacing = Math.max(8, copy.thruster.spacing);
-    copy.thruster.nozzleLength = Math.max(6, copy.thruster.nozzleLength);
-    copy.thruster.offsetY = Math.max(-copy.sideProfile.height, Math.min(copy.sideProfile.height, copy.thruster.offsetY ?? 0));
-  }
-
-  if (copy.armament) {
-    copy.armament.barrels = Math.max(1, Math.round(copy.armament.barrels));
-    copy.armament.length = Math.max(12, copy.armament.length);
-    copy.armament.spacing = Math.max(4, copy.armament.spacing);
-    copy.armament.housingHeight = Math.max(4, copy.armament.housingHeight ?? 6);
-    copy.armament.offsetY = Math.max(-copy.sideProfile.height, Math.min(copy.sideProfile.height, copy.armament.offsetY ?? 0));
-  }
-
-  if (copy.markings) {
-    copy.markings.enabled = Boolean(copy.markings.enabled);
-    copy.markings.stripeLength = Math.max(12, copy.markings.stripeLength ?? 0);
-    copy.markings.stripeHeight = Math.max(6, copy.markings.stripeHeight ?? 0);
-    copy.markings.stripeOffset = Math.max(6, copy.markings.stripeOffset ?? 0);
-    copy.markings.stripeLift = Math.max(-copy.sideProfile.height, Math.min(copy.sideProfile.height, copy.markings.stripeLift ?? 0));
-  }
-
-  if (copy.lights) {
-    copy.lights.nose = Boolean(copy.lights.nose);
-    copy.lights.dorsal = Boolean(copy.lights.dorsal);
-    copy.lights.intake = Boolean(copy.lights.intake);
-  }
-
   return copy;
 }
 
