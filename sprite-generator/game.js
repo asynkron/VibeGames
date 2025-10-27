@@ -1490,9 +1490,10 @@ function drawSideThrusters(root, config, geometry, axis) {
 
     const flame = document.createElementNS(SVG_NS, "polygon");
     const flameReach = Math.max(thruster.nozzleLength * 0.85, thruster.radius * 1.2);
+    // Ensure the exhaust plume trails away from the tail instead of pointing back into the fuselage.
     const flamePoints = [
       [tailX, y - thruster.radius * 0.35],
-      [tailX - flameReach, y],
+      [tailX + flameReach, y],
       [tailX, y + thruster.radius * 0.35],
     ];
     flame.setAttribute("points", pointsToString(flamePoints));
