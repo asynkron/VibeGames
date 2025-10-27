@@ -26,3 +26,21 @@ Then open the reported `http://localhost` URL.
 - To introduce a new part (for example, weapon pods), follow the existing pattern: extend the configuration, add a draw helper, and include it in `renderSpaceship`.
 - Sprite families for other asset types (turrets, vehicles) can reuse the layout and mutation helpers. Only part-specific drawing logic needs to change.
 - The `normaliseConfig` helper is designed to keep interpolated values sensible; update it if additional discrete traits are introduced.
+
+## Using sprites in other games
+
+`game.js` now exports a lightweight API that can be imported from other modules or accessed through the `window.SpriteGenerator` namespace when running in the browser. The helpers return fully rendered SVG elements and the configuration that produced them, which can be cached or re-rendered later.
+
+```js
+import { generateSpaceshipSprite } from "./sprite-generator/game.js";
+
+const { svg, config } = generateSpaceshipSprite({
+  category: "fighter",
+  viewMode: "side",
+  seed: 1337,
+});
+
+document.body.appendChild(svg);
+```
+
+You can also generate just the configuration via `createSpaceshipConfig` or inspect available categories and palettes with `listSpaceshipCategories()` and `listSpaceshipPalettes()`.
