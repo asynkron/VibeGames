@@ -152,6 +152,20 @@ header.panel p {
   display: block;
 }
 
+.sprite-card-views {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.sprite-views {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .sprite-card .meta {
   display: flex;
   justify-content: space-between;
@@ -174,8 +188,10 @@ header.panel p {
   border-radius: 1rem;
   padding: 1rem;
   border: 1px solid rgba(120, 220, 255, 0.25);
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  justify-items: center;
   align-items: center;
 }
 
