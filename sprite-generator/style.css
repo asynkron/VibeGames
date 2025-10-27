@@ -1,0 +1,325 @@
+:root {
+  --sg-bg: rgba(12, 17, 34, 0.85);
+  --sg-panel: rgba(24, 33, 66, 0.82);
+  --sg-border: rgba(124, 192, 255, 0.45);
+  --sg-text: #dfe7ff;
+  --sg-muted: rgba(223, 231, 255, 0.6);
+  --sg-accent: #5eead4;
+}
+
+.sprite-screen {
+  width: min(1080px, 96vw);
+  height: min(720px, 94vh);
+  padding: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sprite-generator {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: var(--sg-bg);
+  border: 1px solid rgba(94, 234, 212, 0.25);
+  border-radius: 1.25rem;
+  box-shadow: inset 0 1px 0 rgba(148, 187, 233, 0.25), 0 18px 28px rgba(0, 0, 0, 0.4);
+  color: var(--sg-text);
+  overflow: hidden;
+}
+
+.sprite-generator header {
+  text-align: center;
+}
+
+.sprite-generator h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sprite-generator header p {
+  margin: 0.65rem auto 0;
+  max-width: 42rem;
+  line-height: 1.6;
+  color: var(--sg-muted);
+}
+
+.viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.hero {
+  background: var(--sg-panel);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border: 1px solid var(--sg-border);
+  box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.2), inset 0 12px 30px rgba(94, 234, 212, 0.12);
+}
+
+.hero-svg {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: radial-gradient(circle at 50% 40%, rgba(94, 234, 212, 0.08), transparent 55%),
+    radial-gradient(circle at 50% 70%, rgba(94, 234, 212, 0.15), transparent 75%);
+  border-radius: 0.85rem;
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.hero-svg svg {
+  width: 92%;
+  height: 92%;
+  filter: drop-shadow(0 0 8px rgba(94, 234, 212, 0.25));
+}
+
+.hero-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.badge {
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  background: rgba(94, 234, 212, 0.1);
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sg-accent);
+}
+
+.definition {
+  background: var(--sg-panel);
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--sg-border);
+  box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.2), inset 0 18px 30px rgba(10, 12, 24, 0.45);
+  overflow: hidden;
+}
+
+.definition h2 {
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+  font-size: 1rem;
+  letter-spacing: 0.24em;
+  color: var(--sg-muted);
+}
+
+.definition pre {
+  margin: 0;
+  font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: rgba(148, 193, 255, 0.85);
+  max-height: 220px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.orientation-toggle {
+  display: inline-flex;
+  background: rgba(94, 234, 212, 0.12);
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  border-radius: 999px;
+  padding: 0.25rem;
+  gap: 0.25rem;
+}
+
+.orientation-btn {
+  background: transparent;
+  color: var(--sg-accent);
+  border-radius: 999px;
+  border: none;
+  padding: 0.4rem 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.orientation-btn.active {
+  background: var(--sg-accent);
+  color: var(--sg-bg);
+  box-shadow: 0 0 12px rgba(94, 234, 212, 0.35);
+}
+
+.orientation-btn:hover {
+  transform: none;
+  background: rgba(94, 234, 212, 0.2);
+  box-shadow: none;
+}
+
+.orientation-btn.active:hover {
+  background: var(--sg-accent);
+  box-shadow: 0 0 14px rgba(94, 234, 212, 0.45);
+}
+
+.orientation-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.55);
+}
+
+button {
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  padding: 0.65rem 1.3rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--sg-bg);
+  background: var(--sg-accent);
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+button:hover,
+button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 16px rgba(94, 234, 212, 0.35);
+  outline: none;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--sg-accent);
+  border: 1px solid rgba(94, 234, 212, 0.4);
+  box-shadow: none;
+}
+
+button.ghost:hover,
+button.ghost:focus-visible {
+  background: rgba(94, 234, 212, 0.15);
+}
+
+.grid {
+  flex: 1;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.sprite-card {
+  position: relative;
+  background: var(--sg-panel);
+  border-radius: 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(94, 234, 212, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border 140ms ease;
+}
+
+.sprite-card:hover,
+.sprite-card:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.35);
+  border-color: rgba(94, 234, 212, 0.45);
+  outline: none;
+}
+
+.sprite-card.selected {
+  border-color: var(--sg-accent);
+  box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.25);
+}
+
+.sprite-card svg {
+  width: 100%;
+  height: auto;
+}
+
+.sprite-card .card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sg-muted);
+}
+
+@media (max-width: 960px) {
+  .viewer {
+    grid-template-columns: 1fr;
+  }
+
+  .controls {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 720px) {
+  .sprite-screen {
+    padding: 1.25rem;
+  }
+
+  .sprite-generator {
+    padding: 1rem;
+  }
+}
+
+/* Simple thruster flicker animation that is reused by the SVG elements. */
+@keyframes thruster-flicker {
+  0%,
+  100% {
+    transform: scaleY(1) translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleY(1.25) translateY(3px);
+    opacity: 0.7;
+  }
+}
+
+.thruster-flame {
+  transform-origin: 50% 0%;
+  animation: thruster-flicker 600ms ease-in-out infinite;
+}
+
+/* Ambient hover animation for the full ship assembly. */
+@keyframes ship-hover {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.ship-hover {
+  animation: ship-hover 2.8s ease-in-out infinite;
+}

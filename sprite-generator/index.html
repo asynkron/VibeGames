@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SpriteGenerator</title>
+    <link rel="stylesheet" href="../shared/styles/screen.css" />
+    <link rel="stylesheet" href="../shared/styles/crt.css" />
+    <link rel="stylesheet" href="../shared/styles/hud.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="screen sprite-screen crt-frame">
+      <div class="crt-overlay"></div>
+      <div class="crt-glow"></div>
+      <div class="sprite-generator">
+        <header>
+          <h1>SpriteGenerator</h1>
+          <p>Assemble procedural SVG spacecraft, explore their definitions, and evolve new variants by selecting your favourite hulls.</p>
+        </header>
+        <section class="viewer">
+          <div class="hero">
+            <div class="hero-svg" id="hero-svg"></div>
+            <div class="hero-meta">
+              <div class="badge" id="hero-category"></div>
+              <button id="reroll-hero" class="ghost">Reroll Highlight</button>
+            </div>
+          </div>
+          <div class="definition">
+            <h2>Definition</h2>
+            <pre id="definition"></pre>
+          </div>
+        </section>
+        <section class="controls">
+          <div class="orientation-toggle" role="group" aria-label="Shooter orientation">
+            <button type="button" class="orientation-btn active" data-orientation="vertical" aria-pressed="true">
+              Vertical Shmup
+            </button>
+            <button type="button" class="orientation-btn" data-orientation="horizontal" aria-pressed="false">
+              Horizontal Shooter
+            </button>
+          </div>
+          <div class="control-buttons">
+            <button id="reroll-grid">Reseed Grid</button>
+            <button id="randomize-all" class="ghost">Fresh Lineage</button>
+          </div>
+        </section>
+        <section class="grid" id="grid" aria-live="polite" aria-label="Generated spaceship grid"></section>
+      </div>
+    </div>
+    <script type="module" src="script.js"></script>
+  </body>
+</html>
