@@ -2440,14 +2440,18 @@ function computeWingPlanform(body, wings) {
   }
 
   const halfLength = body.length / 2;
-  const span = wings.span ?? 0;
-  const chord = (wings.forward ?? 0) + (wings.sweep ?? 0);
-  const length = Math.max(24, span, chord * 0.85);
+  const span = Math.max(0, wings.span ?? 0);
+  const forward = Math.max(0, wings.forward ?? 0);
+  const sweep = Math.max(0, wings.sweep ?? 0);
+  const chord = forward + sweep;
+  const length = Math.max(24, chord);
   const rootOffset = clamp(halfLength + (wings.offsetY ?? 0), 0, body.length);
-  const position = clamp(rootOffset, length * 0.12, body.length - length * 0.25);
-  const thickness = Math.max(10, (wings.thickness ?? 0) * 0.5, span * 0.45);
+  const leadingBuffer = Math.max(length * 0.12, span * 0.05);
+  const trailingBuffer = Math.max(length * 0.25, span * 0.1);
+  const position = clamp(rootOffset, leadingBuffer, body.length - trailingBuffer);
+  const thickness = Math.max(10, (wings.thickness ?? 0) * 0.5, span * 0.45, chord * 0.3);
   const dihedral = Math.max(0, (wings.dihedral ?? 0) * 0.8);
-  const drop = Math.max(6, (wings.sweep ?? 0) * 0.6, span * 0.25);
+  const drop = Math.max(6, sweep * 0.6, span * 0.25, chord * 0.22);
   const positionPercent = position / body.length;
   const lengthPercent = length / body.length;
 
