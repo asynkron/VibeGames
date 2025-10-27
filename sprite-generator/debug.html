@@ -33,6 +33,14 @@
         letter-spacing: 0.05em;
         opacity: 0.9;
       }
+      h4 {
+        margin: 0.75rem 0 0.25rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        opacity: 0.7;
+      }
       .preview {
         display: flex;
         flex-wrap: wrap;
@@ -64,18 +72,36 @@
       <h1>Sprite Generator Debug</h1>
       <main>
         <section>
-          <h2>Needle Nose</h2>
-          <h3>Top View</h3>
-          <div class="preview" id="needle-top-preview"></div>
-          <h3>Side View</h3>
-          <div class="preview" id="needle-side-preview"></div>
+          <h2>Body Segments</h2>
+          <h3>Front Segments</h3>
+          <h4>Top View</h4>
+          <div class="preview" id="front-segment-top"></div>
+          <h4>Side View</h4>
+          <div class="preview" id="front-segment-side"></div>
+          <h3>Mid Segments</h3>
+          <h4>Top View</h4>
+          <div class="preview" id="mid-segment-top"></div>
+          <h4>Side View</h4>
+          <div class="preview" id="mid-segment-side"></div>
+          <h3>Rear Segments</h3>
+          <h4>Top View</h4>
+          <div class="preview" id="rear-segment-top"></div>
+          <h4>Side View</h4>
+          <div class="preview" id="rear-segment-side"></div>
         </section>
         <section>
-          <h2>Delta Wing</h2>
+          <h2>Wings</h2>
           <h3>Top View</h3>
           <div class="preview" id="wing-top-preview"></div>
           <h3>Side View</h3>
           <div class="preview" id="wing-side-preview"></div>
+        </section>
+        <section>
+          <h2>Armament</h2>
+          <h3>Top View</h3>
+          <div class="preview" id="armament-top-preview"></div>
+          <h3>Side View</h3>
+          <div class="preview" id="armament-side-preview"></div>
         </section>
       </main>
     </div>
