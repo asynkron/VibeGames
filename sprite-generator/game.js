@@ -239,6 +239,7 @@ const COLOR_PALETTES = [
   },
 ];
 
+const modeSelect = document.getElementById("modeSelect");
 const categorySelect = document.getElementById("categorySelect");
 const spriteGrid = document.getElementById("spriteGrid");
 const detailSprite = document.getElementById("detailSprite");
@@ -248,6 +249,7 @@ const shufflePaletteButton = document.getElementById("shufflePalette");
 
 let renderCounter = 0;
 
+let currentOrientation = "horizontal";
 let currentCategory = "fighter";
 let parentConfig = null;
 let selectedConfig = null;
@@ -266,21 +268,31 @@ function populateCategorySelect() {
 }
 
 function initialise() {
-  parentConfig = createBaseConfig(currentCategory);
+  modeSelect.value = currentOrientation;
+
+  parentConfig = createBaseConfig(currentCategory, currentOrientation);
   selectedConfig = cloneConfig(parentConfig);
   renderDetail(selectedConfig);
   renderGrid();
 
+  modeSelect.addEventListener("change", () => {
+    currentOrientation = modeSelect.value;
+    parentConfig = createBaseConfig(currentCategory, currentOrientation);
+    selectedConfig = cloneConfig(parentConfig);
+    renderDetail(selectedConfig);
+    renderGrid();
+  });
+
   categorySelect.addEventListener("change", () => {
     currentCategory = categorySelect.value;
-    parentConfig = createBaseConfig(currentCategory);
+    parentConfig = createBaseConfig(currentCategory, currentOrientation);
     selectedConfig = cloneConfig(parentConfig);
     renderDetail(selectedConfig);
     renderGrid();
   });
 
   newSeedButton.addEventListener("click", () => {
-    parentConfig = createBaseConfig(currentCategory);
+    parentConfig = createBaseConfig(currentCategory, currentOrientation);
     selectedConfig = cloneConfig(parentConfig);
     renderDetail(selectedConfig);
     renderGrid();
@@ -359,8 +371,17 @@ function renderSpaceship(svg, config, options = {}) {
   svg.appendChild(defs);
 
   const root = document.createElementNS(SVG_NS, "g");
+  const transforms = [];
   if (scale !== 1) {
-    root.setAttribute("transform", `translate(${100 - 100 * scale} ${100 - 100 * scale}) scale(${scale})`);
+    transforms.push(`translate(${100 - 100 * scale} ${100 - 100 * scale}) scale(${scale})`);
+  }
+  const orientation = config.orientation || "vertical";
+  if (orientation === "horizontal") {
+    // Rotate to present side-scroller friendly sprites without duplicating geometry logic.
+    transforms.push("rotate(90 100 100)");
+  }
+  if (transforms.length > 0) {
+    root.setAttribute("transform", transforms.join(" "));
   }
   root.classList.add("ship-root");
   svg.appendChild(root);
@@ -397,6 +418,9 @@ function drawBody(root, config) {
 
 function drawWings(root, config) {
   const { wings, body, palette } = config;
+  if (!wings.enabled) {
+    return;
+  }
   const group = document.createElementNS(SVG_NS, "g");
   group.setAttribute("fill", palette.secondary);
   group.setAttribute("stroke", palette.trim);
@@ -779,7 +803,7 @@ function choose(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-function createBaseConfig(categoryKey) {
+function createBaseConfig(categoryKey, orientation = "vertical") {
   const def = CATEGORY_DEFINITIONS[categoryKey];
   const palette = pickPalette();
   const ranges = def.ranges;
@@ -790,6 +814,7 @@ function createBaseConfig(categoryKey) {
     id: randomId(),
     category: categoryKey,
     label: def.label,
+    orientation,
     palette,
     body: {
       length: randomBetween(...ranges.bodyLength),
@@ -823,6 +848,8 @@ function createBaseConfig(categoryKey) {
       offsetY: randomBetween(...ranges.wingOffset),
       dihedral: randomBetween(...ranges.wingDihedral),
       tipAccent: Math.random() < def.features.wingTipAccentProbability,
+      placement: "mid",
+      enabled: true,
     },
     fins: {
       top: Math.random() < def.features.topFinProbability,
@@ -839,15 +866,66 @@ function createBaseConfig(categoryKey) {
     description: def.description,
   };
 
+  applyWingPlacement(config, { reseed: true });
+
   return config;
 }
 
 function mutateConfig(base) {
-  const fresh = createBaseConfig(base.category);
+  const fresh = createBaseConfig(base.category, base.orientation);
   const ratio = 0.35 + Math.random() * 0.4;
   const mixed = mixConfigs(base, fresh, ratio);
   mixed.id = randomId();
+  mixed.orientation = base.orientation;
+  applyWingPlacement(mixed);
   return normaliseConfig(mixed);
+}
+
+// Align wing configuration with the current orientation and requested variation.
+function applyWingPlacement(config, options = {}) {
+  const { reseed = false } = options;
+  const { wings, body, category } = config;
+  const orientation = config.orientation || "vertical";
+  const def = CATEGORY_DEFINITIONS[category];
+  const placements = ["none", "mid", "aft"];
+  let placement = wings.placement;
+
+  if (reseed || !placements.includes(placement)) {
+    placement = pickWingPlacement(orientation);
+  }
+
+  wings.placement = placement;
+
+  if (placement === "none") {
+    wings.enabled = false;
+    wings.tipAccent = false;
+    wings.offsetY = 0;
+    return;
+  }
+
+  wings.enabled = true;
+
+  if (placement === "aft") {
+    const tailLimit = body.length / 2 - 10;
+    const desired = body.length * 0.22 + randomBetween(-6, 8);
+    const maxRange = Math.min(tailLimit, def.ranges.wingOffset[1] + 12);
+    const minRange = Math.max(def.ranges.wingOffset[0], tailLimit * 0.35);
+    wings.offsetY = clamp(desired, minRange, maxRange);
+  } else {
+    wings.offsetY = randomBetween(...def.ranges.wingOffset);
+  }
+}
+
+function pickWingPlacement(orientation) {
+  const roll = Math.random();
+  if (orientation === "horizontal") {
+    if (roll < 0.3) return "none";
+    if (roll < 0.7) return "mid";
+    return "aft";
+  }
+  if (roll < 0.15) return "none";
+  if (roll < 0.45) return "aft";
+  return "mid";
 }
 
 function pickPalette(excludeName) {
@@ -899,6 +977,17 @@ function normaliseConfig(config) {
   copy.body.midInset = Math.max(4, copy.body.midInset);
   copy.body.halfWidth = Math.max(10, copy.body.halfWidth);
   copy.details.stripeOffset = Math.max(6, copy.details.stripeOffset);
+  copy.wings.enabled = Boolean(copy.wings.enabled);
+  if (!copy.wings.enabled) {
+    copy.wings.placement = "none";
+    copy.wings.tipAccent = false;
+    copy.wings.span = 0;
+    copy.wings.offsetY = 0;
+  } else {
+    copy.wings.placement = copy.wings.placement || "mid";
+    const wingLimit = copy.body.length / 2 - 10;
+    copy.wings.offsetY = clamp(copy.wings.offsetY, -wingLimit, wingLimit);
+  }
   return copy;
 }
 
@@ -909,6 +998,10 @@ function mixColor(a, b, t) {
   const g = Math.round(g1 + (g2 - g1) * t);
   const bVal = Math.round(b1 + (b2 - b1) * t);
   return rgbToHex(r, g, bVal);
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function shadeColor(hex, intensity) {
