@@ -19,36 +19,43 @@ const VIEW_MODES = {
   },
 };
 
+const NORMALISED_HULL_LENGTH = 100;
+
+// Category metadata expressed entirely in hull-relative percentages so generation logic
+// never depends on legacy absolute measurements.
 const CATEGORY_DEFINITIONS = {
   fighter: {
     label: "Fighter",
     description: "Aggressive interceptors with sharp silhouettes and agile control surfaces.",
     wingStyles: ["delta", "swept", "forward"],
     ranges: {
-      bodyLength: [120, 150],
-      bodyWidth: [32, 42],
-      bodyMidInset: [10, 22],
-      noseCurve: [18, 30],
-      tailCurve: [16, 26],
+      body_start: 0,
+      body_end: 100,
+      bodyWidthPercent: [21.33, 35.0],
+      bodyMidInsetPercent: [6.67, 18.33],
+      noseCurvePercent: [12.0, 25.0],
+      tailCurvePercent: [10.67, 21.67],
       noseWidthFactor: [0.32, 0.45],
       tailWidthFactor: [0.48, 0.64],
-      cockpitWidth: [28, 36],
-      cockpitHeight: [18, 26],
-      cockpitOffset: [-6, 6],
+      cockpitWidthPercent: [18.67, 30.0],
+      cockpitHeightPercent: [12.0, 21.67],
+      cockpit_center_start: 46.0,
+      cockpit_center_end: 55.0,
       engineCount: [1, 2],
-      engineSize: [18, 28],
-      engineSpacing: [28, 44],
-      nozzleLength: [20, 32],
-      wingSpan: [52, 70],
-      wingSweep: [26, 40],
-      wingForward: [8, 18],
-      wingThickness: [12, 18],
-      wingOffset: [-6, 6],
-      wingDihedral: [-6, 14],
-      finHeight: [32, 52],
-      finWidth: [10, 18],
+      engineSizePercent: [12.0, 23.33],
+      engineSpacingPercent: [18.67, 36.67],
+      nozzlePercent: [13.33, 26.67],
+      wingSpanPercent: [34.67, 58.33],
+      wingSweepPercent: [17.33, 33.33],
+      wingForwardPercent: [5.33, 15.0],
+      wingThicknessPercent: [8.0, 15.0],
+      wing_attach_start: 46.0,
+      wing_attach_end: 55.0,
+      wingDihedralPercent: [-4.0, 11.67],
       finCount: [1, 2],
-      stripeOffset: [18, 38],
+      finHeightPercent: [21.33, 43.33],
+      finWidthPercent: [6.67, 15.0],
+      stripeStartPercent: [12.0, 31.67],
     },
     features: {
       topFinProbability: 0.7,
@@ -67,30 +74,33 @@ const CATEGORY_DEFINITIONS = {
     description: "Bulky haulers with reinforced hulls and multiple engines.",
     wingStyles: ["broad", "box"],
     ranges: {
-      bodyLength: [150, 190],
-      bodyWidth: [40, 52],
-      bodyMidInset: [4, 12],
-      noseCurve: [10, 18],
-      tailCurve: [22, 36],
+      body_start: 0,
+      body_end: 100,
+      bodyWidthPercent: [21.05, 34.67],
+      bodyMidInsetPercent: [2.11, 8.0],
+      noseCurvePercent: [5.26, 12.0],
+      tailCurvePercent: [11.58, 24.0],
       noseWidthFactor: [0.5, 0.65],
       tailWidthFactor: [0.6, 0.78],
-      cockpitWidth: [30, 40],
-      cockpitHeight: [16, 22],
-      cockpitOffset: [4, 16],
+      cockpitWidthPercent: [15.79, 26.67],
+      cockpitHeightPercent: [8.42, 14.67],
+      cockpit_center_start: 52.11,
+      cockpit_center_end: 60.67,
       engineCount: [2, 4],
-      engineSize: [20, 28],
-      engineSpacing: [34, 50],
-      nozzleLength: [24, 36],
-      wingSpan: [40, 58],
-      wingSweep: [12, 24],
-      wingForward: [4, 12],
-      wingThickness: [18, 26],
-      wingOffset: [12, 26],
-      wingDihedral: [-4, 8],
-      finHeight: [24, 38],
-      finWidth: [12, 22],
+      engineSizePercent: [10.53, 18.67],
+      engineSpacingPercent: [17.89, 33.33],
+      nozzlePercent: [12.63, 24.0],
+      wingSpanPercent: [21.05, 38.67],
+      wingSweepPercent: [6.32, 16.0],
+      wingForwardPercent: [2.11, 8.0],
+      wingThicknessPercent: [9.47, 17.33],
+      wing_attach_start: 56.32,
+      wing_attach_end: 67.33,
+      wingDihedralPercent: [-2.11, 5.33],
       finCount: [2, 3],
-      stripeOffset: [32, 56],
+      finHeightPercent: [12.63, 25.33],
+      finWidthPercent: [6.32, 14.67],
+      stripeStartPercent: [16.84, 37.33],
     },
     features: {
       topFinProbability: 0.45,
@@ -109,30 +119,33 @@ const CATEGORY_DEFINITIONS = {
     description: "Versatile shuttles balancing passenger pods and engine pods.",
     wingStyles: ["swept", "ladder", "split"],
     ranges: {
-      bodyLength: [130, 170],
-      bodyWidth: [34, 46],
-      bodyMidInset: [6, 16],
-      noseCurve: [14, 24],
-      tailCurve: [16, 28],
+      body_start: 0,
+      body_end: 100,
+      bodyWidthPercent: [20.0, 35.38],
+      bodyMidInsetPercent: [3.53, 12.31],
+      noseCurvePercent: [8.24, 18.46],
+      tailCurvePercent: [9.41, 21.54],
       noseWidthFactor: [0.38, 0.55],
       tailWidthFactor: [0.55, 0.7],
-      cockpitWidth: [26, 34],
-      cockpitHeight: [18, 24],
-      cockpitOffset: [-2, 10],
+      cockpitWidthPercent: [15.29, 26.15],
+      cockpitHeightPercent: [10.59, 18.46],
+      cockpit_center_start: 48.82,
+      cockpit_center_end: 57.69,
       engineCount: [2, 3],
-      engineSize: [18, 26],
-      engineSpacing: [30, 44],
-      nozzleLength: [20, 32],
-      wingSpan: [48, 64],
-      wingSweep: [18, 32],
-      wingForward: [6, 16],
-      wingThickness: [14, 20],
-      wingOffset: [0, 16],
-      wingDihedral: [-2, 12],
-      finHeight: [28, 44],
-      finWidth: [12, 20],
+      engineSizePercent: [10.59, 20.0],
+      engineSpacingPercent: [17.65, 33.85],
+      nozzlePercent: [11.76, 24.62],
+      wingSpanPercent: [28.24, 49.23],
+      wingSweepPercent: [10.59, 24.62],
+      wingForwardPercent: [3.53, 12.31],
+      wingThicknessPercent: [8.24, 15.38],
+      wing_attach_start: 50.0,
+      wing_attach_end: 62.31,
+      wingDihedralPercent: [-1.18, 9.23],
       finCount: [1, 2],
-      stripeOffset: [20, 44],
+      finHeightPercent: [16.47, 33.85],
+      finWidthPercent: [7.06, 15.38],
+      stripeStartPercent: [11.76, 33.85],
     },
     features: {
       topFinProbability: 0.55,
@@ -151,30 +164,33 @@ const CATEGORY_DEFINITIONS = {
     description: "Compact unmanned craft with exposed thrusters and sensor pods.",
     wingStyles: ["delta", "box", "ladder"],
     ranges: {
-      bodyLength: [90, 120],
-      bodyWidth: [28, 36],
-      bodyMidInset: [8, 18],
-      noseCurve: [10, 22],
-      tailCurve: [10, 24],
+      body_start: 0,
+      body_end: 100,
+      bodyWidthPercent: [23.33, 40.0],
+      bodyMidInsetPercent: [6.67, 20.0],
+      noseCurvePercent: [8.33, 24.44],
+      tailCurvePercent: [8.33, 26.67],
       noseWidthFactor: [0.4, 0.58],
       tailWidthFactor: [0.5, 0.7],
-      cockpitWidth: [16, 24],
-      cockpitHeight: [12, 18],
-      cockpitOffset: [-10, 4],
+      cockpitWidthPercent: [13.33, 26.67],
+      cockpitHeightPercent: [10.0, 20.0],
+      cockpit_center_start: 41.67,
+      cockpit_center_end: 54.44,
       engineCount: [3, 5],
-      engineSize: [14, 22],
-      engineSpacing: [20, 32],
-      nozzleLength: [14, 24],
-      wingSpan: [32, 48],
-      wingSweep: [10, 22],
-      wingForward: [2, 10],
-      wingThickness: [12, 18],
-      wingOffset: [-10, 4],
-      wingDihedral: [-12, 6],
-      finHeight: [18, 32],
-      finWidth: [8, 16],
+      engineSizePercent: [11.67, 24.44],
+      engineSpacingPercent: [16.67, 35.56],
+      nozzlePercent: [11.67, 26.67],
+      wingSpanPercent: [26.67, 53.33],
+      wingSweepPercent: [8.33, 24.44],
+      wingForwardPercent: [1.67, 11.11],
+      wingThicknessPercent: [10.0, 20.0],
+      wing_attach_start: 41.67,
+      wing_attach_end: 54.44,
+      wingDihedralPercent: [-10.0, 6.67],
       finCount: [0, 2],
-      stripeOffset: [12, 26],
+      finHeightPercent: [15.0, 35.56],
+      finWidthPercent: [6.67, 17.78],
+      stripeStartPercent: [10.0, 28.89],
     },
     features: {
       topFinProbability: 0.35,
@@ -672,8 +688,12 @@ function createShipRootGroup(body, options = {}) {
 
 function buildBodyAxis(body) {
   const length = body?.length ?? 0;
-  const noseTop = 100 - length / 2;
-  const noseSide = 100 - length / 2;
+  const startPercent = body?.startPercent ?? 0;
+  const endPercent = body?.endPercent ?? 1;
+  const centerPercent = (startPercent + endPercent) / 2;
+  const centerOffset = (centerPercent - 0.5) * length;
+  const noseTop = 100 - length / 2 + centerOffset;
+  const noseSide = 100 - length / 2 + centerOffset;
   const tailTop = noseTop + length;
   const tailSide = noseSide + length;
   const percentToTopY = (percent) => noseTop + length * percent;
@@ -722,8 +742,13 @@ function deriveSideViewGeometry(config) {
 
   const axis = buildBodyAxis(body);
   const halfLength = body.length / 2;
-  const fuselageRadius = Math.max(body.halfWidth, 12);
-  const baseHeight = Math.max(fuselageRadius * 1.4, (cockpit?.height ?? 18) + 8, (fins?.height ?? 24) * 0.55);
+  const percentToBody = (percent) => (percent / 100) * body.length;
+  const fuselageRadius = Math.max(body.halfWidth, percentToBody(8.6));
+  const baseHeight = Math.max(
+    fuselageRadius * 1.4,
+    (cockpit?.height ?? percentToBody(12.9)) + percentToBody(5.7),
+    (fins?.height ?? percentToBody(17.1)) * 0.55,
+  );
 
   // Helper closures to keep side-view distances in lockstep with the top-down layout.
   const clampToBody = (value) => clamp(value, 0, body.length);
@@ -731,14 +756,17 @@ function deriveSideViewGeometry(config) {
 
   const noseLength = clamp(body.length * 0.18 + body.noseCurve * 0.35, body.length * 0.16, body.length * 0.32);
   const tailLength = clamp(body.length * 0.22 + body.tailCurve * 0.3, body.length * 0.16, body.length * 0.36);
-  const noseHeight = Math.max(8, body.noseCurve * 0.55);
-  const dorsalHeight = Math.max((cockpit?.height ?? 18) + 6, (fins?.height ?? 28) * 0.55);
-  const tailHeight = Math.max(6, (fins?.height ?? 24) * 0.4);
+  const noseHeight = Math.max(percentToBody(5.7), body.noseCurve * 0.55);
+  const dorsalHeight = Math.max(
+    (cockpit?.height ?? percentToBody(12.9)) + percentToBody(4.3),
+    (fins?.height ?? percentToBody(20.0)) * 0.55,
+  );
+  const tailHeight = Math.max(percentToBody(4.3), (fins?.height ?? percentToBody(17.1)) * 0.4);
   const bellyDrop = clamp(body.midInset * 1.6, baseHeight * 0.22, baseHeight * 0.48);
-  const ventralDepth = bellyDrop + Math.max(6, body.midInset * 0.6);
+  const ventralDepth = bellyDrop + Math.max(percentToBody(4.3), body.midInset * 0.6);
   const hasIntakes = (engine?.count ?? 0) > 1;
-  const intakeHeight = hasIntakes ? Math.min(baseHeight * 0.45, (engine?.size ?? 18) * 0.9) : 0;
-  const intakeDepth = hasIntakes ? Math.min(fuselageRadius * 1.2, (engine?.spacing ?? 24) * 0.6) : 0;
+  const intakeHeight = hasIntakes ? Math.min(baseHeight * 0.45, (engine?.size ?? percentToBody(12.9)) * 0.9) : 0;
+  const intakeDepth = hasIntakes ? Math.min(fuselageRadius * 1.2, (engine?.spacing ?? percentToBody(17.1)) * 0.6) : 0;
 
   const profile = {
     length: body.length,
@@ -771,11 +799,16 @@ function deriveSideViewGeometry(config) {
   }
 
   const canopyPlacement = computeCanopyPlacement(body, cockpit);
-  const canopyHeight = clamp((cockpit?.height ?? 18) * 1.18, (cockpit?.height ?? 18) * 0.95, dorsalHeight - 2);
+  const fallbackCanopyHeight = cockpit?.height ?? percentToBody(12.9);
+  const canopyHeight = clamp(
+    fallbackCanopyHeight * 1.18,
+    fallbackCanopyHeight * 0.95,
+    dorsalHeight - percentToBody(1.4),
+  );
   const canopyOffset = canopyPlacement.centerFromNose - canopyPlacement.length * 0.5;
   const canopyStart = clamp(canopyOffset, 0, body.length);
   const canopyEnd = clamp(canopyStart + canopyPlacement.length, 0, body.length);
-  const canopyBaseEmbed = Math.max(1.4, canopyHeight * 0.18);
+  const canopyBaseEmbed = Math.max(percentToBody(1.0), canopyHeight * 0.18);
   const canopyStartTop = sampleHullTopY(profile, canopyStart);
   const canopyEndTop = sampleHullTopY(profile, canopyEnd);
   const canopy = {
@@ -786,7 +819,7 @@ function deriveSideViewGeometry(config) {
     endPercent: canopyEnd / body.length,
     centerPercent: canopyPlacement.centerPercent,
     offsetY: -(cockpit?.offsetY ?? 0) * 0.25,
-    frame: clamp((cockpit?.width ?? 28) * 0.08, 1.8, 3.8),
+    frame: clamp((cockpit?.width ?? percentToBody(20.0)) * 0.08, percentToBody(1.3), percentToBody(2.7)),
     tint: cockpit?.tint ?? "#7ed4ff",
     baseStart: canopyStartTop - (100 + (profile.offsetY ?? 0)) + canopyBaseEmbed,
     baseEnd: canopyEndTop - (100 + (profile.offsetY ?? 0)) + canopyBaseEmbed,
@@ -824,10 +857,10 @@ function deriveSideViewGeometry(config) {
   const stabiliser = fins
     ? {
         // Map top view dimensions directly to the side view so the fin footprint stays consistent.
-        length: Math.max(12, fins.height),
-        height: Math.max(8, fins.width * 1.05),
-        sweep: Math.max(10, (wings?.forward ?? 18) * 0.5),
-        thickness: Math.max(5, fins.width * 0.55),
+        length: Math.max(percentToBody(8.6), fins.height),
+        height: Math.max(percentToBody(5.7), fins.width * 1.05),
+        sweep: Math.max(percentToBody(7.1), (wings?.forward ?? percentToBody(12.9)) * 0.5),
+        thickness: Math.max(percentToBody(3.6), fins.width * 0.55),
         offsetY: ((fins.side ?? 0) - (fins.bottom ?? 0)) * baseHeight * 0.06,
         ventral: (fins.bottom ?? 0) > 0,
       }
@@ -836,10 +869,10 @@ function deriveSideViewGeometry(config) {
   const thruster = engine
     ? {
         count: Math.max(1, Math.round(engine.count)),
-        radius: Math.max(4, engine.size * 0.45),
-        spacing: Math.max(8, engine.spacing * 0.45),
+        radius: Math.max(percentToBody(2.9), engine.size * 0.45),
+        spacing: Math.max(percentToBody(5.7), engine.spacing * 0.45),
         offsetY: 0,
-        nozzleLength: Math.max(6, engine.nozzleLength * 0.65),
+        nozzleLength: Math.max(percentToBody(4.3), engine.nozzleLength * 0.65),
         glow: engine.glow,
         mountPercent: 1,
       }
@@ -852,9 +885,9 @@ function deriveSideViewGeometry(config) {
     const hardpoints = Array.isArray(storedArmament.hardpoints)
       ? storedArmament.hardpoints.map((hardpoint) => ({
           chordRatio: clamp(hardpoint.chordRatio ?? 0.5, 0.1, 0.9),
-          pylonLength: Math.max(4, hardpoint.pylonLength ?? planform.thickness * 0.6),
-          payloadLength: Math.max(10, hardpoint.payloadLength ?? planform.length * 0.25),
-          payloadRadius: Math.max(3, hardpoint.payloadRadius ?? planform.thickness * 0.35),
+          pylonLength: Math.max(percentToBody(2.9), hardpoint.pylonLength ?? planform.thickness * 0.6),
+          payloadLength: Math.max(percentToBody(7.1), hardpoint.payloadLength ?? planform.length * 0.25),
+          payloadRadius: Math.max(percentToBody(2.1), hardpoint.payloadRadius ?? planform.thickness * 0.35),
         }))
       : [];
     if (hardpoints.length) {
@@ -869,10 +902,10 @@ function deriveSideViewGeometry(config) {
     armament = {
       mount: "nose",
       barrels: Math.max(1, Math.round(storedArmament.barrels ?? 1)),
-      length: Math.max(12, storedArmament.length ?? body.length * 0.1),
-      spacing: Math.max(2, storedArmament.spacing ?? (wings?.thickness ?? 10) * 0.3),
+      length: Math.max(percentToBody(8.6), storedArmament.length ?? body.length * 0.1),
+      spacing: Math.max(percentToBody(1.4), storedArmament.spacing ?? (wings?.thickness ?? percentToBody(7.1)) * 0.3),
       offsetY: -((cockpit?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.2),
-      housingHeight: Math.max(6, (cockpit?.height ?? 18) * 0.55),
+      housingHeight: Math.max(percentToBody(4.3), (cockpit?.height ?? percentToBody(12.9)) * 0.55),
       mountPercent: 0,
     };
   }
@@ -894,14 +927,14 @@ function deriveSideViewGeometry(config) {
     const antennaDistance = clamp(body.length * 0.12, profile.noseLength * 0.35, profile.length * 0.22);
     const baseTop = sampleHullTopY(profile, antennaDistance);
     const baseOffset = baseTop - (100 + (profile.offsetY ?? 0)) + canopyBaseEmbed * 0.85;
-    const slopeAhead = sampleHullTopY(profile, clamp(antennaDistance + 12, 0, profile.length));
-    const slopeBehind = sampleHullTopY(profile, clamp(antennaDistance - 12, 0, profile.length));
-    const lean = clamp((slopeBehind - slopeAhead) * 0.18, -6, 4);
+    const slopeAhead = sampleHullTopY(profile, clamp(antennaDistance + percentToBody(8.6), 0, profile.length));
+    const slopeBehind = sampleHullTopY(profile, clamp(antennaDistance - percentToBody(8.6), 0, profile.length));
+    const lean = clamp((slopeBehind - slopeAhead) * 0.18, -percentToBody(4.3), percentToBody(2.9));
     antenna = {
       baseOffset,
-      length: clamp(body.length * 0.12, 14, dorsalHeight + 10),
+      length: clamp(body.length * 0.12, percentToBody(10.0), dorsalHeight + percentToBody(7.1)),
       lean,
-      beaconRadius: 2.8,
+      beaconRadius: percentToBody(2.0),
       basePercent: antennaDistance / body.length,
     };
   }
@@ -2856,9 +2889,26 @@ function createBaseConfig(categoryKey) {
 function createTopDownConfig(categoryKey, def, palette) {
   const ranges = def.ranges;
 
+  const bodyLengthPercent = (ranges.body_end ?? 100) - (ranges.body_start ?? 0);
+  const bodyLength = (bodyLengthPercent / 100) * NORMALISED_HULL_LENGTH;
+  const percentToBody = (percent) => (percent / 100) * bodyLength;
+  const percentRangeToBody = (percentRange) =>
+    percentRange && percentRange.length === 2 ? percentRange.map(percentToBody) : null;
+  const pickPercent = (percentRange) =>
+    percentRange && percentRange.length === 2 ? randomBetween(percentRange[0], percentRange[1]) : 0;
+
   const sideFinCount = nextRandom() < def.features.sideFinProbability ? randomInt(...ranges.finCount) : 0;
-  const bodyLength = randomBetween(...ranges.bodyLength);
-  const bodyHalfWidth = randomBetween(...ranges.bodyWidth) / 2;
+
+  const bodyWidthPercent = pickPercent(ranges.bodyWidthPercent);
+  const bodyHalfWidth = percentToBody(bodyWidthPercent) / 2;
+
+  const segmentRanges = {
+    bodyMidInset: percentRangeToBody(ranges.bodyMidInsetPercent),
+    noseCurve: percentRangeToBody(ranges.noseCurvePercent),
+    tailCurve: percentRangeToBody(ranges.tailCurvePercent),
+    noseWidthFactor: ranges.noseWidthFactor,
+    tailWidthFactor: ranges.tailWidthFactor,
+  };
 
   const wingRoll = nextRandom();
   const winglessChance = def.features.winglessProbability ?? 0;
@@ -2871,12 +2921,13 @@ function createTopDownConfig(categoryKey, def, palette) {
       : "mid";
   const wingsEnabled = wingMount !== "none";
 
-  const baseSpan = randomBetween(...ranges.wingSpan);
-  const baseSweep = randomBetween(...ranges.wingSweep);
-  const baseForward = randomBetween(...ranges.wingForward);
-  const baseThickness = randomBetween(...ranges.wingThickness);
-  const baseOffset = randomBetween(...ranges.wingOffset);
-  const baseDihedral = randomBetween(...ranges.wingDihedral);
+  const baseSpan = percentToBody(pickPercent(ranges.wingSpanPercent));
+  const baseSweep = percentToBody(pickPercent(ranges.wingSweepPercent));
+  const baseForward = percentToBody(pickPercent(ranges.wingForwardPercent));
+  const baseThickness = percentToBody(pickPercent(ranges.wingThicknessPercent));
+  const attachPercent = pickPercent([ranges.wing_attach_start, ranges.wing_attach_end]);
+  const baseOffset = ((attachPercent - 50) / 100) * bodyLength;
+  const baseDihedral = percentToBody(pickPercent(ranges.wingDihedralPercent));
 
   let wingSpan = wingsEnabled ? baseSpan : 0;
   let wingSweep = wingsEnabled ? baseSweep : 0;
@@ -2888,8 +2939,8 @@ function createTopDownConfig(categoryKey, def, palette) {
   if (wingsEnabled && wingMount === "aft") {
     // Push aft-mounted wings toward the tail so they resemble swept-back fighter wings.
     const halfLength = bodyLength / 2;
-    const minTailOffset = Math.max(halfLength * 0.32, 14);
-    const maxTailOffset = Math.max(minTailOffset + 4, halfLength - 12);
+    const minTailOffset = Math.max(halfLength * 0.32, percentToBody(9));
+    const maxTailOffset = Math.max(minTailOffset + percentToBody(3), halfLength - percentToBody(9));
     wingOffset = randomBetween(minTailOffset, maxTailOffset);
     wingForward *= 0.7;
     wingSpan *= 0.9;
@@ -2899,23 +2950,25 @@ function createTopDownConfig(categoryKey, def, palette) {
   const body = {
     length: bodyLength,
     halfWidth: bodyHalfWidth,
-    segments: createBodySegments(ranges),
+    startPercent: (ranges.body_start ?? 0) / 100,
+    endPercent: (ranges.body_end ?? 100) / 100,
+    segments: createBodySegments(segmentRanges),
     plating: nextRandom() < def.features.platingProbability,
   };
-  synchroniseBodySegments(body, ranges);
+  synchroniseBodySegments(body, segmentRanges);
 
   const cockpit = {
-    width: randomBetween(...ranges.cockpitWidth),
-    height: randomBetween(...ranges.cockpitHeight),
-    offsetY: randomBetween(...ranges.cockpitOffset),
+    width: percentToBody(pickPercent(ranges.cockpitWidthPercent)),
+    height: percentToBody(pickPercent(ranges.cockpitHeightPercent)),
+    offsetY: percentToBody(pickPercent([ranges.cockpit_center_start, ranges.cockpit_center_end]) - 50),
     tint: palette.cockpit,
   };
 
   const engine = {
     count: randomInt(...ranges.engineCount),
-    size: randomBetween(...ranges.engineSize),
-    spacing: randomBetween(...ranges.engineSpacing),
-    nozzleLength: randomBetween(...ranges.nozzleLength),
+    size: percentToBody(pickPercent(ranges.engineSizePercent)),
+    spacing: percentToBody(pickPercent(ranges.engineSpacingPercent)),
+    nozzleLength: percentToBody(pickPercent(ranges.nozzlePercent)),
     glow: palette.glow,
   };
 
@@ -2936,13 +2989,13 @@ function createTopDownConfig(categoryKey, def, palette) {
     top: nextRandom() < def.features.topFinProbability ? 1 : 0,
     side: sideFinCount,
     bottom: nextRandom() < def.features.bottomFinProbability ? 1 : 0,
-    height: randomBetween(...ranges.finHeight),
-    width: randomBetween(...ranges.finWidth),
+    height: percentToBody(pickPercent(ranges.finHeightPercent)),
+    width: percentToBody(pickPercent(ranges.finWidthPercent)),
   };
 
   const details = {
     stripe: nextRandom() < def.features.stripeProbability,
-    stripeOffset: randomBetween(...ranges.stripeOffset),
+    stripeOffset: percentToBody(pickPercent(ranges.stripeStartPercent)),
     antenna: nextRandom() < def.features.antennaProbability,
   };
 
@@ -3026,6 +3079,8 @@ function normaliseTopDownConfig(copy) {
   copy.fins.width = Math.max(6, copy.fins.width);
   copy.body.midInset = Math.max(4, copy.body.midInset);
   copy.body.halfWidth = Math.max(10, copy.body.halfWidth);
+  copy.body.startPercent = clamp(copy.body.startPercent ?? 0, 0, 1);
+  copy.body.endPercent = clamp(copy.body.endPercent ?? 1, copy.body.startPercent, 1);
   copy.details.stripeOffset = Math.max(6, copy.details.stripeOffset);
 
   if (copy.wings) {
@@ -3053,7 +3108,18 @@ function normaliseTopDownConfig(copy) {
   }
   if (copy.body?.segments) {
     const ranges = CATEGORY_DEFINITIONS[copy.category]?.ranges;
-    synchroniseBodySegments(copy.body, ranges);
+    if (ranges) {
+      const percentToBody = (percent) => (percent / 100) * copy.body.length;
+      const toBodyRange = (range) => (range ? range.map(percentToBody) : null);
+      const segmentRanges = {
+        bodyMidInset: toBodyRange(ranges.bodyMidInsetPercent),
+        noseCurve: toBodyRange(ranges.noseCurvePercent),
+        tailCurve: toBodyRange(ranges.tailCurvePercent),
+        noseWidthFactor: ranges.noseWidthFactor,
+        tailWidthFactor: ranges.tailWidthFactor,
+      };
+      synchroniseBodySegments(copy.body, segmentRanges);
+    }
   }
   copy.armament = normaliseArmament(copy);
   return copy;
