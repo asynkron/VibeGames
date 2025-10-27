@@ -410,26 +410,28 @@ function renderSpaceship(svg, config, options = {}) {
   if (viewMode === "both") {
     svg.setAttribute("viewBox", "0 0 400 200");
     const projectionScale = scale * 0.9;
-    const topRoot = createShipRootGroup(projectionScale, 0, 0);
-    const sideRoot = createShipRootGroup(projectionScale, 200, 0);
-    svg.append(topRoot, sideRoot);
-    drawTopDownSpaceship(topRoot, config, defs);
-    drawSideViewSpaceship(sideRoot, config, defs);
+    const topGroup = createShipRootGroup(projectionScale, 0, 0);
+    const sideGroup = createShipRootGroup(projectionScale, 200, 0);
+    svg.append(topGroup.wrapper, sideGroup.wrapper);
+    drawTopDownSpaceship(topGroup.root, config, defs);
+    drawSideViewSpaceship(sideGroup.root, config, defs);
     return;
   }
 
   svg.setAttribute("viewBox", "0 0 200 200");
-  const root = createShipRootGroup(scale, 0, 0);
-  svg.appendChild(root);
+  const rootGroup = createShipRootGroup(scale, 0, 0);
+  svg.appendChild(rootGroup.wrapper);
 
   if (viewMode === "side") {
-    drawSideViewSpaceship(root, config, defs);
+    drawSideViewSpaceship(rootGroup.root, config, defs);
   } else {
-    drawTopDownSpaceship(root, config, defs);
+    drawTopDownSpaceship(rootGroup.root, config, defs);
   }
 }
 
 function createShipRootGroup(scale, offsetX, offsetY) {
+  const wrapper = document.createElementNS(SVG_NS, "g");
+  wrapper.classList.add("ship-root");
   const root = document.createElementNS(SVG_NS, "g");
   const transforms = [];
   const baseX = offsetX + 100;
@@ -445,8 +447,8 @@ function createShipRootGroup(scale, offsetX, offsetY) {
   if (transforms.length > 0) {
     root.setAttribute("transform", transforms.join(" "));
   }
-  root.classList.add("ship-root");
-  return root;
+  wrapper.appendChild(root);
+  return { wrapper, root };
 }
 
 function drawTopDownSpaceship(root, config, defs) {
