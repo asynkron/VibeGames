@@ -729,6 +729,141 @@ function drawSideViewSpaceship(root, config, defs) {
   drawSideLights(root, config, geometry, axis);
 }
 
+function applySideSegmentProfiles(profile, body, percentToBody) {
+  if (!body?.segments) {
+    return;
+  }
+
+  const { front, mid, rear } = body.segments;
+
+  const normalise = (value, min, max) => {
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+    if (max === min) {
+      return 0;
+    }
+    return clamp((value - min) / (max - min), 0, 1);
+  };
+
+  let frontLength = front?.length ?? profile.noseLength ?? profile.length * 0.3;
+  let midLength = mid?.length ?? profile.length * 0.4;
+  let rearLength = rear?.length ?? profile.tailLength ?? profile.length * 0.3;
+  const totalLength = frontLength + midLength + rearLength;
+  if (totalLength > 0) {
+    const scale = profile.length / totalLength;
+    frontLength *= scale;
+    midLength *= scale;
+    rearLength *= scale;
+  }
+  profile.noseLength = frontLength;
+  profile.tailLength = rearLength;
+
+  const noseTipRatio = normalise(front?.tipWidthFactor ?? 0.28, 0.08, 0.5);
+  const noseShoulderRatio = normalise(front?.shoulderWidthFactor ?? 1, 0.88, 1.26);
+  const noseCurveRatio = normalise(front?.curve ?? body.noseCurve ?? 18, 10, 40);
+  const transitionRatio = normalise(front?.transitionFactor ?? 0.9, 0.7, 1.2);
+  const taperRatio = clamp(
+    1 - (front?.tipWidthFactor ?? 0.28) / Math.max(front?.shoulderWidthFactor ?? 1, 0.12),
+    0,
+    1,
+  );
+
+  const midInsetValue = mid?.inset ?? body.midInset ?? percentToBody(10);
+  const insetRatio = normalise(midInsetValue, percentToBody(4), percentToBody(22));
+  const waistRatio = normalise(mid?.waistWidthFactor ?? 1, 0.74, 1.18);
+  const bellyRatio = normalise(mid?.bellyWidthFactor ?? 1, 0.9, 1.32);
+  const bellyBias = bellyRatio - 0.5;
+
+  const tailWidthRatio = normalise(rear?.tailWidthFactor ?? body.tailWidthFactor ?? 0.6, 0.4, 0.92);
+  const tailCurveRatio = normalise(rear?.curve ?? body.tailCurve ?? 20, 10, 44);
+  const exhaustRatio = normalise(rear?.exhaustWidthFactor ?? 0.8, 0.5, 1.2);
+  const baseWidthRatio = normalise(rear?.baseWidthFactor ?? 1, 0.8, 1.28);
+
+  const canopyWeight = clamp((noseShoulderRatio * 0.55 + noseTipRatio * 0.45), 0, 1);
+  const spearWeight = taperRatio;
+
+  const noseHeightBase = Math.max(percentToBody(4.3), (body.noseCurve ?? front?.curve ?? 18) * 0.28);
+  profile.noseHeight = clamp(
+    noseHeightBase * (0.9 + canopyWeight * 0.4 + spearWeight * 0.28 + noseCurveRatio * 0.18)
+      + percentToBody(2.4) * transitionRatio,
+    percentToBody(4.0),
+    profile.height * 0.96,
+  );
+
+  profile.dorsalHeight = Math.max(
+    profile.dorsalHeight * (0.88 + canopyWeight * 0.28 + waistRatio * 0.18),
+    profile.dorsalHeight * 0.72,
+  );
+  profile.dorsalHeight += percentToBody(2.0) * (bellyBias + transitionRatio - 0.5);
+
+  profile.bellyDrop = clamp(
+    percentToBody(3.6)
+      + midInsetValue * (0.72 + bellyBias * 0.38)
+      + percentToBody(3.0) * insetRatio
+      + percentToBody(1.6) * (1 - waistRatio),
+    percentToBody(4.0),
+    profile.height * 0.62,
+  );
+
+  profile.ventralDepth = Math.max(
+    profile.bellyDrop + Math.max(percentToBody(3.4), midInsetValue * (0.38 + bellyBias * 0.22)),
+    profile.bellyDrop + percentToBody(2.6),
+  );
+
+  profile.tailHeight = clamp(
+    Math.max(percentToBody(3.6), (body.tailCurve ?? rear?.curve ?? 18) * 0.22)
+      * (0.95 + (1 - tailWidthRatio) * 0.6 + (baseWidthRatio - tailWidthRatio) * 0.35)
+      + percentToBody(1.6) * (exhaustRatio - 0.5),
+    percentToBody(3.6),
+    profile.height * 0.82,
+  );
+
+  profile.height = Math.max(
+    profile.height,
+    profile.noseHeight * 1.12,
+    profile.dorsalHeight + percentToBody(1.0),
+    profile.tailHeight * 1.08,
+    profile.ventralDepth,
+  );
+
+  const frontSecondBlend = clamp(lerp(0.44, 0.72, noseTipRatio), 0.18, 0.85);
+  const frontEndBlend = clamp(
+    lerp(0.24, 0.06, noseTipRatio) + lerp(-0.08, 0.08, spearWeight) + (transitionRatio - 0.5) * 0.08,
+    0,
+    1,
+  );
+  const chinBlend = clamp(lerp(0.64, 0.42, noseTipRatio) + canopyWeight * 0.06, 0.22, 0.88);
+  const frontBellyBlend = clamp(lerp(0.5, 0.34, bellyRatio), 0.2, 0.85);
+
+  const topDip = clamp(lerp(0.14, 0.06, waistRatio) + spearWeight * 0.05 + canopyWeight * 0.03, 0.03, 0.22);
+  const crestOffset = clamp(
+    ((mid?.bellyPosition ?? 0.72) - 0.72) * 0.6 + bellyBias * 0.18 - (transitionRatio - 0.5) * 0.08,
+    -0.2,
+    0.2,
+  );
+
+  const rearTopBlend = clamp(lerp(0.48, 0.72, tailCurveRatio * 0.6 + (1 - tailWidthRatio) * 0.4), 0.2, 0.92);
+  const rearBottomBlend = clamp(lerp(0.58, 0.72, bellyRatio) + (exhaustRatio - 0.5) * 0.12, 0.25, 0.95);
+
+  profile.sideAnchorConfig = {
+    front: {
+      topSecondBlend: frontSecondBlend,
+      topEndBlend: frontEndBlend,
+      bottomSecondBlend: chinBlend,
+      bottomEndBlend: frontBellyBlend,
+    },
+    mid: {
+      topDip,
+      topCrestOffset: crestOffset,
+    },
+    rear: {
+      topBlend: rearTopBlend,
+      bottomBlend: rearBottomBlend,
+    },
+  };
+}
+
 function deriveSideViewGeometry(config) {
   // Translate the shared top-down configuration into approximate side-view dimensions.
   const { body, cockpit, engine, wings, fins, details } = config;
@@ -780,6 +915,8 @@ function deriveSideViewGeometry(config) {
 
   profile.noseX = axis.side.nose;
   profile.tailX = axis.side.tail;
+
+  applySideSegmentProfiles(profile, body, percentToBody);
 
   const hullAnchors = createSideProfileAnchors(profile, body.segments, { allowFallback: true });
 
@@ -2609,23 +2746,38 @@ function createSideProfileAnchors(profile, segments, options = {}) {
 
   const mix = (a, b, t) => a + (b - a) * t;
 
+  const frontConfig = profile.sideAnchorConfig?.front ?? {};
+  const midConfig = profile.sideAnchorConfig?.mid ?? {};
+  const rearConfig = profile.sideAnchorConfig?.rear ?? {};
+
+  const frontSecondBlend = clamp(frontConfig.topSecondBlend ?? 0.6, 0, 1);
+  const frontEndBlend = clamp(frontConfig.topEndBlend ?? 0.1, 0, 1);
+  const chinBlend = clamp(frontConfig.bottomSecondBlend ?? 0.55, 0, 1);
+  const frontBellyBlend = clamp(frontConfig.bottomEndBlend ?? 0.4, 0, 1);
+
+  const midDip = clamp(midConfig.topDip ?? 0.08, 0.02, 0.2);
+  const crestOffset = (midConfig.topCrestOffset ?? 0) * profile.height;
+
+  const rearTopBlend = clamp(rearConfig.topBlend ?? 0.55, 0, 1);
+  const rearBottomBlend = clamp(rearConfig.bottomBlend ?? 0.65, 0, 1);
+
   const topAnchors = [
     [0, noseTop],
-    [frontLength * 0.45, mix(noseTop, crest, 0.6)],
-    [frontEnd, mix(crest, noseTop, 0.1)],
-    [midEnd - midLength * 0.55, crest - profile.height * 0.08],
-    [midEnd - midLength * 0.15, crest],
-    [profile.length - rearLength * 0.55, mix(crest, tailTop, 0.55)],
+    [frontLength * 0.45, mix(noseTop, crest, frontSecondBlend)],
+    [frontEnd, mix(crest, noseTop, frontEndBlend)],
+    [midEnd - midLength * 0.55, crest - profile.height * midDip],
+    [midEnd - midLength * 0.15, crest + crestOffset],
+    [profile.length - rearLength * 0.55, mix(crest, tailTop, rearTopBlend)],
     [profile.length, tailTop],
   ];
 
   const bottomAnchors = [
     [0, noseBottom],
-    [frontLength * 0.35, mix(noseBottom, belly, 0.55)],
-    [frontEnd, mix(ventral, belly, 0.4)],
+    [frontLength * 0.35, mix(noseBottom, belly, chinBlend)],
+    [frontEnd, mix(ventral, belly, frontBellyBlend)],
     [midEnd - midLength * 0.55, ventral],
     [midEnd, belly],
-    [profile.length - rearLength * 0.45, mix(belly, tailBottom, 0.65)],
+    [profile.length - rearLength * 0.45, mix(belly, tailBottom, rearBottomBlend)],
     [profile.length, tailBottom],
   ];
 
