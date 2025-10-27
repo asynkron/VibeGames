@@ -17,10 +17,6 @@
     <main class="layout">
       <section class="controls panel">
         <div class="control">
-          <label for="modeSelect">View mode</label>
-          <select id="modeSelect"></select>
-        </div>
-        <div class="control">
           <label for="categorySelect">Ship archetype</label>
           <select id="categorySelect"></select>
         </div>
@@ -29,7 +25,7 @@
           <button id="shufflePalette" type="button">Shuffle palette</button>
           <button id="debugToggle" type="button" aria-pressed="false">Debug colors: off</button>
         </div>
-        <p class="hint">Pick a view mode to highlight the top-down projection, the side profile, or both at once. Click any sprite in the grid to set it as the new parent configuration—children mutate parts while respecting their archetype.</p>
+        <p class="hint">Inspect the dual projection of each craft to see its top-down layout alongside the matching side profile. Click any sprite in the grid to set it as the new parent configuration—children mutate parts while respecting their archetype.</p>
       </section>
 
       <section class="grid" id="spriteGrid" aria-live="polite"></section>

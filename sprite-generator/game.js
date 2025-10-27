@@ -1,22 +1,10 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const GRID_SIZE = 9;
 
-const VIEW_MODES = {
-  both: {
-    label: "Dual projection",
-    shortLabel: "Both",
-    description: "Show top-down and side views together for comparison.",
-  },
-  side: {
-    label: "Side-scrolling shooter",
-    shortLabel: "Side",
-    description: "Horizontal orientation for classic side shooters.",
-  },
-  vertical: {
-    label: "Vertical shoot 'em up",
-    shortLabel: "Vertical",
-    description: "Top-down orientation for vertical scrollers.",
-  },
+const VIEW_MODE = {
+  value: "both",
+  label: "Dual projection",
+  shortLabel: "Dual",
 };
 
 const CATEGORY_DEFINITIONS = {
@@ -404,7 +392,6 @@ const DEBUG_PART_COLORS = {
   details: "#8338ec",
 };
 
-const modeSelect = document.getElementById("modeSelect");
 const categorySelect = document.getElementById("categorySelect");
 const spriteGrid = document.getElementById("spriteGrid");
 const detailSprite = document.getElementById("detailSprite");
@@ -416,7 +403,6 @@ const debugToggleButton = document.getElementById("debugToggle");
 let renderCounter = 0;
 
 let currentCategory = "fighter";
-let currentViewMode = "both";
 let parentConfig = null;
 let selectedConfig = null;
 let debugColorsEnabled = false;
@@ -437,20 +423,8 @@ function updateDebugToggleButton() {
   debugToggleButton.setAttribute("aria-pressed", debugColorsEnabled ? "true" : "false");
 }
 
-populateModeSelect();
 populateCategorySelect();
 initialise();
-
-function populateModeSelect() {
-  Object.entries(VIEW_MODES).forEach(([key, def]) => {
-    const option = document.createElement("option");
-    option.value = key;
-    option.textContent = `${def.label}`;
-    option.title = def.description;
-    modeSelect.appendChild(option);
-  });
-  modeSelect.value = currentViewMode;
-}
 
 function populateCategorySelect() {
   Object.entries(CATEGORY_DEFINITIONS).forEach(([key, def]) => {
@@ -467,12 +441,6 @@ function initialise() {
   selectedConfig = cloneConfig(parentConfig);
   renderDetail(selectedConfig);
   renderGrid();
-
-  modeSelect.addEventListener("change", () => {
-    currentViewMode = modeSelect.value;
-    renderDetail(selectedConfig);
-    renderGrid();
-  });
 
   categorySelect.addEventListener("change", () => {
     currentCategory = categorySelect.value;
@@ -539,7 +507,7 @@ function createSpriteCard(config, isParent) {
   }
 
   const svg = document.createElementNS(SVG_NS, "svg");
-  renderSpaceship(svg, config, { scale: 0.8, viewMode: currentViewMode });
+  renderSpaceship(svg, config, { scale: 0.8, viewMode: VIEW_MODE.value });
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -548,8 +516,7 @@ function createSpriteCard(config, isParent) {
   const category = document.createElement("span");
   category.textContent = config.label || config.category;
   const mode = document.createElement("span");
-  const viewDef = VIEW_MODES[currentViewMode];
-  mode.textContent = viewDef ? viewDef.shortLabel : currentViewMode;
+  mode.textContent = VIEW_MODE.shortLabel;
   meta.append(category, mode, palette);
 
   button.append(svg, meta);
@@ -557,7 +524,7 @@ function createSpriteCard(config, isParent) {
 }
 
 function renderDetail(config) {
-  renderSpaceship(detailSprite, config, { scale: 1, viewMode: currentViewMode });
+  renderSpaceship(detailSprite, config, { scale: 1, viewMode: VIEW_MODE.value });
   definition.textContent = JSON.stringify(
     config,
     (key, value) => (typeof value === "number" ? Number(value.toFixed(2)) : value),
@@ -567,7 +534,7 @@ function renderDetail(config) {
 
 function renderSpaceship(svg, config, options = {}) {
   const scale = options.scale ?? 1;
-  const viewMode = options.viewMode ?? currentViewMode ?? "both";
+  const viewMode = options.viewMode ?? VIEW_MODE.value;
   svg.innerHTML = "";
   svg.setAttribute("data-view-mode", viewMode);
   svg.setAttribute("data-debug", debugColorsEnabled ? "true" : "false");
@@ -614,6 +581,7 @@ function renderSpaceship(svg, config, options = {}) {
     svg.append(topFrame, topGroup.wrapper, sideFrame, sideGroup.wrapper);
     drawTopDownSpaceship(topGroup.root, config, defs);
     drawSideViewSpaceship(sideGroup.root, config, defs);
+    alignSideProjection(sideGroup.root);
     return;
   }
 
@@ -628,9 +596,51 @@ function renderSpaceship(svg, config, options = {}) {
 
   if (viewMode === "side") {
     drawSideViewSpaceship(rootGroup.root, config, defs);
+    alignSideProjection(rootGroup.root);
   } else {
     drawTopDownSpaceship(rootGroup.root, config, defs);
   }
+}
+
+function alignSideProjection(group) {
+  if (!group || typeof group.getBBox !== "function") {
+    return;
+  }
+
+  let bbox;
+  try {
+    bbox = group.getBBox();
+  } catch (error) {
+    return;
+  }
+
+  if (!bbox || !Number.isFinite(bbox.width) || bbox.width <= 0) {
+    return;
+  }
+
+  const frameWidth = 200;
+  let dx = frameWidth / 2 - (bbox.x + bbox.width / 2);
+  let minX = bbox.x + dx;
+  let maxX = bbox.x + bbox.width + dx;
+
+  if (minX < 0) {
+    dx -= minX;
+    minX = 0;
+    maxX = bbox.x + bbox.width + dx;
+  }
+
+  if (maxX > frameWidth) {
+    dx -= maxX - frameWidth;
+  }
+
+  if (Math.abs(dx) <= 0.01) {
+    return;
+  }
+
+  const base = group.dataset?.baseTransform ?? group.getAttribute("transform") ?? "";
+  const translation = `translate(${dx.toFixed(2)} 0)`;
+  const nextTransform = base.trim().length ? `${base} ${translation}` : translation;
+  group.setAttribute("transform", nextTransform);
 }
 
 function createShipRootGroup(body, options = {}) {
@@ -665,6 +675,8 @@ function createShipRootGroup(body, options = {}) {
       );
     }
   }
+
+  root.dataset.baseTransform = root.getAttribute("transform") ?? "";
 
   scaleGroup.appendChild(root);
   return { wrapper, root };
