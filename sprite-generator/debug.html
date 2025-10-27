@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sprite Generator Debug</title>
+    <link rel="stylesheet" href="../shared/crt.css" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      main {
+        display: grid;
+        gap: 1.5rem;
+        padding: 1.5rem;
+      }
+      section {
+        background: rgba(0, 0, 0, 0.35);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+      }
+      h1 {
+        margin: 1.5rem 1.5rem 0;
+      }
+      h2 {
+        margin-top: 0;
+        font-size: 1.25rem;
+      }
+      h3 {
+        margin: 1rem 0 0.5rem;
+        font-size: 1.05rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.9;
+      }
+      .preview {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+      .preview svg {
+        background: rgba(12, 20, 35, 0.85);
+        border-radius: 6px;
+        width: 220px;
+        height: 220px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      }
+      .preview figure {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin: 0;
+      }
+      .preview figcaption {
+        text-align: center;
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="crt fx">
+      <h1>Sprite Generator Debug</h1>
+      <main>
+        <section>
+          <h2>Needle Nose</h2>
+          <h3>Top View</h3>
+          <div class="preview" id="needle-top-preview"></div>
+          <h3>Side View</h3>
+          <div class="preview" id="needle-side-preview"></div>
+        </section>
+        <section>
+          <h2>Delta Wing</h2>
+          <h3>Top View</h3>
+          <div class="preview" id="wing-top-preview"></div>
+          <h3>Side View</h3>
+          <div class="preview" id="wing-side-preview"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="debug.js"></script>
+  </body>
+</html>
