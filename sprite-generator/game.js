@@ -918,7 +918,10 @@ function deriveSideViewGeometry(config) {
 
   applySideSegmentProfiles(profile, body, percentToBody);
 
-  const hullAnchors = createSideProfileAnchors(profile, body.segments, { allowFallback: true });
+  const segmentGeometry = body.segments ? computeSegmentGeometry(body, axis) : null;
+  const hullAnchors = createSideProfileAnchors(profile, body.segments, segmentGeometry, {
+    allowFallback: true,
+  });
 
   if (hullAnchors) {
     profile.hullAnchors = hullAnchors;
@@ -2811,7 +2814,7 @@ function interpolateAnchoredY(anchors, x) {
   return last[1];
 }
 
-function createSideProfileAnchors(profile, segments, options = {}) {
+function createSideProfileAnchors(profile, segments, geometry, options = {}) {
   const { allowFallback = false } = options;
 
   let hasSegments = Boolean(segments);
@@ -2875,24 +2878,73 @@ function createSideProfileAnchors(profile, segments, options = {}) {
   const rearTopBlend = clamp(rearConfig.topBlend ?? 0.55, 0, 1);
   const rearBottomBlend = clamp(rearConfig.bottomBlend ?? 0.65, 0, 1);
 
+  const axis = profile.axis ?? null;
+  const convertNodeOffset = (value) => {
+    if (!axis || !Number.isFinite(value)) {
+      return null;
+    }
+    const percent = axis.percentFromTopY?.(value);
+    if (!Number.isFinite(percent)) {
+      return null;
+    }
+    return clamp(percent * profile.length, 0, profile.length);
+  };
+
+  const getNodeOffset = (index) => convertNodeOffset(geometry?.nodes?.[index]?.y);
+  const tailOffset = convertNodeOffset(geometry?.tail?.y) ?? profile.length;
+
+  const frontTransitionOffset =
+    getNodeOffset(0) ?? clamp(frontLength * 0.45, 0, profile.length);
+  const frontShoulderOffset = getNodeOffset(1) ?? frontEnd;
+  const waistOffset = getNodeOffset(2) ?? clamp(frontEnd + midLength * 0.4, 0, profile.length);
+  const bellyOffset = getNodeOffset(3) ?? clamp(frontEnd + midLength * 0.75, 0, profile.length);
+  const midTrailingOffset =
+    getNodeOffset(4) ?? clamp(frontEnd + midLength, 0, profile.length);
+  const rearBaseOffset =
+    getNodeOffset(5) ?? clamp(profile.length - rearLength * 0.55, 0, profile.length);
+  const exhaustOffset =
+    getNodeOffset(6) ?? clamp(profile.length - rearLength * 0.35, 0, profile.length);
+
+  const ensureProgression = (values) => {
+    let last = 0;
+    return values.map((value) => {
+      const next = Number.isFinite(value) ? Math.max(value, last) : last;
+      last = next;
+      return next;
+    });
+  };
+
+  const [transitionX, shoulderX, waistX, bellyX, trailingX, baseX, exhaustX] = ensureProgression([
+    frontTransitionOffset,
+    frontShoulderOffset,
+    waistOffset,
+    bellyOffset,
+    midTrailingOffset,
+    rearBaseOffset,
+    exhaustOffset,
+  ]);
+
+  const tailX = Math.max(tailOffset, exhaustX);
+
   const topAnchors = [
     [0, noseTop],
-    [frontLength * 0.45, mix(noseTop, crest, frontSecondBlend)],
-    [frontEnd, mix(crest, noseTop, frontEndBlend)],
-    [midEnd - midLength * 0.55, crest - profile.height * midDip],
-    [midEnd - midLength * 0.15, crest + crestOffset],
-    [profile.length - rearLength * 0.55, mix(crest, tailTop, rearTopBlend)],
-    [profile.length, tailTop],
+    [transitionX, mix(noseTop, crest, frontSecondBlend)],
+    [shoulderX, mix(crest, noseTop, frontEndBlend)],
+    [waistX, crest - profile.height * midDip],
+    [bellyX, crest + crestOffset],
+    [baseX, mix(crest, tailTop, rearTopBlend)],
+    [tailX, tailTop],
   ];
 
+  const chinX = clamp(transitionX * 0.92, 0, shoulderX);
   const bottomAnchors = [
     [0, noseBottom],
-    [frontLength * 0.35, mix(noseBottom, belly, chinBlend)],
-    [frontEnd, mix(ventral, belly, frontBellyBlend)],
-    [midEnd - midLength * 0.55, ventral],
-    [midEnd, belly],
-    [profile.length - rearLength * 0.45, mix(belly, tailBottom, rearBottomBlend)],
-    [profile.length, tailBottom],
+    [chinX, mix(noseBottom, belly, chinBlend)],
+    [shoulderX, mix(ventral, belly, frontBellyBlend)],
+    [waistX, ventral],
+    [trailingX, belly],
+    [exhaustX, mix(belly, tailBottom, rearBottomBlend)],
+    [tailX, tailBottom],
   ];
 
   const noseX = profile.axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
@@ -2903,8 +2955,8 @@ function createSideProfileAnchors(profile, segments, options = {}) {
     bottomAnchors,
     boundaries: hasSegments
       ? {
-          front: frontEnd,
-          mid: midEnd,
+          front: shoulderX,
+          mid: trailingX,
         }
       : null,
   };
