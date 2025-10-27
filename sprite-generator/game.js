@@ -265,6 +265,100 @@ const COLOR_PALETTES = [
   },
 ];
 
+// Predefined segment variants let the fuselage be assembled from mix-and-match
+// shapes instead of a single profile, giving the generator a wider silhouette
+// vocabulary without rewriting the downstream consumers that still expect
+// aggregate body measurements.
+const FRONT_SEGMENT_VARIANTS = [
+  {
+    type: "needle",
+    lengthWeightRange: [0.26, 0.34],
+    tipWidthFactorRange: [0.08, 0.14],
+    shoulderWidthFactorRange: [0.92, 1.05],
+    transitionFactorRange: [0.74, 0.88],
+    curveRange: [22, 32],
+  },
+  {
+    type: "canopy",
+    lengthWeightRange: [0.18, 0.24],
+    tipWidthFactorRange: [0.32, 0.48],
+    shoulderWidthFactorRange: [1.02, 1.18],
+    transitionFactorRange: [0.85, 1.05],
+    curveRange: [12, 20],
+  },
+  {
+    type: "ram",
+    lengthWeightRange: [0.22, 0.3],
+    tipWidthFactorRange: [0.2, 0.3],
+    shoulderWidthFactorRange: [0.96, 1.1],
+    transitionFactorRange: [0.78, 0.96],
+    curveRange: [16, 26],
+  },
+];
+
+const MID_SEGMENT_VARIANTS = [
+  {
+    type: "slim",
+    lengthWeightRange: [0.38, 0.46],
+    waistWidthFactorRange: [0.78, 0.9],
+    bellyWidthFactorRange: [0.92, 1.04],
+    trailingWidthFactorRange: [0.88, 0.98],
+    waistPositionRange: [0.28, 0.4],
+    bellyPositionRange: [0.62, 0.78],
+    insetRange: [10, 18],
+  },
+  {
+    type: "bulwark",
+    lengthWeightRange: [0.34, 0.42],
+    waistWidthFactorRange: [0.94, 1.06],
+    bellyWidthFactorRange: [1.08, 1.2],
+    trailingWidthFactorRange: [1.02, 1.14],
+    waistPositionRange: [0.32, 0.46],
+    bellyPositionRange: [0.68, 0.86],
+    insetRange: [6, 12],
+  },
+  {
+    type: "modular",
+    lengthWeightRange: [0.36, 0.48],
+    waistWidthFactorRange: [0.86, 0.98],
+    bellyWidthFactorRange: [1.0, 1.12],
+    trailingWidthFactorRange: [0.94, 1.06],
+    waistPositionRange: [0.3, 0.45],
+    bellyPositionRange: [0.58, 0.8],
+    insetRange: [8, 14],
+  },
+];
+
+const REAR_SEGMENT_VARIANTS = [
+  {
+    type: "tapered",
+    lengthWeightRange: [0.26, 0.34],
+    baseWidthFactorRange: [0.92, 1.04],
+    exhaustWidthFactorRange: [0.64, 0.76],
+    tailWidthFactorRange: [0.46, 0.58],
+    exhaustPositionRange: [0.52, 0.7],
+    curveRange: [16, 24],
+  },
+  {
+    type: "thruster",
+    lengthWeightRange: [0.24, 0.3],
+    baseWidthFactorRange: [1.02, 1.16],
+    exhaustWidthFactorRange: [0.72, 0.86],
+    tailWidthFactorRange: [0.58, 0.72],
+    exhaustPositionRange: [0.6, 0.82],
+    curveRange: [20, 32],
+  },
+  {
+    type: "block",
+    lengthWeightRange: [0.28, 0.36],
+    baseWidthFactorRange: [1.08, 1.22],
+    exhaustWidthFactorRange: [0.78, 0.92],
+    tailWidthFactorRange: [0.62, 0.78],
+    exhaustPositionRange: [0.54, 0.74],
+    curveRange: [18, 28],
+  },
+];
+
 const randomStack = [];
 let activeRandomSource = Math.random;
 
@@ -1486,26 +1580,103 @@ function drawDetails(root, config) {
 }
 
 function buildBodyPath(body) {
+  if (!body.segments) {
+    const halfLength = body.length / 2;
+    const noseY = 100 - halfLength;
+    const tailY = 100 + halfLength;
+    const waistLeft = 100 - body.halfWidth;
+    const waistRight = 100 + body.halfWidth;
+    const noseWidth = body.halfWidth * body.noseWidthFactor;
+    const tailWidth = body.halfWidth * body.tailWidthFactor;
+    const midUpper = 100 - body.midInset;
+    const midLower = 100 + body.midInset;
+
+    return [
+      `M ${100 - noseWidth} ${noseY}`,
+      `Q 100 ${noseY - body.noseCurve} ${100 + noseWidth} ${noseY}`,
+      `L ${waistRight} ${midUpper}`,
+      `Q ${100 + tailWidth} ${midLower} ${100 + tailWidth * 0.8} ${tailY}`,
+      `Q 100 ${tailY + body.tailCurve} ${100 - tailWidth * 0.8} ${tailY}`,
+      `Q ${100 - tailWidth} ${midLower} ${waistLeft} ${midUpper}`,
+      `L ${100 - noseWidth} ${noseY}`,
+      "Z",
+    ].join(" ");
+  }
+
+  const { front, mid, rear } = body.segments;
   const halfLength = body.length / 2;
   const noseY = 100 - halfLength;
   const tailY = 100 + halfLength;
-  const waistLeft = 100 - body.halfWidth;
-  const waistRight = 100 + body.halfWidth;
-  const noseWidth = body.halfWidth * body.noseWidthFactor;
-  const tailWidth = body.halfWidth * body.tailWidthFactor;
-  const midUpper = 100 - body.midInset;
-  const midLower = 100 + body.midInset;
+  const frontEndY = noseY + front.length;
+  const midEndY = frontEndY + mid.length;
+  const rearStartY = midEndY;
 
-  return [
-    `M ${100 - noseWidth} ${noseY}`,
-    `Q 100 ${noseY - body.noseCurve} ${100 + noseWidth} ${noseY}`,
-    `L ${waistRight} ${midUpper}`,
-    `Q ${100 + tailWidth} ${midLower} ${100 + tailWidth * 0.8} ${tailY}`,
-    `Q 100 ${tailY + body.tailCurve} ${100 - tailWidth * 0.8} ${tailY}`,
-    `Q ${100 - tailWidth} ${midLower} ${waistLeft} ${midUpper}`,
-    `L ${100 - noseWidth} ${noseY}`,
-    "Z",
-  ].join(" ");
+  const noseWidth = body.halfWidth * front.tipWidthFactor;
+  const shoulderWidth = body.halfWidth * front.shoulderWidthFactor;
+  const transitionWidth = shoulderWidth * (front.transitionFactor ?? 0.88);
+  const waistWidth = body.halfWidth * mid.waistWidthFactor;
+  const bellyWidth = body.halfWidth * mid.bellyWidthFactor;
+  const trailingMidWidth = body.halfWidth * (mid.trailingWidthFactor ?? mid.bellyWidthFactor);
+  const baseWidth = body.halfWidth * rear.baseWidthFactor;
+  const exhaustWidth = body.halfWidth * rear.exhaustWidthFactor;
+  const tailWidth = body.halfWidth * rear.tailWidthFactor;
+
+  const waistBias = clamp(mid.waistPosition ?? 0.35, 0.18, 0.55);
+  const bellyBias = clamp(mid.bellyPosition ?? 0.72, waistBias + 0.12, 0.92);
+  const exhaustBias = clamp(rear.exhaustPosition ?? 0.65, 0.35, 0.88);
+
+  const waistY = frontEndY + mid.length * waistBias;
+  const bellyTarget = frontEndY + mid.length * bellyBias;
+  const bellyY = Math.min(midEndY - 2, Math.max(waistY + 6, bellyTarget));
+  const exhaustY = rearStartY + rear.length * exhaustBias;
+
+  const format = (value) => Number(value.toFixed(2));
+  const nodes = [
+    { width: transitionWidth, y: noseY + front.length * 0.45 },
+    { width: shoulderWidth, y: frontEndY },
+    { width: waistWidth, y: waistY },
+    { width: bellyWidth, y: bellyY },
+    { width: trailingMidWidth, y: midEndY },
+    { width: baseWidth, y: rearStartY + rear.length * 0.3 },
+    { width: exhaustWidth, y: exhaustY },
+  ];
+
+  const commands = [];
+  commands.push(`M ${format(100 - noseWidth)} ${format(noseY)}`);
+  commands.push(`Q 100 ${format(noseY - front.curve)} ${format(100 + noseWidth)} ${format(noseY)}`);
+
+  let prevWidth = noseWidth;
+  let prevY = noseY;
+  nodes.forEach((node) => {
+    const controlX = format(100 + (prevWidth + node.width) / 2);
+    const controlY = format(prevY + (node.y - prevY) * 0.6);
+    commands.push(`Q ${controlX} ${controlY} ${format(100 + node.width)} ${format(node.y)}`);
+    prevWidth = node.width;
+    prevY = node.y;
+  });
+
+  const tailControlX = format(100 + (prevWidth + tailWidth) / 2);
+  const tailControlY = format(prevY + (tailY - prevY) * 0.8);
+  commands.push(`Q ${tailControlX} ${tailControlY} ${format(100 + tailWidth)} ${format(tailY)}`);
+  commands.push(`Q 100 ${format(tailY + rear.curve)} ${format(100 - tailWidth)} ${format(tailY)}`);
+
+  prevWidth = tailWidth;
+  prevY = tailY;
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    const node = nodes[i];
+    const controlX = format(100 - (prevWidth + node.width) / 2);
+    const controlY = format(prevY - (prevY - node.y) * 0.6);
+    commands.push(`Q ${controlX} ${controlY} ${format(100 - node.width)} ${format(node.y)}`);
+    prevWidth = node.width;
+    prevY = node.y;
+  }
+
+  const noseControlX = format(100 - (prevWidth + noseWidth) / 2);
+  const noseControlY = format(prevY - (prevY - noseY) * 0.6);
+  commands.push(`Q ${noseControlX} ${noseControlY} ${format(100 - noseWidth)} ${format(noseY)}`);
+  commands.push("Z");
+
+  return commands.join(" ");
 }
 
 function buildPlatingPath(body) {
@@ -1740,6 +1911,134 @@ function clamp(value, min, max) {
 }
 
 
+function createBodySegments(ranges) {
+  return {
+    front: createFrontSegmentVariant(ranges),
+    mid: createMidSegmentVariant(ranges),
+    rear: createRearSegmentVariant(ranges),
+  };
+}
+
+function createFrontSegmentVariant(ranges) {
+  const variant = choose(FRONT_SEGMENT_VARIANTS);
+  const segment = {
+    type: variant.type,
+    weight: randomBetween(...variant.lengthWeightRange),
+    tipWidthFactor: randomBetween(...variant.tipWidthFactorRange),
+    shoulderWidthFactor: randomBetween(...variant.shoulderWidthFactorRange),
+    transitionFactor: randomBetween(...variant.transitionFactorRange),
+    curve: randomBetween(...variant.curveRange),
+  };
+
+  if (ranges?.noseWidthFactor) {
+    segment.tipWidthFactor = clamp(segment.tipWidthFactor, ...ranges.noseWidthFactor);
+  }
+  if (ranges?.noseCurve) {
+    segment.curve = clamp(segment.curve, ...ranges.noseCurve);
+  }
+  return segment;
+}
+
+function createMidSegmentVariant(ranges) {
+  const variant = choose(MID_SEGMENT_VARIANTS);
+  const segment = {
+    type: variant.type,
+    weight: randomBetween(...variant.lengthWeightRange),
+    waistWidthFactor: randomBetween(...variant.waistWidthFactorRange),
+    bellyWidthFactor: randomBetween(...variant.bellyWidthFactorRange),
+    trailingWidthFactor: randomBetween(...variant.trailingWidthFactorRange),
+    waistPosition: randomBetween(...variant.waistPositionRange),
+    bellyPosition: randomBetween(...variant.bellyPositionRange),
+    inset: randomBetween(...variant.insetRange),
+  };
+
+  if (ranges?.bodyMidInset) {
+    segment.inset = clamp(segment.inset, ...ranges.bodyMidInset);
+  }
+  return segment;
+}
+
+function createRearSegmentVariant(ranges) {
+  const variant = choose(REAR_SEGMENT_VARIANTS);
+  const segment = {
+    type: variant.type,
+    weight: randomBetween(...variant.lengthWeightRange),
+    baseWidthFactor: randomBetween(...variant.baseWidthFactorRange),
+    exhaustWidthFactor: randomBetween(...variant.exhaustWidthFactorRange),
+    tailWidthFactor: randomBetween(...variant.tailWidthFactorRange),
+    exhaustPosition: randomBetween(...variant.exhaustPositionRange),
+    curve: randomBetween(...variant.curveRange),
+  };
+
+  if (ranges?.tailWidthFactor) {
+    segment.tailWidthFactor = clamp(segment.tailWidthFactor, ...ranges.tailWidthFactor);
+  }
+  if (ranges?.tailCurve) {
+    segment.curve = clamp(segment.curve, ...ranges.tailCurve);
+  }
+  return segment;
+}
+
+function synchroniseBodySegments(body, ranges) {
+  if (!body?.segments) {
+    return body;
+  }
+
+  const { front, mid, rear } = body.segments;
+  const parts = [front, mid, rear].filter(Boolean);
+  if (!parts.length) {
+    return body;
+  }
+
+  const weights = parts.map((segment) => Math.max(0.1, segment.weight ?? segment.length ?? 0.1));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  parts.forEach((segment, index) => {
+    segment.length = (weights[index] / totalWeight) * body.length;
+  });
+
+  front.tipWidthFactor = clamp(front.tipWidthFactor ?? body.noseWidthFactor ?? 0.34, 0.05, 1.2);
+  front.shoulderWidthFactor = clamp(front.shoulderWidthFactor ?? 1, 0.7, 1.35);
+  front.transitionFactor = clamp(front.transitionFactor ?? 0.88, 0.6, 1.25);
+  front.curve = clamp(front.curve ?? body.noseCurve ?? 18, 6, 40);
+  if (ranges?.noseWidthFactor) {
+    front.tipWidthFactor = clamp(front.tipWidthFactor, ...ranges.noseWidthFactor);
+  }
+  if (ranges?.noseCurve) {
+    front.curve = clamp(front.curve, ...ranges.noseCurve);
+  }
+
+  mid.waistWidthFactor = clamp(mid.waistWidthFactor ?? 0.92, 0.6, 1.3);
+  mid.bellyWidthFactor = clamp(mid.bellyWidthFactor ?? 1, 0.7, 1.45);
+  mid.trailingWidthFactor = clamp(mid.trailingWidthFactor ?? mid.bellyWidthFactor ?? 1, 0.7, 1.35);
+  mid.waistPosition = clamp(mid.waistPosition ?? 0.35, 0.2, 0.6);
+  mid.bellyPosition = clamp(mid.bellyPosition ?? 0.7, mid.waistPosition + 0.12, 0.95);
+  mid.inset = clamp(mid.inset ?? body.midInset ?? 10, 2, Math.max(6, body.length / 2));
+  if (ranges?.bodyMidInset) {
+    mid.inset = clamp(mid.inset, ...ranges.bodyMidInset);
+  }
+
+  rear.baseWidthFactor = clamp(rear.baseWidthFactor ?? 1, 0.6, 1.4);
+  rear.exhaustWidthFactor = clamp(rear.exhaustWidthFactor ?? 0.8, 0.4, 1.2);
+  rear.tailWidthFactor = clamp(rear.tailWidthFactor ?? body.tailWidthFactor ?? 0.6, 0.3, 1.1);
+  rear.exhaustPosition = clamp(rear.exhaustPosition ?? 0.65, 0.3, 0.9);
+  rear.curve = clamp(rear.curve ?? body.tailCurve ?? 20, 6, 48);
+  if (ranges?.tailWidthFactor) {
+    rear.tailWidthFactor = clamp(rear.tailWidthFactor, ...ranges.tailWidthFactor);
+  }
+  if (ranges?.tailCurve) {
+    rear.curve = clamp(rear.curve, ...ranges.tailCurve);
+  }
+
+  body.noseWidthFactor = front.tipWidthFactor;
+  body.noseCurve = front.curve;
+  body.midInset = mid.inset;
+  body.tailWidthFactor = rear.tailWidthFactor;
+  body.tailCurve = rear.curve;
+
+  return body;
+}
+
+
 function createBaseConfig(categoryKey) {
   const def = CATEGORY_DEFINITIONS[categoryKey];
   const palette = pickPalette();
@@ -1795,16 +2094,16 @@ function createTopDownConfig(categoryKey, def, palette) {
     label: def.label,
     description: def.description,
     palette,
-    body: {
-      length: bodyLength,
-      halfWidth: bodyHalfWidth,
-      midInset: randomBetween(...ranges.bodyMidInset),
-      noseCurve: randomBetween(...ranges.noseCurve),
-      tailCurve: randomBetween(...ranges.tailCurve),
-      noseWidthFactor: randomBetween(...ranges.noseWidthFactor),
-      tailWidthFactor: randomBetween(...ranges.tailWidthFactor),
-      plating: nextRandom() < def.features.platingProbability,
-    },
+    body: (() => {
+      const body = {
+        length: bodyLength,
+        halfWidth: bodyHalfWidth,
+        segments: createBodySegments(ranges),
+        plating: nextRandom() < def.features.platingProbability,
+      };
+      synchroniseBodySegments(body, ranges);
+      return body;
+    })(),
     cockpit: {
       width: randomBetween(...ranges.cockpitWidth),
       height: randomBetween(...ranges.cockpitHeight),
@@ -1931,6 +2230,10 @@ function normaliseTopDownConfig(copy) {
       copy.wings.span = Math.max(12, copy.wings.span);
       copy.wings.thickness = Math.max(4, copy.wings.thickness);
     }
+  }
+  if (copy.body?.segments) {
+    const ranges = CATEGORY_DEFINITIONS[copy.category]?.ranges;
+    synchroniseBodySegments(copy.body, ranges);
   }
   return copy;
 }
