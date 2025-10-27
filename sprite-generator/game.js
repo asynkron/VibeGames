@@ -480,6 +480,10 @@ function deriveSideViewGeometry(config) {
   const fuselageRadius = Math.max(body.halfWidth, 12);
   const baseHeight = Math.max(fuselageRadius * 1.4, (cockpit?.height ?? 18) + 8, (fins?.height ?? 24) * 0.55);
 
+  // Helper closures to keep side-view distances in lockstep with the top-down layout.
+  const clampToBody = (value) => clamp(value, 0, body.length);
+  const centerOffsetToBody = (offset) => clampToBody(halfLength + offset);
+
   const noseLength = clamp(body.length * 0.18 + body.noseCurve * 0.35, body.length * 0.16, body.length * 0.32);
   const tailLength = clamp(body.length * 0.22 + body.tailCurve * 0.3, body.length * 0.16, body.length * 0.36);
   const noseHeight = Math.max(8, body.noseCurve * 0.55);
@@ -509,30 +513,27 @@ function deriveSideViewGeometry(config) {
 
   const canopyLength = clamp((cockpit?.width ?? 28) * 1.1, body.length * 0.16, body.length * 0.32);
   const canopyHeight = clamp((cockpit?.height ?? 18) * 1.05, (cockpit?.height ?? 18) * 0.85, dorsalHeight - 4);
-  const canopyOffset = clamp(
-    halfLength + (cockpit?.offsetY ?? 0) + noseLength * 0.4,
-    noseLength * 0.6,
-    body.length * 0.58,
+  const canopyCenterFromNose = clamp(
+    body.length * 0.32 + (cockpit?.offsetY ?? 0),
+    canopyLength * 0.5,
+    body.length - canopyLength * 0.5,
   );
   const canopy = {
     length: canopyLength,
     height: canopyHeight,
-    offset: canopyOffset,
+    offset: canopyCenterFromNose - canopyLength * 0.5,
     offsetY: -(cockpit?.offsetY ?? 0) * 0.25,
     frame: clamp((cockpit?.width ?? 28) * 0.08, 1.8, 3.8),
     tint: cockpit?.tint ?? "#7ed4ff",
   };
 
   const wingEnabled = Boolean(wings?.enabled);
-  const wingPosition = clamp(
-    noseLength + halfLength + (wings?.offsetY ?? 0),
-    noseLength * 0.9,
-    body.length * 0.78,
-  );
+  const wingRootFromNose = wingEnabled ? centerOffsetToBody(wings?.offsetY ?? 0) : 0;
+  const wingLength = wingEnabled ? Math.max(24, (wings?.span ?? 0) * 0.6) : 0;
   const wing = {
     enabled: wingEnabled,
-    position: wingPosition,
-    length: wingEnabled ? Math.max(24, (wings?.span ?? 0) * 0.6) : 0,
+    position: wingEnabled ? clamp(wingRootFromNose, wingLength * 0.12, body.length - wingLength * 0.25) : 0,
+    length: wingLength,
     thickness: wingEnabled ? Math.max(6, (wings?.thickness ?? 0) * 0.55) : 0,
     dihedral: wingEnabled ? Math.max(0, (wings?.dihedral ?? 0) * 0.8) : 0,
     drop: wingEnabled ? Math.max(6, (wings?.sweep ?? 0) * 0.6) : 0,
@@ -573,9 +574,9 @@ function deriveSideViewGeometry(config) {
 
   const markings = {
     enabled: Boolean(details?.stripe),
-    stripeLength: clamp(body.length * 0.24, body.length * 0.16, body.length * 0.34),
+    stripeLength: body.length * 0.25,
     stripeHeight: clamp(baseHeight * 0.3, baseHeight * 0.2, baseHeight * 0.45),
-    stripeOffset: clamp(noseLength * 0.8 + (details?.stripeOffset ?? body.length * 0.3), noseLength * 0.6, body.length * 0.78),
+    stripeOffset: clamp(details?.stripeOffset ?? body.length * 0.3, body.length * 0.12, body.length * 0.85),
     stripeLift: clamp(-(cockpit?.offsetY ?? 0) * 0.4, -baseHeight * 0.3, baseHeight * 0.3),
   };
 
