@@ -410,7 +410,9 @@ const DEBUG_PART_COLORS = {
 
 const categorySelect = document.getElementById("categorySelect");
 const spriteGrid = document.getElementById("spriteGrid");
-const detailSprite = document.getElementById("detailSprite");
+const detailTopView = document.getElementById("detailTopView");
+const detailSideView = document.getElementById("detailSideView");
+const detailViewportContainer = document.querySelector(".detail-viewports");
 const definition = document.getElementById("definition");
 const newSeedButton = document.getElementById("newSeed");
 const shufflePaletteButton = document.getElementById("shufflePalette");
@@ -522,8 +524,27 @@ function createSpriteCard(config, isParent) {
     button.classList.add("selected");
   }
 
-  const svg = document.createElementNS(SVG_NS, "svg");
-  renderSpaceship(svg, config, { viewMode: VIEW_MODE.value });
+  const viewportWrapper = document.createElement("div");
+  viewportWrapper.className = "sprite-viewports";
+
+  if (VIEW_MODE.value === "both") {
+    viewportWrapper.classList.add("dual");
+
+    const topSvg = createViewportSvg("Top-down spaceship preview");
+    renderSpaceship(topSvg, config, { viewMode: "top", drawFrame: true });
+
+    const sideSvg = createViewportSvg("Side profile spaceship preview");
+    renderSpaceship(sideSvg, config, { viewMode: "side", drawFrame: true });
+
+    viewportWrapper.append(topSvg, sideSvg);
+  } else {
+    const singleSvg = createViewportSvg("Spaceship preview");
+    renderSpaceship(singleSvg, config, {
+      viewMode: VIEW_MODE.value,
+      drawFrame: true,
+    });
+    viewportWrapper.append(singleSvg);
+  }
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -535,12 +556,43 @@ function createSpriteCard(config, isParent) {
   mode.textContent = VIEW_MODE.shortLabel;
   meta.append(category, mode, palette);
 
-  button.append(svg, meta);
+  button.append(viewportWrapper, meta);
   return button;
 }
 
+function createViewportSvg(label) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", label);
+  return svg;
+}
+
 function renderDetail(config) {
-  renderSpaceship(detailSprite, config, { viewMode: VIEW_MODE.value });
+  const mode = VIEW_MODE.value;
+
+  if (detailViewportContainer) {
+    if (mode === "both") {
+      detailViewportContainer.classList.add("dual");
+    } else {
+      detailViewportContainer.classList.remove("dual");
+    }
+  }
+
+  if (mode === "both") {
+    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
+    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
+    setViewportVisibility(detailTopView, true);
+    setViewportVisibility(detailSideView, true);
+  } else if (mode === "side") {
+    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
+    setViewportVisibility(detailSideView, true);
+    clearViewport(detailTopView);
+  } else {
+    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
+    setViewportVisibility(detailTopView, true);
+    clearViewport(detailSideView);
+  }
+
   definition.textContent = JSON.stringify(
     config,
     (key, value) => (typeof value === "number" ? Number(value.toFixed(2)) : value),
@@ -548,53 +600,57 @@ function renderDetail(config) {
   );
 }
 
+function setViewportVisibility(svg, isVisible) {
+  if (!svg) {
+    return;
+  }
+  svg.style.display = isVisible ? "" : "none";
+  svg.setAttribute("aria-hidden", isVisible ? "false" : "true");
+}
+
+function clearViewport(svg) {
+  if (!svg) {
+    return;
+  }
+  // Remove any stale artwork while collapsing the viewport from layout flow.
+  svg.innerHTML = "";
+  svg.removeAttribute("data-view-mode");
+  svg.setAttribute("aria-hidden", "true");
+  svg.style.display = "none";
+}
+
 function renderSpaceship(svg, config, options = {}) {
-  const viewMode = options.viewMode ?? VIEW_MODE.value;
+  if (!svg) {
+    return;
+  }
+
+  const viewMode = options.viewMode ?? "top";
+  const drawFrame = options.drawFrame ?? false;
+
   svg.innerHTML = "";
   svg.setAttribute("data-view-mode", viewMode);
   svg.setAttribute("data-debug", debugColorsEnabled ? "true" : "false");
+  svg.removeAttribute("aria-hidden");
+  svg.style.display = "";
+  svg.setAttribute("viewBox", "0 0 200 200");
 
   const defs = document.createElementNS(SVG_NS, "defs");
   svg.appendChild(defs);
 
-  if (viewMode === "both") {
-    svg.setAttribute("viewBox", "0 0 400 200");
+  if (drawFrame) {
     const frameStroke = mixColor(config.palette.trim, "#0f172a", 0.55);
     const frameFill = "rgba(15, 23, 42, 0.18)";
-
-    const topFrame = document.createElementNS(SVG_NS, "rect");
-    topFrame.setAttribute("x", "0");
-    topFrame.setAttribute("y", "0");
-    topFrame.setAttribute("width", "200");
-    topFrame.setAttribute("height", "200");
-    topFrame.setAttribute("fill", frameFill);
-    topFrame.setAttribute("stroke", frameStroke);
-    topFrame.setAttribute("stroke-width", "1.5");
-
-    const sideFrame = document.createElementNS(SVG_NS, "rect");
-    sideFrame.setAttribute("x", "200");
-    sideFrame.setAttribute("y", "0");
-    sideFrame.setAttribute("width", "200");
-    sideFrame.setAttribute("height", "200");
-    sideFrame.setAttribute("fill", frameFill);
-    sideFrame.setAttribute("stroke", frameStroke);
-    sideFrame.setAttribute("stroke-width", "1.5");
-
-    const topGroup = createShipRootGroup(config.body, {
-      offsetX: 0,
-      offsetY: 0,
-    });
-    const sideGroup = createShipRootGroup(config.body, {
-      offsetX: 200,
-      offsetY: 0,
-    });
-    svg.append(topFrame, topGroup.wrapper, sideFrame, sideGroup.wrapper);
-    drawTopDownSpaceship(topGroup.root, config, defs);
-    drawSideViewSpaceship(sideGroup.root, config, defs);
-    return;
+    const frame = document.createElementNS(SVG_NS, "rect");
+    frame.setAttribute("x", "0");
+    frame.setAttribute("y", "0");
+    frame.setAttribute("width", "200");
+    frame.setAttribute("height", "200");
+    frame.setAttribute("fill", frameFill);
+    frame.setAttribute("stroke", frameStroke);
+    frame.setAttribute("stroke-width", "1.5");
+    svg.appendChild(frame);
   }
 
-  svg.setAttribute("viewBox", "0 0 200 200");
   const rootGroup = createShipRootGroup(config.body, {
     offsetX: 0,
     offsetY: 0,
