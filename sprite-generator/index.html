@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpriteGenerator</title>
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="screen sprite-generator-screen crt-frame">
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud sprite-generator">
+      <header class="hud-header">
+        <div class="hud-title">SpriteGenerator</div>
+        <div class="hud-subtitle">Procedural spaceship sprites assembled from SVG parts.</div>
+        <button id="randomize" class="hud-button">Randomize All</button>
+      </header>
+      <main>
+        <section class="grid" id="sprite-grid" aria-label="Generated spaceship sprites"></section>
+        <section class="definition" aria-live="polite">
+          <header>
+            <h2>Selected Definition</h2>
+            <p>Click any sprite to adopt it as the parent configuration for the next generation.</p>
+          </header>
+          <article>
+            <div class="definition-meta">
+              <span id="definition-type"></span>
+              <span id="definition-seed"></span>
+            </div>
+            <p id="definition-description" class="definition-description"></p>
+            <pre id="definition-json">Select a sprite to inspect its configuration.</pre>
+          </article>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
