@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpriteGenerator</title>
+  <link rel="stylesheet" href="../shared/crt.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="crt fx">
+    <header class="panel">
+      <h1>SpriteGenerator</h1>
+      <p>Generate modular SVG spaceships, inspect their definitions, and branch new variants from your favourites.</p>
+    </header>
+
+    <main class="layout">
+      <section class="controls panel">
+        <div class="control">
+          <label for="categorySelect">Ship archetype</label>
+          <select id="categorySelect"></select>
+        </div>
+        <div class="control buttons">
+          <button id="newSeed" type="button">New seed</button>
+          <button id="shufflePalette" type="button">Shuffle palette</button>
+        </div>
+        <p class="hint">Click any sprite in the grid to set it as the new parent configuration. Children mutate parts while respecting their archetype.</p>
+      </section>
+
+      <section class="grid" id="spriteGrid" aria-live="polite"></section>
+
+      <section class="detail panel">
+        <div class="detail-visual">
+          <svg id="detailSprite" role="img" aria-label="Selected spaceship" viewBox="0 0 200 200"></svg>
+        </div>
+        <div class="detail-definition">
+          <h2>Definition</h2>
+          <pre id="definition"></pre>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
