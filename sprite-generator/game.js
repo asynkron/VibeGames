@@ -1048,8 +1048,11 @@ function deriveSideViewGeometry(config) {
     stripeLift: clamp(-(cockpit?.offsetY ?? 0) * 0.4, -baseHeight * 0.3, baseHeight * 0.3),
   };
   if (markings.enabled) {
-    markings.stripeStartPercent = markings.stripeOffset / body.length;
-    markings.stripeEndPercent = (markings.stripeOffset + markings.stripeLength) / body.length;
+    // Persist stripe bounds as percentages so rendering in either projection stays in sync.
+    const stripeStartPercent = clamp(markings.stripeOffset / body.length, 0, 1);
+    const stripeEndPercent = clamp((markings.stripeOffset + markings.stripeLength) / body.length, 0, 1);
+    markings.stripeStartPercent = stripeStartPercent;
+    markings.stripeEndPercent = stripeEndPercent;
   }
 
   let antenna = null;
@@ -1443,7 +1446,8 @@ function drawSideWeapons(root, config, geometry, axis) {
     const tipColor = partColor("weapons", mixColor(palette.accent, palette.secondary, 0.4));
 
     armament.hardpoints.forEach((hardpoint) => {
-      const anchorPercent = wing.positionPercent + wing.lengthPercent * hardpoint.chordRatio;
+      // Mirror the top-view clamp to keep the profile ordnance aligned with the wing.
+      const anchorPercent = clamp(wing.positionPercent + wing.lengthPercent * hardpoint.chordRatio, 0, 1);
       const anchorX = axis.percentToSideX(anchorPercent);
       const pylonLength = hardpoint.pylonLength ?? Math.max(wing.thickness * 0.6, 8);
       const payloadLength = hardpoint.payloadLength ?? Math.max(18, wing.length * 0.3);
@@ -1578,8 +1582,15 @@ function drawSideMarkings(root, config, geometry, axis) {
   if (!markings?.enabled) {
     return;
   }
-  const startX = axis.percentToSideX(markings.stripeStartPercent ?? 0);
-  const endLimitPercent = Math.min(markings.stripeEndPercent ?? 1, 1 - profile.tailLength / profile.length * 0.6);
+  // Clamp stored stripe bounds before projecting them into screen space.
+  const startPercent = clamp(markings.stripeStartPercent ?? 0, 0, 1);
+  const startX = axis.percentToSideX(startPercent);
+  // Respect both the tail taper and the hull bounds when limiting the stripe end.
+  const endLimitPercent = clamp(
+    Math.min(markings.stripeEndPercent ?? 1, 1 - (profile.tailLength / profile.length) * 0.6),
+    0,
+    1,
+  );
   const endX = axis.percentToSideX(endLimitPercent);
   const midY = 100 + (profile.offsetY ?? 0) + (markings.stripeLift ?? 0);
   const stripeHeight = markings.stripeHeight;
@@ -1764,7 +1775,8 @@ function drawTopArmament(root, config, axis) {
 
     armament.hardpoints.forEach((hardpoint) => {
       const chordRatio = clamp(hardpoint.chordRatio ?? 0.5, 0.1, 0.9);
-      const anchorPercent = planform.positionPercent + planform.lengthPercent * chordRatio;
+      // Clamp to the hull span so missiles cannot float behind the tail.
+      const anchorPercent = clamp(planform.positionPercent + planform.lengthPercent * chordRatio, 0, 1);
       const anchorY = axis.percentToTopY(anchorPercent);
       const payloadLength = hardpoint.payloadLength ?? Math.max(18, planform.length * 0.3);
       const payloadRadius = hardpoint.payloadRadius ?? Math.max(5, planform.thickness * 0.35);
@@ -2627,8 +2639,9 @@ function buildSideWingPoints(wing, profile, axis) {
 }
 
 function buildStripePath(body, details, axis) {
-  const startPercent = (details.stripeOffset ?? 0) / body.length;
-  const endPercent = startPercent + 0.25;
+  // Stripe offsets are expressed as body-relative lengths, so keep them within the hull interval.
+  const startPercent = clamp((details.stripeOffset ?? 0) / body.length, 0, 1);
+  const endPercent = clamp(startPercent + 0.25, 0, 1);
   const noseY = axis.percentToTopY(startPercent);
   const tailY = axis.percentToTopY(endPercent);
   const left = 100 - body.halfWidth * 0.6;
