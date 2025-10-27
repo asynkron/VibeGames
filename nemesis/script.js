@@ -12,8 +12,9 @@ import { createScreenViewport } from '../shared/render/screenViewport.js';
 import { clamp } from '../shared/utils/math.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 import { stepProjectiles } from '../shared/utils/projectiles.js';
+import { generateSpaceshipSprite } from '../sprite-generator/game.js';
 
-(() => {
+(async () => {
   const canvas = document.getElementById('game');
   // Enable alpha on the main canvas so the lighting mask can punch holes through
   // the ambient overlay instead of clearing to opaque black.
@@ -107,6 +108,200 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     pause: 'rgba(14, 20, 40, 0.75)',
     text: '#f4faff',
   };
+
+  // Sprite cache shared between the player and enemy spawners.
+  const spriteAssets = {
+    player: null,
+    enemies: [],
+  };
+
+  function getSourceDimensions(source) {
+    if (!source) return { width: 0, height: 0 };
+    const width = source.naturalWidth ?? source.width ?? 0;
+    const height = source.naturalHeight ?? source.height ?? 0;
+    return { width, height };
+  }
+
+  // Convert an SVG blob URL into an image we can blit onto the main canvas.
+  function loadImageFromUrl(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Failed to load spaceship sprite'));
+      img.src = url;
+    });
+  }
+
+  // Generate a spaceship sprite using the shared generator and prepare canvas-friendly metadata.
+  async function createSpaceshipTexture(options = {}) {
+    const {
+      category = 'fighter',
+      seed,
+      paletteName,
+      palette,
+      viewMode = 'side',
+      flipHorizontal = false,
+    } = options;
+
+    const { svg, config } = generateSpaceshipSprite({
+      category,
+      seed,
+      paletteName,
+      palette,
+      viewMode,
+    });
+
+    svg.setAttribute('width', '200');
+    svg.setAttribute('height', '200');
+    svg.style.position = 'absolute';
+    svg.style.opacity = '0';
+    svg.style.pointerEvents = 'none';
+    document.body.appendChild(svg);
+    const bbox = svg.getBBox();
+    document.body.removeChild(svg);
+
+    const serializer = new XMLSerializer();
+    const markup = serializer.serializeToString(svg);
+    const blob = new Blob([markup], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+
+    let image;
+    try {
+      image = await loadImageFromUrl(url);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+
+    const { width: imgWidth, height: imgHeight } = getSourceDimensions(image);
+    const anchorX = bbox.x + bbox.width / 2;
+    const anchorY = bbox.y + bbox.height / 2;
+
+    const baseBounds = {
+      x: bbox.x,
+      y: bbox.y,
+      width: bbox.width,
+      height: bbox.height,
+    };
+    const baseExtents = {
+      left: anchorX - bbox.x,
+      right: (bbox.x + bbox.width) - anchorX,
+      top: anchorY - bbox.y,
+      bottom: (bbox.y + bbox.height) - anchorY,
+    };
+
+    let finalImage = image;
+    let anchor = { x: anchorX, y: anchorY };
+    let bounds = { ...baseBounds };
+    let extents = { ...baseExtents };
+
+    if (flipHorizontal) {
+      const canvas = document.createElement('canvas');
+      canvas.width = imgWidth;
+      canvas.height = imgHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(image, 0, 0);
+      finalImage = canvas;
+      anchor = { x: canvas.width - anchorX, y: anchorY };
+      bounds = {
+        x: canvas.width - (baseBounds.x + baseBounds.width),
+        y: baseBounds.y,
+        width: baseBounds.width,
+        height: baseBounds.height,
+      };
+      extents = {
+        left: baseExtents.right,
+        right: baseExtents.left,
+        top: baseExtents.top,
+        bottom: baseExtents.bottom,
+      };
+    }
+
+    const tailOffset = flipHorizontal ? -extents.left : extents.right;
+    const noseOffset = flipHorizontal ? extents.right : -extents.left;
+
+    return {
+      image: finalImage,
+      config,
+      anchor,
+      bounds,
+      extents,
+      tailOffset,
+      noseOffset,
+      sourceDimensions: { width: imgWidth, height: imgHeight },
+      scale: 1,
+      renderWidth: 0,
+      renderHeight: 0,
+    };
+  }
+
+  // Normalise the sprite so it renders at roughly the requested in-game width.
+  function applySpriteScale(sprite, targetWidth) {
+    const width = sprite?.bounds?.width || sprite?.sourceDimensions?.width || 1;
+    const height = sprite?.bounds?.height || sprite?.sourceDimensions?.height || 1;
+    const scale = width > 0 ? targetWidth / width : 1;
+    sprite.scale = scale;
+    sprite.renderWidth = width * scale;
+    sprite.renderHeight = height * scale;
+    return sprite;
+  }
+
+  // Preload a deterministic set of sprites for the player and fighters.
+  async function prepareSpriteAssets() {
+    const enemySeeds = [9027, 9031, 9043];
+    const playerSpritePromise = createSpaceshipTexture({
+      category: 'fighter',
+      seed: 1337,
+      paletteName: 'Ion Drift',
+      viewMode: 'side',
+      flipHorizontal: true,
+    });
+    const enemyPromises = enemySeeds.map((seed) => createSpaceshipTexture({
+      category: 'fighter',
+      seed,
+      paletteName: 'Photon Ember',
+      viewMode: 'side',
+    }));
+
+    const [playerSprite, ...enemySprites] = await Promise.all([
+      playerSpritePromise,
+      ...enemyPromises,
+    ]);
+
+    applySpriteScale(playerSprite, 24);
+    playerSprite.tailOffsetScaled = playerSprite.tailOffset * playerSprite.scale;
+    playerSprite.noseOffsetScaled = playerSprite.noseOffset * playerSprite.scale;
+
+    const scaledEnemies = enemySprites.map((sprite) => {
+      applySpriteScale(sprite, 20);
+      sprite.tailOffsetScaled = sprite.tailOffset * sprite.scale;
+      sprite.noseOffsetScaled = sprite.noseOffset * sprite.scale;
+      return sprite;
+    });
+
+    return { player: playerSprite, enemies: scaledEnemies };
+  }
+
+  const spriteAssetsPromise = prepareSpriteAssets();
+
+  // Shared draw helper so both the player and enemies can blit the cached SVG output.
+  function drawSpaceshipSprite(ctx, sprite, options = {}) {
+    if (!sprite?.image) return;
+    const scale = options.scale ?? sprite.scale ?? 1;
+    const rotation = options.rotation ?? 0;
+    const sourceWidth = sprite.sourceDimensions?.width ?? sprite.image.width ?? 0;
+    const sourceHeight = sprite.sourceDimensions?.height ?? sprite.image.height ?? 0;
+    if (!sourceWidth || !sourceHeight) return;
+
+    ctx.save();
+    if (rotation !== 0) ctx.rotate(rotation);
+    const anchorX = (sprite.anchor?.x ?? sourceWidth / 2) * scale;
+    const anchorY = (sprite.anchor?.y ?? sourceHeight / 2) * scale;
+    ctx.drawImage(sprite.image, -anchorX, -anchorY, sourceWidth * scale, sourceHeight * scale);
+    ctx.restore();
+  }
 
   const POWERUP_TYPES = {
     main: [
@@ -1267,6 +1462,11 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     for (const offset of template.offsets) {
       const bobAmplitude = offset.bobAmplitude ?? template.bobAmplitude ?? 0;
       const bobFrequency = offset.bobFrequency ?? template.bobFrequency ?? (bobAmplitude ? 1.2 + Math.random() * 0.6 : 0);
+      const sprite = spriteAssets.enemies.length
+        ? spriteAssets.enemies[Math.floor(Math.random() * spriteAssets.enemies.length)]
+        : null;
+      const spriteWidth = sprite?.renderWidth ?? 16;
+      const spriteHeight = sprite?.renderHeight ?? 12;
       enemies.push({
         type: 'fighter',
         formationId,
@@ -1275,14 +1475,15 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         bobAmplitude,
         bobFrequency,
         bobPhase: Math.random() * Math.PI * 2,
-        width: 16,
-        height: 12,
+        width: Math.max(14, spriteWidth * 0.7),
+        height: Math.max(10, spriteHeight * 0.6),
         hp: 2,
         score: template.score ?? 180,
         canFire: formation.allowFire && (offset.canFire ?? false),
         fireTimer: (formation.fireInterval ?? 2.2) * 0.6 + Math.random() * 0.5,
         fireCooldown: formation.fireInterval,
         fireVariance: formation.fireVariance,
+        sprite,
       });
     }
   }
@@ -1856,9 +2057,12 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     for (const enemy of enemies) {
       const screenX = enemy.x - state.cameraX;
       if (screenX < -40 || screenX > SCREEN_WIDTH + 40) continue;
+      const sprite = enemy.sprite ?? null;
       ctx.save();
-      if (enemy.type === 'fighter') {
-        ctx.translate(screenX, enemy.y);
+      ctx.translate(screenX, enemy.y);
+      if (enemy.type === 'fighter' && sprite?.image) {
+        drawSpaceshipSprite(ctx, sprite, { scale: sprite.scale });
+      } else if (enemy.type === 'fighter') {
         ctx.fillStyle = COLORS.enemy;
         ctx.beginPath();
         ctx.moveTo(-8, -4);
@@ -1870,16 +2074,15 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
         ctx.fill();
         ctx.fillStyle = COLORS.enemyAccent;
         ctx.fillRect(-4, -2, 6, 4);
-        ctx.restore();
       } else {
         ctx.fillStyle = COLORS.turret;
-        ctx.fillRect(screenX - 7, enemy.y - enemy.height, 14, enemy.height);
+        ctx.fillRect(-7, -enemy.height, 14, enemy.height);
         ctx.fillStyle = COLORS.enemyAccent;
-        ctx.fillRect(screenX - 5, enemy.y - enemy.height + 3, 10, 4);
-        ctx.restore();
+        ctx.fillRect(-5, -enemy.height + 3, 10, 4);
       }
+      ctx.restore();
       lights.push({
-        x: screenX,
+        x: screenX + (sprite?.tailOffsetScaled ?? 0) * 0.4,
         y: enemy.y,
         radius: 50,
         innerRadius: 8,
@@ -1936,33 +2139,55 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   function drawPlayer(now) {
     const screenX = player.x;
     const shipY = player.y;
-    ctx.save();
-    ctx.translate(screenX, shipY);
-    ctx.rotate(player.tilt * 0.6);
-    ctx.fillStyle = COLORS.playerBody;
-    ctx.beginPath();
-    ctx.moveTo(-10, -4);
-    ctx.lineTo(6, -2);
-    ctx.lineTo(10, 0);
-    ctx.lineTo(6, 2);
-    ctx.lineTo(-10, 4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = COLORS.playerOutline;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = COLORS.playerAccent;
-    ctx.fillRect(-2, -3, 6, 6);
+    const sprite = spriteAssets.player;
+    if (sprite?.image) {
+      ctx.save();
+      ctx.translate(screenX, shipY);
+      ctx.rotate(player.tilt * 0.6);
 
-    const flame = (Math.sin(now * 0.02) + 1) * 0.5;
-    ctx.fillStyle = COLORS.playerEngine;
-    ctx.beginPath();
-    ctx.moveTo(-10, -1);
-    ctx.lineTo(-14 - flame * 6, 0);
-    ctx.lineTo(-10, 1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+      const flamePulse = 0.6 + (Math.sin(now * 0.02) + 1) * 0.2;
+      const tailX = sprite.tailOffsetScaled ?? -10;
+      const flameLength = Math.max(6, sprite.renderWidth * 0.18) * flamePulse;
+      const flameHalfHeight = Math.max(2.4, sprite.renderHeight * 0.18);
+      ctx.fillStyle = COLORS.playerEngine;
+      ctx.beginPath();
+      ctx.moveTo(tailX, -flameHalfHeight);
+      ctx.lineTo(tailX - flameLength, 0);
+      ctx.lineTo(tailX, flameHalfHeight);
+      ctx.closePath();
+      ctx.fill();
+
+      drawSpaceshipSprite(ctx, sprite, { scale: sprite.scale });
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.translate(screenX, shipY);
+      ctx.rotate(player.tilt * 0.6);
+      ctx.fillStyle = COLORS.playerBody;
+      ctx.beginPath();
+      ctx.moveTo(-10, -4);
+      ctx.lineTo(6, -2);
+      ctx.lineTo(10, 0);
+      ctx.lineTo(6, 2);
+      ctx.lineTo(-10, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = COLORS.playerOutline;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = COLORS.playerAccent;
+      ctx.fillRect(-2, -3, 6, 6);
+
+      const flame = (Math.sin(now * 0.02) + 1) * 0.5;
+      ctx.fillStyle = COLORS.playerEngine;
+      ctx.beginPath();
+      ctx.moveTo(-10, -1);
+      ctx.lineTo(-14 - flame * 6, 0);
+      ctx.lineTo(-10, 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
 
     if (player.invincible > 0 && !state.gameOver) {
       const alpha = 0.35 + 0.35 * Math.sin(now * 0.018);
@@ -1974,7 +2199,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     }
 
     lights.push({
-      x: screenX - 8,
+      x: screenX + (sprite?.tailOffsetScaled ?? -8),
       y: shipY,
       radius: 70,
       innerRadius: 10,
@@ -1982,7 +2207,7 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       color: 'rgba(255, 180, 110, 0.45)',
     });
     lights.push({
-      x: screenX + player.width * 0.5,
+      x: screenX + (sprite?.noseOffsetScaled ?? player.width * 0.5),
       y: shipY,
       radius: 80,
       innerRadius: 18,
@@ -2129,7 +2354,19 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     requestAnimationFrame(frame);
   }
 
+  const assets = await spriteAssetsPromise;
+  spriteAssets.player = assets.player;
+  spriteAssets.enemies = assets.enemies;
+
+  if (spriteAssets.player?.renderWidth) {
+    // Update collision footprint so the new sprite still matches gameplay expectations.
+    player.width = Math.max(18, spriteAssets.player.renderWidth * 0.82);
+    player.height = Math.max(12, spriteAssets.player.renderHeight * 0.68);
+  }
+
   resetGame();
   requestAnimationFrame(frame);
-})();
+})().catch((error) => {
+  console.error('Nemesis failed to start', error);
+});
 
