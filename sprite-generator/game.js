@@ -969,6 +969,7 @@ function deriveSideViewGeometry(config) {
         drop: planform.drop,
         // Preserve any explicit vertical offset instead of inferring it from the fore/aft mount.
         mountHeight: planform.mountHeight ?? 0,
+        style: planform.style ?? wings?.style ?? "swept",
         accent: Boolean(wings?.tipAccent),
       }
     : {
@@ -982,6 +983,7 @@ function deriveSideViewGeometry(config) {
         dihedral: 0,
         drop: 0,
         mountHeight: 0,
+        style: "swept",
         accent: false,
       };
 
@@ -2459,6 +2461,7 @@ function computeWingPlanform(body, wings) {
       drop: 0,
       mountOffset: 0,
       mountHeight: 0,
+      style: wings?.style ?? null,
     };
   }
 
@@ -2491,6 +2494,7 @@ function computeWingPlanform(body, wings) {
     drop,
     mountOffset: wings.offsetY ?? 0,
     mountHeight,
+    style: wings.style ?? "swept",
   };
 }
 
@@ -2636,23 +2640,95 @@ function sampleHullTopY(profile, distanceFromNose) {
 }
 
 function buildSideWingPoints(wing, profile, axis) {
-  const noseX = axis.side.nose;
   const baseX = axis.percentToSideX(wing.positionPercent);
   const baseY = 100 + (profile.offsetY ?? 0) + wing.mountHeight;
-  const leadingX = baseX + wing.length;
-  const spanInfluence = wing.profileSpan ?? wing.length;
-  const leadingY = baseY - Math.max(wing.dihedral, spanInfluence * 0.18);
-  const trailingX = baseX + wing.length * 0.78;
-  const trailingY = baseY + Math.max(wing.drop, spanInfluence * 0.22);
-  const rootBottomX = baseX - wing.length * 0.14;
-  const rootBottomY = baseY + Math.max(wing.thickness, spanInfluence * 0.5);
-  return [
-    [baseX, baseY],
-    [baseX + wing.length * 0.3, baseY - Math.max(wing.thickness * 0.85, spanInfluence * 0.4)],
-    [leadingX, leadingY],
-    [trailingX, trailingY],
-    [rootBottomX, rootBottomY],
-  ];
+  const spanInfluence = Math.max(wing.profileSpan ?? 0, 1);
+  const chord = Math.max(wing.length, spanInfluence * 0.6);
+  const topReach = Math.max(wing.thickness * 0.75, spanInfluence * 0.32);
+  const dihedralReach = Math.max(wing.dihedral, spanInfluence * 0.18);
+  const trailingDrop = Math.max(wing.drop, spanInfluence * 0.22);
+  const bottomReach = Math.max(wing.thickness, spanInfluence * 0.45);
+  const style = wing.style ?? "swept";
+
+  const root = [baseX, baseY];
+  const rootTop = [baseX + chord * 0.3, baseY - topReach];
+  const tip = [baseX + chord, baseY - dihedralReach];
+  const trailing = [baseX + chord * 0.78, baseY + trailingDrop];
+  const rootBottom = [baseX - chord * 0.14, baseY + bottomReach];
+
+  let points = [root, rootTop, tip, trailing, rootBottom];
+
+  switch (style) {
+    case "delta":
+      rootTop[0] = baseX + chord * 0.2;
+      rootTop[1] = baseY - topReach * 0.55;
+      tip[1] = baseY - dihedralReach * 1.4;
+      trailing[0] = baseX + chord * 0.68;
+      trailing[1] = baseY + trailingDrop * 0.5;
+      rootBottom[0] = baseX - chord * 0.08;
+      rootBottom[1] = baseY + bottomReach * 0.65;
+      break;
+    case "forward":
+      root[1] = baseY - topReach * 0.18;
+      rootTop[0] = baseX + chord * 0.42;
+      rootTop[1] = baseY - topReach * 0.95;
+      tip[0] = baseX + chord * 0.86;
+      tip[1] = baseY - dihedralReach * 0.45;
+      trailing[0] = baseX + chord * 0.74;
+      trailing[1] = baseY + trailingDrop * 1.12;
+      rootBottom[0] = baseX - chord * 0.22;
+      rootBottom[1] = baseY + bottomReach * 1.05;
+      break;
+    case "ladder": {
+      const rungRise = topReach * 0.55;
+      const rungDrop = trailingDrop * 0.4;
+      points = [
+        [baseX, baseY - rungRise * 0.15],
+        [baseX + chord * 0.32, baseY - topReach],
+        [baseX + chord * 0.62, baseY - dihedralReach * 0.6],
+        [baseX + chord * 0.56, baseY - dihedralReach * 0.05],
+        [baseX + chord * 0.82, baseY + rungDrop],
+        [baseX + chord * 0.35, baseY + trailingDrop * 0.75],
+        [baseX - chord * 0.12, baseY + bottomReach],
+      ];
+      break;
+    }
+    case "split":
+      points = [
+        [baseX, baseY - topReach * 0.35],
+        [baseX + chord * 0.36, baseY - topReach],
+        [baseX + chord * 0.48, baseY - dihedralReach * 0.35],
+        [baseX + chord * 0.82, baseY - dihedralReach * 0.85],
+        [baseX + chord * 0.94, baseY + trailingDrop * 0.55],
+        [baseX + chord * 0.46, baseY + trailingDrop * 0.92],
+        [baseX - chord * 0.16, baseY + bottomReach * 0.95],
+      ];
+      break;
+    case "box":
+      points = [
+        [baseX, baseY - wing.thickness * 0.5],
+        [baseX + chord * 0.2, baseY - topReach * 0.6],
+        [baseX + chord * 0.92, baseY - dihedralReach * 0.35],
+        [baseX + chord * 0.95, baseY + trailingDrop * 0.45],
+        [baseX + chord * 0.34, baseY + trailingDrop * 0.6],
+        [baseX - chord * 0.05, baseY + bottomReach * 0.85],
+      ];
+      break;
+    case "broad":
+      points = [
+        [baseX, baseY - wing.thickness * 0.42],
+        [baseX + chord * 0.78, baseY - dihedralReach * 0.6],
+        [baseX + chord * 0.98, baseY - dihedralReach * 0.2],
+        [baseX + chord * 0.98, baseY + trailingDrop * 0.68],
+        [baseX + chord * 0.28, baseY + trailingDrop * 0.82],
+        [baseX - chord * 0.1, baseY + bottomReach * 0.9],
+      ];
+      break;
+    default:
+      break;
+  }
+
+  return points;
 }
 
 function buildStripePath(body, details, axis) {
