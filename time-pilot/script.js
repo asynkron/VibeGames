@@ -12,6 +12,7 @@ import { createScreenViewport } from '../shared/render/screenViewport.js';
 import { clamp } from '../shared/utils/math.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 import { stepProjectiles } from '../shared/utils/projectiles.js';
+import { generateSpaceshipSprite } from '../sprite-generator/game.js';
 
 (() => {
   const canvas = document.getElementById('game');
@@ -63,6 +64,27 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
   const TWO_PI = Math.PI * 2;
   const HALF_PI = Math.PI / 2;
 
+  const PLAYER_SPRITE_CONFIG = {
+    category: 'fighter',
+    seed: 5021,
+    size: 56,
+    palette: {
+      primary: '#183451',
+      secondary: '#0d1b2c',
+      accent: '#8dd3ff',
+      trim: '#e8f6ff',
+      cockpit: '#c9f2ff',
+      glow: '#9be8ff',
+    },
+  };
+
+  const SPRITE_ROTATION_OFFSET = HALF_PI;
+
+  const spriteAssets = {
+    player: null,
+    enemies: [],
+  };
+
   const settings = {
     maxSpeed: 180,
     reverseSpeed: 60,
@@ -87,18 +109,19 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       enemyColor: '#f4c38a',
       enemyAccent: '#ffe7b4',
       bulletColor: '#ffdfaa',
-      trailColor: 'rgba(255, 180, 120, 0.65)',
-      spawnInterval: [1.9, 2.4],
-      maxEnemies: 6,
-      killTarget: 14,
-      enemySpeed: 52,
-      enemyTurn: 2.3,
-      enemyFire: [1.6, 2.2],
-      enemyFireRange: 280,
-    },
-    {
-      year: 1940,
-      label: 'World at War',
+    trailColor: 'rgba(255, 180, 120, 0.65)',
+    spawnInterval: [1.9, 2.4],
+    maxEnemies: 6,
+    killTarget: 14,
+    enemySpeed: 52,
+    enemyTurn: 2.3,
+    enemyFire: [1.6, 2.2],
+    enemyFireRange: 280,
+    sprite: { category: 'transport', seed: 1910, size: 42 },
+  },
+  {
+    year: 1940,
+    label: 'World at War',
       skyTop: '#152847',
       skyBottom: '#040713',
       cloudColor: 'rgba(216, 234, 255, 0.82)',
@@ -106,18 +129,19 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       enemyColor: '#8fd7ff',
       enemyAccent: '#c8f3ff',
       bulletColor: '#9fe0ff',
-      trailColor: 'rgba(136, 220, 255, 0.7)',
-      spawnInterval: [1.6, 2.1],
-      maxEnemies: 7,
-      killTarget: 16,
-      enemySpeed: 74,
-      enemyTurn: 2.9,
-      enemyFire: [1.3, 1.9],
-      enemyFireRange: 320,
-    },
-    {
-      year: 1970,
-      label: 'Rotor Fury',
+    trailColor: 'rgba(136, 220, 255, 0.7)',
+    spawnInterval: [1.6, 2.1],
+    maxEnemies: 7,
+    killTarget: 16,
+    enemySpeed: 74,
+    enemyTurn: 2.9,
+    enemyFire: [1.3, 1.9],
+    enemyFireRange: 320,
+    sprite: { category: 'fighter', seed: 1940, size: 44 },
+  },
+  {
+    year: 1970,
+    label: 'Rotor Fury',
       skyTop: '#14263d',
       skyBottom: '#03060f',
       cloudColor: 'rgba(204, 232, 255, 0.8)',
@@ -125,18 +149,19 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       enemyColor: '#ffd676',
       enemyAccent: '#fff6c4',
       bulletColor: '#ffe6a6',
-      trailColor: 'rgba(255, 210, 140, 0.72)',
-      spawnInterval: [1.45, 1.9],
-      maxEnemies: 8,
-      killTarget: 18,
-      enemySpeed: 86,
-      enemyTurn: 3.2,
-      enemyFire: [1.1, 1.6],
-      enemyFireRange: 340,
-    },
-    {
-      year: 1982,
-      label: 'Jetstream',
+    trailColor: 'rgba(255, 210, 140, 0.72)',
+    spawnInterval: [1.45, 1.9],
+    maxEnemies: 8,
+    killTarget: 18,
+    enemySpeed: 86,
+    enemyTurn: 3.2,
+    enemyFire: [1.1, 1.6],
+    enemyFireRange: 340,
+    sprite: { category: 'transport', seed: 1970, size: 46 },
+  },
+  {
+    year: 1982,
+    label: 'Jetstream',
       skyTop: '#101f36',
       skyBottom: '#02040b',
       cloudColor: 'rgba(192, 220, 255, 0.78)',
@@ -144,18 +169,19 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       enemyColor: '#7edcff',
       enemyAccent: '#d3f4ff',
       bulletColor: '#bff6ff',
-      trailColor: 'rgba(125, 225, 255, 0.7)',
-      spawnInterval: [1.2, 1.6],
-      maxEnemies: 9,
-      killTarget: 20,
-      enemySpeed: 108,
-      enemyTurn: 3.6,
-      enemyFire: [0.9, 1.4],
-      enemyFireRange: 360,
-    },
-    {
-      year: 2001,
-      label: 'Future Shock',
+    trailColor: 'rgba(125, 225, 255, 0.7)',
+    spawnInterval: [1.2, 1.6],
+    maxEnemies: 9,
+    killTarget: 20,
+    enemySpeed: 108,
+    enemyTurn: 3.6,
+    enemyFire: [0.9, 1.4],
+    enemyFireRange: 360,
+    sprite: { category: 'fighter', seed: 1982, size: 48 },
+  },
+  {
+    year: 2001,
+    label: 'Future Shock',
       skyTop: '#0c1a2f',
       skyBottom: '#010208',
       cloudColor: 'rgba(180, 210, 255, 0.75)',
@@ -163,15 +189,16 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
       enemyColor: '#94f4ff',
       enemyAccent: '#e6fdff',
       bulletColor: '#d4faff',
-      trailColor: 'rgba(170, 240, 255, 0.78)',
-      spawnInterval: [1.05, 1.45],
-      maxEnemies: 10,
-      killTarget: 22,
-      enemySpeed: 128,
-      enemyTurn: 3.9,
-      enemyFire: [0.75, 1.2],
-      enemyFireRange: 380,
-    },
+    trailColor: 'rgba(170, 240, 255, 0.78)',
+    spawnInterval: [1.05, 1.45],
+    maxEnemies: 10,
+    killTarget: 22,
+    enemySpeed: 128,
+    enemyTurn: 3.9,
+    enemyFire: [0.75, 1.2],
+    enemyFireRange: 380,
+    sprite: { category: 'drone', seed: 2001, size: 50 },
+  },
   ];
 
   const player = {
@@ -197,6 +224,108 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     bannerTimer: 0,
     shake: 0,
   };
+
+  function hexToRgb(color) {
+    if (!color || typeof color !== 'string') return null;
+    let hex = color.trim().replace('#', '');
+    if (hex.length === 3) {
+      hex = hex
+        .split('')
+        .map((char) => char + char)
+        .join('');
+    }
+    if (hex.length !== 6) return null;
+    const value = parseInt(hex, 16);
+    return {
+      r: (value >> 16) & 0xff,
+      g: (value >> 8) & 0xff,
+      b: value & 0xff,
+    };
+  }
+
+  function rgbToHex(r, g, b) {
+    const toHex = (component) => component.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  function mixHexColors(colorA, colorB, weight = 0.5) {
+    const a = hexToRgb(colorA);
+    const b = hexToRgb(colorB);
+    if (!a || !b) return colorA ?? colorB ?? '#ffffff';
+    const t = clamp(weight, 0, 1);
+    const mix = (ax, bx) => Math.round(ax * (1 - t) + bx * t);
+    return rgbToHex(mix(a.r, b.r), mix(a.g, b.g), mix(a.b, b.b));
+  }
+
+  function adjustHexColor(color, amount) {
+    const t = clamp(Math.abs(amount), 0, 1);
+    const target = amount >= 0 ? '#ffffff' : '#000000';
+    return mixHexColors(color, target, t);
+  }
+
+  function hexToRgba(color, alpha = 1) {
+    const rgb = hexToRgb(color);
+    if (!rgb) return null;
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${clamp(alpha, 0, 1)})`;
+  }
+
+  function svgToDataUrl(svg) {
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const markup = new XMLSerializer().serializeToString(clone);
+    const encoded = window.btoa(unescape(encodeURIComponent(markup)));
+    return `data:image/svg+xml;base64,${encoded}`;
+  }
+
+  function loadSpaceshipSprite(options) {
+    const { size = 48, ...config } = options;
+    const { svg, config: spriteConfig } = generateSpaceshipSprite({
+      ...config,
+      viewMode: 'top',
+    });
+    const src = svgToDataUrl(svg);
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        resolve({ image, config: spriteConfig, size });
+      };
+      image.onerror = () => {
+        reject(new Error('Failed to load spaceship sprite image'));
+      };
+      image.src = src;
+    });
+  }
+
+  function createEraSpritePalette(era) {
+    return {
+      primary: mixHexColors(era.enemyColor, era.skyBottom, 0.6),
+      secondary: mixHexColors(era.enemyColor, era.skyBottom, 0.8),
+      accent: era.enemyAccent,
+      trim: adjustHexColor(era.enemyAccent, 0.15),
+      cockpit: '#dff6ff',
+      glow: era.bulletColor,
+    };
+  }
+
+  function prepareSprites() {
+    const enemyPromises = ERAS.map((era) =>
+      loadSpaceshipSprite({ ...era.sprite, palette: createEraSpritePalette(era) }),
+    );
+    const playerPromise = loadSpaceshipSprite(PLAYER_SPRITE_CONFIG);
+    return Promise.all([playerPromise, ...enemyPromises])
+      .then(([player, ...enemies]) => {
+        spriteAssets.player = player;
+        spriteAssets.enemies = enemies;
+      })
+      .catch((error) => {
+        console.error('Sprite generation failed:', error);
+      });
+  }
+
+  function getEnemySpriteForEra(index) {
+    if (spriteAssets.enemies.length === 0) return null;
+    return spriteAssets.enemies[index % spriteAssets.enemies.length];
+  }
 
   const keys = { up: false, down: false, left: false, right: false, fire: false };
 
@@ -329,13 +458,15 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     if (enemies.length >= era.maxEnemies) return;
     const angle = Math.random() * TWO_PI;
     const distance = randRange(280, 520);
+    const sprite = getEnemySpriteForEra(state.eraIndex);
+    const spriteRadius = sprite ? sprite.size * 0.38 : 16;
     enemies.push({
       x: player.x + Math.cos(angle) * distance,
       y: player.y + Math.sin(angle) * distance,
       angle: Math.random() * TWO_PI,
       speed: era.enemySpeed * randRange(0.85, 1.15),
       fireTimer: randRange(...era.enemyFire),
-      radius: 16,
+      radius: spriteRadius,
       wobble: randRange(0.4, 1.2),
       wobblePhase: Math.random() * TWO_PI,
       hp: 1,
@@ -709,45 +840,71 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
 
   function drawPlayer(now) {
     const { x, y } = toScreen(player.x, player.y);
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(player.angle);
+    const sprite = spriteAssets.player;
+    const drawSize = sprite?.size ?? 44;
+    const glowHex = sprite?.config?.palette?.glow;
+    const glowColor = glowHex ? hexToRgba(glowHex, 0.35) : 'rgba(255,180,80,0.32)';
 
-    const era = currentEra();
-    const bodyColor = era.enemyAccent;
-    const accentColor = era.enemyColor;
+    if (sprite?.image) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(player.angle + SPRITE_ROTATION_OFFSET);
+      ctx.drawImage(sprite.image, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+      ctx.restore();
 
-    ctx.fillStyle = accentColor;
-    ctx.beginPath();
-    ctx.moveTo(0, -10);
-    ctx.lineTo(12, 0);
-    ctx.lineTo(0, 10);
-    ctx.lineTo(-16, 0);
-    ctx.closePath();
-    ctx.fill();
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(player.angle);
+      const flameScale = 12 + Math.sin(player.flamePulse * 4) * 3 + Math.max(0, player.speed) * 0.08;
+      ctx.fillStyle = 'rgba(255, 160, 64, 0.82)';
+      ctx.beginPath();
+      ctx.moveTo(-drawSize * 0.4, -4);
+      ctx.lineTo(-drawSize * 0.4 - flameScale, 0);
+      ctx.lineTo(-drawSize * 0.4, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(player.angle);
 
-    ctx.fillStyle = bodyColor;
-    ctx.beginPath();
-    ctx.moveTo(0, -6);
-    ctx.lineTo(8, 0);
-    ctx.lineTo(0, 6);
-    ctx.lineTo(-10, 0);
-    ctx.closePath();
-    ctx.fill();
+      const era = currentEra();
+      const bodyColor = era.enemyAccent;
+      const accentColor = era.enemyColor;
 
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.fillRect(-4, -2, 6, 4);
+      ctx.fillStyle = accentColor;
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(12, 0);
+      ctx.lineTo(0, 10);
+      ctx.lineTo(-16, 0);
+      ctx.closePath();
+      ctx.fill();
 
-    ctx.fillStyle = 'rgba(255, 160, 64, 0.9)';
-    const flameScale = 6 + Math.sin(player.flamePulse * 3) * 2 + Math.max(0, player.speed) * 0.05;
-    ctx.beginPath();
-    ctx.moveTo(-16, -2);
-    ctx.lineTo(-16 - flameScale, 0);
-    ctx.lineTo(-16, 2);
-    ctx.closePath();
-    ctx.fill();
+      ctx.fillStyle = bodyColor;
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(8, 0);
+      ctx.lineTo(0, 6);
+      ctx.lineTo(-10, 0);
+      ctx.closePath();
+      ctx.fill();
 
-    ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillRect(-4, -2, 6, 4);
+
+      ctx.fillStyle = 'rgba(255, 160, 64, 0.9)';
+      const flameScale = 6 + Math.sin(player.flamePulse * 3) * 2 + Math.max(0, player.speed) * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(-16, -2);
+      ctx.lineTo(-16 - flameScale, 0);
+      ctx.lineTo(-16, 2);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
 
     if (player.invincible > 0 && Math.floor(now / 80) % 2 === 0) {
       ctx.save();
@@ -762,38 +919,49 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     lights.push({
       x,
       y,
-      radius: settings.engineGlowRadius,
+      radius: sprite?.size ? sprite.size * 0.8 : settings.engineGlowRadius,
       innerRadius: 6,
       innerStop: 0.4,
-      color: 'rgba(255,180,80,0.32)',
+      color: glowColor ?? 'rgba(255,180,80,0.32)',
     });
   }
 
   function drawEnemies() {
     const era = currentEra();
+    const sprite = getEnemySpriteForEra(state.eraIndex);
+    const glowHex = sprite?.config?.palette?.glow;
+    const glowColor = glowHex ? hexToRgba(glowHex, 0.45) : era.trailColor;
     for (const enemy of enemies) {
       const { x, y } = toScreen(enemy.x, enemy.y);
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(enemy.angle);
-      ctx.fillStyle = era.enemyColor;
-      ctx.beginPath();
-      ctx.moveTo(0, -8);
-      ctx.lineTo(12, 0);
-      ctx.lineTo(0, 8);
-      ctx.lineTo(-10, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = era.enemyAccent;
-      ctx.fillRect(-4, -2, 5, 4);
-      ctx.restore();
+      if (sprite?.image) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(enemy.angle + SPRITE_ROTATION_OFFSET);
+        ctx.drawImage(sprite.image, -sprite.size / 2, -sprite.size / 2, sprite.size, sprite.size);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(enemy.angle);
+        ctx.fillStyle = era.enemyColor;
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(12, 0);
+        ctx.lineTo(0, 8);
+        ctx.lineTo(-10, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = era.enemyAccent;
+        ctx.fillRect(-4, -2, 5, 4);
+        ctx.restore();
+      }
       lights.push({
         x,
         y,
-        radius: 26,
+        radius: sprite?.size ? sprite.size * 0.6 : 26,
         innerRadius: 4,
         innerStop: 0.35,
-        color: `${era.trailColor}`,
+        color: glowColor ?? era.trailColor,
       });
     }
 
@@ -978,6 +1146,17 @@ import { stepProjectiles } from '../shared/utils/projectiles.js';
     requestAnimationFrame(frame);
   }
 
-  resetGame();
-  requestAnimationFrame(frame);
+  function startGame() {
+    resetGame();
+    lastTime = performance.now();
+    requestAnimationFrame(frame);
+  }
+
+  prepareSprites()
+    .catch(() => {
+      // Errors are already reported in prepareSprites; fall back to vector ships.
+    })
+    .finally(() => {
+      startGame();
+    });
 })();
