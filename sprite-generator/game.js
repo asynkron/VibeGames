@@ -21,6 +21,11 @@ import {
   computeSegmentGeometry,
   getNeedleSide,
 } from "./renderParts.js";
+import {
+  FRONT_SEGMENT_VARIANTS,
+  MID_SEGMENT_VARIANTS,
+  REAR_SEGMENT_VARIANTS,
+} from "./segmentVariants.js";
 import { clamp, lerp } from "./math.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -298,96 +303,6 @@ const COLOR_PALETTES = [
 // shapes instead of a single profile, giving the generator a wider silhouette
 // vocabulary without rewriting the downstream consumers that still expect
 // aggregate body measurements.
-const FRONT_SEGMENT_VARIANTS = [
-  {
-    type: "needle",
-    lengthWeightRange: [0.26, 0.34],
-    tipWidthFactorRange: [0.08, 0.14],
-    shoulderWidthFactorRange: [0.92, 1.05],
-    transitionFactorRange: [0.74, 0.88],
-    curveRange: [22, 32],
-  },
-  {
-    type: "canopy",
-    lengthWeightRange: [0.18, 0.24],
-    tipWidthFactorRange: [0.32, 0.48],
-    shoulderWidthFactorRange: [1.02, 1.18],
-    transitionFactorRange: [0.85, 1.05],
-    curveRange: [12, 20],
-  },
-  {
-    type: "ram",
-    lengthWeightRange: [0.22, 0.3],
-    tipWidthFactorRange: [0.2, 0.3],
-    shoulderWidthFactorRange: [0.96, 1.1],
-    transitionFactorRange: [0.78, 0.96],
-    curveRange: [16, 26],
-  },
-];
-
-const MID_SEGMENT_VARIANTS = [
-  {
-    type: "slim",
-    lengthWeightRange: [0.38, 0.46],
-    waistWidthFactorRange: [0.78, 0.9],
-    bellyWidthFactorRange: [0.92, 1.04],
-    trailingWidthFactorRange: [0.88, 0.98],
-    waistPositionRange: [0.28, 0.4],
-    bellyPositionRange: [0.62, 0.78],
-    insetRange: [10, 18],
-  },
-  {
-    type: "bulwark",
-    lengthWeightRange: [0.34, 0.42],
-    waistWidthFactorRange: [0.94, 1.06],
-    bellyWidthFactorRange: [1.08, 1.2],
-    trailingWidthFactorRange: [1.02, 1.14],
-    waistPositionRange: [0.32, 0.46],
-    bellyPositionRange: [0.68, 0.86],
-    insetRange: [6, 12],
-  },
-  {
-    type: "modular",
-    lengthWeightRange: [0.36, 0.48],
-    waistWidthFactorRange: [0.86, 0.98],
-    bellyWidthFactorRange: [1.0, 1.12],
-    trailingWidthFactorRange: [0.94, 1.06],
-    waistPositionRange: [0.3, 0.45],
-    bellyPositionRange: [0.58, 0.8],
-    insetRange: [8, 14],
-  },
-];
-
-const REAR_SEGMENT_VARIANTS = [
-  {
-    type: "tapered",
-    lengthWeightRange: [0.26, 0.34],
-    baseWidthFactorRange: [0.92, 1.04],
-    exhaustWidthFactorRange: [0.64, 0.76],
-    tailWidthFactorRange: [0.46, 0.58],
-    exhaustPositionRange: [0.52, 0.7],
-    curveRange: [16, 24],
-  },
-  {
-    type: "thruster",
-    lengthWeightRange: [0.24, 0.3],
-    baseWidthFactorRange: [1.02, 1.16],
-    exhaustWidthFactorRange: [0.72, 0.86],
-    tailWidthFactorRange: [0.58, 0.72],
-    exhaustPositionRange: [0.6, 0.82],
-    curveRange: [20, 32],
-  },
-  {
-    type: "block",
-    lengthWeightRange: [0.28, 0.36],
-    baseWidthFactorRange: [1.08, 1.22],
-    exhaustWidthFactorRange: [0.78, 0.92],
-    tailWidthFactorRange: [0.62, 0.78],
-    exhaustPositionRange: [0.54, 0.74],
-    curveRange: [18, 28],
-  },
-];
-
 const randomStack = [];
 let activeRandomSource = Math.random;
 
@@ -719,31 +634,6 @@ function createShipRootGroup(body, options = {}) {
 
   wrapper.appendChild(root);
   return { wrapper, root };
-}
-
-function buildBodyAxis(body) {
-  const length = body?.length ?? 0;
-  const startPercent = body?.startPercent ?? 0;
-  const endPercent = body?.endPercent ?? 1;
-  const centerPercent = (startPercent + endPercent) / 2;
-  const centerOffset = (centerPercent - 0.5) * length;
-  const noseTop = 100 - length / 2 + centerOffset;
-  const noseSide = 100 - length / 2 + centerOffset;
-  const tailTop = noseTop + length;
-  const tailSide = noseSide + length;
-  const percentToTopY = (percent) => noseTop + length * percent;
-  const percentToSideX = (percent) => noseSide + length * percent;
-  const percentFromTopY = (y) => (length > 0 ? clamp((y - noseTop) / length, 0, 1) : 0);
-  const percentFromSideX = (x) => (length > 0 ? clamp((x - noseSide) / length, 0, 1) : 0);
-  return {
-    length,
-    top: { nose: noseTop, tail: tailTop },
-    side: { nose: noseSide, tail: tailSide },
-    percentToTopY,
-    percentToSideX,
-    percentFromTopY,
-    percentFromSideX,
-  };
 }
 
 function drawTopDownSpaceship(root, config, defs) {
@@ -1817,16 +1707,23 @@ function drawBody(root, config, axis) {
   if (body.segments) {
     const group = document.createElementNS(SVG_NS, "g");
     group.setAttribute("fill", partColor("hull", palette.primary));
+    group.classList.add("top-body");
 
     const segments = getTopSegmentPaths(body);
     const frontPath = getNeedleTop(config, { segments }) ?? segments.front;
-    [frontPath, segments.mid, segments.rear].forEach((d) => {
+    [
+      ["front", frontPath, body.segments?.front?.type ?? "front"],
+      ["mid", segments.mid, body.segments?.mid?.type ?? "mid"],
+      ["rear", segments.rear, body.segments?.rear?.type ?? "rear"],
+    ].forEach(([segmentKey, d, variant]) => {
       if (!d) {
         return;
       }
       const segmentPath = document.createElementNS(SVG_NS, "path");
       segmentPath.setAttribute("d", d);
       segmentPath.setAttribute("stroke", "none");
+      segmentPath.classList.add("body-segment", `body-segment-${segmentKey}`);
+      segmentPath.setAttribute("data-segment-type", variant);
       group.appendChild(segmentPath);
     });
 
@@ -1836,6 +1733,7 @@ function drawBody(root, config, axis) {
     outline.setAttribute("stroke", palette.accent);
     outline.setAttribute("stroke-width", 2.4);
     outline.setAttribute("stroke-linejoin", "round");
+    outline.classList.add("body-outline");
     group.appendChild(outline);
 
     root.appendChild(group);
@@ -1857,6 +1755,7 @@ function drawBody(root, config, axis) {
     lines.setAttribute("stroke-linecap", "round");
     lines.setAttribute("fill", "none");
     lines.setAttribute("opacity", "0.7");
+    lines.classList.add("body-plating");
     root.appendChild(lines);
   }
 }
@@ -1871,6 +1770,7 @@ function drawWings(root, config, axis) {
   group.setAttribute("stroke", palette.trim);
   group.setAttribute("stroke-width", 1.6);
   group.setAttribute("stroke-linejoin", "round");
+  group.classList.add("top-wings");
 
   const deltaPoints = wings.style === "delta" ? getDeltaWingTop(config, axis) : null;
   const wingPoints = deltaPoints ?? getWingTop(config, axis);
@@ -1881,8 +1781,10 @@ function drawWings(root, config, axis) {
 
   const left = document.createElementNS(SVG_NS, "polygon");
   left.setAttribute("points", pointsToString(leftPoints));
+  left.classList.add("wing-surface", "wing-surface-left");
   const right = document.createElementNS(SVG_NS, "polygon");
   right.setAttribute("points", pointsToString(rightPoints));
+  right.classList.add("wing-surface", "wing-surface-right");
 
   group.append(left, right);
 
@@ -1891,10 +1793,12 @@ function drawWings(root, config, axis) {
     accentLeft.setAttribute("points", pointsToString(buildWingAccent(leftPoints)));
     accentLeft.setAttribute("stroke", partStroke("wing", palette.accent));
     accentLeft.setAttribute("stroke-width", 2.2);
+    accentLeft.classList.add("wing-accent", "wing-accent-left");
     const accentRight = document.createElementNS(SVG_NS, "polyline");
     accentRight.setAttribute("points", pointsToString(buildWingAccent(rightPoints)));
     accentRight.setAttribute("stroke", partStroke("wing", palette.accent));
     accentRight.setAttribute("stroke-width", 2.2);
+    accentRight.classList.add("wing-accent", "wing-accent-right");
     group.append(accentLeft, accentRight);
   }
 
@@ -1936,7 +1840,8 @@ function drawTopArmament(root, config, axis) {
 
       [-1, 1].forEach((direction) => {
         const sideGroup = document.createElementNS(SVG_NS, "g");
-        sideGroup.classList.add("wing-ordnance-top");
+        sideGroup.classList.add("wing-ordnance-top", "top-armament");
+        sideGroup.setAttribute("data-ordnance-type", armament.type);
 
         const lateralBase = 100 + direction * (body.halfWidth + Math.max(planform.span * 0.45, 10));
         const pylonTopY = anchorY + planform.thickness * 0.1;
@@ -2013,7 +1918,7 @@ function drawTopArmament(root, config, axis) {
   }
 
   const group = document.createElementNS(SVG_NS, "g");
-  group.classList.add("nose-armament-top");
+  group.classList.add("nose-armament-top", "top-armament");
   const noseY = axis.top.nose;
   const baseY = noseY - armament.length;
   const spacing = armament.spacing ?? 0;
@@ -2110,6 +2015,7 @@ function drawCockpit(root, config, axis, defs) {
   frame.setAttribute("opacity", "0.7");
 
   const group = document.createElementNS(SVG_NS, "g");
+  group.classList.add("top-cockpit");
   group.append(frame, ellipse);
   root.appendChild(group);
 }
@@ -2117,6 +2023,7 @@ function drawCockpit(root, config, axis, defs) {
 function drawEngines(root, config, axis) {
   const { engine, palette, body } = config;
   const group = document.createElementNS(SVG_NS, "g");
+  group.classList.add("top-engines");
   const tailY = axis.percentToTopY(1);
   const baseY = tailY - 4;
   const totalWidth = (engine.count - 1) * engine.spacing;
@@ -2178,6 +2085,7 @@ function drawEngines(root, config, axis) {
 function drawFins(root, config, axis) {
   const { fins, palette, body } = config;
   const group = document.createElementNS(SVG_NS, "g");
+  group.classList.add("top-fins");
   const stabiliserColor = partColor("stabiliser", palette.secondary);
 
   if (fins.top) {
@@ -2194,6 +2102,7 @@ function drawFins(root, config, axis) {
     fin.setAttribute("fill", stabiliserColor);
     fin.setAttribute("stroke", palette.trim);
     fin.setAttribute("stroke-width", 1.3);
+    fin.classList.add("fin", "fin-top");
     group.appendChild(fin);
   }
 
@@ -2218,6 +2127,7 @@ function drawFins(root, config, axis) {
         poly.setAttribute("fill", stabiliserColor);
         poly.setAttribute("stroke", palette.trim);
         poly.setAttribute("stroke-width", 1.1);
+        poly.classList.add("fin", "fin-side");
         group.appendChild(poly);
       });
     }
@@ -2238,6 +2148,7 @@ function drawFins(root, config, axis) {
     fin.setAttribute("stroke", palette.trim);
     fin.setAttribute("stroke-width", 1.2);
     fin.setAttribute("opacity", "0.85");
+    fin.classList.add("fin", "fin-bottom");
     group.appendChild(fin);
   }
 
@@ -2268,6 +2179,7 @@ function drawDetails(root, config, axis) {
       stripe.setAttribute("stroke-width", 3.4);
       stripe.setAttribute("stroke-linecap", "round");
       stripe.setAttribute("opacity", "0.85");
+      stripe.classList.add("top-detail", "top-detail-stripe");
       root.appendChild(stripe);
     }
   }
@@ -2282,6 +2194,7 @@ function drawDetails(root, config, axis) {
     antenna.setAttribute("stroke", partStroke("details", palette.trim));
     antenna.setAttribute("stroke-width", 1.4);
     antenna.setAttribute("stroke-linecap", "round");
+    antenna.classList.add("top-detail", "top-detail-antenna");
 
     const beacon = document.createElementNS(SVG_NS, "circle");
     beacon.setAttribute("cx", "100");
@@ -2289,6 +2202,7 @@ function drawDetails(root, config, axis) {
     beacon.setAttribute("r", "3");
     beacon.setAttribute("fill", partColor("lights", palette.glow));
     beacon.setAttribute("opacity", "0.9");
+    beacon.classList.add("top-detail", "top-detail-beacon");
 
     root.append(antenna, beacon);
   }

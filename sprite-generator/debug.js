@@ -1,126 +1,149 @@
+import { renderSpaceshipSprite, createSpaceshipConfig } from "./game.js";
 import {
-  buildBodyAxis,
-  getTopSegmentPaths,
-  getTopHullPath,
-  getNeedleTop,
-  buildPlatingPath,
-  computeSegmentGeometry,
-  createSideProfileAnchors,
-  buildSideHullGeometry,
-  getNeedleSide,
-  buildSideIntakePath,
-  computeWingPlanform,
-  pointsToString,
-  getDeltaWingTop,
-  getWingTop,
-  buildWingAccent,
-  getDeltaWingSide,
-  getWingSidePoints,
-} from "./renderParts.js";
+  FRONT_SEGMENT_VARIANTS,
+  MID_SEGMENT_VARIANTS,
+  REAR_SEGMENT_VARIANTS,
+} from "./segmentVariants.js";
+
+const baseConfig = createSpaceshipConfig({ category: "fighter", seed: "debug-catalogue" });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-const palette = {
-  primary: "#42547a",
-  secondary: "#7a94c4",
-  accent: "#f4f6ff",
-  trim: "#1f283f",
-  glow: "#ffda7a",
-};
+function cloneConfig(config) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(config);
+  }
+  return JSON.parse(JSON.stringify(config));
+}
 
-const sampleConfig = {
-  id: "debug-needle",
-  palette,
-  body: {
-    length: 120,
-    halfWidth: 28,
-    noseWidthFactor: 0.34,
-    tailWidthFactor: 0.58,
-    midInset: 16,
-    noseCurve: 24,
-    tailCurve: 18,
-    plating: true,
-    segments: {
-      front: {
-        type: "needle",
-        length: 36,
-        tipWidthFactor: 0.16,
-        shoulderWidthFactor: 1.1,
-        transitionFactor: 0.84,
-        curve: 26,
-      },
-      mid: {
-        length: 44,
-        waistWidthFactor: 0.92,
-        bellyWidthFactor: 1.08,
-        trailingWidthFactor: 0.96,
-        waistPosition: 0.36,
-        bellyPosition: 0.72,
-      },
-      rear: {
-        length: 40,
-        baseWidthFactor: 0.94,
-        exhaustWidthFactor: 0.62,
-        tailWidthFactor: 0.52,
-        exhaustPosition: 0.68,
-        curve: 22,
-      },
-    },
-  },
-  wings: {
-    enabled: true,
-    style: "delta",
-    span: 44,
-    forward: 18,
-    sweep: 28,
-    thickness: 14,
-    dihedral: 9,
+function midpoint(range, fallback) {
+  return Array.isArray(range) && range.length === 2 ? (range[0] + range[1]) / 2 : fallback;
+}
+
+let debugIdCounter = 0;
+function nextDebugId(prefix) {
+  debugIdCounter += 1;
+  return `${prefix}-${debugIdCounter}`;
+}
+
+function createBaseDebugConfig() {
+  const config = cloneConfig(baseConfig);
+  config.id = nextDebugId("debug");
+  config.wings = {
+    ...config.wings,
+    enabled: false,
+    tipAccent: false,
     offsetY: 0,
     mountHeight: 0,
-    tipAccent: true,
-  },
-};
+  };
+  config.details = {
+    ...config.details,
+    stripe: false,
+    antenna: false,
+  };
+  config.fins = {
+    ...config.fins,
+    top: 0,
+    side: 0,
+    bottom: 0,
+  };
+  config.armament = null;
+  return config;
+}
 
-function createProfile(body, axis) {
-  const profile = {
-    length: body.length,
-    height: 48,
-    noseLength: body.segments.front.length,
-    tailLength: body.segments.rear.length,
-    noseHeight: 24,
-    dorsalHeight: 32,
-    tailHeight: 22,
-    bellyDrop: 18,
-    ventralDepth: 26,
-    intakeHeight: 10,
-    intakeDepth: 18,
-    offsetY: 0,
-    plating: true,
-    axis,
-    sideAnchorConfig: {
-      front: {
-        topSecondBlend: 0.28,
-        topEndBlend: 0.16,
-        bottomSecondBlend: 0.42,
-        bottomEndBlend: 0.48,
-        needleSharpness: 0.8,
-      },
-      mid: {
-        topDip: 0.08,
-        topCrestOffset: 0.04,
-      },
-      rear: {
-        topBlend: 0.62,
-        bottomBlend: 0.7,
-      },
-    },
+function buildSegmentFromVariant(variant, baseLength, defaults) {
+  const lengthRatio = midpoint(variant.lengthWeightRange, defaults.length / baseLength);
+  const length = baseLength * lengthRatio;
+  return {
+    type: variant.type,
+    length,
+    weight: length,
+    tipWidthFactor: midpoint(variant.tipWidthFactorRange, defaults.tipWidthFactor),
+    shoulderWidthFactor: midpoint(variant.shoulderWidthFactorRange, defaults.shoulderWidthFactor),
+    transitionFactor: midpoint(variant.transitionFactorRange, defaults.transitionFactor),
+    curve: midpoint(variant.curveRange, defaults.curve),
+  };
+}
+
+function buildMidSegmentFromVariant(variant, baseLength, defaults) {
+  const lengthRatio = midpoint(variant.lengthWeightRange, defaults.length / baseLength);
+  const length = baseLength * lengthRatio;
+  return {
+    type: variant.type,
+    length,
+    weight: length,
+    waistWidthFactor: midpoint(variant.waistWidthFactorRange, defaults.waistWidthFactor),
+    bellyWidthFactor: midpoint(variant.bellyWidthFactorRange, defaults.bellyWidthFactor),
+    trailingWidthFactor: midpoint(variant.trailingWidthFactorRange, defaults.trailingWidthFactor),
+    waistPosition: midpoint(variant.waistPositionRange, defaults.waistPosition),
+    bellyPosition: midpoint(variant.bellyPositionRange, defaults.bellyPosition),
+    inset: midpoint(variant.insetRange, defaults.inset),
+  };
+}
+
+function buildRearSegmentFromVariant(variant, baseLength, defaults) {
+  const lengthRatio = midpoint(variant.lengthWeightRange, defaults.length / baseLength);
+  const length = baseLength * lengthRatio;
+  return {
+    type: variant.type,
+    length,
+    weight: length,
+    baseWidthFactor: midpoint(variant.baseWidthFactorRange, defaults.baseWidthFactor),
+    exhaustWidthFactor: midpoint(variant.exhaustWidthFactorRange, defaults.exhaustWidthFactor),
+    tailWidthFactor: midpoint(variant.tailWidthFactorRange, defaults.tailWidthFactor),
+    exhaustPosition: midpoint(variant.exhaustPositionRange, defaults.exhaustPosition),
+    curve: midpoint(variant.curveRange, defaults.curve),
+  };
+}
+
+function createBodyFromVariants(frontVariant, midVariant, rearVariant, baseBody) {
+  const body = cloneConfig(baseBody);
+  const baseLength = body.length;
+  const frontDefaults = {
+    length: body.segments.front.length,
+    tipWidthFactor: body.segments.front.tipWidthFactor,
+    shoulderWidthFactor: body.segments.front.shoulderWidthFactor,
+    transitionFactor: body.segments.front.transitionFactor,
+    curve: body.segments.front.curve,
+  };
+  const midDefaults = {
+    length: body.segments.mid.length,
+    waistWidthFactor: body.segments.mid.waistWidthFactor,
+    bellyWidthFactor: body.segments.mid.bellyWidthFactor,
+    trailingWidthFactor: body.segments.mid.trailingWidthFactor,
+    waistPosition: body.segments.mid.waistPosition,
+    bellyPosition: body.segments.mid.bellyPosition,
+    inset: body.segments.mid.inset,
+  };
+  const rearDefaults = {
+    length: body.segments.rear.length,
+    baseWidthFactor: body.segments.rear.baseWidthFactor,
+    exhaustWidthFactor: body.segments.rear.exhaustWidthFactor,
+    tailWidthFactor: body.segments.rear.tailWidthFactor,
+    exhaustPosition: body.segments.rear.exhaustPosition,
+    curve: body.segments.rear.curve,
   };
 
-  profile.noseX = axis.side.nose;
-  profile.tailX = axis.side.tail;
-  profile.hullAnchors = null;
-  profile.segmentAnchors = null;
-  return profile;
+  const front = buildSegmentFromVariant(frontVariant, baseLength, frontDefaults);
+  const mid = buildMidSegmentFromVariant(midVariant, baseLength, midDefaults);
+  const rear = buildRearSegmentFromVariant(rearVariant, baseLength, rearDefaults);
+
+  const totalLength = front.length + mid.length + rear.length;
+  const scale = totalLength > 0 ? body.length / totalLength : 1;
+  front.length *= scale;
+  front.weight = front.length;
+  mid.length *= scale;
+  mid.weight = mid.length;
+  rear.length *= scale;
+  rear.weight = rear.length;
+
+  body.segments = { front, mid, rear };
+  body.noseCurve = front.curve;
+  body.tailCurve = rear.curve;
+  body.midInset = mid.inset;
+  body.noseWidthFactor = front.tipWidthFactor;
+  body.tailWidthFactor = rear.tailWidthFactor;
+  return body;
 }
 
 function createSvg(viewBox = "0 0 200 200") {
@@ -129,241 +152,293 @@ function createSvg(viewBox = "0 0 200 200") {
   return svg;
 }
 
-function addPathFigure(container, pathData, label, options = {}) {
-  const { fill = palette.primary, stroke = palette.accent } = options;
+function extractSvg(config, selectors, options = {}) {
+  const svg = renderSpaceshipSprite(config, { viewMode: options.viewMode ?? "top" });
+  const output = createSvg();
+  const defs = svg.querySelector("defs");
+  if (defs && defs.childNodes.length) {
+    output.appendChild(defs.cloneNode(true));
+  }
+  selectors.forEach((selector) => {
+    svg.querySelectorAll(selector).forEach((node) => {
+      output.appendChild(node.cloneNode(true));
+    });
+  });
+  if (typeof options.postProcess === "function") {
+    options.postProcess(output);
+  }
+  return output;
+}
+
+function addSvgFigure(container, svg, label) {
   const figure = document.createElement("figure");
-  const svg = createSvg();
-  const path = document.createElementNS(SVG_NS, "path");
-  path.setAttribute("d", pathData);
-  path.setAttribute("fill", fill);
-  path.setAttribute("stroke", stroke);
-  path.setAttribute("stroke-width", options.strokeWidth ?? 2.2);
-  path.setAttribute("stroke-linejoin", "round");
-  svg.appendChild(path);
   const caption = document.createElement("figcaption");
   caption.textContent = label;
   figure.append(svg, caption);
   container.appendChild(figure);
 }
 
-function addPolygonFigure(container, pointSets, label, options = {}) {
-  const { fill = palette.secondary, stroke = palette.trim } = options;
-  const figure = document.createElement("figure");
-  const svg = createSvg();
-  pointSets.forEach((points) => {
-    const polygon = document.createElementNS(SVG_NS, "polygon");
-    polygon.setAttribute("points", pointsToString(points));
-    polygon.setAttribute("fill", fill);
-    polygon.setAttribute("stroke", stroke);
-    polygon.setAttribute("stroke-width", options.strokeWidth ?? 1.8);
-    polygon.setAttribute("stroke-linejoin", "round");
-    svg.appendChild(polygon);
+function capitalise(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function highlightSegment(svg, key) {
+  svg.querySelectorAll(".body-segment").forEach((node) => {
+    const isTarget = node.classList.contains(`body-segment-${key}`);
+    node.setAttribute("fill-opacity", isTarget ? "1" : "0.25");
   });
-  const caption = document.createElement("figcaption");
-  caption.textContent = label;
-  figure.append(svg, caption);
-  container.appendChild(figure);
 }
 
-function addPolylineFigure(container, points, label, options = {}) {
-  const { stroke = palette.accent } = options;
-  const figure = document.createElement("figure");
-  const svg = createSvg();
-  const polyline = document.createElementNS(SVG_NS, "polyline");
-  polyline.setAttribute("points", pointsToString(points));
-  polyline.setAttribute("fill", options.fill ?? "none");
-  polyline.setAttribute("stroke", stroke);
-  polyline.setAttribute("stroke-width", options.strokeWidth ?? 2);
-  polyline.setAttribute("stroke-linejoin", "round");
-  polyline.setAttribute("stroke-linecap", "round");
-  svg.appendChild(polyline);
-  const caption = document.createElement("figcaption");
-  caption.textContent = label;
-  figure.append(svg, caption);
-  container.appendChild(figure);
+function fadeNonTarget(svg, selector) {
+  svg.querySelectorAll(selector).forEach((node) => {
+    node.setAttribute("opacity", "0.25");
+  });
 }
 
-function renderNeedleTopPreview() {
-  const container = document.getElementById("needle-top-preview");
+function renderSegmentGallery() {
+  const frontContainer = document.getElementById("front-segments-preview");
+  const midContainer = document.getElementById("mid-segments-preview");
+  const rearContainer = document.getElementById("rear-segments-preview");
+  frontContainer.innerHTML = "";
+  midContainer.innerHTML = "";
+  rearContainer.innerHTML = "";
+
+  const defaultMid = MID_SEGMENT_VARIANTS[0];
+  const defaultRear = REAR_SEGMENT_VARIANTS[0];
+  FRONT_SEGMENT_VARIANTS.forEach((variant) => {
+    const config = createBaseDebugConfig();
+    config.body = createBodyFromVariants(variant, defaultMid, defaultRear, config.body);
+    const svg = extractSvg(config, [".body-segment", ".body-outline"]);
+    highlightSegment(svg, "front");
+    addSvgFigure(frontContainer, svg, `Front: ${capitalise(variant.type)}`);
+  });
+
+  const defaultFront = FRONT_SEGMENT_VARIANTS[0];
+  MID_SEGMENT_VARIANTS.forEach((variant) => {
+    const config = createBaseDebugConfig();
+    config.body = createBodyFromVariants(defaultFront, variant, defaultRear, config.body);
+    const svg = extractSvg(config, [".body-segment", ".body-outline"]);
+    highlightSegment(svg, "mid");
+    addSvgFigure(midContainer, svg, `Mid: ${capitalise(variant.type)}`);
+  });
+
+  REAR_SEGMENT_VARIANTS.forEach((variant) => {
+    const config = createBaseDebugConfig();
+    config.body = createBodyFromVariants(defaultFront, defaultMid, variant, config.body);
+    const svg = extractSvg(config, [".body-segment", ".body-outline"]);
+    highlightSegment(svg, "rear");
+    addSvgFigure(rearContainer, svg, `Rear: ${capitalise(variant.type)}`);
+  });
+}
+
+function configureWing(config, overrides) {
+  config.wings = {
+    ...config.wings,
+    ...overrides,
+    enabled: true,
+    mount: overrides.mount ?? "mid",
+  };
+}
+
+function renderWingGallery() {
+  const container = document.getElementById("wing-gallery");
   container.innerHTML = "";
-  const { body } = sampleConfig;
-  const segments = getTopSegmentPaths(body) ?? {};
-  const figures = [];
+  const length = baseConfig.body.length;
+  const span = length * 0.52;
+  const sweep = length * 0.24;
+  const forward = length * 0.18;
+  const thickness = length * 0.12;
+  const wingSamples = [
+    {
+      style: "delta",
+      label: "Delta Wing",
+      setup: (config) => {
+        configureWing(config, { style: "delta", span, sweep, forward, thickness, dihedral: length * 0.08, tipAccent: true });
+      },
+    },
+    {
+      style: "swept",
+      label: "Swept Wing",
+      setup: (config) => {
+        configureWing(config, { style: "swept", span, sweep, forward: forward * 0.8, thickness, dihedral: length * 0.06 });
+      },
+    },
+    {
+      style: "forward",
+      label: "Forward Wing",
+      setup: (config) => {
+        configureWing(config, { style: "forward", span: span * 0.92, sweep, forward: forward * 1.2, thickness: thickness * 0.9, dihedral: length * 0.05 });
+      },
+    },
+    {
+      style: "ladder",
+      label: "Ladder Wing",
+      setup: (config) => {
+        configureWing(config, { style: "ladder", span: span * 0.86, sweep, forward, thickness, dihedral: length * 0.04 });
+      },
+    },
+    {
+      style: "split",
+      label: "Split Wing",
+      setup: (config) => {
+        configureWing(config, { style: "split", span: span * 0.9, sweep, forward: forward * 0.85, thickness, dihedral: length * 0.05 });
+      },
+    },
+    {
+      style: "box",
+      label: "Box Wing",
+      setup: (config) => {
+        configureWing(config, { style: "box", span: span * 0.78, sweep, forward: forward * 0.65, thickness: thickness * 1.1, dihedral: length * 0.03 });
+      },
+    },
+    {
+      style: "broad",
+      label: "Broad Wing",
+      setup: (config) => {
+        configureWing(config, { style: "broad", span: span * 1.05, sweep: sweep * 0.8, forward: forward * 0.6, thickness: thickness * 1.05, dihedral: length * 0.02 });
+      },
+    },
+  ];
 
-  const needleFront = getNeedleTop(sampleConfig, { segments }) ?? segments.front;
-  if (needleFront) {
-    figures.push({
-      path: needleFront,
-      label: "Needle Front Segment",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2.4 },
-    });
-  }
-  if (segments.mid) {
-    figures.push({
-      path: segments.mid,
-      label: "Mid Segment",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2.2 },
-    });
-  }
-  if (segments.rear) {
-    figures.push({
-      path: segments.rear,
-      label: "Rear Segment",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2.2 },
-    });
-  }
-
-  const plating = buildPlatingPath(body);
-  if (plating) {
-    figures.push({
-      path: plating,
-      label: "Top Plating Lines",
-      options: { fill: "none", stroke: palette.accent, strokeWidth: 1.2 },
-    });
-  }
-
-  const hull = getTopHullPath(body);
-  if (hull) {
-    figures.push({
-      path: hull,
-      label: "Full Hull Outline",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2.4 },
-    });
-  }
-
-  figures.forEach(({ path, label, options }) => {
-    addPathFigure(container, path, `Top: ${label}`, options);
+  wingSamples.forEach((sample) => {
+    const config = createBaseDebugConfig();
+    sample.setup(config);
+    const svg = extractSvg(config, [".body-outline", ".top-wings"]);
+    fadeNonTarget(svg, ".body-outline");
+    addSvgFigure(container, svg, sample.label);
   });
 }
 
-function prepareProfile(body, axis) {
-  const profile = createProfile(body, axis);
-  const geometry = computeSegmentGeometry(body, axis);
-  const anchors = createSideProfileAnchors(profile, body.segments, geometry, { allowFallback: true });
-  if (anchors) {
-    profile.hullAnchors = anchors;
-    profile.segmentAnchors = anchors;
-  }
-  return { profile, geometry };
-}
-
-function renderNeedleSidePreview() {
-  const container = document.getElementById("needle-side-preview");
+function renderArmamentGallery() {
+  const container = document.getElementById("armament-preview");
   container.innerHTML = "";
-  const { body } = sampleConfig;
-  const axis = buildBodyAxis(body);
-  const { profile } = prepareProfile(body, axis);
-  const sideHull = buildSideHullGeometry(profile);
-  const segments = sideHull.segmentPaths ?? {};
+  const length = baseConfig.body.length;
+  const hardpoint = (ratio) => ({
+    chordRatio: ratio,
+    pylonLength: length * 0.1,
+    payloadLength: length * 0.28,
+    payloadRadius: length * 0.08,
+  });
+  const samples = [
+    {
+      label: "Nose Cannons",
+      setup: (config) => {
+        config.armament = {
+          mount: "nose",
+          barrels: 2,
+          length: length * 0.2,
+          spacing: config.body.halfWidth * 0.7,
+          housingWidth: config.body.halfWidth * 0.8,
+        };
+      },
+      selectors: [".body-outline", ".nose-armament-top"],
+      post: (svg) => fadeNonTarget(svg, ".body-outline"),
+    },
+    {
+      label: "Wing Missiles",
+      setup: (config) => {
+        configureWing(config, { style: "swept", span: length * 0.5, sweep: length * 0.22, forward: length * 0.16, thickness: length * 0.1 });
+        config.armament = {
+          mount: "wing",
+          type: "missile",
+          barrels: 2,
+          hardpoints: [hardpoint(0.36), hardpoint(0.64)],
+        };
+      },
+      selectors: [".body-outline", ".top-wings", ".wing-ordnance-top"],
+      post: (svg) => fadeNonTarget(svg, ".body-outline"),
+    },
+    {
+      label: "Wing Bombs",
+      setup: (config) => {
+        configureWing(config, { style: "broad", span: length * 0.58, sweep: length * 0.18, forward: length * 0.12, thickness: length * 0.12 });
+        config.armament = {
+          mount: "wing",
+          type: "bomb",
+          barrels: 2,
+          hardpoints: [hardpoint(0.42), hardpoint(0.7)],
+        };
+      },
+      selectors: [".body-outline", ".top-wings", ".wing-ordnance-top"],
+      post: (svg) => fadeNonTarget(svg, ".body-outline"),
+    },
+  ];
 
-  const figures = [];
-  const needleFront = getNeedleSide(sampleConfig, profile, { segmentPaths: sideHull.segmentPaths });
-  if (needleFront) {
-    figures.push({
-      path: needleFront,
-      label: "Needle Front Segment",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2.2 },
-    });
-  }
-  if (segments.mid) {
-    figures.push({
-      path: segments.mid,
-      label: "Mid Segment",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2 },
-    });
-  }
-  if (segments.rear) {
-    figures.push({
-      path: segments.rear,
-      label: "Rear Segment",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2 },
-    });
-  }
-
-  const intake = buildSideIntakePath(profile);
-  if (intake) {
-    figures.push({
-      path: intake,
-      label: "Intake Cutout",
-      options: { fill: palette.trim, stroke: palette.accent, strokeWidth: 1.8 },
-    });
-  }
-
-  if (sideHull.hullPath) {
-    figures.push({
-      path: sideHull.hullPath,
-      label: "Full Hull Outline",
-      options: { fill: palette.primary, stroke: palette.accent, strokeWidth: 2.2 },
-    });
-  }
-
-  figures.forEach(({ path, label, options }) => {
-    addPathFigure(container, path, `Side: ${label}`, options);
+  samples.forEach((sample) => {
+    const config = createBaseDebugConfig();
+    sample.setup(config);
+    const svg = extractSvg(config, sample.selectors, { postProcess: sample.post });
+    addSvgFigure(container, svg, sample.label);
   });
 }
 
-function renderWingTopPreview() {
-  const container = document.getElementById("wing-top-preview");
+function renderSystemsGallery() {
+  const container = document.getElementById("systems-preview");
   container.innerHTML = "";
-  const axis = buildBodyAxis(sampleConfig.body);
-  const delta = getDeltaWingTop(sampleConfig, axis);
-  const wingTop = delta ?? getWingTop(sampleConfig, axis);
-  if (!wingTop) {
-    return;
-  }
+  const length = baseConfig.body.length;
+  const samples = [
+    {
+      label: "Cockpit Canopy",
+      setup: (config) => {
+        config.details.stripe = false;
+      },
+      selectors: [".top-cockpit"],
+    },
+    {
+      label: "Engine Cluster",
+      setup: (config) => {
+        config.engine.count = 3;
+        config.engine.spacing = config.body.halfWidth * 0.9;
+        config.engine.size = config.body.halfWidth * 0.85;
+        config.engine.nozzleLength = length * 0.14;
+      },
+      selectors: [".top-engines"],
+    },
+    {
+      label: "Stabiliser Fins",
+      setup: (config) => {
+        config.fins = {
+          ...config.fins,
+          top: 1,
+          side: 2,
+          bottom: 1,
+          height: length * 0.22,
+          width: config.body.halfWidth * 0.9,
+        };
+      },
+      selectors: [".top-fins"],
+    },
+    {
+      label: "Hull Plating",
+      setup: (config) => {
+        config.body.plating = true;
+      },
+      selectors: [".body-plating", ".body-outline"],
+      post: (svg) => fadeNonTarget(svg, ".body-outline"),
+    },
+    {
+      label: "Markings & Beacon",
+      setup: (config) => {
+        config.details = {
+          ...config.details,
+          stripe: true,
+          antenna: true,
+        };
+      },
+      selectors: [".top-detail", ".body-outline"],
+      post: (svg) => fadeNonTarget(svg, ".body-outline"),
+    },
+  ];
 
-  addPolygonFigure(container, [wingTop.left], "Top: Left Wing", {
-    fill: palette.secondary,
-    stroke: palette.trim,
+  samples.forEach((sample) => {
+    const config = createBaseDebugConfig();
+    sample.setup(config);
+    const svg = extractSvg(config, sample.selectors, { postProcess: sample.post });
+    addSvgFigure(container, svg, sample.label);
   });
-  addPolygonFigure(container, [wingTop.right], "Top: Right Wing", {
-    fill: palette.secondary,
-    stroke: palette.trim,
-  });
-  addPolygonFigure(container, [wingTop.left, wingTop.right], "Top: Combined Wings", {
-    fill: palette.secondary,
-    stroke: palette.trim,
-  });
-
-  if (sampleConfig.wings.tipAccent) {
-    const accent = buildWingAccent(wingTop.left);
-    addPolylineFigure(container, accent, "Top: Wing Accent", {
-      stroke: palette.accent,
-      strokeWidth: 2.2,
-    });
-  }
 }
 
-function renderWingSidePreview() {
-  const container = document.getElementById("wing-side-preview");
-  container.innerHTML = "";
-  const axis = buildBodyAxis(sampleConfig.body);
-  const { profile } = prepareProfile(sampleConfig.body, axis);
-  const wingProfile = computeWingPlanform(sampleConfig.body, sampleConfig.wings);
-  if (!wingProfile.enabled) {
-    return;
-  }
-
-  const sidePoints = sampleConfig.wings.style === "delta"
-    ? getDeltaWingSide(sampleConfig, wingProfile, profile, axis)
-    : getWingSidePoints(wingProfile, profile, axis);
-  if (!sidePoints) {
-    return;
-  }
-
-  addPolygonFigure(container, [sidePoints], "Side: Wing Profile", {
-    fill: palette.secondary,
-    stroke: palette.trim,
-  });
-
-  const accent = [sidePoints[0], sidePoints[1], sidePoints[2]];
-  addPolylineFigure(container, accent, "Side: Leading Edge", {
-    stroke: palette.accent,
-    strokeWidth: 2,
-  });
-}
-
-renderNeedleTopPreview();
-renderNeedleSidePreview();
-renderWingTopPreview();
-renderWingSidePreview();
+renderSegmentGallery();
+renderWingGallery();
+renderArmamentGallery();
+renderSystemsGallery();
