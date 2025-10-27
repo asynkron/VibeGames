@@ -529,12 +529,16 @@ function deriveSideViewGeometry(config) {
 
   const wingEnabled = Boolean(wings?.enabled);
   const wingRootFromNose = wingEnabled ? centerOffsetToBody(wings?.offsetY ?? 0) : 0;
-  const wingLength = wingEnabled ? Math.max(24, (wings?.span ?? 0) * 0.6) : 0;
+  // Use the same chord the top view uses (forward sweep + trailing sweep)
+  // so the apparent front-to-back size matches between projections.
+  const wingChord = (wings?.forward ?? 0) + (wings?.sweep ?? 0);
+  const wingLength = wingEnabled ? Math.max(24, wingChord) : 0;
   const wing = {
     enabled: wingEnabled,
     position: wingEnabled ? clamp(wingRootFromNose, wingLength * 0.12, body.length - wingLength * 0.25) : 0,
     length: wingLength,
-    thickness: wingEnabled ? Math.max(6, (wings?.thickness ?? 0) * 0.55) : 0,
+    // Tie the vertical thickness to the real span so wings remain visible in profile.
+    thickness: wingEnabled ? Math.max(6, (wings?.span ?? 0) * 0.18) : 0,
     dihedral: wingEnabled ? Math.max(0, (wings?.dihedral ?? 0) * 0.8) : 0,
     drop: wingEnabled ? Math.max(6, (wings?.sweep ?? 0) * 0.6) : 0,
     mountHeight: wingEnabled ? ((wings?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.35) : 0,
@@ -543,10 +547,11 @@ function deriveSideViewGeometry(config) {
 
   const stabiliser = fins
     ? {
-        height: Math.max(8, fins.height),
-        length: Math.max(12, fins.width * 1.6),
+        // Map top view dimensions directly to the side view so the fin footprint stays consistent.
+        length: Math.max(12, fins.height),
+        height: Math.max(8, fins.width * 1.05),
         sweep: Math.max(10, (wings?.forward ?? 18) * 0.5),
-        thickness: Math.max(5, fins.width * 0.7),
+        thickness: Math.max(5, fins.width * 0.55),
         offsetY: ((fins.side ?? 0) - (fins.bottom ?? 0)) * baseHeight * 0.06,
         ventral: (fins.bottom ?? 0) > 0,
       }
@@ -736,13 +741,11 @@ function drawSideCanopy(root, config, geometry, defs) {
   const baseY = 100 + (profile.offsetY ?? 0) - canopy.height * 0.1 + (canopy.offsetY ?? 0);
 
   const canopyShape = document.createElementNS(SVG_NS, "path");
+  const apexX = baseX + canopy.length / 2;
   const canopyPath = [
     `M ${baseX} ${baseY}`,
-    `L ${baseX + canopy.length * 0.12} ${baseY - canopy.height * 0.7}`,
-    `L ${baseX + canopy.length * 0.82} ${baseY - canopy.height}`,
-    `L ${baseX + canopy.length} ${baseY - canopy.height * 0.18}`,
-    `L ${baseX + canopy.length * 0.92} ${baseY + canopy.height * 0.24}`,
-    `L ${baseX + canopy.length * 0.1} ${baseY + canopy.height * 0.32}`,
+    `Q ${apexX} ${baseY - canopy.height} ${baseX + canopy.length} ${baseY}`,
+    `Q ${apexX} ${baseY + canopy.height * 0.25} ${baseX} ${baseY}`,
     "Z",
   ].join(" ");
   canopyShape.setAttribute("d", canopyPath);
@@ -752,15 +755,11 @@ function drawSideCanopy(root, config, geometry, defs) {
   canopyShape.setAttribute("stroke-linejoin", "round");
   root.appendChild(canopyShape);
 
-  const frame = document.createElementNS(SVG_NS, "polyline");
-  frame.setAttribute(
-    "points",
-    pointsToString([
-      [baseX + canopy.length * 0.18, baseY - canopy.height * 0.6],
-      [baseX + canopy.length * 0.48, baseY - canopy.height * 0.82],
-      [baseX + canopy.length * 0.76, baseY - canopy.height * 0.7],
-    ]),
-  );
+  const frame = document.createElementNS(SVG_NS, "path");
+  const framePath = `M ${baseX + canopy.length * 0.08} ${baseY} Q ${apexX} ${baseY - canopy.height * 0.85} ${
+    baseX + canopy.length * 0.92
+  } ${baseY}`;
+  frame.setAttribute("d", framePath);
   frame.setAttribute("stroke", mixColor(palette.trim, palette.accent, 0.5));
   frame.setAttribute("stroke-width", canopy.frame * 0.7);
   frame.setAttribute("stroke-linecap", "round");
@@ -803,6 +802,17 @@ function drawSideThrusters(root, config, geometry) {
     nozzle.setAttribute("stroke", palette.trim);
     nozzle.setAttribute("stroke-width", 1.2);
 
+    const flame = document.createElementNS(SVG_NS, "polygon");
+    const flamePoints = [
+      [tailX + thruster.nozzleLength * 0.05, y - thruster.radius * 0.35],
+      [tailX + thruster.nozzleLength * 0.8, y],
+      [tailX + thruster.nozzleLength * 0.05, y + thruster.radius * 0.35],
+    ];
+    flame.setAttribute("points", pointsToString(flamePoints));
+    flame.setAttribute("fill", thruster.glow);
+    flame.setAttribute("opacity", "0.85");
+    flame.classList.add("thruster-flame");
+
     const glow = document.createElementNS(SVG_NS, "circle");
     glow.setAttribute("cx", tailX.toString());
     glow.setAttribute("cy", y.toString());
@@ -817,7 +827,7 @@ function drawSideThrusters(root, config, geometry) {
     core.setAttribute("fill", mixColor(thruster.glow, "#ffffff", 0.5));
     core.setAttribute("opacity", "0.9");
 
-    group.append(housing, nozzle, glow, core);
+    group.append(housing, nozzle, flame, glow, core);
   }
 
   root.appendChild(group);
@@ -1181,15 +1191,28 @@ function drawFins(root, config) {
 }
 
 function drawDetails(root, config) {
-  const { details, palette, body } = config;
+  const { details, palette, body, cockpit } = config;
   if (details.stripe) {
-    const stripe = document.createElementNS(SVG_NS, "path");
-    stripe.setAttribute("d", buildStripePath(body, details));
-    stripe.setAttribute("stroke", palette.accent);
-    stripe.setAttribute("stroke-width", 3.4);
-    stripe.setAttribute("stroke-linecap", "round");
-    stripe.setAttribute("opacity", "0.85");
-    root.appendChild(stripe);
+    const stripeTop = 100 - body.length / 2 + details.stripeOffset;
+    const stripeBottom = stripeTop + body.length * 0.25;
+    const canopyCenter = cockpit
+      ? 100 - body.length / 2 + body.length * 0.32 + (cockpit.offsetY ?? 0)
+      : null;
+    const canopyHalfHeight = cockpit ? (cockpit.height ?? 0) / 2 + 4 : 0;
+    const canopyTop = canopyCenter !== null ? canopyCenter - canopyHalfHeight : null;
+    const canopyBottom = canopyCenter !== null ? canopyCenter + canopyHalfHeight : null;
+    const overlapsCanopy =
+      canopyTop !== null && canopyBottom !== null && stripeTop < canopyBottom && stripeBottom > canopyTop;
+
+    if (!overlapsCanopy) {
+      const stripe = document.createElementNS(SVG_NS, "path");
+      stripe.setAttribute("d", buildStripePath(body, details));
+      stripe.setAttribute("stroke", palette.accent);
+      stripe.setAttribute("stroke-width", 3.4);
+      stripe.setAttribute("stroke-linecap", "round");
+      stripe.setAttribute("opacity", "0.85");
+      root.appendChild(stripe);
+    }
   }
 
   if (details.antenna) {
