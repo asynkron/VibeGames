@@ -2133,16 +2133,18 @@ function drawDetails(root, config, axis) {
 }
 
 function buildBodyPath(body) {
+  const axis = buildBodyAxis(body);
+
   if (!body.segments) {
-    const halfLength = body.length / 2;
-    const noseY = 100 - halfLength;
-    const tailY = 100 + halfLength;
+    const centerY = axis.percentToTopY(0.5);
+    const noseY = axis.top.nose;
+    const tailY = axis.top.tail;
     const waistLeft = 100 - body.halfWidth;
     const waistRight = 100 + body.halfWidth;
     const noseWidth = body.halfWidth * body.noseWidthFactor;
     const tailWidth = body.halfWidth * body.tailWidthFactor;
-    const midUpper = 100 - body.midInset;
-    const midLower = 100 + body.midInset;
+    const midUpper = centerY - body.midInset;
+    const midLower = centerY + body.midInset;
 
     return [
       `M ${100 - noseWidth} ${noseY}`,
@@ -2156,7 +2158,7 @@ function buildBodyPath(body) {
     ].join(" ");
   }
 
-  const geometry = computeSegmentGeometry(body);
+  const geometry = computeSegmentGeometry(body, axis);
   const { nose, nodes, tail, frontCurve, tailCurve, format } = geometry;
 
   const commands = [];
@@ -2187,11 +2189,10 @@ function buildBodyPath(body) {
 }
 
 // Collects shared measurement points so segmented and legacy bodies stay aligned.
-function computeSegmentGeometry(body) {
+function computeSegmentGeometry(body, axis = buildBodyAxis(body)) {
   const { front, mid, rear } = body.segments;
-  const halfLength = body.length / 2;
-  const noseY = 100 - halfLength;
-  const tailY = 100 + halfLength;
+  const noseY = axis.top.nose;
+  const tailY = axis.top.tail;
   const frontEndY = noseY + front.length;
   const midEndY = frontEndY + mid.length;
   const rearStartY = midEndY;
@@ -2320,9 +2321,9 @@ function buildBodySegmentPaths(body) {
 }
 
 function buildPlatingPath(body) {
-  const halfLength = body.length / 2;
-  const top = 100 - halfLength + 18;
-  const bottom = 100 + halfLength - 18;
+  const axis = buildBodyAxis(body);
+  const top = axis.top.nose + 18;
+  const bottom = axis.top.tail - 18;
   const innerLeft = 100 - body.halfWidth * 0.6;
   const innerRight = 100 + body.halfWidth * 0.6;
   const segments = 4;
@@ -2422,6 +2423,7 @@ function computeCanopyPlacement(body, cockpit) {
   const startPercent = start / body.length;
   const endPercent = end / body.length;
   const centerPercent = centerFromNose / body.length;
+  const axis = buildBodyAxis(body);
   return {
     length: canopyLength,
     centerFromNose,
@@ -2430,7 +2432,7 @@ function computeCanopyPlacement(body, cockpit) {
     startPercent,
     endPercent,
     centerPercent,
-    centerY: 100 - body.length / 2 + centerFromNose,
+    centerY: axis.top.nose + centerFromNose,
   };
 }
 
@@ -2479,8 +2481,9 @@ function buildSideHullGeometry(profile) {
 function buildLegacySideHullPath(profile) {
   const offsetY = profile.offsetY ?? 0;
   const centerY = 100 + offsetY;
-  const noseX = 100 - profile.length / 2;
-  const tailX = 100 + profile.length / 2;
+  const axis = profile.axis ?? null;
+  const noseX = axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
+  const tailX = axis?.side?.tail ?? profile.tailX ?? 100 + profile.length / 2;
   const dorsalTop = centerY - profile.dorsalHeight;
   const tailTop = centerY - profile.tailHeight;
   const belly = centerY + profile.bellyDrop;
@@ -2510,12 +2513,13 @@ function buildSideSegmentedHull(profile) {
   }
 
   const format = (value) => Number(value.toFixed(2));
-  const hullTop = sampleAnchoredCurve(anchors.topAnchors, 0, profile.length, anchors.noseX, format);
+  const noseX = anchors.noseX ?? profile.axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
+  const hullTop = sampleAnchoredCurve(anchors.topAnchors, 0, profile.length, noseX, format);
   const hullBottom = sampleAnchoredCurve(
     anchors.bottomAnchors,
     0,
     profile.length,
-    anchors.noseX,
+    noseX,
     format,
   );
 
@@ -2532,8 +2536,8 @@ function buildSideSegmentedHull(profile) {
     if (end - start <= 0.1) {
       return;
     }
-    const top = sampleAnchoredCurve(anchors.topAnchors, start, end, anchors.noseX, format);
-    const bottom = sampleAnchoredCurve(anchors.bottomAnchors, start, end, anchors.noseX, format);
+    const top = sampleAnchoredCurve(anchors.topAnchors, start, end, noseX, format);
+    const bottom = sampleAnchoredCurve(anchors.bottomAnchors, start, end, noseX, format);
     segmentPaths[key] = buildClosedPathFromSamples(top, bottom, format);
   });
 
@@ -2543,8 +2547,11 @@ function buildSideSegmentedHull(profile) {
 function buildSidePanelLines(profile) {
   const offsetY = profile.offsetY ?? 0;
   const centerY = 100 + offsetY;
-  const noseX = 100 - profile.length / 2 + profile.noseLength * 0.9;
-  const tailX = 100 + profile.length / 2 - profile.tailLength * 0.65;
+  const axis = profile.axis ?? null;
+  const noseOrigin = axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
+  const tailOrigin = axis?.side?.tail ?? profile.tailX ?? 100 + profile.length / 2;
+  const noseX = noseOrigin + profile.noseLength * 0.9;
+  const tailX = tailOrigin - profile.tailLength * 0.65;
   const top = centerY - profile.height * 0.35;
   const bottom = centerY + profile.height * 0.25;
   const steps = 3;
@@ -2580,8 +2587,9 @@ function buildSegmentDividerPath(topAnchors, bottomAnchors, noseX, offset) {
 function buildSideIntakePath(profile) {
   const offsetY = profile.offsetY ?? 0;
   const centerY = 100 + offsetY;
-  const noseX = 100 - profile.length / 2;
-  const startX = noseX + profile.noseLength * 0.55;
+  const axis = profile.axis ?? null;
+  const noseOrigin = axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
+  const startX = noseOrigin + profile.noseLength * 0.55;
   const lowerY = centerY + profile.bellyDrop * 0.85;
   const deepestY = centerY + profile.ventralDepth;
   const endX = startX + profile.intakeDepth;
@@ -2781,7 +2789,7 @@ function createSideProfileAnchors(profile, segments, options = {}) {
     [profile.length, tailBottom],
   ];
 
-  const noseX = 100 - profile.length / 2;
+  const noseX = profile.axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
 
   return {
     noseX,
