@@ -418,6 +418,19 @@ const newSeedButton = document.getElementById("newSeed");
 const shufflePaletteButton = document.getElementById("shufflePalette");
 const debugToggleButton = document.getElementById("debugToggle");
 
+// The sprite generator UI exists only on the dedicated generator page. Games such as
+// Nemesis import the generation helpers without rendering that UI, so skip the
+// DOM-driven setup if the controls are absent.
+const hasGeneratorUi = Boolean(
+  categorySelect &&
+  spriteGrid &&
+  detailTopView &&
+  detailSideView &&
+  definition &&
+  newSeedButton &&
+  shufflePaletteButton
+);
+
 let renderCounter = 0;
 
 let currentCategory = "fighter";
@@ -441,8 +454,10 @@ function updateDebugToggleButton() {
   debugToggleButton.setAttribute("aria-pressed", debugColorsEnabled ? "true" : "false");
 }
 
-populateCategorySelect();
-initialise();
+if (hasGeneratorUi) {
+  populateCategorySelect();
+  initialise();
+}
 
 function populateCategorySelect() {
   Object.entries(CATEGORY_DEFINITIONS).forEach(([key, def]) => {
