@@ -680,6 +680,13 @@ function deriveSideViewGeometry(config) {
     plating: Boolean(body.plating),
   };
 
+  if (body.segments) {
+    const anchors = createSideProfileAnchors(profile, body.segments);
+    if (anchors) {
+      profile.segmentAnchors = anchors;
+    }
+  }
+
   const canopyPlacement = computeCanopyPlacement(body, cockpit);
   const canopyHeight = clamp((cockpit?.height ?? 18) * 1.05, (cockpit?.height ?? 18) * 0.85, dorsalHeight - 4);
   const canopy = {
@@ -791,13 +798,42 @@ function drawSideHull(root, config, geometry) {
   const { profile } = geometry;
   const group = document.createElementNS(SVG_NS, "g");
 
-  const hull = document.createElementNS(SVG_NS, "path");
-  hull.setAttribute("d", buildSideHullPath(profile));
-  hull.setAttribute("fill", partColor("hull", palette.primary));
-  hull.setAttribute("stroke", palette.accent);
-  hull.setAttribute("stroke-width", 2.4);
-  hull.setAttribute("stroke-linejoin", "round");
-  group.appendChild(hull);
+  const hullGeometry = buildSideHullGeometry(profile);
+
+  if (hullGeometry.segmentPaths) {
+    const segmentOrder = ["front", "mid", "rear"];
+    const shading = [0.08, 0, -0.08];
+    segmentOrder.forEach((key, index) => {
+      const pathData = hullGeometry.segmentPaths[key];
+      if (!pathData) {
+        return;
+      }
+      const segment = document.createElementNS(SVG_NS, "path");
+      segment.setAttribute("d", pathData);
+      segment.setAttribute(
+        "fill",
+        partColor("hull", shadeColor(palette.primary, shading[index] ?? 0)),
+      );
+      segment.setAttribute("stroke", "none");
+      group.appendChild(segment);
+    });
+
+    const outline = document.createElementNS(SVG_NS, "path");
+    outline.setAttribute("d", hullGeometry.hullPath);
+    outline.setAttribute("fill", "none");
+    outline.setAttribute("stroke", palette.accent);
+    outline.setAttribute("stroke-width", 2.4);
+    outline.setAttribute("stroke-linejoin", "round");
+    group.appendChild(outline);
+  } else {
+    const hull = document.createElementNS(SVG_NS, "path");
+    hull.setAttribute("d", hullGeometry.hullPath);
+    hull.setAttribute("fill", partColor("hull", palette.primary));
+    hull.setAttribute("stroke", palette.accent);
+    hull.setAttribute("stroke-width", 2.4);
+    hull.setAttribute("stroke-linejoin", "round");
+    group.appendChild(hull);
+  }
 
   if (profile.plating) {
     const plating = document.createElementNS(SVG_NS, "path");
@@ -2052,7 +2088,18 @@ function computeWingPlanform(body, wings) {
   };
 }
 
-function buildSideHullPath(profile) {
+function buildSideHullGeometry(profile) {
+  if (profile.segmentAnchors) {
+    return buildSideSegmentedHull(profile);
+  }
+
+  return {
+    hullPath: buildLegacySideHullPath(profile),
+    segmentPaths: null,
+  };
+}
+
+function buildLegacySideHullPath(profile) {
   const offsetY = profile.offsetY ?? 0;
   const centerY = 100 + offsetY;
   const noseX = 100 - profile.length / 2;
@@ -2077,6 +2124,43 @@ function buildSideHullPath(profile) {
     `Q ${noseX + profile.noseLength * 0.1} ${centerY + profile.noseHeight * 0.25} ${noseX} ${centerY}`,
     "Z",
   ].join(" ");
+}
+
+function buildSideSegmentedHull(profile) {
+  const anchors = profile.segmentAnchors;
+  if (!anchors) {
+    return { hullPath: buildLegacySideHullPath(profile), segmentPaths: null };
+  }
+
+  const format = (value) => Number(value.toFixed(2));
+  const hullTop = sampleAnchoredCurve(anchors.topAnchors, 0, profile.length, anchors.noseX, format);
+  const hullBottom = sampleAnchoredCurve(
+    anchors.bottomAnchors,
+    0,
+    profile.length,
+    anchors.noseX,
+    format,
+  );
+
+  const hullPath = buildClosedPathFromSamples(hullTop, hullBottom, format);
+  const segmentPaths = {};
+
+  const segments = [
+    ["front", 0, anchors.boundaries.front],
+    ["mid", anchors.boundaries.front, anchors.boundaries.mid],
+    ["rear", anchors.boundaries.mid, profile.length],
+  ];
+
+  segments.forEach(([key, start, end]) => {
+    if (end - start <= 0.1) {
+      return;
+    }
+    const top = sampleAnchoredCurve(anchors.topAnchors, start, end, anchors.noseX, format);
+    const bottom = sampleAnchoredCurve(anchors.bottomAnchors, start, end, anchors.noseX, format);
+    segmentPaths[key] = buildClosedPathFromSamples(top, bottom, format);
+  });
+
+  return { hullPath, segmentPaths };
 }
 
 function buildSidePanelLines(profile) {
@@ -2142,6 +2226,129 @@ function buildStripePath(body, details) {
 
 function pointsToString(points) {
   return points.map((point) => point.join(" ")).join(" ");
+}
+
+function buildClosedPathFromSamples(topPoints, bottomPoints, format) {
+  if (!topPoints.length || !bottomPoints.length) {
+    return "";
+  }
+
+  const commands = [`M ${format(topPoints[0][0])} ${format(topPoints[0][1])}`];
+
+  for (let i = 1; i < topPoints.length; i += 1) {
+    commands.push(`L ${format(topPoints[i][0])} ${format(topPoints[i][1])}`);
+  }
+
+  for (let i = bottomPoints.length - 1; i >= 0; i -= 1) {
+    commands.push(`L ${format(bottomPoints[i][0])} ${format(bottomPoints[i][1])}`);
+  }
+
+  commands.push("Z");
+  return commands.join(" ");
+}
+
+function sampleAnchoredCurve(anchors, start, end, noseX, format) {
+  const result = [];
+  const span = Math.max(end - start, 1);
+  const steps = Math.max(4, Math.round(span / 12));
+
+  for (let i = 0; i <= steps; i += 1) {
+    const ratio = i / steps;
+    const x = start + span * ratio;
+    const y = interpolateAnchoredY(anchors, x);
+    result.push([format(noseX + x), format(y)]);
+  }
+
+  return result;
+}
+
+function interpolateAnchoredY(anchors, x) {
+  if (!anchors.length) {
+    return 0;
+  }
+
+  if (x <= anchors[0][0]) {
+    return anchors[0][1];
+  }
+
+  for (let i = 0; i < anchors.length - 1; i += 1) {
+    const left = anchors[i];
+    const right = anchors[i + 1];
+    if (x <= right[0]) {
+      const delta = right[0] - left[0];
+      const t = delta === 0 ? 0 : (x - left[0]) / delta;
+      return left[1] + (right[1] - left[1]) * t;
+    }
+  }
+
+  const last = anchors[anchors.length - 1];
+  return last[1];
+}
+
+function createSideProfileAnchors(profile, segments) {
+  if (!segments) {
+    return null;
+  }
+
+  let frontLength = Math.max(1, segments.front?.length ?? profile.noseLength ?? profile.length * 0.32);
+  let midLength = Math.max(1, segments.mid?.length ?? profile.length * 0.36);
+  let rearLength = Math.max(1, segments.rear?.length ?? profile.tailLength ?? profile.length * 0.32);
+
+  const total = frontLength + midLength + rearLength;
+  if (!Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+
+  const scale = profile.length / total;
+  frontLength *= scale;
+  midLength *= scale;
+  rearLength *= scale;
+
+  const centerY = 100 + (profile.offsetY ?? 0);
+  const noseTop = centerY - profile.noseHeight;
+  const crest = centerY - profile.dorsalHeight;
+  const tailTop = centerY - profile.tailHeight;
+  const noseBottom = centerY + profile.noseHeight * 0.55;
+  const belly = centerY + profile.bellyDrop;
+  const ventral = centerY + profile.ventralDepth;
+  const tailBottom = centerY + Math.max(profile.tailHeight * 0.8, profile.bellyDrop * 0.85);
+
+  const frontEnd = frontLength;
+  const midEnd = frontEnd + midLength;
+
+  const mix = (a, b, t) => a + (b - a) * t;
+
+  const topAnchors = [
+    [0, noseTop],
+    [frontLength * 0.45, mix(noseTop, crest, 0.6)],
+    [frontEnd, mix(crest, noseTop, 0.1)],
+    [midEnd - midLength * 0.55, crest - profile.height * 0.08],
+    [midEnd - midLength * 0.15, crest],
+    [profile.length - rearLength * 0.55, mix(crest, tailTop, 0.55)],
+    [profile.length, tailTop],
+  ];
+
+  const bottomAnchors = [
+    [0, noseBottom],
+    [frontLength * 0.35, mix(noseBottom, belly, 0.55)],
+    [frontEnd, mix(ventral, belly, 0.4)],
+    [midEnd - midLength * 0.55, ventral],
+    [midEnd, belly],
+    [profile.length - rearLength * 0.45, mix(belly, tailBottom, 0.65)],
+    [profile.length, tailBottom],
+  ];
+
+  const noseX = 100 - profile.length / 2;
+
+  return {
+    noseX,
+    topAnchors,
+    bottomAnchors,
+    boundaries: {
+      front: frontEnd,
+      mid: midEnd,
+    },
+  };
 }
 
 function mirrorPoints(points) {
