@@ -265,6 +265,19 @@ const COLOR_PALETTES = [
   },
 ];
 
+const DEBUG_PART_COLORS = {
+  hull: "#ff6b6b",
+  wing: "#4ecdc4",
+  canopy: "#48cae4",
+  stabiliser: "#f8961e",
+  thruster: "#f9844a",
+  exhaust: "#ffd166",
+  weapons: "#b5179e",
+  markings: "#00b4d8",
+  lights: "#ff9f1c",
+  details: "#8338ec",
+};
+
 const modeSelect = document.getElementById("modeSelect");
 const categorySelect = document.getElementById("categorySelect");
 const spriteGrid = document.getElementById("spriteGrid");
@@ -272,6 +285,7 @@ const detailSprite = document.getElementById("detailSprite");
 const definition = document.getElementById("definition");
 const newSeedButton = document.getElementById("newSeed");
 const shufflePaletteButton = document.getElementById("shufflePalette");
+const debugToggleButton = document.getElementById("debugToggle");
 
 let renderCounter = 0;
 
@@ -279,6 +293,23 @@ let currentCategory = "fighter";
 let currentViewMode = "both";
 let parentConfig = null;
 let selectedConfig = null;
+let debugColorsEnabled = false;
+
+function partColor(part, fallback) {
+  return debugColorsEnabled ? DEBUG_PART_COLORS[part] ?? fallback : fallback;
+}
+
+function partStroke(part, fallback) {
+  return debugColorsEnabled ? DEBUG_PART_COLORS[part] ?? fallback : fallback;
+}
+
+function updateDebugToggleButton() {
+  if (!debugToggleButton) {
+    return;
+  }
+  debugToggleButton.textContent = `Debug colors: ${debugColorsEnabled ? "on" : "off"}`;
+  debugToggleButton.setAttribute("aria-pressed", debugColorsEnabled ? "true" : "false");
+}
 
 populateModeSelect();
 populateCategorySelect();
@@ -340,6 +371,16 @@ function initialise() {
     renderDetail(selectedConfig);
     renderGrid();
   });
+
+  if (debugToggleButton) {
+    debugToggleButton.addEventListener("click", () => {
+      debugColorsEnabled = !debugColorsEnabled;
+      updateDebugToggleButton();
+      renderDetail(selectedConfig);
+      renderGrid();
+    });
+    updateDebugToggleButton();
+  }
 }
 
 function renderGrid() {
@@ -403,6 +444,7 @@ function renderSpaceship(svg, config, options = {}) {
   const viewMode = options.viewMode ?? currentViewMode ?? "both";
   svg.innerHTML = "";
   svg.setAttribute("data-view-mode", viewMode);
+  svg.setAttribute("data-debug", debugColorsEnabled ? "true" : "false");
 
   const defs = document.createElementNS(SVG_NS, "defs");
   svg.appendChild(defs);
@@ -610,7 +652,7 @@ function drawSideHull(root, config, geometry) {
 
   const hull = document.createElementNS(SVG_NS, "path");
   hull.setAttribute("d", buildSideHullPath(profile));
-  hull.setAttribute("fill", palette.primary);
+  hull.setAttribute("fill", partColor("hull", palette.primary));
   hull.setAttribute("stroke", palette.accent);
   hull.setAttribute("stroke-width", 2.4);
   hull.setAttribute("stroke-linejoin", "round");
@@ -630,7 +672,7 @@ function drawSideHull(root, config, geometry) {
   if (profile.intakeHeight > 0 && profile.intakeDepth > 0) {
     const intake = document.createElementNS(SVG_NS, "path");
     intake.setAttribute("d", buildSideIntakePath(profile));
-    intake.setAttribute("fill", shadeColor(palette.secondary, -0.2));
+    intake.setAttribute("fill", partColor("hull", shadeColor(palette.secondary, -0.2)));
     intake.setAttribute("stroke", palette.trim);
     intake.setAttribute("stroke-width", 1.2);
     group.appendChild(intake);
@@ -649,7 +691,7 @@ function drawSideWing(root, config, geometry) {
   const points = buildSideWingPoints(wingProfile, profile);
   const wing = document.createElementNS(SVG_NS, "polygon");
   wing.setAttribute("points", pointsToString(points));
-  wing.setAttribute("fill", shadeColor(palette.secondary, -0.1));
+  wing.setAttribute("fill", partColor("wing", shadeColor(palette.secondary, -0.1)));
   wing.setAttribute("stroke", palette.trim);
   wing.setAttribute("stroke-width", 1.8);
   wing.setAttribute("stroke-linejoin", "round");
@@ -658,7 +700,7 @@ function drawSideWing(root, config, geometry) {
   if (wingProfile.accent) {
     const accent = document.createElementNS(SVG_NS, "polyline");
     accent.setAttribute("points", pointsToString([points[0], points[1], points[2]]));
-    accent.setAttribute("stroke", palette.accent);
+    accent.setAttribute("stroke", partStroke("wing", palette.accent));
     accent.setAttribute("stroke-width", 2);
     accent.setAttribute("fill", "none");
     root.appendChild(accent);
@@ -683,8 +725,8 @@ function drawSideStabiliser(root, config, geometry) {
     [tailBase + stabiliser.length * 0.22, baseY + stabiliser.thickness * 0.2],
   ];
   fin.setAttribute("points", pointsToString(finPoints));
-  fin.setAttribute("fill", shadeColor(palette.secondary, 0.05));
-  fin.setAttribute("stroke", palette.trim);
+  fin.setAttribute("fill", partColor("stabiliser", shadeColor(palette.secondary, 0.05)));
+  fin.setAttribute("stroke", partStroke("stabiliser", palette.trim));
   fin.setAttribute("stroke-width", 1.6);
   fin.setAttribute("stroke-linejoin", "round");
   root.appendChild(fin);
@@ -698,8 +740,8 @@ function drawSideStabiliser(root, config, geometry) {
       [tailBase + stabiliser.length * 0.32, baseY + stabiliser.thickness * 0.1],
     ];
     ventral.setAttribute("points", pointsToString(ventralPoints));
-    ventral.setAttribute("fill", shadeColor(palette.secondary, -0.15));
-    ventral.setAttribute("stroke", palette.trim);
+    ventral.setAttribute("fill", partColor("stabiliser", shadeColor(palette.secondary, -0.15)));
+    ventral.setAttribute("stroke", partStroke("stabiliser", palette.trim));
     ventral.setAttribute("stroke-width", 1.4);
     ventral.setAttribute("stroke-linejoin", "round");
     root.appendChild(ventral);
@@ -721,17 +763,22 @@ function drawSideCanopy(root, config, geometry, defs) {
   gradient.setAttribute("y1", "0%");
   gradient.setAttribute("y2", "100%");
 
+  const canopyColor = partColor("canopy", canopy.tint);
+  const highlightColor = debugColorsEnabled ? canopyColor : mixColor(canopy.tint, "#ffffff", 0.4);
+  const midColor = debugColorsEnabled ? canopyColor : canopy.tint;
+  const shadowColor = debugColorsEnabled ? canopyColor : shadeColor(canopy.tint, -0.3);
+
   const stop1 = document.createElementNS(SVG_NS, "stop");
   stop1.setAttribute("offset", "0%");
-  stop1.setAttribute("stop-color", mixColor(canopy.tint, "#ffffff", 0.4));
+  stop1.setAttribute("stop-color", highlightColor);
   stop1.setAttribute("stop-opacity", "0.9");
   const stop2 = document.createElementNS(SVG_NS, "stop");
   stop2.setAttribute("offset", "65%");
-  stop2.setAttribute("stop-color", canopy.tint);
+  stop2.setAttribute("stop-color", midColor);
   stop2.setAttribute("stop-opacity", "0.95");
   const stop3 = document.createElementNS(SVG_NS, "stop");
   stop3.setAttribute("offset", "100%");
-  stop3.setAttribute("stop-color", shadeColor(canopy.tint, -0.3));
+  stop3.setAttribute("stop-color", shadowColor);
   stop3.setAttribute("stop-opacity", "0.9");
   gradient.append(stop1, stop2, stop3);
   defs.appendChild(gradient);
@@ -750,7 +797,7 @@ function drawSideCanopy(root, config, geometry, defs) {
   ].join(" ");
   canopyShape.setAttribute("d", canopyPath);
   canopyShape.setAttribute("fill", `url(#${gradientId})`);
-  canopyShape.setAttribute("stroke", palette.trim);
+  canopyShape.setAttribute("stroke", debugColorsEnabled ? canopyColor : palette.trim);
   canopyShape.setAttribute("stroke-width", canopy.frame);
   canopyShape.setAttribute("stroke-linejoin", "round");
   root.appendChild(canopyShape);
@@ -760,7 +807,10 @@ function drawSideCanopy(root, config, geometry, defs) {
     baseX + canopy.length * 0.92
   } ${baseY}`;
   frame.setAttribute("d", framePath);
-  frame.setAttribute("stroke", mixColor(palette.trim, palette.accent, 0.5));
+  frame.setAttribute(
+    "stroke",
+    debugColorsEnabled ? canopyColor : mixColor(palette.trim, palette.accent, 0.5),
+  );
   frame.setAttribute("stroke-width", canopy.frame * 0.7);
   frame.setAttribute("stroke-linecap", "round");
   frame.setAttribute("fill", "none");
@@ -776,6 +826,12 @@ function drawSideThrusters(root, config, geometry) {
   const tailX = 100 + profile.length / 2;
   const baseY = 100 + (profile.offsetY ?? 0) + (thruster.offsetY ?? 0);
   const group = document.createElementNS(SVG_NS, "g");
+  const thrusterBodyColor = partColor("thruster", shadeColor(palette.secondary, -0.05));
+  const thrusterNozzleColor = partColor(
+    "thruster",
+    mixColor(palette.secondary, palette.accent, 0.35),
+  );
+  const exhaustColor = partColor("exhaust", thruster.glow);
 
   for (let i = 0; i < thruster.count; i += 1) {
     const offset = i - (thruster.count - 1) / 2;
@@ -788,7 +844,7 @@ function drawSideThrusters(root, config, geometry) {
     housing.setAttribute("width", housingWidth.toString());
     housing.setAttribute("height", housingHeight.toString());
     housing.setAttribute("rx", (thruster.radius * 0.4).toString());
-    housing.setAttribute("fill", shadeColor(palette.secondary, -0.05));
+    housing.setAttribute("fill", thrusterBodyColor);
     housing.setAttribute("stroke", palette.trim);
     housing.setAttribute("stroke-width", 1.4);
 
@@ -798,7 +854,7 @@ function drawSideThrusters(root, config, geometry) {
     nozzle.setAttribute("width", thruster.nozzleLength.toString());
     nozzle.setAttribute("height", (thruster.radius * 1.5).toString());
     nozzle.setAttribute("rx", (thruster.radius * 0.3).toString());
-    nozzle.setAttribute("fill", mixColor(palette.secondary, palette.accent, 0.35));
+    nozzle.setAttribute("fill", thrusterNozzleColor);
     nozzle.setAttribute("stroke", palette.trim);
     nozzle.setAttribute("stroke-width", 1.2);
 
@@ -809,7 +865,7 @@ function drawSideThrusters(root, config, geometry) {
       [tailX + thruster.nozzleLength * 0.05, y + thruster.radius * 0.35],
     ];
     flame.setAttribute("points", pointsToString(flamePoints));
-    flame.setAttribute("fill", thruster.glow);
+    flame.setAttribute("fill", exhaustColor);
     flame.setAttribute("opacity", "0.85");
     flame.classList.add("thruster-flame");
 
@@ -817,14 +873,17 @@ function drawSideThrusters(root, config, geometry) {
     glow.setAttribute("cx", tailX.toString());
     glow.setAttribute("cy", y.toString());
     glow.setAttribute("r", (thruster.radius * 0.85).toString());
-    glow.setAttribute("fill", thruster.glow);
+    glow.setAttribute("fill", exhaustColor);
     glow.setAttribute("opacity", "0.85");
 
     const core = document.createElementNS(SVG_NS, "circle");
     core.setAttribute("cx", tailX.toString());
     core.setAttribute("cy", y.toString());
     core.setAttribute("r", (thruster.radius * 0.4).toString());
-    core.setAttribute("fill", mixColor(thruster.glow, "#ffffff", 0.5));
+    core.setAttribute(
+      "fill",
+      debugColorsEnabled ? exhaustColor : mixColor(thruster.glow, "#ffffff", 0.5),
+    );
     core.setAttribute("opacity", "0.9");
 
     group.append(housing, nozzle, flame, glow, core);
@@ -854,8 +913,8 @@ function drawSideWeapons(root, config, geometry) {
     housing.setAttribute("width", housingWidth.toString());
     housing.setAttribute("height", armament.housingHeight.toString());
     housing.setAttribute("rx", (armament.housingHeight * 0.25).toString());
-    housing.setAttribute("fill", shadeColor(palette.secondary, -0.1));
-    housing.setAttribute("stroke", palette.trim);
+    housing.setAttribute("fill", partColor("weapons", shadeColor(palette.secondary, -0.1)));
+    housing.setAttribute("stroke", partStroke("weapons", palette.trim));
     housing.setAttribute("stroke-width", 1.2);
 
     const barrel = document.createElementNS(SVG_NS, "line");
@@ -863,7 +922,7 @@ function drawSideWeapons(root, config, geometry) {
     barrel.setAttribute("y1", y.toString());
     barrel.setAttribute("x2", (noseX + 2).toString());
     barrel.setAttribute("y2", (y - armament.housingHeight * 0.1).toString());
-    barrel.setAttribute("stroke", palette.trim);
+    barrel.setAttribute("stroke", partStroke("weapons", palette.trim));
     barrel.setAttribute("stroke-width", 2.2);
     barrel.setAttribute("stroke-linecap", "round");
 
@@ -871,7 +930,7 @@ function drawSideWeapons(root, config, geometry) {
     muzzle.setAttribute("cx", baseX.toString());
     muzzle.setAttribute("cy", y.toString());
     muzzle.setAttribute("r", (armament.housingHeight * 0.25).toString());
-    muzzle.setAttribute("fill", shadeColor(palette.accent, -0.2));
+    muzzle.setAttribute("fill", partColor("weapons", shadeColor(palette.accent, -0.2)));
 
     root.append(housing, barrel, muzzle);
   }
@@ -898,9 +957,9 @@ function drawSideMarkings(root, config, geometry) {
     "Z",
   ].join(" ");
   stripe.setAttribute("d", stripePath);
-  stripe.setAttribute("fill", palette.accent);
+  stripe.setAttribute("fill", partColor("markings", palette.accent));
   stripe.setAttribute("opacity", "0.65");
-  stripe.setAttribute("stroke", mixColor(palette.accent, palette.trim, 0.3));
+  stripe.setAttribute("stroke", partStroke("markings", mixColor(palette.accent, palette.trim, 0.3)));
   stripe.setAttribute("stroke-width", 1.4);
   stripe.setAttribute("stroke-linejoin", "round");
   root.appendChild(stripe);
@@ -921,7 +980,7 @@ function drawSideLights(root, config, geometry) {
     noseLight.setAttribute("cx", (noseX - 4).toString());
     noseLight.setAttribute("cy", (centerY - profile.noseHeight * 0.1).toString());
     noseLight.setAttribute("r", "2.6");
-    noseLight.setAttribute("fill", palette.glow);
+    noseLight.setAttribute("fill", partColor("lights", palette.glow));
     noseLight.setAttribute("opacity", "0.85");
     root.appendChild(noseLight);
   }
@@ -931,7 +990,10 @@ function drawSideLights(root, config, geometry) {
     dorsal.setAttribute("cx", (noseX + profile.noseLength + profile.length * 0.36).toString());
     dorsal.setAttribute("cy", (centerY - profile.dorsalHeight - 6).toString());
     dorsal.setAttribute("r", "2.2");
-    dorsal.setAttribute("fill", mixColor(palette.glow, "#ffffff", 0.2));
+    dorsal.setAttribute(
+      "fill",
+      debugColorsEnabled ? partColor("lights", palette.glow) : mixColor(palette.glow, "#ffffff", 0.2),
+    );
     dorsal.setAttribute("opacity", "0.75");
     root.appendChild(dorsal);
   }
@@ -941,7 +1003,10 @@ function drawSideLights(root, config, geometry) {
     intake.setAttribute("cx", (noseX + profile.noseLength * 0.7).toString());
     intake.setAttribute("cy", (centerY + profile.ventralDepth - 6).toString());
     intake.setAttribute("r", "2.4");
-    intake.setAttribute("fill", mixColor(palette.glow, palette.trim, 0.4));
+    intake.setAttribute(
+      "fill",
+      debugColorsEnabled ? partColor("lights", palette.glow) : mixColor(palette.glow, palette.trim, 0.4),
+    );
     intake.setAttribute("opacity", "0.7");
     root.appendChild(intake);
   }
@@ -950,7 +1015,7 @@ function drawSideLights(root, config, geometry) {
   tailBeacon.setAttribute("cx", tailX.toString());
   tailBeacon.setAttribute("cy", (centerY - profile.tailHeight * 0.3).toString());
   tailBeacon.setAttribute("r", "2");
-  tailBeacon.setAttribute("fill", palette.trim);
+  tailBeacon.setAttribute("fill", partColor("lights", palette.trim));
   tailBeacon.setAttribute("opacity", "0.6");
   root.appendChild(tailBeacon);
 }
@@ -959,7 +1024,7 @@ function drawBody(root, config) {
   const { body, palette } = config;
   const path = document.createElementNS(SVG_NS, "path");
   path.setAttribute("d", buildBodyPath(body));
-  path.setAttribute("fill", palette.primary);
+  path.setAttribute("fill", partColor("hull", palette.primary));
   path.setAttribute("stroke", palette.accent);
   path.setAttribute("stroke-width", 2.4);
   path.setAttribute("stroke-linejoin", "round");
@@ -983,7 +1048,7 @@ function drawWings(root, config) {
     return;
   }
   const group = document.createElementNS(SVG_NS, "g");
-  group.setAttribute("fill", palette.secondary);
+  group.setAttribute("fill", partColor("wing", palette.secondary));
   group.setAttribute("stroke", palette.trim);
   group.setAttribute("stroke-width", 1.6);
   group.setAttribute("stroke-linejoin", "round");
@@ -1001,11 +1066,11 @@ function drawWings(root, config) {
   if (wings.tipAccent) {
     const accentLeft = document.createElementNS(SVG_NS, "polyline");
     accentLeft.setAttribute("points", pointsToString(buildWingAccent(leftPoints)));
-    accentLeft.setAttribute("stroke", palette.accent);
+    accentLeft.setAttribute("stroke", partStroke("wing", palette.accent));
     accentLeft.setAttribute("stroke-width", 2.2);
     const accentRight = document.createElementNS(SVG_NS, "polyline");
     accentRight.setAttribute("points", pointsToString(buildWingAccent(rightPoints)));
-    accentRight.setAttribute("stroke", palette.accent);
+    accentRight.setAttribute("stroke", partStroke("wing", palette.accent));
     accentRight.setAttribute("stroke-width", 2.2);
     group.append(accentLeft, accentRight);
   }
@@ -1022,19 +1087,24 @@ function drawCockpit(root, config, defs) {
   gradient.setAttribute("cy", "40%");
   gradient.setAttribute("r", "70%");
 
+  const canopyColor = partColor("canopy", cockpit.tint);
+  const highlightColor = debugColorsEnabled ? canopyColor : mixColor(cockpit.tint, "#ffffff", 0.4);
+  const midColor = debugColorsEnabled ? canopyColor : cockpit.tint;
+  const shadowColor = debugColorsEnabled ? canopyColor : shadeColor(cockpit.tint, -0.25);
+
   const stop1 = document.createElementNS(SVG_NS, "stop");
   stop1.setAttribute("offset", "0%");
-  stop1.setAttribute("stop-color", mixColor(cockpit.tint, "#ffffff", 0.4));
+  stop1.setAttribute("stop-color", highlightColor);
   stop1.setAttribute("stop-opacity", "0.9");
 
   const stop2 = document.createElementNS(SVG_NS, "stop");
   stop2.setAttribute("offset", "60%");
-  stop2.setAttribute("stop-color", cockpit.tint);
+  stop2.setAttribute("stop-color", midColor);
   stop2.setAttribute("stop-opacity", "0.95");
 
   const stop3 = document.createElementNS(SVG_NS, "stop");
   stop3.setAttribute("offset", "100%");
-  stop3.setAttribute("stop-color", shadeColor(cockpit.tint, -0.25));
+  stop3.setAttribute("stop-color", shadowColor);
   stop3.setAttribute("stop-opacity", "0.9");
 
   gradient.append(stop1, stop2, stop3);
@@ -1047,7 +1117,7 @@ function drawCockpit(root, config, defs) {
   ellipse.setAttribute("rx", (cockpit.width / 2).toString());
   ellipse.setAttribute("ry", (cockpit.height / 2).toString());
   ellipse.setAttribute("fill", `url(#${gradientId})`);
-  ellipse.setAttribute("stroke", palette.trim);
+  ellipse.setAttribute("stroke", debugColorsEnabled ? canopyColor : palette.trim);
   ellipse.setAttribute("stroke-width", 2);
 
   const frame = document.createElementNS(SVG_NS, "ellipse");
@@ -1056,7 +1126,7 @@ function drawCockpit(root, config, defs) {
   frame.setAttribute("rx", (cockpit.width / 2 + 4).toString());
   frame.setAttribute("ry", (cockpit.height / 2 + 3).toString());
   frame.setAttribute("fill", "none");
-  frame.setAttribute("stroke", palette.accent);
+  frame.setAttribute("stroke", debugColorsEnabled ? canopyColor : palette.accent);
   frame.setAttribute("stroke-width", 1.4);
   frame.setAttribute("opacity", "0.7");
 
@@ -1070,6 +1140,8 @@ function drawEngines(root, config) {
   const group = document.createElementNS(SVG_NS, "g");
   const baseY = 100 + body.length / 2 - 4;
   const totalWidth = (engine.count - 1) * engine.spacing;
+  const thrusterColor = partColor("thruster", palette.secondary);
+  const exhaustColor = partColor("exhaust", engine.glow);
 
   for (let i = 0; i < engine.count; i += 1) {
     const offsetX = engine.count === 1 ? 0 : -totalWidth / 2 + i * engine.spacing;
@@ -1081,7 +1153,7 @@ function drawEngines(root, config) {
     nozzle.setAttribute("width", engine.size.toString());
     nozzle.setAttribute("height", engine.nozzleLength.toString());
     nozzle.setAttribute("rx", (engine.size * 0.24).toString());
-    nozzle.setAttribute("fill", palette.secondary);
+    nozzle.setAttribute("fill", thrusterColor);
     nozzle.setAttribute("stroke", palette.trim);
     nozzle.setAttribute("stroke-width", 1.4);
 
@@ -1090,7 +1162,7 @@ function drawEngines(root, config) {
     cap.setAttribute("cy", (baseY - engine.nozzleLength).toString());
     cap.setAttribute("rx", (engine.size / 2).toString());
     cap.setAttribute("ry", (engine.size * 0.22).toString());
-    cap.setAttribute("fill", palette.secondary);
+    cap.setAttribute("fill", thrusterColor);
     cap.setAttribute("stroke", palette.trim);
     cap.setAttribute("stroke-width", 1.2);
 
@@ -1099,7 +1171,10 @@ function drawEngines(root, config) {
     thruster.setAttribute("cy", baseY.toString());
     thruster.setAttribute("rx", (engine.size * 0.45).toString());
     thruster.setAttribute("ry", (engine.size * 0.32).toString());
-    thruster.setAttribute("fill", shadeColor(palette.secondary, 0.1));
+    thruster.setAttribute(
+      "fill",
+      debugColorsEnabled ? thrusterColor : shadeColor(palette.secondary, 0.1),
+    );
     thruster.setAttribute("stroke", palette.accent);
     thruster.setAttribute("stroke-width", 1.1);
 
@@ -1110,7 +1185,7 @@ function drawEngines(root, config) {
       [cx + engine.size * 0.2, baseY + 4],
     ];
     flame.setAttribute("points", pointsToString(flamePoints));
-    flame.setAttribute("fill", engine.glow);
+    flame.setAttribute("fill", exhaustColor);
     flame.setAttribute("opacity", "0.85");
     flame.classList.add("thruster-flame");
 
@@ -1123,6 +1198,7 @@ function drawEngines(root, config) {
 function drawFins(root, config) {
   const { fins, palette, body } = config;
   const group = document.createElementNS(SVG_NS, "g");
+  const stabiliserColor = partColor("stabiliser", palette.secondary);
 
   if (fins.top) {
     const baseY = 100 - body.length * 0.28;
@@ -1135,7 +1211,7 @@ function drawFins(root, config) {
       "Z",
     ].join(" ");
     fin.setAttribute("d", path);
-    fin.setAttribute("fill", palette.secondary);
+    fin.setAttribute("fill", stabiliserColor);
     fin.setAttribute("stroke", palette.trim);
     fin.setAttribute("stroke-width", 1.3);
     group.appendChild(fin);
@@ -1159,7 +1235,7 @@ function drawFins(root, config) {
       right.setAttribute("points", pointsToString(rightPoints));
 
       [left, right].forEach((poly) => {
-        poly.setAttribute("fill", palette.secondary);
+        poly.setAttribute("fill", stabiliserColor);
         poly.setAttribute("stroke", palette.trim);
         poly.setAttribute("stroke-width", 1.1);
         group.appendChild(poly);
@@ -1178,7 +1254,7 @@ function drawFins(root, config) {
       "Z",
     ].join(" ");
     fin.setAttribute("d", path);
-    fin.setAttribute("fill", palette.secondary);
+    fin.setAttribute("fill", stabiliserColor);
     fin.setAttribute("stroke", palette.trim);
     fin.setAttribute("stroke-width", 1.2);
     fin.setAttribute("opacity", "0.85");
@@ -1207,7 +1283,7 @@ function drawDetails(root, config) {
     if (!overlapsCanopy) {
       const stripe = document.createElementNS(SVG_NS, "path");
       stripe.setAttribute("d", buildStripePath(body, details));
-      stripe.setAttribute("stroke", palette.accent);
+      stripe.setAttribute("stroke", partStroke("markings", palette.accent));
       stripe.setAttribute("stroke-width", 3.4);
       stripe.setAttribute("stroke-linecap", "round");
       stripe.setAttribute("opacity", "0.85");
@@ -1222,7 +1298,7 @@ function drawDetails(root, config) {
     antenna.setAttribute("y1", (topY - 4).toString());
     antenna.setAttribute("x2", "100");
     antenna.setAttribute("y2", (topY - 20).toString());
-    antenna.setAttribute("stroke", palette.trim);
+    antenna.setAttribute("stroke", partStroke("details", palette.trim));
     antenna.setAttribute("stroke-width", 1.4);
     antenna.setAttribute("stroke-linecap", "round");
 
@@ -1230,7 +1306,7 @@ function drawDetails(root, config) {
     beacon.setAttribute("cx", "100");
     beacon.setAttribute("cy", (topY - 24).toString());
     beacon.setAttribute("r", "3");
-    beacon.setAttribute("fill", palette.glow);
+    beacon.setAttribute("fill", partColor("lights", palette.glow));
     beacon.setAttribute("opacity", "0.9");
 
     root.append(antenna, beacon);
