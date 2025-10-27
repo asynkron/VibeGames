@@ -622,6 +622,7 @@ function createShipRootGroup(scale, offsetX, offsetY) {
 function drawTopDownSpaceship(root, config, defs) {
   drawWings(root, config);
   drawBody(root, config);
+  drawTopArmament(root, config);
   drawCockpit(root, config, defs);
   drawEngines(root, config);
   drawFins(root, config);
@@ -679,44 +680,31 @@ function deriveSideViewGeometry(config) {
     plating: Boolean(body.plating),
   };
 
-  const canopyLength = clamp((cockpit?.width ?? 28) * 1.1, body.length * 0.16, body.length * 0.32);
+  const canopyPlacement = computeCanopyPlacement(body, cockpit);
   const canopyHeight = clamp((cockpit?.height ?? 18) * 1.05, (cockpit?.height ?? 18) * 0.85, dorsalHeight - 4);
-  const canopyCenterFromNose = clamp(
-    body.length * 0.32 + (cockpit?.offsetY ?? 0),
-    canopyLength * 0.5,
-    body.length - canopyLength * 0.5,
-  );
   const canopy = {
-    length: canopyLength,
+    length: canopyPlacement.length,
     height: canopyHeight,
-    offset: canopyCenterFromNose - canopyLength * 0.5,
+    offset: canopyPlacement.centerFromNose - canopyPlacement.length * 0.5,
     offsetY: -(cockpit?.offsetY ?? 0) * 0.25,
     frame: clamp((cockpit?.width ?? 28) * 0.08, 1.8, 3.8),
     tint: cockpit?.tint ?? "#7ed4ff",
   };
 
-  const wingEnabled = Boolean(wings?.enabled);
-  const wingRootFromNose = wingEnabled ? centerOffsetToBody(wings?.offsetY ?? 0) : 0;
-  const wingSpan = wings?.span ?? 0;
-  const wingChord = (wings?.forward ?? 0) + (wings?.sweep ?? 0);
-  // Match the perceived width of the profile with the planform height so projections stay consistent.
-  const wingLength = wingEnabled ? Math.max(24, wingSpan, wingChord * 0.85) : 0;
-  const wing = {
-    enabled: wingEnabled,
-    position: wingEnabled ? clamp(wingRootFromNose, wingLength * 0.12, body.length - wingLength * 0.25) : 0,
-    length: wingLength,
-    profileSpan: wingSpan,
-    // Scale the visible thickness by the true span so the silhouette reads the same in both views.
-    thickness: wingEnabled
-      ? Math.max(10, (wings?.thickness ?? 0) * 0.5, wingSpan * 0.45)
-      : 0,
-    dihedral: wingEnabled ? Math.max(0, (wings?.dihedral ?? 0) * 0.8) : 0,
-    drop: wingEnabled
-      ? Math.max(6, (wings?.sweep ?? 0) * 0.6, wingSpan * 0.25)
-      : 0,
-    mountHeight: wingEnabled ? ((wings?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.35) : 0,
-    accent: Boolean(wings?.tipAccent),
-  };
+  const planform = computeWingPlanform(body, wings);
+  const wing = planform.enabled
+    ? {
+        enabled: true,
+        position: planform.position,
+        length: planform.length,
+        profileSpan: planform.span,
+        thickness: planform.thickness,
+        dihedral: planform.dihedral,
+        drop: planform.drop,
+        mountHeight: (planform.mountOffset / Math.max(halfLength, 1)) * (baseHeight * 0.35),
+        accent: Boolean(wings?.tipAccent),
+      }
+    : { enabled: false, position: 0, length: 0, profileSpan: 0, thickness: 0, dihedral: 0, drop: 0, mountHeight: 0, accent: false };
 
   const stabiliser = fins
     ? {
@@ -741,42 +729,32 @@ function deriveSideViewGeometry(config) {
       }
     : null;
 
-  const heavyArmament = (engine?.count ?? 1) > 2 || (details?.antenna ?? false);
-  const wingMountViable = wingEnabled && wing.length > 0;
-  const preferWingMount = wingMountViable && nextRandom() < (heavyArmament ? 0.65 : 0.45);
-  let armament;
+  const storedArmament = config.armament;
+  let armament = null;
 
-  if (preferWingMount) {
-    // Allow the generator to hang missiles or bombs directly from the wing profile.
-    const ordnanceType = nextRandom() < 0.55 ? "missile" : "bomb";
-    const hardpointCount = heavyArmament ? 2 : 1;
-    const basePayloadLength = clamp(body.length * 0.2, 16, Math.min(wing.length * 0.85, 42));
-    const basePayloadRadius = clamp(wing.thickness * 0.45, 5, 14);
-    const basePylonLength = clamp(wing.thickness * 0.7, 8, 26);
-    const chordAnchors = hardpointCount === 1 ? [0.48] : [0.38, 0.68];
-    armament = {
-      mount: "wing",
-      type: ordnanceType,
-      barrels: hardpointCount,
-      hardpoints: chordAnchors.map((ratio) => ({
-        chordRatio: clamp(ratio + randomBetween(-0.04, 0.04), 0.25, 0.78),
-        pylonLength: clamp(basePylonLength + randomBetween(-2, 3), 6, 28),
-        payloadLength: clamp(basePayloadLength * (1 + randomBetween(-0.12, 0.12)), 14, 48),
-        payloadRadius: clamp(
-          basePayloadRadius * (ordnanceType === "bomb" ? 1.12 : 0.88),
-          4.5,
-          16,
-        ),
-      })),
-    };
-  } else {
+  if (storedArmament?.mount === "wing" && wing.enabled) {
+    const hardpoints = Array.isArray(storedArmament.hardpoints)
+      ? storedArmament.hardpoints.map((hardpoint) => ({
+          chordRatio: clamp(hardpoint.chordRatio ?? 0.5, 0.1, 0.9),
+          pylonLength: Math.max(4, hardpoint.pylonLength ?? planform.thickness * 0.6),
+          payloadLength: Math.max(10, hardpoint.payloadLength ?? planform.length * 0.25),
+          payloadRadius: Math.max(3, hardpoint.payloadRadius ?? planform.thickness * 0.35),
+        }))
+      : [];
+    if (hardpoints.length) {
+      armament = {
+        mount: "wing",
+        type: storedArmament.type === "missile" ? "missile" : "bomb",
+        barrels: Math.max(1, Math.round(storedArmament.barrels ?? hardpoints.length)),
+        hardpoints,
+      };
+    }
+  } else if (storedArmament?.mount === "nose") {
     armament = {
       mount: "nose",
-      barrels: heavyArmament ? 2 : 1,
-      length: Math.max(18, body.length * 0.12 + (wings?.forward ?? 18) * 0.4),
-      spacing: heavyArmament
-        ? Math.max(6, (wings?.thickness ?? 12) * 0.35)
-        : Math.max(4, (wings?.thickness ?? 10) * 0.25),
+      barrels: Math.max(1, Math.round(storedArmament.barrels ?? 1)),
+      length: Math.max(12, storedArmament.length ?? body.length * 0.1),
+      spacing: Math.max(2, storedArmament.spacing ?? (wings?.thickness ?? 10) * 0.3),
       offsetY: -((cockpit?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.2),
       housingHeight: Math.max(6, (cockpit?.height ?? 18) * 0.55),
     };
@@ -1288,13 +1266,37 @@ function drawSideLights(root, config, geometry) {
 
 function drawBody(root, config) {
   const { body, palette } = config;
-  const path = document.createElementNS(SVG_NS, "path");
-  path.setAttribute("d", buildBodyPath(body));
-  path.setAttribute("fill", partColor("hull", palette.primary));
-  path.setAttribute("stroke", palette.accent);
-  path.setAttribute("stroke-width", 2.4);
-  path.setAttribute("stroke-linejoin", "round");
-  root.appendChild(path);
+
+  if (body.segments) {
+    const group = document.createElementNS(SVG_NS, "g");
+    group.setAttribute("fill", partColor("hull", palette.primary));
+
+    const segments = buildBodySegmentPaths(body);
+    [segments.front, segments.mid, segments.rear].forEach((d) => {
+      const segmentPath = document.createElementNS(SVG_NS, "path");
+      segmentPath.setAttribute("d", d);
+      segmentPath.setAttribute("stroke", "none");
+      group.appendChild(segmentPath);
+    });
+
+    const outline = document.createElementNS(SVG_NS, "path");
+    outline.setAttribute("d", buildBodyPath(body));
+    outline.setAttribute("fill", "none");
+    outline.setAttribute("stroke", palette.accent);
+    outline.setAttribute("stroke-width", 2.4);
+    outline.setAttribute("stroke-linejoin", "round");
+    group.appendChild(outline);
+
+    root.appendChild(group);
+  } else {
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", buildBodyPath(body));
+    path.setAttribute("fill", partColor("hull", palette.primary));
+    path.setAttribute("stroke", palette.accent);
+    path.setAttribute("stroke-width", 2.4);
+    path.setAttribute("stroke-linejoin", "round");
+    root.appendChild(path);
+  }
 
   if (body.plating) {
     const lines = document.createElementNS(SVG_NS, "path");
@@ -1344,6 +1346,159 @@ function drawWings(root, config) {
   root.appendChild(group);
 }
 
+function drawTopArmament(root, config) {
+  const { armament, palette, body, wings } = config;
+  if (!armament) {
+    return;
+  }
+
+  if (armament.mount === "wing") {
+    if (!wings?.enabled || !armament.hardpoints?.length) {
+      return;
+    }
+
+    const planform = computeWingPlanform(body, wings);
+    if (!planform.enabled) {
+      return;
+    }
+
+    const noseY = 100 - body.length / 2;
+    const baseWingY = 100 + (wings.offsetY ?? 0);
+    const ordnanceColor = partColor("weapons", shadeColor(palette.secondary, -0.1));
+    const accentColor = partStroke("weapons", palette.trim);
+    const pylonColor = partColor("weapons", shadeColor(palette.secondary, -0.25));
+
+    armament.hardpoints.forEach((hardpoint) => {
+      const chordRatio = clamp(hardpoint.chordRatio ?? 0.5, 0.1, 0.9);
+      const anchorY = noseY + planform.position + planform.length * chordRatio;
+      const payloadLength = hardpoint.payloadLength ?? Math.max(18, planform.length * 0.3);
+      const payloadRadius = hardpoint.payloadRadius ?? Math.max(5, planform.thickness * 0.35);
+      const pylonLength = hardpoint.pylonLength ?? Math.max(planform.thickness * 0.6, 8);
+      const payloadOffsetY = baseWingY + planform.thickness * 0.25 + pylonLength + payloadRadius;
+      const ordnanceHeight = armament.type === "missile" ? Math.max(payloadLength * 0.6, payloadRadius * 1.8) : payloadRadius * 2;
+
+      [-1, 1].forEach((direction) => {
+        const sideGroup = document.createElementNS(SVG_NS, "g");
+        sideGroup.classList.add("wing-ordnance-top");
+
+        const lateralBase = 100 + direction * (body.halfWidth + Math.max(planform.span * 0.45, 10));
+        const pylonTopY = anchorY + planform.thickness * 0.1;
+        const pylon = document.createElementNS(SVG_NS, "rect");
+        pylon.setAttribute("x", (lateralBase - 1.6).toString());
+        pylon.setAttribute("y", pylonTopY.toString());
+        pylon.setAttribute("width", "3.2");
+        pylon.setAttribute("height", pylonLength.toString());
+        pylon.setAttribute("rx", "1.2");
+        pylon.setAttribute("fill", pylonColor);
+        pylon.setAttribute("stroke", accentColor);
+        pylon.setAttribute("stroke-width", 0.9);
+
+        if (armament.type === "missile") {
+          const payload = document.createElementNS(SVG_NS, "rect");
+          payload.setAttribute("x", (lateralBase - payloadRadius).toString());
+          payload.setAttribute("y", (payloadOffsetY - ordnanceHeight).toString());
+          payload.setAttribute("width", (payloadRadius * 2).toString());
+          payload.setAttribute("height", ordnanceHeight.toString());
+          payload.setAttribute("rx", (payloadRadius * 0.55).toString());
+          payload.setAttribute("fill", ordnanceColor);
+          payload.setAttribute("stroke", accentColor);
+          payload.setAttribute("stroke-width", 1);
+
+          const tip = document.createElementNS(SVG_NS, "polygon");
+          const tipLength = Math.max(payloadLength * 0.28, payloadRadius * 0.9);
+          const tipPoints = [
+            [lateralBase - payloadRadius, payloadOffsetY - ordnanceHeight],
+            [lateralBase, payloadOffsetY - ordnanceHeight - tipLength],
+            [lateralBase + payloadRadius, payloadOffsetY - ordnanceHeight],
+          ];
+          tip.setAttribute("points", pointsToString(tipPoints));
+          tip.setAttribute("fill", partColor("weapons", mixColor(palette.accent, palette.secondary, 0.4)));
+          tip.setAttribute("stroke", accentColor);
+          tip.setAttribute("stroke-width", 1);
+
+          const fins = document.createElementNS(SVG_NS, "rect");
+          fins.setAttribute("x", (lateralBase - payloadRadius * 0.9).toString());
+          fins.setAttribute("y", (payloadOffsetY - payloadRadius * 0.4).toString());
+          fins.setAttribute("width", (payloadRadius * 1.8).toString());
+          fins.setAttribute("height", (payloadRadius * 0.8).toString());
+          fins.setAttribute("fill", partColor("weapons", shadeColor(palette.accent, -0.15)));
+          fins.setAttribute("opacity", "0.75");
+
+          sideGroup.append(pylon, payload, tip, fins);
+        } else {
+          const payload = document.createElementNS(SVG_NS, "ellipse");
+          payload.setAttribute("cx", lateralBase.toString());
+          payload.setAttribute("cy", payloadOffsetY.toString());
+          payload.setAttribute("rx", payloadRadius.toString());
+          payload.setAttribute("ry", Math.max(payloadRadius * 0.75, payloadLength * 0.35).toString());
+          payload.setAttribute("fill", ordnanceColor);
+          payload.setAttribute("stroke", accentColor);
+          payload.setAttribute("stroke-width", 1);
+
+          const noseCap = document.createElementNS(SVG_NS, "circle");
+          noseCap.setAttribute("cx", lateralBase.toString());
+          noseCap.setAttribute("cy", (payloadOffsetY - Math.max(payloadRadius * 0.6, payloadLength * 0.25)).toString());
+          noseCap.setAttribute("r", (payloadRadius * 0.55).toString());
+          noseCap.setAttribute("fill", partColor("weapons", mixColor(palette.accent, palette.secondary, 0.35)));
+
+          sideGroup.append(pylon, payload, noseCap);
+        }
+
+        root.appendChild(sideGroup);
+      });
+    });
+
+    return;
+  }
+
+  if (armament.mount !== "nose") {
+    return;
+  }
+
+  const group = document.createElementNS(SVG_NS, "g");
+  group.classList.add("nose-armament-top");
+  const noseY = 100 - body.length / 2;
+  const baseY = noseY - armament.length;
+  const spacing = armament.spacing ?? 0;
+  const housingWidth = armament.housingWidth ?? Math.max(6, (spacing || body.halfWidth * 0.35) * 1.2);
+  const barrelWidth = Math.max(2.4, housingWidth * 0.3);
+
+  for (let i = 0; i < (armament.barrels ?? 1); i += 1) {
+    const offset = i - ((armament.barrels ?? 1) - 1) / 2;
+    const centerX = 100 + offset * spacing;
+
+    const housing = document.createElementNS(SVG_NS, "rect");
+    housing.setAttribute("x", (centerX - housingWidth / 2).toString());
+    housing.setAttribute("y", (noseY - Math.max(6, armament.length * 0.35)).toString());
+    housing.setAttribute("width", housingWidth.toString());
+    housing.setAttribute("height", Math.max(6, armament.length * 0.35).toString());
+    housing.setAttribute("rx", (housingWidth * 0.35).toString());
+    housing.setAttribute("fill", partColor("weapons", shadeColor(palette.secondary, -0.1)));
+    housing.setAttribute("stroke", partStroke("weapons", palette.trim));
+    housing.setAttribute("stroke-width", 1);
+
+    const barrel = document.createElementNS(SVG_NS, "rect");
+    barrel.setAttribute("x", (centerX - barrelWidth / 2).toString());
+    barrel.setAttribute("y", baseY.toString());
+    barrel.setAttribute("width", barrelWidth.toString());
+    barrel.setAttribute("height", armament.length.toString());
+    barrel.setAttribute("rx", (barrelWidth * 0.45).toString());
+    barrel.setAttribute("fill", partColor("weapons", shadeColor(palette.accent, -0.15)));
+    barrel.setAttribute("stroke", partStroke("weapons", palette.trim));
+    barrel.setAttribute("stroke-width", 1);
+
+    const muzzle = document.createElementNS(SVG_NS, "circle");
+    muzzle.setAttribute("cx", centerX.toString());
+    muzzle.setAttribute("cy", baseY.toString());
+    muzzle.setAttribute("r", (barrelWidth * 0.55).toString());
+    muzzle.setAttribute("fill", partColor("weapons", mixColor(palette.accent, palette.secondary, 0.5)));
+
+    group.append(housing, barrel, muzzle);
+  }
+
+  root.appendChild(group);
+}
+
 function drawCockpit(root, config, defs) {
   const { cockpit, palette, body } = config;
   const gradient = document.createElementNS(SVG_NS, "radialGradient");
@@ -1376,7 +1531,8 @@ function drawCockpit(root, config, defs) {
   gradient.append(stop1, stop2, stop3);
   defs.appendChild(gradient);
 
-  const centerY = 100 - body.length / 2 + body.length * 0.32 + cockpit.offsetY;
+  const canopyPlacement = computeCanopyPlacement(body, cockpit);
+  const centerY = canopyPlacement.centerY;
   const ellipse = document.createElementNS(SVG_NS, "ellipse");
   ellipse.setAttribute("cx", "100");
   ellipse.setAttribute("cy", centerY.toString());
@@ -1603,6 +1759,38 @@ function buildBodyPath(body) {
     ].join(" ");
   }
 
+  const geometry = computeSegmentGeometry(body);
+  const { nose, nodes, tail, frontCurve, tailCurve, format } = geometry;
+
+  const commands = [];
+  commands.push(`M ${format(100 - nose.width)} ${format(nose.y)}`);
+  commands.push(`Q 100 ${format(nose.y - frontCurve)} ${format(100 + nose.width)} ${format(nose.y)}`);
+
+  let prev = nose;
+  for (let i = 0; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    commands.push(buildCurveCommand(prev, node, 0.6, 1, format));
+    prev = node;
+  }
+
+  commands.push(buildCurveCommand(prev, tail, 0.8, 1, format));
+  commands.push(`Q 100 ${format(tail.y + tailCurve)} ${format(100 - tail.width)} ${format(tail.y)}`);
+
+  prev = tail;
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    const node = nodes[i];
+    commands.push(buildCurveCommand(prev, node, 0.6, -1, format));
+    prev = node;
+  }
+
+  commands.push(buildCurveCommand(prev, nose, 0.6, -1, format));
+  commands.push("Z");
+
+  return commands.join(" ");
+}
+
+// Collects shared measurement points so segmented and legacy bodies stay aligned.
+function computeSegmentGeometry(body) {
   const { front, mid, rear } = body.segments;
   const halfLength = body.length / 2;
   const noseY = 100 - halfLength;
@@ -1631,52 +1819,107 @@ function buildBodyPath(body) {
   const exhaustY = rearStartY + rear.length * exhaustBias;
 
   const format = (value) => Number(value.toFixed(2));
-  const nodes = [
-    { width: transitionWidth, y: noseY + front.length * 0.45 },
-    { width: shoulderWidth, y: frontEndY },
-    { width: waistWidth, y: waistY },
-    { width: bellyWidth, y: bellyY },
-    { width: trailingMidWidth, y: midEndY },
-    { width: baseWidth, y: rearStartY + rear.length * 0.3 },
-    { width: exhaustWidth, y: exhaustY },
-  ];
+
+  return {
+    nose: { width: noseWidth, y: noseY },
+    nodes: [
+      { width: transitionWidth, y: noseY + front.length * 0.45 },
+      { width: shoulderWidth, y: frontEndY },
+      { width: waistWidth, y: waistY },
+      { width: bellyWidth, y: bellyY },
+      { width: trailingMidWidth, y: midEndY },
+      { width: baseWidth, y: rearStartY + rear.length * 0.3 },
+      { width: exhaustWidth, y: exhaustY },
+    ],
+    tail: { width: tailWidth, y: tailY },
+    frontCurve: front.curve,
+    tailCurve: rear.curve,
+    format,
+  };
+}
+
+function buildCurveCommand(prev, next, tension, direction, format) {
+  const controlX = format(100 + direction * ((prev.width + next.width) / 2));
+  const controlY = format(prev.y + (next.y - prev.y) * tension);
+  const targetX = format(100 + direction * next.width);
+  const targetY = format(next.y);
+  return `Q ${controlX} ${controlY} ${targetX} ${targetY}`;
+}
+
+// Builds a closed fill path for a slice of the fuselage using the shared outline data.
+function buildSegmentOutline(nodes, options = {}) {
+  const { startCap, endCap } = options;
+  const format = options.format ?? ((value) => Number(value.toFixed(2)));
+  const forwardTensions = options.forwardTensions ?? new Array(nodes.length - 1).fill(0.6);
+  const reverseTensions = options.reverseTensions ?? [...forwardTensions].reverse();
 
   const commands = [];
-  commands.push(`M ${format(100 - noseWidth)} ${format(noseY)}`);
-  commands.push(`Q 100 ${format(noseY - front.curve)} ${format(100 + noseWidth)} ${format(noseY)}`);
+  const start = nodes[0];
+  commands.push(`M ${format(100 - start.width)} ${format(start.y)}`);
 
-  let prevWidth = noseWidth;
-  let prevY = noseY;
-  nodes.forEach((node) => {
-    const controlX = format(100 + (prevWidth + node.width) / 2);
-    const controlY = format(prevY + (node.y - prevY) * 0.6);
-    commands.push(`Q ${controlX} ${controlY} ${format(100 + node.width)} ${format(node.y)}`);
-    prevWidth = node.width;
-    prevY = node.y;
-  });
-
-  const tailControlX = format(100 + (prevWidth + tailWidth) / 2);
-  const tailControlY = format(prevY + (tailY - prevY) * 0.8);
-  commands.push(`Q ${tailControlX} ${tailControlY} ${format(100 + tailWidth)} ${format(tailY)}`);
-  commands.push(`Q 100 ${format(tailY + rear.curve)} ${format(100 - tailWidth)} ${format(tailY)}`);
-
-  prevWidth = tailWidth;
-  prevY = tailY;
-  for (let i = nodes.length - 1; i >= 0; i -= 1) {
-    const node = nodes[i];
-    const controlX = format(100 - (prevWidth + node.width) / 2);
-    const controlY = format(prevY - (prevY - node.y) * 0.6);
-    commands.push(`Q ${controlX} ${controlY} ${format(100 - node.width)} ${format(node.y)}`);
-    prevWidth = node.width;
-    prevY = node.y;
+  if (startCap && startCap.type === "nose") {
+    commands.push(`Q 100 ${format(start.y - startCap.curve)} ${format(100 + start.width)} ${format(start.y)}`);
+  } else {
+    commands.push(`L ${format(100 + start.width)} ${format(start.y)}`);
   }
 
-  const noseControlX = format(100 - (prevWidth + noseWidth) / 2);
-  const noseControlY = format(prevY - (prevY - noseY) * 0.6);
-  commands.push(`Q ${noseControlX} ${noseControlY} ${format(100 - noseWidth)} ${format(noseY)}`);
-  commands.push("Z");
+  let prev = start;
+  for (let i = 1; i < nodes.length; i += 1) {
+    const node = nodes[i];
+    const tension = forwardTensions[i - 1] ?? 0.6;
+    commands.push(buildCurveCommand(prev, node, tension, 1, format));
+    prev = node;
+  }
 
+  if (endCap && endCap.type === "tail") {
+    commands.push(`Q 100 ${format(prev.y + endCap.curve)} ${format(100 - prev.width)} ${format(prev.y)}`);
+  } else {
+    commands.push(`L ${format(100 - prev.width)} ${format(prev.y)}`);
+  }
+
+  prev = nodes[nodes.length - 1];
+  for (let i = nodes.length - 2, t = 0; i >= 0; i -= 1, t += 1) {
+    const node = nodes[i];
+    const tension = reverseTensions[t] ?? 0.6;
+    commands.push(buildCurveCommand(prev, node, tension, -1, format));
+    prev = node;
+  }
+
+  commands.push("Z");
   return commands.join(" ");
+}
+
+function buildBodySegmentPaths(body) {
+  if (!body.segments) {
+    return null;
+  }
+
+  const geometry = computeSegmentGeometry(body);
+  const { nose, nodes, tail, frontCurve, tailCurve, format } = geometry;
+
+  const frontNodes = [nose, nodes[0], nodes[1]];
+  const midNodes = [nodes[1], nodes[2], nodes[3], nodes[4]];
+  const rearNodes = [nodes[4], nodes[5], nodes[6], tail];
+
+  const frontPath = buildSegmentOutline(frontNodes, {
+    startCap: { type: "nose", curve: frontCurve },
+    forwardTensions: [0.6, 0.6],
+    format,
+  });
+
+  const midPath = buildSegmentOutline(midNodes, {
+    forwardTensions: [0.6, 0.6, 0.6],
+    format,
+  });
+
+  const rearPath = buildSegmentOutline(rearNodes, {
+    forwardTensions: [0.6, 0.6, 0.8],
+    reverseTensions: [0.6, 0.6, 0.6],
+    endCap: { type: "tail", curve: tailCurve },
+    format,
+  });
+
+  return { front: frontPath, mid: midPath, rear: rearPath };
 }
 
 function buildPlatingPath(body) {
@@ -1766,6 +2009,47 @@ function buildWingAccent(points) {
   const trailing = points[points.length - 1];
   const base = points[0];
   return [base, tip, trailing];
+}
+
+function computeCanopyPlacement(body, cockpit) {
+  const canopyLength = clamp((cockpit?.width ?? 28) * 1.1, body.length * 0.16, body.length * 0.32);
+  const centerFromNose = clamp(
+    body.length * 0.32 + (cockpit?.offsetY ?? 0),
+    canopyLength * 0.5,
+    body.length - canopyLength * 0.5,
+  );
+  return {
+    length: canopyLength,
+    centerFromNose,
+    centerY: 100 - body.length / 2 + centerFromNose,
+  };
+}
+
+function computeWingPlanform(body, wings) {
+  if (!wings?.enabled) {
+    return { enabled: false, position: 0, length: 0, span: 0, thickness: 0, dihedral: 0, drop: 0, mountOffset: 0 };
+  }
+
+  const halfLength = body.length / 2;
+  const span = wings.span ?? 0;
+  const chord = (wings.forward ?? 0) + (wings.sweep ?? 0);
+  const length = Math.max(24, span, chord * 0.85);
+  const rootOffset = clamp(halfLength + (wings.offsetY ?? 0), 0, body.length);
+  const position = clamp(rootOffset, length * 0.12, body.length - length * 0.25);
+  const thickness = Math.max(10, (wings.thickness ?? 0) * 0.5, span * 0.45);
+  const dihedral = Math.max(0, (wings.dihedral ?? 0) * 0.8);
+  const drop = Math.max(6, (wings.sweep ?? 0) * 0.6, span * 0.25);
+
+  return {
+    enabled: true,
+    position,
+    length,
+    span,
+    thickness,
+    dihedral,
+    drop,
+    mountOffset: wings.offsetY ?? 0,
+  };
 }
 
 function buildSideHullPath(profile) {
@@ -1908,6 +2192,52 @@ function clamp(value, min, max) {
     [min, max] = [max, min];
   }
   return Math.min(Math.max(value, min), max);
+}
+
+
+function computeArmamentLoadout(body, wings, engine, details, cockpit) {
+  const planform = computeWingPlanform(body, wings);
+  const heavyArmament = (engine?.count ?? 1) > 2 || Boolean(details?.antenna);
+  const wingMountViable = planform.enabled && planform.length > 0;
+
+  if (wingMountViable && nextRandom() < (heavyArmament ? 0.65 : 0.45)) {
+    const ordnanceType = nextRandom() < 0.55 ? "missile" : "bomb";
+    const hardpointCount = heavyArmament ? 2 : 1;
+    const basePayloadLength = clamp(body.length * 0.2, 16, Math.min(planform.length * 0.85, 42));
+    const basePayloadRadius = clamp(planform.thickness * 0.45, 5, 14);
+    const basePylonLength = clamp(planform.thickness * 0.7, 8, 26);
+    const chordAnchors = hardpointCount === 1 ? [0.48] : [0.38, 0.68];
+
+    return {
+      mount: "wing",
+      type: ordnanceType,
+      barrels: hardpointCount,
+      hardpoints: chordAnchors.map((ratio) => ({
+        chordRatio: clamp(ratio + randomBetween(-0.04, 0.04), 0.2, 0.82),
+        pylonLength: clamp(basePylonLength + randomBetween(-2, 3), 6, 30),
+        payloadLength: clamp(basePayloadLength * (1 + randomBetween(-0.12, 0.12)), 12, 52),
+        payloadRadius: clamp(
+          basePayloadRadius * (ordnanceType === "bomb" ? 1.12 : 0.88),
+          4.5,
+          16,
+        ),
+      })),
+    };
+  }
+
+  const length = Math.max(18, body.length * 0.12 + (wings?.forward ?? 18) * 0.4);
+  const spacing = heavyArmament
+    ? Math.max(6, (wings?.thickness ?? 12) * 0.35)
+    : Math.max(4, (wings?.thickness ?? 10) * 0.25);
+  const housingWidth = clamp((cockpit?.width ?? 26) * 0.45, 6, body.halfWidth * 0.9);
+
+  return {
+    mount: "nose",
+    barrels: heavyArmament ? 2 : 1,
+    length,
+    spacing,
+    housingWidth,
+  };
 }
 
 
@@ -2088,59 +2418,71 @@ function createTopDownConfig(categoryKey, def, palette) {
     wingDihedral *= 0.6;
   }
 
+  const body = {
+    length: bodyLength,
+    halfWidth: bodyHalfWidth,
+    segments: createBodySegments(ranges),
+    plating: nextRandom() < def.features.platingProbability,
+  };
+  synchroniseBodySegments(body, ranges);
+
+  const cockpit = {
+    width: randomBetween(...ranges.cockpitWidth),
+    height: randomBetween(...ranges.cockpitHeight),
+    offsetY: randomBetween(...ranges.cockpitOffset),
+    tint: palette.cockpit,
+  };
+
+  const engine = {
+    count: randomInt(...ranges.engineCount),
+    size: randomBetween(...ranges.engineSize),
+    spacing: randomBetween(...ranges.engineSpacing),
+    nozzleLength: randomBetween(...ranges.nozzleLength),
+    glow: palette.glow,
+  };
+
+  const wingsConfig = {
+    enabled: wingsEnabled,
+    mount: wingMount,
+    style: wingsEnabled ? choose(def.wingStyles) : "none",
+    span: wingSpan,
+    sweep: wingSweep,
+    forward: wingForward,
+    thickness: wingThickness,
+    offsetY: wingOffset,
+    dihedral: wingDihedral,
+    tipAccent: wingsEnabled && nextRandom() < def.features.wingTipAccentProbability,
+  };
+
+  const fins = {
+    top: nextRandom() < def.features.topFinProbability ? 1 : 0,
+    side: sideFinCount,
+    bottom: nextRandom() < def.features.bottomFinProbability ? 1 : 0,
+    height: randomBetween(...ranges.finHeight),
+    width: randomBetween(...ranges.finWidth),
+  };
+
+  const details = {
+    stripe: nextRandom() < def.features.stripeProbability,
+    stripeOffset: randomBetween(...ranges.stripeOffset),
+    antenna: nextRandom() < def.features.antennaProbability,
+  };
+
+  const armament = computeArmamentLoadout(body, wingsConfig, engine, details, cockpit);
+
   return {
     id: randomId(),
     category: categoryKey,
     label: def.label,
     description: def.description,
     palette,
-    body: (() => {
-      const body = {
-        length: bodyLength,
-        halfWidth: bodyHalfWidth,
-        segments: createBodySegments(ranges),
-        plating: nextRandom() < def.features.platingProbability,
-      };
-      synchroniseBodySegments(body, ranges);
-      return body;
-    })(),
-    cockpit: {
-      width: randomBetween(...ranges.cockpitWidth),
-      height: randomBetween(...ranges.cockpitHeight),
-      offsetY: randomBetween(...ranges.cockpitOffset),
-      tint: palette.cockpit,
-    },
-    engine: {
-      count: randomInt(...ranges.engineCount),
-      size: randomBetween(...ranges.engineSize),
-      spacing: randomBetween(...ranges.engineSpacing),
-      nozzleLength: randomBetween(...ranges.nozzleLength),
-      glow: palette.glow,
-    },
-    wings: {
-      enabled: wingsEnabled,
-      mount: wingMount,
-      style: wingsEnabled ? choose(def.wingStyles) : "none",
-      span: wingSpan,
-      sweep: wingSweep,
-      forward: wingForward,
-      thickness: wingThickness,
-      offsetY: wingOffset,
-      dihedral: wingDihedral,
-      tipAccent: wingsEnabled && nextRandom() < def.features.wingTipAccentProbability,
-    },
-    fins: {
-      top: nextRandom() < def.features.topFinProbability ? 1 : 0,
-      side: sideFinCount,
-      bottom: nextRandom() < def.features.bottomFinProbability ? 1 : 0,
-      height: randomBetween(...ranges.finHeight),
-      width: randomBetween(...ranges.finWidth),
-    },
-    details: {
-      stripe: nextRandom() < def.features.stripeProbability,
-      stripeOffset: randomBetween(...ranges.stripeOffset),
-      antenna: nextRandom() < def.features.antennaProbability,
-    },
+    body,
+    cockpit,
+    engine,
+    wings: wingsConfig,
+    fins,
+    details,
+    armament,
   };
 }
 
@@ -2235,7 +2577,64 @@ function normaliseTopDownConfig(copy) {
     const ranges = CATEGORY_DEFINITIONS[copy.category]?.ranges;
     synchroniseBodySegments(copy.body, ranges);
   }
+  copy.armament = normaliseArmament(copy);
   return copy;
+}
+
+function normaliseArmament(config) {
+  const { body, wings, engine, details, cockpit } = config;
+  const planform = computeWingPlanform(body, wings);
+  const heavyArmament = (engine?.count ?? 1) > 2 || Boolean(details?.antenna);
+  const original = config.armament;
+
+  if (!original || typeof original !== "object") {
+    return computeArmamentLoadout(body, wings, engine, details, cockpit);
+  }
+
+  if (original.mount === "wing") {
+    if (!planform.enabled) {
+      return computeArmamentLoadout(body, wings, engine, details, cockpit);
+    }
+    const hardpoints = Array.isArray(original.hardpoints)
+      ? original.hardpoints
+          .map((hardpoint) => ({
+            chordRatio: clamp(hardpoint.chordRatio ?? 0.5, 0.2, 0.82),
+            pylonLength: clamp(hardpoint.pylonLength ?? planform.thickness * 0.6, 4, 36),
+            payloadLength: clamp(hardpoint.payloadLength ?? planform.length * 0.3, 10, 64),
+            payloadRadius: clamp(hardpoint.payloadRadius ?? planform.thickness * 0.35, 3, 18),
+          }))
+          .filter(Boolean)
+      : [];
+    if (!hardpoints.length) {
+      return computeArmamentLoadout(body, wings, engine, details, cockpit);
+    }
+    return {
+      mount: "wing",
+      type: original.type === "missile" ? "missile" : "bomb",
+      barrels: Math.max(1, Math.round(original.barrels ?? hardpoints.length)),
+      hardpoints,
+    };
+  }
+
+  if (original.mount === "nose") {
+    return {
+      mount: "nose",
+      barrels: Math.max(1, Math.round(original.barrels ?? (heavyArmament ? 2 : 1))),
+      length: clamp(original.length ?? body.length * 0.12, 10, body.length * 0.45),
+      spacing: clamp(
+        original.spacing ?? (wings?.thickness ?? 10) * 0.3,
+        2,
+        Math.max(body.halfWidth * 1.2, 26),
+      ),
+      housingWidth: clamp(
+        original.housingWidth ?? (cockpit?.width ?? 26) * 0.45,
+        4,
+        Math.max(body.halfWidth * 0.95, 8),
+      ),
+    };
+  }
+
+  return computeArmamentLoadout(body, wings, engine, details, cockpit);
 }
 
 function mixColor(a, b, t) {
