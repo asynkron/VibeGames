@@ -523,7 +523,7 @@ function createSpriteCard(config, isParent) {
   }
 
   const svg = document.createElementNS(SVG_NS, "svg");
-  renderSpaceship(svg, config, { scale: 0.8, viewMode: VIEW_MODE.value });
+  renderSpaceship(svg, config, { viewMode: VIEW_MODE.value });
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -540,7 +540,7 @@ function createSpriteCard(config, isParent) {
 }
 
 function renderDetail(config) {
-  renderSpaceship(detailSprite, config, { scale: 1, viewMode: VIEW_MODE.value });
+  renderSpaceship(detailSprite, config, { viewMode: VIEW_MODE.value });
   definition.textContent = JSON.stringify(
     config,
     (key, value) => (typeof value === "number" ? Number(value.toFixed(2)) : value),
@@ -549,7 +549,6 @@ function renderDetail(config) {
 }
 
 function renderSpaceship(svg, config, options = {}) {
-  const scale = options.scale ?? 1;
   const viewMode = options.viewMode ?? VIEW_MODE.value;
   svg.innerHTML = "";
   svg.setAttribute("data-view-mode", viewMode);
@@ -560,7 +559,6 @@ function renderSpaceship(svg, config, options = {}) {
 
   if (viewMode === "both") {
     svg.setAttribute("viewBox", "0 0 400 200");
-    const projectionScale = scale;
     const frameStroke = mixColor(config.palette.trim, "#0f172a", 0.55);
     const frameFill = "rgba(15, 23, 42, 0.18)";
 
@@ -583,84 +581,35 @@ function renderSpaceship(svg, config, options = {}) {
     sideFrame.setAttribute("stroke-width", "1.5");
 
     const topGroup = createShipRootGroup(config.body, {
-      scale: projectionScale,
       offsetX: 0,
       offsetY: 0,
-      orientation: "top",
     });
     const sideGroup = createShipRootGroup(config.body, {
-      scale: projectionScale,
       offsetX: 200,
       offsetY: 0,
-      orientation: "side",
     });
     svg.append(topFrame, topGroup.wrapper, sideFrame, sideGroup.wrapper);
     drawTopDownSpaceship(topGroup.root, config, defs);
     drawSideViewSpaceship(sideGroup.root, config, defs);
-    alignSideProjection(sideGroup.root);
     return;
   }
 
   svg.setAttribute("viewBox", "0 0 200 200");
   const rootGroup = createShipRootGroup(config.body, {
-    scale,
     offsetX: 0,
     offsetY: 0,
-    orientation: viewMode === "side" ? "side" : "top",
   });
   svg.appendChild(rootGroup.wrapper);
 
   if (viewMode === "side") {
     drawSideViewSpaceship(rootGroup.root, config, defs);
-    alignSideProjection(rootGroup.root);
   } else {
     drawTopDownSpaceship(rootGroup.root, config, defs);
   }
 }
 
-function alignSideProjection(group) {
-  if (!group || typeof group.getBBox !== "function") {
-    return;
-  }
-
-  let bbox;
-  try {
-    bbox = group.getBBox();
-  } catch (error) {
-    return;
-  }
-
-  if (!bbox || !Number.isFinite(bbox.width) || bbox.width <= 0) {
-    return;
-  }
-
-  const frameWidth = 200;
-  let dx = frameWidth / 2 - (bbox.x + bbox.width / 2);
-  let minX = bbox.x + dx;
-  let maxX = bbox.x + bbox.width + dx;
-
-  if (minX < 0) {
-    dx -= minX;
-    minX = 0;
-    maxX = bbox.x + bbox.width + dx;
-  }
-
-  if (maxX > frameWidth) {
-    dx -= maxX - frameWidth;
-  }
-
-  if (Math.abs(dx) <= 0.01) {
-    return;
-  }
-
-  const base = group.dataset?.baseTransform ?? group.getAttribute("transform") ?? "";
-  const translation = `translate(${dx.toFixed(2)} 0)`;
-  const nextTransform = base.trim().length ? `${base} ${translation}` : translation;
-  group.setAttribute("transform", nextTransform);
-}
-
 function createShipRootGroup(body, options = {}) {
-  const { scale = 1, offsetX = 0, offsetY = 0, orientation = "top" } = options;
+  const { offsetX = 0, offsetY = 0 } = options;
   const wrapper = document.createElementNS(SVG_NS, "g");
   wrapper.classList.add("ship-root");
 
@@ -668,33 +617,9 @@ function createShipRootGroup(body, options = {}) {
     wrapper.setAttribute("transform", `translate(${offsetX} ${offsetY})`);
   }
 
-  const scaleGroup = document.createElementNS(SVG_NS, "g");
-  if (scale !== 1) {
-    scaleGroup.setAttribute("transform", `scale(${scale})`);
-  }
-  wrapper.appendChild(scaleGroup);
-
   const root = document.createElementNS(SVG_NS, "g");
 
-  if (body) {
-    const axis = buildBodyAxis(body);
-    const normalisedScale = axis.length > 0 ? 200 / axis.length : 1;
-    if (orientation === "top") {
-      root.setAttribute(
-        "transform",
-        [`translate(100 0)`, `scale(${normalisedScale})`, `translate(-100 ${-axis.top.nose})`].join(" "),
-      );
-    } else if (orientation === "side") {
-      root.setAttribute(
-        "transform",
-        [`translate(0 100)`, `scale(${normalisedScale})`, `translate(${-axis.side.nose} -100)`].join(" "),
-      );
-    }
-  }
-
-  root.dataset.baseTransform = root.getAttribute("transform") ?? "";
-
-  scaleGroup.appendChild(root);
+  wrapper.appendChild(root);
   return { wrapper, root };
 }
 
