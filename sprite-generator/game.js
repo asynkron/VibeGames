@@ -721,31 +721,6 @@ function createShipRootGroup(body, options = {}) {
   return { wrapper, root };
 }
 
-function buildBodyAxis(body) {
-  const length = body?.length ?? 0;
-  const startPercent = body?.startPercent ?? 0;
-  const endPercent = body?.endPercent ?? 1;
-  const centerPercent = (startPercent + endPercent) / 2;
-  const centerOffset = (centerPercent - 0.5) * length;
-  const noseTop = 100 - length / 2 + centerOffset;
-  const noseSide = 100 - length / 2 + centerOffset;
-  const tailTop = noseTop + length;
-  const tailSide = noseSide + length;
-  const percentToTopY = (percent) => noseTop + length * percent;
-  const percentToSideX = (percent) => noseSide + length * percent;
-  const percentFromTopY = (y) => (length > 0 ? clamp((y - noseTop) / length, 0, 1) : 0);
-  const percentFromSideX = (x) => (length > 0 ? clamp((x - noseSide) / length, 0, 1) : 0);
-  return {
-    length,
-    top: { nose: noseTop, tail: tailTop },
-    side: { nose: noseSide, tail: tailSide },
-    percentToTopY,
-    percentToSideX,
-    percentFromTopY,
-    percentFromSideX,
-  };
-}
-
 function drawTopDownSpaceship(root, config, defs) {
   const axis = buildBodyAxis(config.body);
   drawWings(root, config, axis);
