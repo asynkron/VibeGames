@@ -265,6 +265,38 @@ const COLOR_PALETTES = [
   },
 ];
 
+const randomStack = [];
+let activeRandomSource = Math.random;
+
+function nextRandom() {
+  return activeRandomSource();
+}
+
+function pushRandomSource(source) {
+  randomStack.push(activeRandomSource);
+  activeRandomSource = source ?? Math.random;
+}
+
+function popRandomSource() {
+  activeRandomSource = randomStack.pop() ?? Math.random;
+}
+
+function runWithRandomSource(source, factory) {
+  pushRandomSource(source);
+  try {
+    return factory();
+  } finally {
+    popRandomSource();
+  }
+}
+
+function runWithSeed(seed, factory) {
+  if (seed === undefined || seed === null) {
+    return factory();
+  }
+  return runWithRandomSource(createSeededRandom(seed), factory);
+}
+
 const DEBUG_PART_COLORS = {
   hull: "#ff6b6b",
   wing: "#4ecdc4",
@@ -571,18 +603,23 @@ function deriveSideViewGeometry(config) {
 
   const wingEnabled = Boolean(wings?.enabled);
   const wingRootFromNose = wingEnabled ? centerOffsetToBody(wings?.offsetY ?? 0) : 0;
-  // Use the same chord the top view uses (forward sweep + trailing sweep)
-  // so the apparent front-to-back size matches between projections.
+  const wingSpan = wings?.span ?? 0;
   const wingChord = (wings?.forward ?? 0) + (wings?.sweep ?? 0);
-  const wingLength = wingEnabled ? Math.max(24, wingChord) : 0;
+  // Match the perceived width of the profile with the planform height so projections stay consistent.
+  const wingLength = wingEnabled ? Math.max(24, wingSpan, wingChord * 0.85) : 0;
   const wing = {
     enabled: wingEnabled,
     position: wingEnabled ? clamp(wingRootFromNose, wingLength * 0.12, body.length - wingLength * 0.25) : 0,
     length: wingLength,
-    // Tie the vertical thickness to the real span so wings remain visible in profile.
-    thickness: wingEnabled ? Math.max(6, (wings?.span ?? 0) * 0.18) : 0,
+    profileSpan: wingSpan,
+    // Scale the visible thickness by the true span so the silhouette reads the same in both views.
+    thickness: wingEnabled
+      ? Math.max(10, (wings?.thickness ?? 0) * 0.5, wingSpan * 0.45)
+      : 0,
     dihedral: wingEnabled ? Math.max(0, (wings?.dihedral ?? 0) * 0.8) : 0,
-    drop: wingEnabled ? Math.max(6, (wings?.sweep ?? 0) * 0.6) : 0,
+    drop: wingEnabled
+      ? Math.max(6, (wings?.sweep ?? 0) * 0.6, wingSpan * 0.25)
+      : 0,
     mountHeight: wingEnabled ? ((wings?.offsetY ?? 0) / Math.max(halfLength, 1)) * (baseHeight * 0.35) : 0,
     accent: Boolean(wings?.tipAccent),
   };
@@ -612,12 +649,12 @@ function deriveSideViewGeometry(config) {
 
   const heavyArmament = (engine?.count ?? 1) > 2 || (details?.antenna ?? false);
   const wingMountViable = wingEnabled && wing.length > 0;
-  const preferWingMount = wingMountViable && Math.random() < (heavyArmament ? 0.65 : 0.45);
+  const preferWingMount = wingMountViable && nextRandom() < (heavyArmament ? 0.65 : 0.45);
   let armament;
 
   if (preferWingMount) {
     // Allow the generator to hang missiles or bombs directly from the wing profile.
-    const ordnanceType = Math.random() < 0.55 ? "missile" : "bomb";
+    const ordnanceType = nextRandom() < 0.55 ? "missile" : "bomb";
     const hardpointCount = heavyArmament ? 2 : 1;
     const basePayloadLength = clamp(body.length * 0.2, 16, Math.min(wing.length * 0.85, 42));
     const basePayloadRadius = clamp(wing.thickness * 0.45, 5, 14);
@@ -891,10 +928,11 @@ function drawSideThrusters(root, config, geometry) {
     nozzle.setAttribute("stroke-width", 1.2);
 
     const flame = document.createElementNS(SVG_NS, "polygon");
+    const flameReach = Math.max(thruster.nozzleLength * 0.85, thruster.radius * 1.2);
     const flamePoints = [
-      [tailX + thruster.nozzleLength * 0.05, y - thruster.radius * 0.35],
-      [tailX + thruster.nozzleLength * 0.8, y],
-      [tailX + thruster.nozzleLength * 0.05, y + thruster.radius * 0.35],
+      [tailX, y - thruster.radius * 0.35],
+      [tailX - flameReach, y],
+      [tailX, y + thruster.radius * 0.35],
     ];
     flame.setAttribute("points", pointsToString(flamePoints));
     flame.setAttribute("fill", exhaustColor);
@@ -1568,17 +1606,20 @@ function buildSideHullPath(profile) {
   const tailTop = centerY - profile.tailHeight;
   const belly = centerY + profile.bellyDrop;
   const ventral = centerY + profile.ventralDepth;
+  const dorsalRampStart = noseX + profile.noseLength * 0.9;
+  const dorsalMidX = noseX + profile.length * 0.45;
+  const tailShoulderX = tailX - profile.tailLength * 0.85;
+  const keelFrontX = noseX + profile.length * 0.4;
+  const keelDipX = noseX + profile.length * 0.6;
 
   return [
     `M ${noseX} ${centerY}`,
-    `Q ${noseX + profile.noseLength * 0.4} ${centerY - profile.noseHeight} ${noseX + profile.noseLength} ${centerY - profile.noseHeight * 0.35}`,
-    `L ${noseX + profile.noseLength + profile.length * 0.3} ${dorsalTop}`,
-    `Q ${tailX - profile.tailLength * 0.6} ${tailTop} ${tailX - profile.tailLength} ${tailTop + profile.tailHeight * 0.2}`,
-    `Q ${tailX} ${centerY - profile.tailHeight * 0.15} ${tailX} ${centerY}`,
-    `Q ${tailX} ${centerY + profile.tailHeight * 0.3} ${tailX - profile.tailLength * 0.25} ${centerY + profile.tailHeight * 0.7}`,
-    `L ${noseX + profile.length * 0.58} ${belly}`,
-    `Q ${noseX + profile.length * 0.32} ${ventral} ${noseX + profile.noseLength * 0.45} ${centerY + profile.noseHeight * 0.65}`,
-    `Q ${noseX + profile.noseLength * 0.12} ${centerY + profile.noseHeight * 0.35} ${noseX} ${centerY}`,
+    `Q ${noseX + profile.noseLength * 0.55} ${centerY - profile.noseHeight} ${dorsalRampStart} ${centerY - profile.noseHeight * 0.5}`,
+    `C ${dorsalRampStart + profile.length * 0.16} ${dorsalTop - profile.height * 0.22} ${dorsalMidX} ${dorsalTop - profile.height * 0.05} ${tailShoulderX} ${dorsalTop}`,
+    `Q ${tailX - profile.tailLength * 0.28} ${tailTop - profile.tailHeight * 0.08} ${tailX} ${centerY}`,
+    `Q ${tailX - profile.tailLength * 0.3} ${centerY + profile.tailHeight * 0.75} ${tailShoulderX} ${centerY + profile.tailHeight * 0.9}`,
+    `C ${keelDipX} ${ventral} ${keelFrontX} ${belly} ${noseX + profile.noseLength * 0.4} ${centerY + profile.noseHeight * 0.55}`,
+    `Q ${noseX + profile.noseLength * 0.1} ${centerY + profile.noseHeight * 0.25} ${noseX} ${centerY}`,
     "Z",
   ].join(" ");
 }
@@ -1621,14 +1662,15 @@ function buildSideWingPoints(wing, profile) {
   const baseX = noseX + wing.position;
   const baseY = 100 + (profile.offsetY ?? 0) + wing.mountHeight;
   const leadingX = baseX + wing.length;
-  const leadingY = baseY - wing.dihedral;
+  const spanInfluence = wing.profileSpan ?? wing.length;
+  const leadingY = baseY - Math.max(wing.dihedral, spanInfluence * 0.18);
   const trailingX = baseX + wing.length * 0.78;
-  const trailingY = baseY + wing.drop;
-  const rootBottomX = baseX - wing.length * 0.12;
-  const rootBottomY = baseY + wing.thickness;
+  const trailingY = baseY + Math.max(wing.drop, spanInfluence * 0.22);
+  const rootBottomX = baseX - wing.length * 0.14;
+  const rootBottomY = baseY + Math.max(wing.thickness, spanInfluence * 0.5);
   return [
     [baseX, baseY],
-    [baseX + wing.length * 0.3, baseY - wing.thickness * 0.85],
+    [baseX + wing.length * 0.3, baseY - Math.max(wing.thickness * 0.85, spanInfluence * 0.4)],
     [leadingX, leadingY],
     [trailingX, trailingY],
     [rootBottomX, rootBottomY],
@@ -1651,16 +1693,43 @@ function mirrorPoints(points) {
   return points.map(([x, y]) => [200 - x, y]);
 }
 
+function hashSeed(seed) {
+  if (typeof seed === "number" && Number.isFinite(seed)) {
+    return seed >>> 0;
+  }
+  const text = typeof seed === "string" ? seed : JSON.stringify(seed ?? "sprite");
+  let hash = 1779033703 ^ text.length;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = Math.imul(hash ^ text.charCodeAt(i), 3432918353);
+    hash = (hash << 13) | (hash >>> 19);
+  }
+  hash = Math.imul(hash ^ (hash >>> 16), 2246822507);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 3266489909);
+  hash ^= hash >>> 16;
+  return hash >>> 0 || 0x1f123bb5;
+}
+
+function createSeededRandom(seed) {
+  let state = hashSeed(seed);
+  return function seeded() {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function randomBetween(min, max) {
-  return Math.random() * (max - min) + min;
+  return nextRandom() * (max - min) + min;
 }
 
 function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(nextRandom() * (max - min + 1)) + min;
 }
 
 function choose(array) {
-  return array[Math.floor(Math.random() * array.length)];
+  return array[Math.floor(nextRandom() * array.length)];
 }
 
 function clamp(value, min, max) {
@@ -1680,11 +1749,11 @@ function createBaseConfig(categoryKey) {
 function createTopDownConfig(categoryKey, def, palette) {
   const ranges = def.ranges;
 
-  const sideFinCount = Math.random() < def.features.sideFinProbability ? randomInt(...ranges.finCount) : 0;
+  const sideFinCount = nextRandom() < def.features.sideFinProbability ? randomInt(...ranges.finCount) : 0;
   const bodyLength = randomBetween(...ranges.bodyLength);
   const bodyHalfWidth = randomBetween(...ranges.bodyWidth) / 2;
 
-  const wingRoll = Math.random();
+  const wingRoll = nextRandom();
   const winglessChance = def.features.winglessProbability ?? 0;
   const aftChance = def.features.aftWingProbability ?? 0;
   const wingMount =
@@ -1734,7 +1803,7 @@ function createTopDownConfig(categoryKey, def, palette) {
       tailCurve: randomBetween(...ranges.tailCurve),
       noseWidthFactor: randomBetween(...ranges.noseWidthFactor),
       tailWidthFactor: randomBetween(...ranges.tailWidthFactor),
-      plating: Math.random() < def.features.platingProbability,
+      plating: nextRandom() < def.features.platingProbability,
     },
     cockpit: {
       width: randomBetween(...ranges.cockpitWidth),
@@ -1759,19 +1828,19 @@ function createTopDownConfig(categoryKey, def, palette) {
       thickness: wingThickness,
       offsetY: wingOffset,
       dihedral: wingDihedral,
-      tipAccent: wingsEnabled && Math.random() < def.features.wingTipAccentProbability,
+      tipAccent: wingsEnabled && nextRandom() < def.features.wingTipAccentProbability,
     },
     fins: {
-      top: Math.random() < def.features.topFinProbability ? 1 : 0,
+      top: nextRandom() < def.features.topFinProbability ? 1 : 0,
       side: sideFinCount,
-      bottom: Math.random() < def.features.bottomFinProbability ? 1 : 0,
+      bottom: nextRandom() < def.features.bottomFinProbability ? 1 : 0,
       height: randomBetween(...ranges.finHeight),
       width: randomBetween(...ranges.finWidth),
     },
     details: {
-      stripe: Math.random() < def.features.stripeProbability,
+      stripe: nextRandom() < def.features.stripeProbability,
       stripeOffset: randomBetween(...ranges.stripeOffset),
-      antenna: Math.random() < def.features.antennaProbability,
+      antenna: nextRandom() < def.features.antennaProbability,
     },
   };
 }
@@ -1779,7 +1848,7 @@ function createTopDownConfig(categoryKey, def, palette) {
 
 function mutateConfig(base) {
   const fresh = createBaseConfig(base.category);
-  const ratio = 0.35 + Math.random() * 0.4;
+  const ratio = 0.35 + nextRandom() * 0.4;
   const mixed = mixConfigs(base, fresh, ratio);
   mixed.id = randomId();
   return normaliseConfig(mixed);
@@ -1799,10 +1868,10 @@ function mixConfigs(original, fresh, ratio) {
     return original + (fresh - original) * ratio;
   }
   if (typeof original === "string" && typeof fresh === "string") {
-    return Math.random() < ratio ? fresh : original;
+    return nextRandom() < ratio ? fresh : original;
   }
   if (typeof original === "boolean" && typeof fresh === "boolean") {
-    return Math.random() < ratio ? fresh : original;
+    return nextRandom() < ratio ? fresh : original;
   }
   if (Array.isArray(original) && Array.isArray(fresh)) {
     return original.map((value, index) => mixConfigs(value, fresh[index] ?? value, ratio));
@@ -1901,5 +1970,76 @@ function randomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return `ship-${Math.random().toString(36).slice(2, 9)}`;
+  return `ship-${nextRandom().toString(36).slice(2, 9)}`;
+}
+
+function resolveCategoryKey(category) {
+  if (category && CATEGORY_DEFINITIONS[category]) {
+    return category;
+  }
+  if (typeof category === "string") {
+    const lower = category.toLowerCase();
+    const match = Object.keys(CATEGORY_DEFINITIONS).find((key) => key === lower);
+    if (match) {
+      return match;
+    }
+  }
+  return "fighter";
+}
+
+function clonePalette(palette) {
+  return palette ? { ...palette } : palette;
+}
+
+export function listSpaceshipCategories() {
+  return Object.keys(CATEGORY_DEFINITIONS);
+}
+
+export function listSpaceshipPalettes() {
+  return COLOR_PALETTES.map((palette) => ({ ...palette }));
+}
+
+export function createSpaceshipConfig(options = {}) {
+  const { category = "fighter", seed, paletteName, palette } = options;
+  const categoryKey = resolveCategoryKey(category);
+  const config = runWithSeed(seed, () => createBaseConfig(categoryKey));
+
+  if (paletteName) {
+    const match = COLOR_PALETTES.find((entry) => entry.name === paletteName);
+    if (match) {
+      config.palette = clonePalette(match);
+    }
+  }
+  if (palette) {
+    config.palette = clonePalette(palette);
+  }
+
+  return normaliseConfig(config);
+}
+
+export function renderSpaceshipSprite(config, options = {}) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  renderSpaceship(svg, config, options);
+  return svg;
+}
+
+export function generateSpaceshipSprite(options = {}) {
+  const config = options.config ? normaliseConfig(options.config) : createSpaceshipConfig(options);
+  const svg = renderSpaceshipSprite(config, options);
+  return { config, svg };
+}
+
+const spriteGeneratorApi = {
+  createSpaceshipConfig,
+  renderSpaceshipSprite,
+  generateSpaceshipSprite,
+  listSpaceshipCategories,
+  listSpaceshipPalettes,
+};
+
+if (typeof window !== "undefined") {
+  window.SpriteGenerator = {
+    ...(window.SpriteGenerator ?? {}),
+    ...spriteGeneratorApi,
+  };
 }

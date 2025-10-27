@@ -228,7 +228,7 @@ svg {
 }
 
 .thruster-flame--horizontal {
-  transform-origin: 0% 50%;
+  transform-origin: 100% 50%;
   animation-name: flame-horizontal;
 }
 
