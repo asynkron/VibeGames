@@ -620,9 +620,11 @@ function clearViewport(svg) {
 }
 
 function renderSpaceship(svg, config, options = {}) {
-  if (!svg) {
+  if (!svg || !config) {
     return;
   }
+
+  const preparedConfig = normaliseConfig(config);
 
   const viewMode = options.viewMode ?? "top";
   const drawFrame = options.drawFrame ?? false;
@@ -651,16 +653,16 @@ function renderSpaceship(svg, config, options = {}) {
     svg.appendChild(frame);
   }
 
-  const rootGroup = createShipRootGroup(config.body, {
+  const rootGroup = createShipRootGroup(preparedConfig.body, {
     offsetX: 0,
     offsetY: 0,
   });
   svg.appendChild(rootGroup.wrapper);
 
   if (viewMode === "side") {
-    drawSideViewSpaceship(rootGroup.root, config, defs);
+    drawSideViewSpaceship(rootGroup.root, preparedConfig, defs);
   } else {
-    drawTopDownSpaceship(rootGroup.root, config, defs);
+    drawTopDownSpaceship(rootGroup.root, preparedConfig, defs);
   }
 }
 
@@ -735,6 +737,11 @@ function applySideSegmentProfiles(profile, body, percentToBody) {
   }
 
   const { front, mid, rear } = body.segments;
+  const frontType = front?.type ?? "";
+  const rearType = rear?.type ?? "";
+  const isNeedleNose = frontType === "needle";
+  const isThrusterTail = rearType === "thruster";
+  const baseProfileHeight = profile.height;
 
   const normalise = (value, min, max) => {
     if (!Number.isFinite(value)) {
@@ -749,6 +756,19 @@ function applySideSegmentProfiles(profile, body, percentToBody) {
   let frontLength = front?.length ?? profile.noseLength ?? profile.length * 0.3;
   let midLength = mid?.length ?? profile.length * 0.4;
   let rearLength = rear?.length ?? profile.tailLength ?? profile.length * 0.3;
+
+  if (isNeedleNose) {
+    // Give needle noses a little more prominence so the profile can taper sharply.
+    const lengthBias = clamp((front?.transitionFactor ?? 0.9) - 0.7, 0, 0.6);
+    frontLength *= 1 + lengthBias * 0.18;
+  }
+
+  if (isThrusterTail) {
+    // Reserve extra space for chunky thruster housings at the tail.
+    const lengthBias = clamp((rear?.baseWidthFactor ?? 1) - 0.85, 0, 0.7);
+    rearLength *= 1 + lengthBias * 0.16;
+  }
+
   const totalLength = frontLength + midLength + rearLength;
   if (totalLength > 0) {
     const scale = profile.length / totalLength;
@@ -782,14 +802,27 @@ function applySideSegmentProfiles(profile, body, percentToBody) {
 
   const canopyWeight = clamp((noseShoulderRatio * 0.55 + noseTipRatio * 0.45), 0, 1);
   const spearWeight = taperRatio;
+  const needleSharpness = isNeedleNose ? clamp(taperRatio * 0.8 + (1 - noseTipRatio) * 0.6, 0, 1) : 0;
+  const thrusterHeft = isThrusterTail ? clamp((rear?.baseWidthFactor ?? 1) - 0.85, 0, 0.7) : 0;
 
   const noseHeightBase = Math.max(percentToBody(4.3), (body.noseCurve ?? front?.curve ?? 18) * 0.28);
-  profile.noseHeight = clamp(
+  let noseHeight = clamp(
     noseHeightBase * (0.9 + canopyWeight * 0.4 + spearWeight * 0.28 + noseCurveRatio * 0.18)
       + percentToBody(2.4) * transitionRatio,
     percentToBody(4.0),
-    profile.height * 0.96,
+    baseProfileHeight * 0.96,
   );
+
+  if (isNeedleNose) {
+    // Increase the vertical reach slightly so the tip stays razor sharp.
+    noseHeight = clamp(
+      noseHeight * (1.05 + needleSharpness * 0.2),
+      percentToBody(4.0),
+      baseProfileHeight * 1.05,
+    );
+  }
+
+  profile.noseHeight = noseHeight;
 
   profile.dorsalHeight = Math.max(
     profile.dorsalHeight * (0.88 + canopyWeight * 0.28 + waistRatio * 0.18),
@@ -797,27 +830,59 @@ function applySideSegmentProfiles(profile, body, percentToBody) {
   );
   profile.dorsalHeight += percentToBody(2.0) * (bellyBias + transitionRatio - 0.5);
 
-  profile.bellyDrop = clamp(
+  let bellyDrop = clamp(
     percentToBody(3.6)
       + midInsetValue * (0.72 + bellyBias * 0.38)
       + percentToBody(3.0) * insetRatio
       + percentToBody(1.6) * (1 - waistRatio),
     percentToBody(4.0),
-    profile.height * 0.62,
+    baseProfileHeight * 0.62,
   );
 
-  profile.ventralDepth = Math.max(
-    profile.bellyDrop + Math.max(percentToBody(3.4), midInsetValue * (0.38 + bellyBias * 0.22)),
-    profile.bellyDrop + percentToBody(2.6),
+  if (isThrusterTail) {
+    // Push the belly down further to sell the heavy thruster section.
+    bellyDrop = Math.max(
+      bellyDrop,
+      baseProfileHeight * (0.52 + thrusterHeft * 0.32),
+      percentToBody(4.5 + thrusterHeft * 4.0),
+    );
+  }
+
+  let ventralDepth = Math.max(
+    bellyDrop + Math.max(percentToBody(3.4), midInsetValue * (0.38 + bellyBias * 0.22)),
+    bellyDrop + percentToBody(2.6),
   );
 
-  profile.tailHeight = clamp(
+  if (isThrusterTail) {
+    // Keep the exhaust section deep enough to feel weighty from the side.
+    ventralDepth = Math.max(
+      ventralDepth,
+      bellyDrop + percentToBody(3.6 + thrusterHeft * 4.6),
+    );
+  }
+
+  profile.bellyDrop = bellyDrop;
+  profile.ventralDepth = ventralDepth;
+
+  let tailHeight = clamp(
     Math.max(percentToBody(3.6), (body.tailCurve ?? rear?.curve ?? 18) * 0.22)
       * (0.95 + (1 - tailWidthRatio) * 0.6 + (baseWidthRatio - tailWidthRatio) * 0.35)
       + percentToBody(1.6) * (exhaustRatio - 0.5),
     percentToBody(3.6),
-    profile.height * 0.82,
+    baseProfileHeight * 0.82,
   );
+
+  if (isThrusterTail) {
+    // Enlarge the tail fin line so thruster variants feel bulky.
+    tailHeight = Math.max(
+      tailHeight,
+      baseProfileHeight * (0.72 + thrusterHeft * 0.32),
+      percentToBody(5.2 + thrusterHeft * 3.2),
+    );
+    profile.dorsalHeight = Math.max(profile.dorsalHeight, tailHeight * (0.92 + thrusterHeft * 0.08));
+  }
+
+  profile.tailHeight = tailHeight;
 
   profile.height = Math.max(
     profile.height,
@@ -827,14 +892,22 @@ function applySideSegmentProfiles(profile, body, percentToBody) {
     profile.ventralDepth,
   );
 
-  const frontSecondBlend = clamp(lerp(0.44, 0.72, noseTipRatio), 0.18, 0.85);
-  const frontEndBlend = clamp(
+  let frontSecondBlend = clamp(lerp(0.44, 0.72, noseTipRatio), 0.18, 0.85);
+  let frontEndBlend = clamp(
     lerp(0.24, 0.06, noseTipRatio) + lerp(-0.08, 0.08, spearWeight) + (transitionRatio - 0.5) * 0.08,
     0,
     1,
   );
-  const chinBlend = clamp(lerp(0.64, 0.42, noseTipRatio) + canopyWeight * 0.06, 0.22, 0.88);
-  const frontBellyBlend = clamp(lerp(0.5, 0.34, bellyRatio), 0.2, 0.85);
+  let chinBlend = clamp(lerp(0.64, 0.42, noseTipRatio) + canopyWeight * 0.06, 0.22, 0.88);
+  let frontBellyBlend = clamp(lerp(0.5, 0.34, bellyRatio), 0.2, 0.85);
+
+  if (isNeedleNose) {
+    // Bias the front anchor blends toward sharper angles for needle noses.
+    frontSecondBlend = clamp(lerp(frontSecondBlend, 0.08, 0.6 + needleSharpness * 0.3), 0.04, 0.32);
+    frontEndBlend = clamp(lerp(frontEndBlend, 0.14, 0.6 + needleSharpness * 0.25), 0.05, 0.45);
+    chinBlend = clamp(lerp(chinBlend, 0.28, 0.55 + needleSharpness * 0.25), 0.2, 0.55);
+    frontBellyBlend = clamp(lerp(frontBellyBlend, 0.32, 0.55 + needleSharpness * 0.25), 0.26, 0.62);
+  }
 
   const topDip = clamp(lerp(0.14, 0.06, waistRatio) + spearWeight * 0.05 + canopyWeight * 0.03, 0.03, 0.22);
   const crestOffset = clamp(
@@ -843,8 +916,14 @@ function applySideSegmentProfiles(profile, body, percentToBody) {
     0.2,
   );
 
-  const rearTopBlend = clamp(lerp(0.48, 0.72, tailCurveRatio * 0.6 + (1 - tailWidthRatio) * 0.4), 0.2, 0.92);
-  const rearBottomBlend = clamp(lerp(0.58, 0.72, bellyRatio) + (exhaustRatio - 0.5) * 0.12, 0.25, 0.95);
+  let rearTopBlend = clamp(lerp(0.48, 0.72, tailCurveRatio * 0.6 + (1 - tailWidthRatio) * 0.4), 0.2, 0.92);
+  let rearBottomBlend = clamp(lerp(0.58, 0.72, bellyRatio) + (exhaustRatio - 0.5) * 0.12, 0.25, 0.95);
+
+  if (isThrusterTail) {
+    // Lower the rear anchors so the thruster mass reads as thick and heavy.
+    rearTopBlend = clamp(lerp(rearTopBlend, 0.68, 0.55 + thrusterHeft * 0.35), 0.4, 0.92);
+    rearBottomBlend = clamp(lerp(rearBottomBlend, 0.88, 0.55 + thrusterHeft * 0.35), 0.55, 0.98);
+  }
 
   profile.sideAnchorConfig = {
     front: {
@@ -867,6 +946,7 @@ function applySideSegmentProfiles(profile, body, percentToBody) {
 function deriveSideViewGeometry(config) {
   // Translate the shared top-down configuration into approximate side-view dimensions.
   const { body, cockpit, engine, wings, fins, details } = config;
+  const rearSegment = body?.segments?.rear ?? null;
 
   const axis = buildBodyAxis(body);
   const halfLength = body.length / 2;
@@ -1013,6 +1093,14 @@ function deriveSideViewGeometry(config) {
         mountPercent: 1,
       }
     : null;
+
+  if (thruster && rearSegment?.type === "thruster") {
+    // Make the engine housings read as oversized when paired with the thruster tail segment.
+    const heft = clamp((rearSegment.baseWidthFactor ?? 1) - 0.85, 0, 0.7);
+    thruster.radius *= 1.2 + heft * 0.35;
+    thruster.spacing = Math.max(thruster.spacing, percentToBody(6.0 + heft * 5));
+    thruster.nozzleLength *= 1.05 + heft * 0.25;
+  }
 
   const storedArmament = config.armament;
   let armament = null;
