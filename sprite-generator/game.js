@@ -1,6 +1,30 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const GRID_SIZE = 9;
 
+const GAME_MODES = {
+  horizontal: {
+    label: "Side shooter (horizontal)",
+    description: "Ships face right for classic side-scrolling shooters.",
+    orientation: "horizontal",
+    wingMounts: [
+      { value: "none", weight: 0.18 },
+      { value: "mid", weight: 0.42 },
+      { value: "aft", weight: 0.28 },
+      { value: "forward", weight: 0.12 },
+    ],
+  },
+  vertical: {
+    label: "Vertical shoot 'em up",
+    description: "Ships face upward for traditional top-down shooters.",
+    orientation: "vertical",
+    wingMounts: [
+      { value: "mid", weight: 0.55 },
+      { value: "forward", weight: 0.25 },
+      { value: "aft", weight: 0.2 },
+    ],
+  },
+};
+
 const CATEGORY_DEFINITIONS = {
   fighter: {
     label: "Fighter",
@@ -239,6 +263,7 @@ const COLOR_PALETTES = [
   },
 ];
 
+const modeSelect = document.getElementById("modeSelect");
 const categorySelect = document.getElementById("categorySelect");
 const spriteGrid = document.getElementById("spriteGrid");
 const detailSprite = document.getElementById("detailSprite");
@@ -249,11 +274,23 @@ const shufflePaletteButton = document.getElementById("shufflePalette");
 let renderCounter = 0;
 
 let currentCategory = "fighter";
+let currentMode = "horizontal";
 let parentConfig = null;
 let selectedConfig = null;
 
+populateGameModeSelect();
 populateCategorySelect();
 initialise();
+
+function populateGameModeSelect() {
+  Object.entries(GAME_MODES).forEach(([key, def]) => {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = def.label;
+    modeSelect.appendChild(option);
+  });
+  modeSelect.value = currentMode;
+}
 
 function populateCategorySelect() {
   Object.entries(CATEGORY_DEFINITIONS).forEach(([key, def]) => {
@@ -266,21 +303,29 @@ function populateCategorySelect() {
 }
 
 function initialise() {
-  parentConfig = createBaseConfig(currentCategory);
+  parentConfig = createBaseConfig(currentCategory, currentMode);
   selectedConfig = cloneConfig(parentConfig);
   renderDetail(selectedConfig);
   renderGrid();
 
+  modeSelect.addEventListener("change", () => {
+    currentMode = modeSelect.value;
+    parentConfig = createBaseConfig(currentCategory, currentMode);
+    selectedConfig = cloneConfig(parentConfig);
+    renderDetail(selectedConfig);
+    renderGrid();
+  });
+
   categorySelect.addEventListener("change", () => {
     currentCategory = categorySelect.value;
-    parentConfig = createBaseConfig(currentCategory);
+    parentConfig = createBaseConfig(currentCategory, currentMode);
     selectedConfig = cloneConfig(parentConfig);
     renderDetail(selectedConfig);
     renderGrid();
   });
 
   newSeedButton.addEventListener("click", () => {
-    parentConfig = createBaseConfig(currentCategory);
+    parentConfig = createBaseConfig(currentCategory, currentMode);
     selectedConfig = cloneConfig(parentConfig);
     renderDetail(selectedConfig);
     renderGrid();
@@ -359,8 +404,16 @@ function renderSpaceship(svg, config, options = {}) {
   svg.appendChild(defs);
 
   const root = document.createElementNS(SVG_NS, "g");
+  const transforms = [];
   if (scale !== 1) {
-    root.setAttribute("transform", `translate(${100 - 100 * scale} ${100 - 100 * scale}) scale(${scale})`);
+    transforms.push(`translate(${100 - 100 * scale} ${100 - 100 * scale}) scale(${scale})`);
+  }
+  const modeDef = resolveMode(config.mode);
+  if (modeDef.orientation === "horizontal") {
+    transforms.push("rotate(90 100 100)");
+  }
+  if (transforms.length > 0) {
+    root.setAttribute("transform", transforms.join(" "));
   }
   root.classList.add("ship-root");
   svg.appendChild(root);
@@ -397,6 +450,10 @@ function drawBody(root, config) {
 
 function drawWings(root, config) {
   const { wings, body, palette } = config;
+  const mount = wings.mount ?? "mid";
+  if (mount === "none") {
+    return;
+  }
   const group = document.createElementNS(SVG_NS, "g");
   group.setAttribute("fill", palette.secondary);
   group.setAttribute("stroke", palette.trim);
@@ -779,17 +836,69 @@ function choose(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-function createBaseConfig(categoryKey) {
+function chooseWingMount(options = []) {
+  if (!options || options.length === 0) {
+    return "mid";
+  }
+  return chooseWeighted(options);
+}
+
+function sampleWingOffset(range, mount) {
+  const [min, max] = range;
+  if (min === max) {
+    return min;
+  }
+  const span = max - min;
+  const mid = min + span / 2;
+  switch (mount) {
+    case "forward":
+      return randomBetween(min, mid);
+    case "aft":
+      return randomBetween(mid, max);
+    case "none": {
+      const jitter = span * 0.15;
+      return clamp(randomBetween(mid - jitter, mid + jitter), min, max);
+    }
+    default:
+      return randomBetween(min, max);
+  }
+}
+
+function resolveMode(modeKey) {
+  return GAME_MODES[modeKey] ?? GAME_MODES.horizontal;
+}
+
+function chooseWeighted(options) {
+  const total = options.reduce((sum, option) => sum + (option.weight ?? 1), 0);
+  let threshold = Math.random() * total;
+  for (const option of options) {
+    threshold -= option.weight ?? 1;
+    if (threshold <= 0) {
+      return option.value ?? option;
+    }
+  }
+  const fallback = options[options.length - 1];
+  return fallback.value ?? fallback;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function createBaseConfig(categoryKey, modeKey = currentMode) {
   const def = CATEGORY_DEFINITIONS[categoryKey];
+  const modeDef = resolveMode(modeKey);
   const palette = pickPalette();
   const ranges = def.ranges;
 
   const sideFinCount = Math.random() < def.features.sideFinProbability ? randomInt(...ranges.finCount) : 0;
+  const wingMount = chooseWingMount(modeDef.wingMounts);
 
   const config = {
     id: randomId(),
     category: categoryKey,
     label: def.label,
+    mode: modeKey,
     palette,
     body: {
       length: randomBetween(...ranges.bodyLength),
@@ -820,9 +929,10 @@ function createBaseConfig(categoryKey) {
       sweep: randomBetween(...ranges.wingSweep),
       forward: randomBetween(...ranges.wingForward),
       thickness: randomBetween(...ranges.wingThickness),
-      offsetY: randomBetween(...ranges.wingOffset),
+      offsetY: sampleWingOffset(ranges.wingOffset, wingMount),
       dihedral: randomBetween(...ranges.wingDihedral),
       tipAccent: Math.random() < def.features.wingTipAccentProbability,
+      mount: wingMount,
     },
     fins: {
       top: Math.random() < def.features.topFinProbability,
@@ -843,10 +953,11 @@ function createBaseConfig(categoryKey) {
 }
 
 function mutateConfig(base) {
-  const fresh = createBaseConfig(base.category);
+  const fresh = createBaseConfig(base.category, base.mode);
   const ratio = 0.35 + Math.random() * 0.4;
   const mixed = mixConfigs(base, fresh, ratio);
   mixed.id = randomId();
+  mixed.mode = base.mode;
   return normaliseConfig(mixed);
 }
 
@@ -899,6 +1010,7 @@ function normaliseConfig(config) {
   copy.body.midInset = Math.max(4, copy.body.midInset);
   copy.body.halfWidth = Math.max(10, copy.body.halfWidth);
   copy.details.stripeOffset = Math.max(6, copy.details.stripeOffset);
+  copy.wings.mount = copy.wings.mount ?? "mid";
   return copy;
 }
 
