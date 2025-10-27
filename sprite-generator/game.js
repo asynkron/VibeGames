@@ -410,8 +410,7 @@ const DEBUG_PART_COLORS = {
 
 const categorySelect = document.getElementById("categorySelect");
 const spriteGrid = document.getElementById("spriteGrid");
-const detailTopView = document.getElementById("detailTopView");
-const detailSideView = document.getElementById("detailSideView");
+const detailSprite = document.getElementById("detailSprite");
 const definition = document.getElementById("definition");
 const newSeedButton = document.getElementById("newSeed");
 const shufflePaletteButton = document.getElementById("shufflePalette");
@@ -523,18 +522,8 @@ function createSpriteCard(config, isParent) {
     button.classList.add("selected");
   }
 
-  const views = document.createElement("div");
-  views.className = "sprite-card-views";
-
-  const topSvg = document.createElementNS(SVG_NS, "svg");
-  topSvg.classList.add("sprite-card-view");
-  renderSpaceshipViewport(topSvg, config, "top");
-
-  const sideSvg = document.createElementNS(SVG_NS, "svg");
-  sideSvg.classList.add("sprite-card-view");
-  renderSpaceshipViewport(sideSvg, config, "side");
-
-  views.append(topSvg, sideSvg);
+  const svg = document.createElementNS(SVG_NS, "svg");
+  renderSpaceship(svg, config, { viewMode: VIEW_MODE.value });
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -546,17 +535,12 @@ function createSpriteCard(config, isParent) {
   mode.textContent = VIEW_MODE.shortLabel;
   meta.append(category, mode, palette);
 
-  button.append(views, meta);
+  button.append(svg, meta);
   return button;
 }
 
 function renderDetail(config) {
-  if (detailTopView) {
-    renderSpaceshipViewport(detailTopView, config, "top");
-  }
-  if (detailSideView) {
-    renderSpaceshipViewport(detailSideView, config, "side");
-  }
+  renderSpaceship(detailSprite, config, { viewMode: VIEW_MODE.value });
   definition.textContent = JSON.stringify(
     config,
     (key, value) => (typeof value === "number" ? Number(value.toFixed(2)) : value),
@@ -564,33 +548,58 @@ function renderDetail(config) {
   );
 }
 
-function renderSpaceshipViewport(svg, config, view = "top") {
-  const viewMode = view === "side" ? "side" : "top";
+function renderSpaceship(svg, config, options = {}) {
+  const viewMode = options.viewMode ?? VIEW_MODE.value;
   svg.innerHTML = "";
-  svg.setAttribute("data-view", viewMode);
+  svg.setAttribute("data-view-mode", viewMode);
   svg.setAttribute("data-debug", debugColorsEnabled ? "true" : "false");
 
   const defs = document.createElementNS(SVG_NS, "defs");
   svg.appendChild(defs);
 
+  if (viewMode === "both") {
+    svg.setAttribute("viewBox", "0 0 400 200");
+    const frameStroke = mixColor(config.palette.trim, "#0f172a", 0.55);
+    const frameFill = "rgba(15, 23, 42, 0.18)";
+
+    const topFrame = document.createElementNS(SVG_NS, "rect");
+    topFrame.setAttribute("x", "0");
+    topFrame.setAttribute("y", "0");
+    topFrame.setAttribute("width", "200");
+    topFrame.setAttribute("height", "200");
+    topFrame.setAttribute("fill", frameFill);
+    topFrame.setAttribute("stroke", frameStroke);
+    topFrame.setAttribute("stroke-width", "1.5");
+
+    const sideFrame = document.createElementNS(SVG_NS, "rect");
+    sideFrame.setAttribute("x", "200");
+    sideFrame.setAttribute("y", "0");
+    sideFrame.setAttribute("width", "200");
+    sideFrame.setAttribute("height", "200");
+    sideFrame.setAttribute("fill", frameFill);
+    sideFrame.setAttribute("stroke", frameStroke);
+    sideFrame.setAttribute("stroke-width", "1.5");
+
+    const topGroup = createShipRootGroup(config.body, {
+      offsetX: 0,
+      offsetY: 0,
+    });
+    const sideGroup = createShipRootGroup(config.body, {
+      offsetX: 200,
+      offsetY: 0,
+    });
+    svg.append(topFrame, topGroup.wrapper, sideFrame, sideGroup.wrapper);
+    drawTopDownSpaceship(topGroup.root, config, defs);
+    drawSideViewSpaceship(sideGroup.root, config, defs);
+    return;
+  }
+
   svg.setAttribute("viewBox", "0 0 200 200");
-  const frameStroke = mixColor(config.palette.trim, "#0f172a", 0.55);
-  const frameFill = "rgba(15, 23, 42, 0.18)";
-
-  const frame = document.createElementNS(SVG_NS, "rect");
-  frame.setAttribute("x", "0");
-  frame.setAttribute("y", "0");
-  frame.setAttribute("width", "200");
-  frame.setAttribute("height", "200");
-  frame.setAttribute("fill", frameFill);
-  frame.setAttribute("stroke", frameStroke);
-  frame.setAttribute("stroke-width", "1.5");
-
   const rootGroup = createShipRootGroup(config.body, {
     offsetX: 0,
     offsetY: 0,
   });
-  svg.append(frame, rootGroup.wrapper);
+  svg.appendChild(rootGroup.wrapper);
 
   if (viewMode === "side") {
     drawSideViewSpaceship(rootGroup.root, config, defs);
@@ -3192,33 +3201,14 @@ export function createSpaceshipConfig(options = {}) {
 }
 
 export function renderSpaceshipSprite(config, options = {}) {
-  const viewPreference = options.view ?? options.viewMode ?? VIEW_MODE.value;
-
-  if (viewPreference === "top" || viewPreference === "side") {
-    const singleView = document.createElementNS(SVG_NS, "svg");
-    renderSpaceshipViewport(singleView, config, viewPreference);
-    return singleView;
-  }
-
-  const container = document.createElement("div");
-  container.className = "sprite-views";
-
-  const topSvg = document.createElementNS(SVG_NS, "svg");
-  topSvg.classList.add("sprite-views__top");
-  renderSpaceshipViewport(topSvg, config, "top");
-
-  const sideSvg = document.createElementNS(SVG_NS, "svg");
-  sideSvg.classList.add("sprite-views__side");
-  renderSpaceshipViewport(sideSvg, config, "side");
-
-  container.append(topSvg, sideSvg);
-  return container;
+  const svg = document.createElementNS(SVG_NS, "svg");
+  renderSpaceship(svg, config, options);
+  return svg;
 }
 
 export function generateSpaceshipSprite(options = {}) {
   const config = options.config ? normaliseConfig(options.config) : createSpaceshipConfig(options);
   const svg = renderSpaceshipSprite(config, options);
-  // Preserve the property name to avoid breaking downstream consumers even though the node may be a wrapper.
   return { config, svg };
 }
 
