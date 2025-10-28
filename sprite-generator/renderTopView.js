@@ -71,42 +71,51 @@ export function drawWings(root, config, geometry) {
   if (!wings || wings.enabled === false || !wingGeometry?.top) {
     return;
   }
-  const group = createSvgElement("g", {
-    fill: partColor("wing", palette.secondary),
-    stroke: palette.trim,
-    "stroke-width": 1.6,
-    "stroke-linejoin": "round",
+  const layers = Array.isArray(wingGeometry.layers) && wingGeometry.layers.length
+    ? wingGeometry.layers
+    : [{ points: wingGeometry.top, accent: wingGeometry.accent }];
+
+  layers.forEach((layer) => {
+    if (!layer?.points) {
+      return;
+    }
+    const group = createSvgElement("g", {
+      fill: partColor("wing", palette.secondary),
+      stroke: palette.trim,
+      "stroke-width": 1.6,
+      "stroke-linejoin": "round",
+    });
+
+    const { left: leftPoints, right: rightPoints } = layer.points;
+    const left = createSvgElement("polygon", { points: pointsToString(leftPoints) });
+    const right = createSvgElement("polygon", { points: pointsToString(rightPoints) });
+
+    group.append(left, right);
+
+    const accent = layer.accent;
+    if (accent) {
+      const accentLeftPoints = accent.left;
+      const accentRightPoints = accent.right;
+      if (accentLeftPoints) {
+        const accentLeft = createSvgElement("polyline", {
+          points: pointsToString(accentLeftPoints),
+          stroke: partStroke("wing", palette.accent),
+          "stroke-width": 2.2,
+        });
+        group.appendChild(accentLeft);
+      }
+      if (accentRightPoints) {
+        const accentRight = createSvgElement("polyline", {
+          points: pointsToString(accentRightPoints),
+          stroke: partStroke("wing", palette.accent),
+          "stroke-width": 2.2,
+        });
+        group.appendChild(accentRight);
+      }
+    }
+
+    root.appendChild(group);
   });
-
-  const { left: leftPoints, right: rightPoints } = wingGeometry.top;
-
-  const left = createSvgElement("polygon", { points: pointsToString(leftPoints) });
-  const right = createSvgElement("polygon", { points: pointsToString(rightPoints) });
-
-  group.append(left, right);
-
-  if (wingGeometry.accent) {
-    const accentLeftPoints = wingGeometry.accent.left;
-    const accentRightPoints = wingGeometry.accent.right;
-    if (accentLeftPoints) {
-      const accentLeft = createSvgElement("polyline", {
-        points: pointsToString(accentLeftPoints),
-        stroke: partStroke("wing", palette.accent),
-        "stroke-width": 2.2,
-      });
-      group.appendChild(accentLeft);
-    }
-    if (accentRightPoints) {
-      const accentRight = createSvgElement("polyline", {
-        points: pointsToString(accentRightPoints),
-        stroke: partStroke("wing", palette.accent),
-        "stroke-width": 2.2,
-      });
-      group.appendChild(accentRight);
-    }
-  }
-
-  root.appendChild(group);
 }
 
 export function drawTopArmament(root, config, geometry, axis) {
@@ -346,8 +355,23 @@ export function drawCockpit(root, config, geometry, axis, defs) {
 export function drawEngines(root, config, axis) {
   const { engine, palette } = config;
   const group = createSvgElement("g");
-  const tailY = axis.percentToTopY(1);
-  const baseY = tailY - 4;
+  if (!engine) {
+    return;
+  }
+
+  if (engine.type === "propeller") {
+    drawTopPropellers(group, engine, palette, axis);
+  } else {
+    drawTopJetEngines(group, engine, palette, axis);
+  }
+
+  if (group.childNodes.length > 0) {
+    root.appendChild(group);
+  }
+}
+
+function drawTopJetEngines(group, engine, palette, axis) {
+  const baseY = axis.percentToTopY(engine.mountPercent ?? 1) - 4;
   const totalWidth = (engine.count - 1) * engine.spacing;
   const thrusterColor = partColor("thruster", palette.secondary);
   const exhaustColor = partColor("exhaust", engine.glow);
@@ -388,25 +412,88 @@ export function drawEngines(root, config, axis) {
       "stroke-width": 1.1,
     });
 
-    const flamePoints = [
-      [cx - engine.size * 0.2, baseY + 4],
-      [cx, baseY + engine.size * 1.2],
-      [cx + engine.size * 0.2, baseY + 4],
-    ];
-    const flame = createSvgElement(
-      "polygon",
-      {
-        points: pointsToString(flamePoints),
-        fill: exhaustColor,
-        opacity: "0.85",
-      },
-      ["thruster-flame", "thruster-flame--vertical"],
-    );
+    group.append(nozzle, cap, thruster);
 
-    group.append(nozzle, cap, thruster, flame);
+    if (engine.hasFlame) {
+      const flamePoints = [
+        [cx - engine.size * 0.2, baseY + 4],
+        [cx, baseY + engine.size * 1.2],
+        [cx + engine.size * 0.2, baseY + 4],
+      ];
+      const flame = createSvgElement(
+        "polygon",
+        {
+          points: pointsToString(flamePoints),
+          fill: exhaustColor,
+          opacity: "0.85",
+        },
+        ["thruster-flame", "thruster-flame--vertical"],
+      );
+      group.appendChild(flame);
+    }
   }
+}
 
-  root.appendChild(group);
+function drawTopPropellers(group, engine, palette, axis) {
+  const baseY = axis.percentToTopY(engine.mountPercent ?? 0);
+  const totalWidth = (engine.count - 1) * engine.spacing;
+  const diskStroke = partColor("thruster", mixColor(palette.accent, palette.secondary, 0.35));
+  const spinnerFill = partColor("thruster", mixColor(palette.secondary, "#ffffff", 0.2));
+  const bladeStroke = partStroke("thruster", palette.trim);
+  const bladeStrokeWidth = Math.max(
+    1.2,
+    ((engine.bladeWidth ?? engine.propellerRadius ?? engine.size) * 0.12),
+  );
+
+  for (let i = 0; i < engine.count; i += 1) {
+    const offsetX = engine.count === 1 ? 0 : -totalWidth / 2 + i * engine.spacing;
+    const cx = 100 + offsetX;
+
+    const disc = createSvgElement("circle", {
+      cx: String(cx),
+      cy: String(baseY),
+      r: String(engine.propellerRadius ?? engine.size),
+      fill: "none",
+      stroke: diskStroke,
+      "stroke-width": 1.4,
+      opacity: "0.85",
+    });
+
+    const spinner = createSvgElement("circle", {
+      cx: String(cx),
+      cy: String(baseY),
+      r: String(engine.hubRadius ?? engine.size * 0.4),
+      fill: spinnerFill,
+      stroke: palette.trim,
+      "stroke-width": 1.1,
+    });
+
+    const blades = createSvgElement("g", {
+      stroke: bladeStroke,
+      "stroke-width": bladeStrokeWidth,
+      "stroke-linecap": "round",
+    });
+
+    const bladeRadius = engine.propellerRadius ?? engine.size;
+    for (let bladeIndex = 0; bladeIndex < (engine.bladeCount ?? 2); bladeIndex += 1) {
+      const angle = (Math.PI * 2 * bladeIndex) / (engine.bladeCount ?? 2);
+      const sin = Math.sin(angle);
+      const cos = Math.cos(angle);
+      const innerX = cx + sin * (engine.hubRadius ?? engine.size * 0.4) * 0.3;
+      const innerY = baseY - cos * (engine.hubRadius ?? engine.size * 0.4) * 0.3;
+      const outerX = cx + sin * bladeRadius;
+      const outerY = baseY - cos * bladeRadius;
+      const blade = createSvgElement("line", {
+        x1: innerX.toFixed(2),
+        y1: innerY.toFixed(2),
+        x2: outerX.toFixed(2),
+        y2: outerY.toFixed(2),
+      });
+      blades.appendChild(blade);
+    }
+
+    group.append(disc, blades, spinner);
+  }
 }
 
 export function drawFins(root, config, axis) {

@@ -292,9 +292,17 @@ export function deriveSideViewGeometry(config, baseAxis) {
   const tailHeight = Math.max(percentToBody(4.3), (fins?.height ?? percentToBody(17.1)) * 0.4);
   const bellyDrop = clamp(body.midInset * 1.6, baseHeight * 0.22, baseHeight * 0.48);
   const ventralDepth = bellyDrop + Math.max(percentToBody(4.3), body.midInset * 0.6);
-  const hasIntakes = (engine?.count ?? 0) > 1;
-  const intakeHeight = hasIntakes ? Math.min(baseHeight * 0.45, (engine?.size ?? percentToBody(12.9)) * 0.9) : 0;
-  const intakeDepth = hasIntakes ? Math.min(fuselageRadius * 1.2, (engine?.spacing ?? percentToBody(17.1)) * 0.6) : 0;
+  const isJetEngine = engine?.type !== "propeller";
+  const hasIntakes = isJetEngine && (engine?.count ?? 0) > 1;
+  const intakeHeight = hasIntakes
+    ? Math.min(baseHeight * 0.45, (engine?.intakeRadius ?? engine?.size ?? percentToBody(12.9)) * 1.1)
+    : 0;
+  const intakeDepth = hasIntakes
+    ? Math.min(
+        fuselageRadius * 1.2,
+        (engine?.intakeDepth ?? engine?.spacing ?? percentToBody(17.1)) * 0.6,
+      )
+    : 0;
 
   const profile = {
     length: body.length,
@@ -381,20 +389,64 @@ export function deriveSideViewGeometry(config, baseAxis) {
   };
 
   const planform = computeWingPlanform(body, wings);
-  const wing = planform.enabled
-    ? {
+
+  const layerConfigs = planform.enabled
+    ? (Array.isArray(wings?.layers) && wings.layers.length
+        ? wings.layers
+        : [
+            {
+              offsetY: wings.offsetY,
+              mountHeight: wings.mountHeight ?? 0,
+              thickness: wings.thickness,
+              span: planform.span,
+              forward: wings.forward,
+              sweep: wings.sweep,
+              style: wings.style,
+              tipAccent: wings.tipAccent,
+            },
+          ])
+    : [];
+
+  const wingLayers = [];
+  if (planform.enabled) {
+    layerConfigs.forEach((layerConfig, index) => {
+      const layerWings = {
+        ...wings,
+        offsetY: layerConfig.offsetY,
+        mountHeight: layerConfig.mountHeight,
+        thickness: layerConfig.thickness,
+        span: layerConfig.span,
+        forward: layerConfig.forward,
+        sweep: layerConfig.sweep,
+        style: layerConfig.style,
+        tipAccent: layerConfig.tipAccent,
+        layers: undefined,
+      };
+      const layerPlanform = index === 0 ? planform : computeWingPlanform(body, layerWings);
+      if (!layerPlanform.enabled) {
+        return;
+      }
+      wingLayers.push({
         enabled: true,
-        position: planform.position,
-        length: planform.length,
-        positionPercent: planform.positionPercent,
-        lengthPercent: planform.lengthPercent,
-        profileSpan: planform.span,
-        thickness: planform.thickness,
-        dihedral: planform.dihedral,
-        drop: planform.drop,
-        mountHeight: planform.mountHeight ?? 0,
-        style: planform.style ?? wings?.style ?? "swept",
-        accent: Boolean(wings?.tipAccent),
+        position: layerPlanform.position,
+        length: layerPlanform.length,
+        positionPercent: layerPlanform.positionPercent,
+        lengthPercent: layerPlanform.lengthPercent,
+        profileSpan: layerPlanform.span,
+        thickness: layerPlanform.thickness,
+        dihedral: layerPlanform.dihedral,
+        drop: layerPlanform.drop,
+        mountHeight: layerPlanform.mountHeight ?? layerWings.mountHeight ?? 0,
+        style: layerWings.style ?? planform.style ?? wings?.style ?? "swept",
+        accent: Boolean(index === 0 ? wings?.tipAccent : layerConfig.tipAccent),
+      });
+    });
+  }
+
+  const wing = wingLayers.length
+    ? {
+        ...wingLayers[0],
+        layers: wingLayers,
       }
     : {
         enabled: false,
@@ -407,8 +459,9 @@ export function deriveSideViewGeometry(config, baseAxis) {
         dihedral: 0,
         drop: 0,
         mountHeight: 0,
-        style: "swept",
+        style: wings?.style ?? "swept",
         accent: false,
+        layers: [],
       };
 
   const stabiliser = fins
@@ -422,23 +475,43 @@ export function deriveSideViewGeometry(config, baseAxis) {
       }
     : null;
 
-  const thruster = engine
-    ? {
+  let engineGeometry = null;
+  if (engine) {
+    if (engine.type === "propeller") {
+      engineGeometry = {
+        type: "propeller",
+        count: Math.max(1, Math.round(engine.count)),
+        radius: Math.max(percentToBody(2.4), engine.propellerRadius ?? engine.size),
+        hubRadius: Math.max(percentToBody(1.0), engine.hubRadius ?? engine.size * 0.45),
+        bladeWidth: Math.max(percentToBody(0.8), engine.bladeWidth ?? engine.size * 0.2),
+        spinnerLength: Math.max(percentToBody(3.0), engine.spinnerLength ?? engine.size * 0.6),
+        spacing: Math.max(percentToBody(5.0), engine.spacing ?? percentToBody(12.0) * 0.5),
+        mountPercent: clamp(engine.mountPercent ?? 0.1, 0, 1),
+        mountOffset: engine.mountOffset ?? 0,
+        glow: engine.glow,
+        bladeCount: Math.max(2, Math.round(engine.bladeCount ?? 2)),
+      };
+    } else {
+      engineGeometry = {
+        type: "jet",
         count: Math.max(1, Math.round(engine.count)),
         radius: Math.max(percentToBody(2.9), engine.size * 0.45),
         spacing: Math.max(percentToBody(5.7), engine.spacing * 0.45),
-        offsetY: 0,
+        offsetY: engine.offsetY ?? 0,
         nozzleLength: Math.max(percentToBody(4.3), engine.nozzleLength * 0.65),
         glow: engine.glow,
-        mountPercent: 1,
+        mountPercent: clamp(engine.mountPercent ?? 1, 0, 1),
+        hasFlame: engine.hasFlame !== false,
+        intakeRadius: Math.max(percentToBody(2.9), engine.intakeRadius ?? engine.size * 0.5),
+        intakeDepth: Math.max(percentToBody(3.6), engine.intakeDepth ?? engine.size * 0.35),
+      };
+      if (rearSegment?.type === "thruster") {
+        const heft = clamp((rearSegment.baseWidthFactor ?? 1) - 0.85, 0, 0.7);
+        engineGeometry.radius *= 1.2 + heft * 0.35;
+        engineGeometry.spacing = Math.max(engineGeometry.spacing, percentToBody(6.0 + heft * 5));
+        engineGeometry.nozzleLength *= 1.05 + heft * 0.25;
       }
-    : null;
-
-  if (thruster && rearSegment?.type === "thruster") {
-    const heft = clamp((rearSegment.baseWidthFactor ?? 1) - 0.85, 0, 0.7);
-    thruster.radius *= 1.2 + heft * 0.35;
-    thruster.spacing = Math.max(thruster.spacing, percentToBody(6.0 + heft * 5));
-    thruster.nozzleLength *= 1.05 + heft * 0.25;
+    }
   }
 
   const storedArmament = config.armament;
@@ -515,7 +588,7 @@ export function deriveSideViewGeometry(config, baseAxis) {
     canopy,
     wing,
     stabiliser,
-    thruster,
+    engine: engineGeometry,
     armament,
     markings,
     lights,
@@ -539,16 +612,67 @@ export function initializeGeometry(config) {
 
   const planform = computeWingPlanform(body, wings);
   let wingPoints = null;
-  if (planform.enabled) {
-    wingPoints = (planform.style ?? wings?.style) === "delta" ? getDeltaWingTop(config, axis) : getWingTop(config, axis);
-  }
+  let wingAccent = null;
+  const wingLayerConfigs = planform.enabled
+    ? (Array.isArray(wings?.layers) && wings.layers.length
+        ? wings.layers
+        : [
+            {
+              offsetY: wings.offsetY,
+              mountHeight: wings.mountHeight ?? 0,
+              thickness: wings.thickness,
+              span: planform.span,
+              forward: wings.forward,
+              sweep: wings.sweep,
+              style: wings.style,
+              tipAccent: wings.tipAccent,
+            },
+          ])
+    : [];
 
-  const wingAccent = wingPoints && wings?.tipAccent
-    ? {
-        left: buildWingAccent(wingPoints.left),
-        right: buildWingAccent(wingPoints.right),
+  const wingTopLayers = [];
+  if (planform.enabled) {
+    wingLayerConfigs.forEach((layerConfig, index) => {
+      const layerWings = {
+        ...wings,
+        offsetY: layerConfig.offsetY,
+        mountHeight: layerConfig.mountHeight,
+        thickness: layerConfig.thickness,
+        span: layerConfig.span,
+        forward: layerConfig.forward,
+        sweep: layerConfig.sweep,
+        style: layerConfig.style,
+        tipAccent: layerConfig.tipAccent,
+        layers: undefined,
+      };
+      const layerPlanform = index === 0 ? planform : computeWingPlanform(body, layerWings);
+      if (!layerPlanform.enabled) {
+        return;
       }
-    : null;
+      const layerConfigWrapper = { ...config, wings: layerWings };
+      const layerPoints = (layerPlanform.style ?? layerWings.style) === "delta"
+        ? getDeltaWingTop(layerConfigWrapper, axis)
+        : getWingTop(layerConfigWrapper, axis);
+      if (!layerPoints) {
+        return;
+      }
+      const layerAccent = layerWings.tipAccent
+        ? {
+            left: buildWingAccent(layerPoints.left),
+            right: buildWingAccent(layerPoints.right),
+          }
+        : null;
+      wingTopLayers.push({
+        points: layerPoints,
+        accent: layerAccent,
+        style: layerPlanform.style ?? layerWings.style ?? wings?.style ?? "swept",
+      });
+      if (index === 0) {
+        wingPoints = layerPoints;
+        wingAccent = layerAccent;
+      }
+    });
+  }
 
   const sideGeometry = deriveSideViewGeometry(config, axis);
 
@@ -572,6 +696,7 @@ export function initializeGeometry(config) {
       rear: {},
     },
     wings: {},
+    engines: {},
   };
 
   if (frontPath) {
@@ -599,6 +724,14 @@ export function initializeGeometry(config) {
     lookup.wings[wingStyle] = {
       top: wingPoints,
       side: sideGeometry.wing,
+      layers: wingTopLayers,
+    };
+  }
+
+  if (sideGeometry.engine) {
+    const engineStyleKey = config.engine?.style ?? sideGeometry.engine.type ?? "jet";
+    lookup.engines[engineStyleKey] = {
+      side: sideGeometry.engine,
     };
   }
 
@@ -626,11 +759,12 @@ export function initializeGeometry(config) {
       planform,
       top: wingPoints,
       accent: wingAccent,
+      layers: wingTopLayers,
       side: sideGeometry.wing,
       style: wingStyle,
     },
     stabiliser: sideGeometry.stabiliser,
-    thruster: sideGeometry.thruster,
+    engine: sideGeometry.engine,
     armament: sideGeometry.armament,
     markings: sideGeometry.markings,
     lights: sideGeometry.lights,

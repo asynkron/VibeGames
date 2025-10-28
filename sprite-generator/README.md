@@ -14,7 +14,7 @@ Then open the reported `http://localhost` URL.
 
 ## How it works
 
-- **Archetypes** – Each category (fighter, freight, transport, drone) exposes tuned ranges for body length, engine count, wing shapes, and optional fins. The generator stores both descriptive copy and the numeric ranges.
+- **Archetypes** – Each category (fighter, freight, transport, drone, biplane, WWII fighter, jet fighter) exposes tuned ranges for body length, engine count, wing shapes, and optional fins. Historic aircraft lean on propeller engines while jets prefer afterburning nozzles, but they all share the same data-driven layout. The generator stores both descriptive copy and the numeric ranges.
 - **Palettes** – Distinct color palettes provide contrasting silhouettes. The palette can be rerolled independently of the structural seed.
 - **Part generators** – Cockpit, body, wings, engines, and fins have dedicated helper functions that build SVG paths/polygons. They share a common coordinate space (200×200) so parts align cleanly.
 - **Axis locking** – Every drawable samples the shared body axis in percentages: 0% always maps to the nose and 100% to the tail. Top-down projections interpret the percentage as height, side views read it as width, and the ship is normalised so those extremes sit on the square frame edges. Start/end percentages are carried with each feature (wings, canopy, markings, weapons, lights) and converted back to coordinates when rendering either projection so the two silhouettes stay perfectly aligned.
