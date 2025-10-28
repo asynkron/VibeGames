@@ -1,42 +1,29 @@
-import {
-  buildBodyAxis,
-  getTopHullPath,
-  getTopSegmentPaths,
-  getNeedleTop,
-  buildPlatingPath,
-  getWingTop,
-  getDeltaWingTop,
-  buildWingAccent,
-  computeWingPlanform,
-  buildStripePath,
-  pointsToString,
-} from "./renderParts.js";
+import { pointsToString } from "./renderParts.js";
 import { clamp } from "./math.js";
-import { computeCanopyPlacement } from "./geometry.js";
 import { mixColor, shadeColor } from "./color.js";
 import { isDebugColorsEnabled, nextRenderId, partColor, partStroke } from "./renderContext.js";
 import { createSvgElement } from "./svgUtils.js";
 
-export function drawTopDownSpaceship(root, config, defs) {
-  const axis = buildBodyAxis(config.body);
-  drawWings(root, config, axis);
-  drawBody(root, config, axis);
-  drawTopArmament(root, config, axis);
-  drawCockpit(root, config, axis, defs);
+export function drawTopDownSpaceship(root, config, geometry, defs) {
+  const axis = geometry.axis;
+  drawWings(root, config, geometry);
+  drawBody(root, config, geometry);
+  drawTopArmament(root, config, geometry, axis);
+  drawCockpit(root, config, geometry, axis, defs);
   drawEngines(root, config, axis);
   drawFins(root, config, axis);
-  drawDetails(root, config, axis);
+  drawDetails(root, config, geometry, axis);
 }
 
-export function drawBody(root, config, axis) {
+export function drawBody(root, config, geometry) {
   const { body, palette } = config;
 
   if (body.segments) {
     const group = createSvgElement("g", { fill: partColor("hull", palette.primary) });
 
-    const segments = getTopSegmentPaths(body);
-    const frontPath = getNeedleTop(config, { segments }) ?? segments.front;
-    [frontPath, segments.mid, segments.rear].forEach((d) => {
+    const topSegments = geometry.body.top;
+    const segmentPaths = [topSegments.front, topSegments.mid, topSegments.rear];
+    segmentPaths.forEach((d) => {
       if (!d) {
         return;
       }
@@ -45,7 +32,7 @@ export function drawBody(root, config, axis) {
     });
 
     const outline = createSvgElement("path", {
-      d: getTopHullPath(body),
+      d: topSegments.hull,
       fill: "none",
       stroke: palette.accent,
       "stroke-width": 2.4,
@@ -56,7 +43,7 @@ export function drawBody(root, config, axis) {
     root.appendChild(group);
   } else {
     const path = createSvgElement("path", {
-      d: getTopHullPath(body),
+      d: geometry.body.top.hull,
       fill: partColor("hull", palette.primary),
       stroke: palette.accent,
       "stroke-width": 2.4,
@@ -65,9 +52,9 @@ export function drawBody(root, config, axis) {
     root.appendChild(path);
   }
 
-  if (body.plating) {
+  if (geometry.body.top.plating) {
     const lines = createSvgElement("path", {
-      d: buildPlatingPath(body),
+      d: geometry.body.top.plating,
       stroke: mixColor(palette.accent, palette.trim, 0.35),
       "stroke-width": 1.2,
       "stroke-linecap": "round",
@@ -78,9 +65,10 @@ export function drawBody(root, config, axis) {
   }
 }
 
-export function drawWings(root, config, axis) {
+export function drawWings(root, config, geometry) {
   const { wings, palette } = config;
-  if (!wings || wings.enabled === false) {
+  const wingGeometry = geometry.wings;
+  if (!wings || wings.enabled === false || !wingGeometry?.top) {
     return;
   }
   const group = createSvgElement("g", {
@@ -90,36 +78,38 @@ export function drawWings(root, config, axis) {
     "stroke-linejoin": "round",
   });
 
-  const deltaPoints = wings.style === "delta" ? getDeltaWingTop(config, axis) : null;
-  const wingPoints = deltaPoints ?? getWingTop(config, axis);
-  if (!wingPoints) {
-    return;
-  }
-  const { left: leftPoints, right: rightPoints } = wingPoints;
+  const { left: leftPoints, right: rightPoints } = wingGeometry.top;
 
   const left = createSvgElement("polygon", { points: pointsToString(leftPoints) });
   const right = createSvgElement("polygon", { points: pointsToString(rightPoints) });
 
   group.append(left, right);
 
-  if (wings.tipAccent) {
-    const accentLeft = createSvgElement("polyline", {
-      points: pointsToString(buildWingAccent(leftPoints)),
-      stroke: partStroke("wing", palette.accent),
-      "stroke-width": 2.2,
-    });
-    const accentRight = createSvgElement("polyline", {
-      points: pointsToString(buildWingAccent(rightPoints)),
-      stroke: partStroke("wing", palette.accent),
-      "stroke-width": 2.2,
-    });
-    group.append(accentLeft, accentRight);
+  if (wingGeometry.accent) {
+    const accentLeftPoints = wingGeometry.accent.left;
+    const accentRightPoints = wingGeometry.accent.right;
+    if (accentLeftPoints) {
+      const accentLeft = createSvgElement("polyline", {
+        points: pointsToString(accentLeftPoints),
+        stroke: partStroke("wing", palette.accent),
+        "stroke-width": 2.2,
+      });
+      group.appendChild(accentLeft);
+    }
+    if (accentRightPoints) {
+      const accentRight = createSvgElement("polyline", {
+        points: pointsToString(accentRightPoints),
+        stroke: partStroke("wing", palette.accent),
+        "stroke-width": 2.2,
+      });
+      group.appendChild(accentRight);
+    }
   }
 
   root.appendChild(group);
 }
 
-export function drawTopArmament(root, config, axis) {
+export function drawTopArmament(root, config, geometry, axis) {
   const { armament, palette, body, wings } = config;
   if (!armament) {
     return;
@@ -130,12 +120,13 @@ export function drawTopArmament(root, config, axis) {
       return;
     }
 
-    const planform = computeWingPlanform(body, wings);
+    const planform = geometry.wings.planform ?? null;
     if (!planform.enabled) {
       return;
     }
 
-    const wingMountPercent = axis.length > 0 ? clamp(0.5 + (wings.offsetY ?? 0) / axis.length, 0, 1) : 0.5;
+    const mountOffset = planform.mountOffset ?? wings.offsetY ?? 0;
+    const wingMountPercent = axis.length > 0 ? clamp(0.5 + mountOffset / axis.length, 0, 1) : 0.5;
     const baseWingY = axis.percentToTopY(wingMountPercent);
     const ordnanceColor = partColor("weapons", shadeColor(palette.secondary, -0.1));
     const accentColor = partStroke("weapons", palette.trim);
@@ -279,8 +270,17 @@ export function drawTopArmament(root, config, axis) {
   root.appendChild(group);
 }
 
-export function drawCockpit(root, config, axis, defs) {
-  const { cockpit, palette, body } = config;
+export function drawCockpit(root, config, geometry, axis, defs) {
+  const { cockpit, palette } = config;
+  if (!cockpit) {
+    return;
+  }
+
+  const canopyPlacement = geometry.canopy;
+  if (!canopyPlacement) {
+    return;
+  }
+
   const gradientId = `cockpit-${config.id}-${nextRenderId()}`;
   const gradient = createSvgElement("radialGradient", {
     id: gradientId,
@@ -316,8 +316,7 @@ export function drawCockpit(root, config, axis, defs) {
   gradient.append(stop1, stop2, stop3);
   defs.appendChild(gradient);
 
-  const canopyPlacement = computeCanopyPlacement(body, cockpit);
-  const centerY = axis.percentToTopY(canopyPlacement.centerPercent);
+  const centerY = axis.percentToTopY(canopyPlacement.centerPercent ?? 0.5);
   const ellipse = createSvgElement("ellipse", {
     cx: "100",
     cy: String(centerY),
@@ -486,15 +485,18 @@ export function drawFins(root, config, axis) {
   }
 }
 
-export function drawDetails(root, config, axis) {
+export function drawDetails(root, config, geometry, axis) {
   const { details, palette, body, cockpit } = config;
-  if (details.stripe) {
-    const stripeStartPercent = clamp((details.stripeOffset ?? 0) / body.length, 0, 1);
-    const stripeEndPercent = clamp(stripeStartPercent + 0.25, 0, 1);
+  const markings = geometry.markings;
+  const stripePath = geometry.body.top.stripe;
+
+  if (details.stripe && stripePath && markings?.enabled !== false) {
+    const stripeStartPercent = markings?.stripeStartPercent ?? clamp((details.stripeOffset ?? 0) / body.length, 0, 1);
+    const stripeEndPercent = markings?.stripeEndPercent ?? clamp(stripeStartPercent + 0.25, 0, 1);
     const stripeTop = axis.percentToTopY(stripeStartPercent);
     const stripeBottom = axis.percentToTopY(stripeEndPercent);
-    const canopyPlacement = cockpit ? computeCanopyPlacement(body, cockpit) : null;
-    const canopyCenter = canopyPlacement ? axis.percentToTopY(canopyPlacement.centerPercent) : null;
+    const canopyPlacement = geometry.canopy ?? null;
+    const canopyCenter = canopyPlacement ? axis.percentToTopY(canopyPlacement.centerPercent ?? 0.5) : null;
     const canopyHalfHeight = cockpit ? (cockpit.height ?? 0) / 2 + 4 : 0;
     const canopyTop = canopyCenter !== null ? canopyCenter - canopyHalfHeight : null;
     const canopyBottom = canopyCenter !== null ? canopyCenter + canopyHalfHeight : null;
@@ -503,7 +505,7 @@ export function drawDetails(root, config, axis) {
 
     if (!overlapsCanopy) {
       const stripe = createSvgElement("path", {
-        d: buildStripePath(body, details, axis),
+        d: stripePath,
         stroke: partStroke("markings", palette.accent),
         "stroke-width": 3.4,
         "stroke-linecap": "round",
