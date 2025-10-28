@@ -193,6 +193,81 @@ const CATEGORY_DEFINITIONS = {
   },
 };
 
+// Style-specific multipliers keep the hull shaping data-driven rather than hard-coded logic.
+const FRONT_STYLE_ADJUSTMENTS = {
+  normal: {
+    weight: [0.96, 1.08],
+    tipWidthFactor: [0.9, 1.08],
+    shoulderWidthFactor: [0.94, 1.08],
+    curve: [0.94, 1.08],
+  },
+  skinny: {
+    weight: [1.08, 1.22],
+    tipWidthFactor: [0.72, 0.85],
+    shoulderWidthFactor: [0.88, 0.96],
+    transitionFactor: [0.9, 1.05],
+    curve: [1.08, 1.22],
+  },
+  bulky: {
+    weight: [0.92, 1.05],
+    tipWidthFactor: [1.18, 1.32],
+    shoulderWidthFactor: [1.08, 1.2],
+    transitionFactor: [1.02, 1.18],
+    curve: [0.86, 0.98],
+  },
+};
+
+const MID_STYLE_ADJUSTMENTS = {
+  normal: {
+    weight: [0.98, 1.12],
+    waistWidthFactor: [0.94, 1.08],
+    bellyWidthFactor: [0.96, 1.12],
+    trailingWidthFactor: [0.94, 1.08],
+    inset: [0.96, 1.08],
+  },
+  skinny: {
+    weight: [0.92, 1.05],
+    waistWidthFactor: [0.78, 0.9],
+    bellyWidthFactor: [0.82, 0.92],
+    trailingWidthFactor: [0.82, 0.94],
+    inset: [1.12, 1.28],
+    waistPosition: [0.9, 1.05],
+    bellyPosition: [0.95, 1.08],
+  },
+  bulky: {
+    weight: [1.08, 1.2],
+    waistWidthFactor: [1.08, 1.2],
+    bellyWidthFactor: [1.18, 1.32],
+    trailingWidthFactor: [1.12, 1.26],
+    inset: [0.72, 0.92],
+    waistPosition: [0.95, 1.1],
+    bellyPosition: [1.0, 1.12],
+  },
+};
+
+const REAR_STYLE_ADJUSTMENTS = {
+  normal: {
+    weight: [0.96, 1.1],
+    baseWidthFactor: [0.96, 1.08],
+    exhaustWidthFactor: [0.92, 1.05],
+    tailWidthFactor: [0.96, 1.08],
+  },
+  skinny: {
+    weight: [0.92, 1.05],
+    baseWidthFactor: [0.82, 0.94],
+    exhaustWidthFactor: [0.78, 0.9],
+    tailWidthFactor: [0.78, 0.92],
+    curve: [1.0, 1.14],
+  },
+  bulky: {
+    weight: [1.08, 1.22],
+    baseWidthFactor: [1.16, 1.3],
+    exhaustWidthFactor: [1.05, 1.2],
+    tailWidthFactor: [1.08, 1.24],
+    curve: [0.9, 1.05],
+  },
+};
+
 const COLOR_PALETTES = [
   {
     name: "Photon Ember",
@@ -680,29 +755,19 @@ function createBodySegments(ranges) {
   return segments;
 }
 
-function applyFrontStyleAdjustments(segment, style) {
-  switch (style?.key) {
-    case "skinny":
-      segment.weight *= randomBetween(1.08, 1.22);
-      segment.tipWidthFactor *= randomBetween(0.72, 0.85);
-      segment.shoulderWidthFactor *= randomBetween(0.88, 0.96);
-      segment.transitionFactor *= randomBetween(0.9, 1.05);
-      segment.curve *= randomBetween(1.08, 1.22);
-      break;
-    case "bulky":
-      segment.weight *= randomBetween(0.92, 1.05);
-      segment.tipWidthFactor *= randomBetween(1.18, 1.32);
-      segment.shoulderWidthFactor *= randomBetween(1.08, 1.2);
-      segment.transitionFactor *= randomBetween(1.02, 1.18);
-      segment.curve *= randomBetween(0.86, 0.98);
-      break;
-    default:
-      segment.weight *= randomBetween(0.96, 1.08);
-      segment.tipWidthFactor *= randomBetween(0.9, 1.08);
-      segment.shoulderWidthFactor *= randomBetween(0.94, 1.08);
-      segment.curve *= randomBetween(0.94, 1.08);
-      break;
+function applySegmentStyleAdjustments(segment, style, adjustmentMap) {
+  const key = style?.key && adjustmentMap[style.key] ? style.key : "normal";
+  const adjustments = adjustmentMap[key] ?? adjustmentMap.normal;
+  if (!adjustments) {
+    return;
   }
+
+  Object.entries(adjustments).forEach(([property, [min, max]]) => {
+    if (segment[property] == null) {
+      return;
+    }
+    segment[property] *= randomBetween(min, max);
+  });
 }
 
 function createFrontSegmentVariant(ranges, style) {
@@ -716,7 +781,7 @@ function createFrontSegmentVariant(ranges, style) {
     curve: randomBetween(...variant.curveRange),
   };
 
-  applyFrontStyleAdjustments(segment, style);
+  applySegmentStyleAdjustments(segment, style, FRONT_STYLE_ADJUSTMENTS);
 
   if (ranges?.noseWidthFactor) {
     segment.tipWidthFactor = clamp(segment.tipWidthFactor, ...ranges.noseWidthFactor);
@@ -725,36 +790,6 @@ function createFrontSegmentVariant(ranges, style) {
     segment.curve = clamp(segment.curve, ...ranges.noseCurve);
   }
   return segment;
-}
-
-function applyMidStyleAdjustments(segment, style) {
-  switch (style?.key) {
-    case "skinny":
-      segment.weight *= randomBetween(0.92, 1.05);
-      segment.waistWidthFactor *= randomBetween(0.78, 0.9);
-      segment.bellyWidthFactor *= randomBetween(0.82, 0.92);
-      segment.trailingWidthFactor *= randomBetween(0.82, 0.94);
-      segment.inset *= randomBetween(1.12, 1.28);
-      segment.waistPosition *= randomBetween(0.9, 1.05);
-      segment.bellyPosition *= randomBetween(0.95, 1.08);
-      break;
-    case "bulky":
-      segment.weight *= randomBetween(1.08, 1.2);
-      segment.waistWidthFactor *= randomBetween(1.08, 1.2);
-      segment.bellyWidthFactor *= randomBetween(1.18, 1.32);
-      segment.trailingWidthFactor *= randomBetween(1.12, 1.26);
-      segment.inset *= randomBetween(0.72, 0.92);
-      segment.waistPosition *= randomBetween(0.95, 1.1);
-      segment.bellyPosition *= randomBetween(1.0, 1.12);
-      break;
-    default:
-      segment.weight *= randomBetween(0.98, 1.12);
-      segment.waistWidthFactor *= randomBetween(0.94, 1.08);
-      segment.bellyWidthFactor *= randomBetween(0.96, 1.12);
-      segment.trailingWidthFactor *= randomBetween(0.94, 1.08);
-      segment.inset *= randomBetween(0.96, 1.08);
-      break;
-  }
 }
 
 function createMidSegmentVariant(ranges, style) {
@@ -770,37 +805,12 @@ function createMidSegmentVariant(ranges, style) {
     inset: randomBetween(...variant.insetRange),
   };
 
-  applyMidStyleAdjustments(segment, style);
+  applySegmentStyleAdjustments(segment, style, MID_STYLE_ADJUSTMENTS);
 
   if (ranges?.bodyMidInset) {
     segment.inset = clamp(segment.inset, ...ranges.bodyMidInset);
   }
   return segment;
-}
-
-function applyRearStyleAdjustments(segment, style) {
-  switch (style?.key) {
-    case "skinny":
-      segment.weight *= randomBetween(0.92, 1.05);
-      segment.baseWidthFactor *= randomBetween(0.82, 0.94);
-      segment.exhaustWidthFactor *= randomBetween(0.78, 0.9);
-      segment.tailWidthFactor *= randomBetween(0.78, 0.92);
-      segment.curve *= randomBetween(1.0, 1.14);
-      break;
-    case "bulky":
-      segment.weight *= randomBetween(1.08, 1.22);
-      segment.baseWidthFactor *= randomBetween(1.16, 1.3);
-      segment.exhaustWidthFactor *= randomBetween(1.05, 1.2);
-      segment.tailWidthFactor *= randomBetween(1.08, 1.24);
-      segment.curve *= randomBetween(0.9, 1.05);
-      break;
-    default:
-      segment.weight *= randomBetween(0.96, 1.1);
-      segment.baseWidthFactor *= randomBetween(0.96, 1.08);
-      segment.exhaustWidthFactor *= randomBetween(0.92, 1.05);
-      segment.tailWidthFactor *= randomBetween(0.96, 1.08);
-      break;
-  }
 }
 
 function createRearSegmentVariant(ranges, style) {
@@ -815,7 +825,7 @@ function createRearSegmentVariant(ranges, style) {
     curve: randomBetween(...variant.curveRange),
   };
 
-  applyRearStyleAdjustments(segment, style);
+  applySegmentStyleAdjustments(segment, style, REAR_STYLE_ADJUSTMENTS);
 
   if (ranges?.tailWidthFactor) {
     segment.tailWidthFactor = clamp(segment.tailWidthFactor, ...ranges.tailWidthFactor);
