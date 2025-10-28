@@ -12,7 +12,7 @@ import { createScreenViewport } from '../shared/render/screenViewport.js';
 import { clamp } from '../shared/utils/math.js';
 import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 import { stepProjectiles } from '../shared/utils/projectiles.js';
-import { generateSpaceshipSprite } from '../sprite-generator/game.js';
+import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
 
 (() => {
   const canvas = document.getElementById('game');
