@@ -125,11 +125,11 @@ export function createWorld(levelDef) {
     idx: grid.index.bind(grid),
     inb: grid.inBounds.bind(grid),
     get(x, y) {
-      return grid.get(x, y, TILE.STEEL);
+      return grid.get(x, y);
     },
     set(x, y, v) {
       if (!this.inb(x, y)) return;
-      const current = grid.get(x, y, TILE.STEEL);
+      const current = grid.get(x, y);
       if (current === v) return;
       if (current === TILE.DOOR_CLOSED && v !== TILE.DOOR_CLOSED) {
         this.lockedDoors = Math.max(0, this.lockedDoors - 1);

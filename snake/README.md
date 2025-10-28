@@ -11,7 +11,7 @@ Design choices
 - Fixed internal resolution 320x240, scaled via CSS with image-rendering: pixelated for crisp pixels.
 - CRT effect stack uses pure CSS (scanlines, vignette, flicker) with a bezel background.
 - Fixed-step update loop (~12 tps) for consistent speed; requestAnimationFrame drives rendering.
-- WebAudio bleeps (with graceful fallback) to match the arcade feel.
+- WebAudio bleeps to match the arcade feel.
 
 Tweak ideas
 - Swap to wrap-around walls.

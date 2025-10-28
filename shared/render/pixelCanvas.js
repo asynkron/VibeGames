@@ -74,8 +74,12 @@ export function createPixelContext(canvas, options = {}) {
       (metrics.actualBoundingBoxAscent ?? 0) +
       (metrics.actualBoundingBoxDescent ?? 0) +
       padding * 2;
-    const fallbackHeight = parseInt(font, 10) + padding * 2;
-    const height = boxHeight ?? (measuredHeight || fallbackHeight);
+    const height = boxHeight ?? measuredHeight;
+    if (!height) {
+      throw new Error(
+        "overlayText: unable to determine text height; provide boxHeight or use a context that supports bounding metrics.",
+      );
+    }
     const width = boxWidth ?? (metrics.width + padding * 2);
     const centerX = boxX ?? x;
     const centerY = boxY ?? y;

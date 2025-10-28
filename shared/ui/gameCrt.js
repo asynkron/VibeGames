@@ -13,7 +13,7 @@ import { createCrtPostProcessor } from '../fx/crtPostprocess.js';
  * @param {Object} [options.settings] mutable object the caller keeps for live settings
  * @param {Object} [options.defaults] baseline settings used when no persisted values exist
  * @param {Element} [options.frameElement] DOM node whose CSS vars control scanline intensity
- * @param {string|null} [options.frameSelector='.screen.crt-frame'] selector fallback when frameElement is omitted
+ * @param {string|null} [options.frameSelector='.screen.crt-frame'] selector used when frameElement is omitted
  * @param {number[]} [options.alphaRange] overrides the default scanline alpha ramp
  * @param {Function} [options.onSettingsChange] hook invoked after settings/sync updates
  * @param {Object} [options.controls] extra props forwarded to createCrtControls (position, parent, etc.)

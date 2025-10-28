@@ -457,7 +457,7 @@ function createProfile(body, axis) {
 function prepareProfile(body, axis) {
   const profile = createProfile(body, axis);
   const geometry = computeSegmentGeometry(body, axis);
-  const anchors = createSideProfileAnchors(profile, body.segments, geometry, { allowFallback: true });
+  const anchors = createSideProfileAnchors(profile, body.segments, geometry);
   if (anchors) {
     profile.hullAnchors = anchors;
     profile.segmentAnchors = anchors;

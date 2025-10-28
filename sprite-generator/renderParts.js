@@ -541,26 +541,14 @@ function interpolateAnchoredY(anchors, x) {
   return last[1];
 }
 
-export function createSideProfileAnchors(profile, segments, geometry, options = {}) {
-  const { allowFallback = false } = options;
-
-  let hasSegments = Boolean(segments);
-  if (!hasSegments && !allowFallback) {
+export function createSideProfileAnchors(profile, segments, geometry) {
+  if (!segments) {
     return null;
   }
 
-  let frontLength = segments?.front?.length ?? profile.noseLength ?? profile.length * 0.32;
-  let midLength = segments?.mid?.length ?? profile.length * 0.36;
-  let rearLength = segments?.rear?.length ?? profile.tailLength ?? profile.length * 0.32;
-
-  if (!hasSegments) {
-    const fallbackTotal = frontLength + midLength + rearLength;
-    if (!Number.isFinite(fallbackTotal) || fallbackTotal <= 0) {
-      return null;
-    }
-    const deficit = profile.length - fallbackTotal;
-    midLength = Math.max(1, midLength + deficit);
-  }
+  let frontLength = segments.front?.length ?? profile.noseLength ?? profile.length * 0.32;
+  let midLength = segments.mid?.length ?? profile.length * 0.36;
+  let rearLength = segments.rear?.length ?? profile.tailLength ?? profile.length * 0.32;
 
   frontLength = Math.max(1, frontLength);
   midLength = Math.max(1, midLength);
@@ -735,12 +723,94 @@ export function createSideProfileAnchors(profile, segments, geometry, options = 
     topAnchors,
     bottomAnchors,
     triangle,
-    boundaries: hasSegments
+    boundaries: {
+      front: shoulderX,
+      mid: trailingX,
+    },
+  };
+}
+
+export function getSideHull(profile, options = {}) {
+  if (!profile) {
+    return null;
+  }
+
+  const anchors = profile.hullAnchors ?? profile.segmentAnchors ?? null;
+  const format = options.format ?? ((value) => Number(value.toFixed(2)));
+  const noseX = profile.axis?.side?.nose ?? profile.noseX ?? 100 - (profile.length ?? 0) / 2;
+  const tailX = profile.axis?.side?.tail ?? profile.tailX ?? noseX + (profile.length ?? 0);
+  const length = Math.max(profile.length ?? tailX - noseX, 1);
+
+  const sampleRange = (start, end) => {
+    const rangeStart = clamp(start, 0, length);
+    const rangeEnd = clamp(end, rangeStart, length);
+    if (!anchors?.topAnchors?.length || !anchors?.bottomAnchors?.length) {
+      return null;
+    }
+    const top = sampleAnchoredCurve(anchors.topAnchors, rangeStart, rangeEnd, noseX, format);
+    const bottom = sampleAnchoredCurve(anchors.bottomAnchors, rangeStart, rangeEnd, noseX, format);
+    const includeApex = anchors.triangle && rangeStart === 0;
+    const apex = includeApex
       ? {
-          front: shoulderX,
-          mid: trailingX,
+          x: format(noseX - clamp(anchors.triangle.apexInset ?? 0, 0, length * 0.75)),
+          y: format(
+            lerp(
+              top[0]?.[1] ?? 0,
+              bottom[0]?.[1] ?? 0,
+              clamp(anchors.triangle.apexBlend ?? 0.35, 0, 1),
+            ),
+          ),
         }
-      : null,
+      : null;
+    return {
+      path: buildSampledPath(top, bottom, { apex, format }),
+      top,
+      bottom,
+      apex,
+    };
+  };
+
+  if (!anchors?.topAnchors?.length || !anchors?.bottomAnchors?.length) {
+    throw new Error("getSideHull requires top and bottom anchor data.");
+  }
+
+  const hull = sampleRange(0, length);
+  const segments = [];
+
+  const boundaries = anchors.boundaries ?? null;
+  if (boundaries) {
+    const frontEnd = clamp(boundaries.front ?? 0, 0, length);
+    const midEnd = clamp(boundaries.mid ?? length, frontEnd, length);
+    const ranges = [
+      { key: "front", start: 0, end: frontEnd },
+      { key: "mid", start: frontEnd, end: midEnd },
+      { key: "rear", start: midEnd, end: length },
+    ];
+    ranges.forEach((range) => {
+      if (range.end - range.start < 0.5) {
+        return;
+      }
+      const sampled = sampleRange(range.start, range.end);
+      if (!sampled) {
+        return;
+      }
+      segments.push({ key: range.key, ...sampled });
+    });
+  }
+
+  if (!hull) {
+    throw new Error("Failed to sample hull path.");
+  }
+
+  return {
+    path: hull.path,
+    top: hull.top,
+    bottom: hull.bottom,
+    apex: hull.apex,
+    segments,
+    noseX,
+    tailX,
+    length,
   };
 }
 
@@ -753,8 +823,7 @@ export function sampleHullTopY(profile, distanceFromNose) {
     const clamped = clamp(distanceFromNose, 0, profile.length);
     return interpolateAnchoredY(anchors.topAnchors, clamped);
   }
-  const centerY = 100 + (profile.offsetY ?? 0);
-  return centerY - profile.dorsalHeight;
+  throw new Error("sampleHullTopY requires hull anchor data.");
 }
 
 export function getWingSidePoints(wing, profile, axis) {

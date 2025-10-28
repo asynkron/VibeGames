@@ -328,23 +328,22 @@ export function deriveSideViewGeometry(config, baseAxis) {
   applySideSegmentProfiles(profile, body, percentToBody);
 
   const segmentGeometry = body.segments ? computeSegmentGeometry(body, axis) : null;
-  const hullAnchors = createSideProfileAnchors(profile, body.segments, segmentGeometry, {
-    allowFallback: true,
-  });
+  const hullAnchors = createSideProfileAnchors(profile, body.segments, segmentGeometry);
 
-  if (hullAnchors) {
-    profile.hullAnchors = hullAnchors;
+  if (!hullAnchors) {
+    throw new Error("createSideProfileAnchors returned no data; body segments must define anchor metadata.");
   }
 
+  profile.hullAnchors = hullAnchors;
   if (body.segments) {
     profile.segmentAnchors = hullAnchors;
   }
 
   const canopyPlacement = computeCanopyPlacement(body, cockpit);
-  const fallbackCanopyHeight = cockpit?.height ?? percentToBody(12.9);
+  const baseCanopyHeight = cockpit?.height ?? percentToBody(12.9);
   const canopyHeight = clamp(
-    fallbackCanopyHeight * 1.18,
-    fallbackCanopyHeight * 0.95,
+    baseCanopyHeight * 1.18,
+    baseCanopyHeight * 0.95,
     dorsalHeight - percentToBody(1.4),
   );
   const canopyOffset = canopyPlacement.centerFromNose - canopyPlacement.length * 0.5;

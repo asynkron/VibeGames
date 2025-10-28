@@ -104,7 +104,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const NORMALISED_HULL_LENGTH = 100;
 
 // Category metadata expressed entirely in hull-relative percentages so generation logic
-// never depends on legacy absolute measurements.
+// never depends on hard-coded absolute measurements.
 let CATEGORY_DEFINITIONS = {};
 let CATEGORY_GEOMETRY = {};
 let FACTORY_REGISTRY = new Map();

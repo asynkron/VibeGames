@@ -79,7 +79,7 @@ import {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 
-  function tileAt(x, y) { return mapGrid.get(x, y, '#'); }
+  function tileAt(x, y) { return mapGrid.get(x, y); }
   const isWall = t => t === '#'; const isGate = t => t === '-';
 
   // Pellets

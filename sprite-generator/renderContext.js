@@ -22,12 +22,12 @@ export function setDebugColorsEnabled(enabled) {
   debugColorsEnabled = Boolean(enabled);
 }
 
-export function partColor(part, fallback) {
-  return debugColorsEnabled ? DEBUG_PART_COLORS[part] ?? fallback : fallback;
+export function partColor(part, baseColor) {
+  return debugColorsEnabled ? DEBUG_PART_COLORS[part] ?? baseColor : baseColor;
 }
 
-export function partStroke(part, fallback) {
-  return debugColorsEnabled ? DEBUG_PART_COLORS[part] ?? fallback : fallback;
+export function partStroke(part, baseColor) {
+  return debugColorsEnabled ? DEBUG_PART_COLORS[part] ?? baseColor : baseColor;
 }
 
 export function nextRenderId() {
