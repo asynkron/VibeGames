@@ -1063,7 +1063,21 @@ function pickPalette(excludeName) {
 }
 
 function mixConfigs(original, fresh, ratio) {
+  // The generator occasionally encounters optional branches that resolve to null;
+  // treat those as immutable values so recursive merging never touches Object.keys(null).
+  if (fresh == null && original == null) {
+    return null;
+  }
+  if (fresh == null) {
+    return original == null ? undefined : cloneConfig(original);
+  }
+  if (original == null) {
+    return cloneConfig(fresh);
+  }
   if (typeof original !== typeof fresh) {
+    if (fresh === undefined) {
+      return cloneConfig(original);
+    }
     return cloneConfig(fresh);
   }
   if (typeof original === "number" && typeof fresh === "number") {
@@ -1090,6 +1104,9 @@ function mixConfigs(original, fresh, ratio) {
 }
 
 function cloneConfig(config) {
+  if (config === undefined) {
+    return undefined;
+  }
   if (typeof structuredClone === "function") {
     return structuredClone(config);
   }
