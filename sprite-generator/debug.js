@@ -848,8 +848,16 @@ function paintWingTop(svg, wingPoints, options = {}) {
     lineJoin: "round",
   });
   if (showAccent) {
-    const accent = buildWingAccent(wingPoints.left);
-    appendPolyline(svg, accent, {
+    const accentLeft = buildWingAccent(wingPoints.left);
+    const accentRight = buildWingAccent(wingPoints.right);
+    appendPolyline(svg, accentLeft, {
+      stroke: palette.accent,
+      strokeWidth: 2.2,
+      opacity,
+      lineJoin: "round",
+      lineCap: "round",
+    });
+    appendPolyline(svg, accentRight, {
       stroke: palette.accent,
       strokeWidth: 2.2,
       opacity,
