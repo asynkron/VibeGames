@@ -6,9 +6,6 @@ import {
   buildPlatingPath,
   computeSegmentGeometry,
   createSideProfileAnchors,
-  buildSideHullGeometry,
-  getNeedleSide,
-  buildSideIntakePath,
   computeWingPlanform,
   pointsToString,
   getDeltaWingTop,
@@ -677,30 +674,6 @@ function paintTopSegment(svg, body, segment, options = {}) {
   });
 }
 
-function paintSideSegment(svg, body, profile, sideHull, segment, options = {}) {
-  const { strokeWidth = 2, fill = palette.primary } = options;
-  const segmentPaths = sideHull.segmentPaths ?? {};
-  const frontPath = body.segments.front.type === "needle"
-    ? getNeedleSide({ body }, profile, { segmentPaths }) ?? segmentPaths.front
-    : segmentPaths.front;
-  const segmentPath = segment === "front"
-    ? frontPath
-    : segment === "mid"
-      ? segmentPaths.mid
-      : segmentPaths.rear;
-
-  if (!segmentPath) {
-    return;
-  }
-
-  appendPath(svg, segmentPath, {
-    fill,
-    stroke: palette.accent,
-    strokeWidth,
-    lineJoin: "round",
-  });
-}
-
 function paintFullTopHull(svg, body, options = {}) {
   const { highlight, showPlating = true, baseOpacity = 0.45, showOutline = true } = options;
   const segments = getTopSegmentPaths(body) ?? {};
@@ -745,56 +718,6 @@ function paintFullTopHull(svg, body, options = {}) {
   if (showOutline) {
     const hull = getTopHullPath(body);
     appendPath(svg, hull, {
-      fill: "none",
-      stroke: palette.accent,
-      strokeWidth: 1.8,
-    });
-  }
-}
-
-function paintFullSideHull(svg, body, profile, sideHull, options = {}) {
-  const { highlight, showIntake = true, baseOpacity = 0.45, showOutline = true } = options;
-  const segmentPaths = sideHull.segmentPaths ?? {};
-  const frontPath = body.segments.front.type === "needle"
-    ? getNeedleSide({ body }, profile, { segmentPaths }) ?? segmentPaths.front
-    : segmentPaths.front;
-  const segmentEntries = [
-    ["front", frontPath],
-    ["mid", segmentPaths.mid],
-    ["rear", segmentPaths.rear],
-  ];
-  const fills = [
-    shadeColor(palette.primary, -0.35),
-    shadeColor(palette.primary, -0.25),
-    shadeColor(palette.primary, -0.15),
-  ];
-
-  segmentEntries.forEach(([key, path], index) => {
-    if (!path) {
-      return;
-    }
-    const isHighlight = highlight === key;
-    appendPath(svg, path, {
-      fill: isHighlight ? palette.primary : fills[index],
-      stroke: palette.accent,
-      strokeWidth: isHighlight ? 2 : 1.2,
-      opacity: isHighlight ? 1 : baseOpacity,
-      lineJoin: "round",
-    });
-  });
-
-  if (showIntake) {
-    const intake = buildSideIntakePath(profile);
-    appendPath(svg, intake, {
-      fill: palette.trim,
-      stroke: palette.accent,
-      strokeWidth: 1.2,
-      opacity: 0.65,
-    });
-  }
-
-  if (showOutline) {
-    appendPath(svg, sideHull.hullPath, {
       fill: "none",
       stroke: palette.accent,
       strokeWidth: 1.8,
@@ -1101,45 +1024,33 @@ function clearContainer(id) {
 
 function renderSegmentGroups() {
   const frontTop = clearContainer("front-segments-top");
-  const frontSide = clearContainer("front-segments-side");
+  clearContainer("front-segments-side");
   const midTop = clearContainer("mid-segments-top");
-  const midSide = clearContainer("mid-segments-side");
+  clearContainer("mid-segments-side");
   const rearTop = clearContainer("rear-segments-top");
-  const rearSide = clearContainer("rear-segments-side");
+  clearContainer("rear-segments-side");
 
   FRONT_SEGMENT_VARIANTS.forEach(({ label, body }) => {
     const axis = buildBodyAxis(body);
-    const { profile } = prepareProfile(body, axis);
-    const sideHull = buildSideHullGeometry(profile);
+    prepareProfile(body, axis);
     addCompositeFigure(frontTop, label, (svg) => {
       paintTopSegment(svg, body, "front");
-    });
-    addCompositeFigure(frontSide, label, (svg) => {
-      paintSideSegment(svg, body, profile, sideHull, "front");
     });
   });
 
   MID_SEGMENT_VARIANTS.forEach(({ label, body }) => {
     const axis = buildBodyAxis(body);
-    const { profile } = prepareProfile(body, axis);
-    const sideHull = buildSideHullGeometry(profile);
+    prepareProfile(body, axis);
     addCompositeFigure(midTop, label, (svg) => {
       paintTopSegment(svg, body, "mid", { fill: shadeColor(palette.primary, -0.2) });
-    });
-    addCompositeFigure(midSide, label, (svg) => {
-      paintSideSegment(svg, body, profile, sideHull, "mid", { fill: shadeColor(palette.primary, -0.2) });
     });
   });
 
   REAR_SEGMENT_VARIANTS.forEach(({ label, body }) => {
     const axis = buildBodyAxis(body);
-    const { profile } = prepareProfile(body, axis);
-    const sideHull = buildSideHullGeometry(profile);
+    prepareProfile(body, axis);
     addCompositeFigure(rearTop, label, (svg) => {
       paintTopSegment(svg, body, "rear", { fill: shadeColor(palette.primary, -0.1) });
-    });
-    addCompositeFigure(rearSide, label, (svg) => {
-      paintSideSegment(svg, body, profile, sideHull, "rear", { fill: shadeColor(palette.primary, -0.1) });
     });
   });
 }
@@ -1206,7 +1117,6 @@ function renderCompositeVariants() {
   COMPOSITE_VARIANTS.forEach(({ label, config }) => {
     const axis = buildBodyAxis(config.body);
     const { profile } = prepareProfile(config.body, axis);
-    const sideHull = buildSideHullGeometry(profile);
     const planform = computeWingPlanform(config.body, config.wings);
     const wingTop = getWingTopPoints(config, axis);
     const wingSide = getWingSidePointsForConfig(config, planform, profile, axis);
@@ -1222,7 +1132,6 @@ function renderCompositeVariants() {
     });
 
     addCompositeFigure(sideContainer, label, (svg) => {
-      paintFullSideHull(svg, config.body, profile, sideHull, { baseOpacity: 0.6, showOutline: false });
       paintWingSide(svg, wingSide, { opacity: 0.85 });
       if (config.armament?.mount === "wing") {
         renderWingOrdnanceSide(svg, config, planform, profile, axis);
