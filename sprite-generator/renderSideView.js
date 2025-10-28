@@ -1,4 +1,4 @@
-import { getWingSidePoints, getDeltaWingSide, pointsToString } from "./renderParts.js";
+import { getWingSidePoints, getDeltaWingSide, getSideHull, pointsToString } from "./renderParts.js";
 import { clamp, lerp } from "./math.js";
 import { mixColor, shadeColor } from "./color.js";
 import { isDebugColorsEnabled, nextRenderId, partColor, partStroke } from "./renderContext.js";
@@ -14,14 +14,173 @@ function getSideWing(geometry) {
 
 export function drawSideViewSpaceship(root, config, geometry, defs) {
   const axis = geometry.axis;
-  drawSideAntenna(root, config, geometry, axis);
   drawSideWing(root, config, geometry, axis);
+  drawSideBody(root, config, geometry, defs);
   drawSideStabiliser(root, config, geometry, axis);
   drawSideMarkings(root, config, geometry, axis);
   drawSideCanopy(root, config, geometry, axis, defs);
   drawSideEngines(root, config, geometry, axis);
   drawSideWeapons(root, config, geometry, axis);
   drawSideLights(root, config, geometry, axis);
+  drawSideAntenna(root, config, geometry, axis);
+}
+
+export function drawSideBody(root, config, geometry, defs) {
+  const { palette, category } = config;
+  const profile = getSideProfile(geometry);
+  if (!profile) {
+    return;
+  }
+
+  const hull = getSideHull(profile);
+  if (!hull?.path) {
+    return;
+  }
+
+  const debugEnabled = isDebugColorsEnabled();
+  const styleKey = profile.style ?? "normal";
+  const hullGroup = createSvgElement("g", {}, "hull-side");
+
+  let fill = partColor("hull", palette.primary);
+  if (!debugEnabled && defs) {
+    const gradientId = `side-hull-${config.id}-${nextRenderId()}`;
+    const gradient = createSvgElement("linearGradient", {
+      id: gradientId,
+      x1: "0%",
+      y1: "0%",
+      x2: "0%",
+      y2: "100%",
+    });
+
+    // Blend top/mid/bottom tones so each style reads as streamlined or bulky at a glance.
+    const gradientProfile = getHullGradientProfile(styleKey, category);
+    const highlightColor = mixColor(palette.primary, "#ffffff", gradientProfile.highlightMix);
+    const midColor = mixColor(palette.primary, palette.secondary, gradientProfile.midMix);
+    const shadowColor = shadeColor(palette.primary, -gradientProfile.shadowMix);
+
+    const stopTop = createSvgElement("stop", {
+      offset: "0%",
+      "stop-color": highlightColor,
+      "stop-opacity": "0.95",
+    });
+    const stopMid = createSvgElement("stop", {
+      offset: `${Math.round(gradientProfile.midOffset * 100)}%`,
+      "stop-color": midColor,
+      "stop-opacity": "0.92",
+    });
+    const stopBottom = createSvgElement("stop", {
+      offset: "100%",
+      "stop-color": shadowColor,
+      "stop-opacity": "0.97",
+    });
+    gradient.append(stopTop, stopMid, stopBottom);
+    defs.appendChild(gradient);
+    fill = `url(#${gradientId})`;
+  }
+
+  const hullPath = createSvgElement("path", {
+    d: hull.path,
+    fill,
+    stroke: partStroke("hull", palette.trim),
+    "stroke-width": 2,
+    "stroke-linejoin": "round",
+  });
+  hullGroup.appendChild(hullPath);
+
+  if (!debugEnabled && hull.segments?.length && category !== "biplane") {
+    hull.segments.forEach((segment, index) => {
+      const tint = index === 0 ? "#ffffff" : index === hull.segments.length - 1 ? palette.accent : palette.secondary;
+      const overlay = createSvgElement("path", {
+        d: segment.path,
+        // Subtle overlays break up the fuselage and reinforce the factory-specific silhouette.
+        fill: mixColor(palette.primary, tint, index === 0 ? 0.22 : index === hull.segments.length - 1 ? 0.28 : 0.18),
+        opacity: (styleKey === "bulky" ? 0.18 : 0.14).toString(),
+      });
+      hullGroup.appendChild(overlay);
+    });
+  }
+
+  root.appendChild(hullGroup);
+
+  if (!debugEnabled) {
+    const ratios = getHullHighlightRatios(styleKey, category);
+    const highlightPath = buildInterpolatedPath(hull.top, hull.bottom, ratios.highlightRatio);
+    if (highlightPath) {
+      const highlightStroke = createSvgElement("path", {
+        d: highlightPath,
+        stroke: partStroke("hull", mixColor(palette.primary, "#ffffff", 0.65)),
+        "stroke-width": 1.4,
+        "stroke-linecap": "round",
+        fill: "none",
+        opacity: "0.6",
+      });
+      root.appendChild(highlightStroke);
+    }
+
+    const shadowPath = buildInterpolatedPath(hull.top, hull.bottom, ratios.shadowRatio);
+    if (shadowPath) {
+      const shadowStroke = createSvgElement("path", {
+        d: shadowPath,
+        stroke: partStroke("hull", shadeColor(palette.primary, -0.45)),
+        "stroke-width": 1.6,
+        "stroke-linecap": "round",
+        fill: "none",
+        opacity: "0.45",
+      });
+      root.appendChild(shadowStroke);
+    }
+  }
+}
+
+function getHullGradientProfile(style, category) {
+  if (category === "biplane") {
+    return { highlightMix: 0.2, midMix: 0.06, shadowMix: 0.32, midOffset: 0.52 };
+  }
+  switch (style) {
+    case "skinny":
+      return { highlightMix: 0.4, midMix: 0.08, shadowMix: 0.26, midOffset: 0.44 };
+    case "bulky":
+      return { highlightMix: 0.28, midMix: 0.14, shadowMix: 0.42, midOffset: 0.6 };
+    default:
+      return { highlightMix: 0.34, midMix: 0.1, shadowMix: 0.32, midOffset: 0.52 };
+  }
+}
+
+function getHullHighlightRatios(style, category) {
+  if (category === "biplane") {
+    return { highlightRatio: 0.5, shadowRatio: 0.86 };
+  }
+  switch (style) {
+    case "skinny":
+      return { highlightRatio: 0.3, shadowRatio: 0.84 };
+    case "bulky":
+      return { highlightRatio: 0.42, shadowRatio: 0.9 };
+    default:
+      return { highlightRatio: 0.36, shadowRatio: 0.88 };
+  }
+}
+
+function buildInterpolatedPath(topPoints, bottomPoints, ratio) {
+  if (!Array.isArray(topPoints) || !Array.isArray(bottomPoints)) {
+    return "";
+  }
+  const count = Math.min(topPoints.length, bottomPoints.length);
+  if (count === 0) {
+    return "";
+  }
+  const clampedRatio = clamp(ratio, 0, 1);
+  const segments = [];
+  for (let i = 0; i < count; i += 1) {
+    const topPoint = topPoints[i];
+    const bottomPoint = bottomPoints[i];
+    if (!topPoint || !bottomPoint) {
+      continue;
+    }
+    const x = topPoint[0];
+    const y = lerp(bottomPoint[1], topPoint[1], clampedRatio);
+    segments.push(`${segments.length === 0 ? "M" : "L"} ${x} ${y}`);
+  }
+  return segments.join(" ");
 }
 
 export function drawSideAntenna(root, config, geometry, axis) {

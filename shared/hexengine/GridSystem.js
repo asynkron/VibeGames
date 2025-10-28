@@ -8,7 +8,7 @@ class GridSystem {
     static materialCache = new Map(); // Cache for materials
     static miniHexGeometry = null; // Shared geometry for minimap hexes
 
-    static getOption(key, fallback = true) {
+    static getOption(key) {
         const engine = typeof window !== 'undefined' ? window.HEX_ENGINE : null;
         if (engine?.getOption) {
             const value = engine.getOption(key);
@@ -16,7 +16,7 @@ class GridSystem {
                 return value;
             }
         }
-        return fallback;
+        throw new Error(`GridSystem option "${key}" is not configured.`);
     }
 
     // ---------------------------
@@ -253,7 +253,7 @@ class GridSystem {
         boundingMesh.userData = { ...userData, isBoundingMesh: true };
 
         // Add decoration if available
-        const shouldDecorate = this.getOption('enableDecorations', true) && typeof ModelSystem !== 'undefined';
+        const shouldDecorate = this.getOption('enableDecorations') && typeof ModelSystem !== 'undefined';
         const decoration = shouldDecorate ? TerrainSystem.getRandomDecoration(type.toUpperCase()) : null;
         if (decoration && ModelSystem.getModel && ModelSystem.getModel(decoration.model)) {
             const decorMesh = ModelSystem.getModel(decoration.model).clone();
@@ -318,7 +318,7 @@ class GridSystem {
     static async createMap(mapSource) {
         console.log("Starting map creation...");
 
-        if (this.getOption('loadModels', true) && typeof ModelSystem !== 'undefined') {
+        if (this.getOption('loadModels') && typeof ModelSystem !== 'undefined') {
             await this.loadTileModels();
             console.log("3D models loaded");
         }
@@ -728,7 +728,7 @@ class GridSystem {
 
     static async loadTileModels() {
         try {
-            if (!this.getOption('enableDecorations', true) || typeof ModelSystem === 'undefined') {
+            if (!this.getOption('enableDecorations') || typeof ModelSystem === 'undefined') {
                 return false;
             }
             const modelConfigs = {};
@@ -757,6 +757,6 @@ class GridSystem {
     }
 }
 
-// Export hexGrid for backward compatibility
+// Expose hexGrid for external scripting integrations
 window.hexGrid = GridSystem.hexGrid;
 console.log('GridSystem.js loaded');

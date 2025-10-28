@@ -518,14 +518,14 @@ class UnitSystem {
                 unit.rotateY(rotation);
             }
         } else {
-            // Fallback to simple rotation if no hex mesh found
+            // Apply simple rotation if no hex mesh found
             if (rotation !== undefined) {
                 unit.rotation.y = rotation;
             }
         }
         */
 
-        // Simple rotation fallback
+        // Apply provided rotation when available
         if (rotation !== undefined) {
             unit.rotation.y = rotation;
         }

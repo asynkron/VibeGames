@@ -68,21 +68,15 @@ export function parseTextMap(text, width, height, options = {}) {
     inBounds(x, y) {
       return x >= 0 && y >= 0 && x < this.width && y < this.height;
     },
-    get(x, y, fallback) {
+    get(x, y) {
       if (this.inBounds(x, y)) {
         return this.data[this.index(x, y)];
       }
-      if (fallback !== undefined) {
-        return typeof fallback === 'function' ? fallback(x, y) : fallback;
-      }
       return outOfBounds(x, y);
     },
-    getChar(x, y, fallback) {
+    getChar(x, y) {
       if (this.inBounds(x, y)) {
         return this.chars[this.index(x, y)];
-      }
-      if (fallback !== undefined) {
-        return typeof fallback === 'function' ? fallback(x, y) : fallback;
       }
       return outOfBounds(x, y);
     },
