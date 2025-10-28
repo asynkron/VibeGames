@@ -1,4 +1,6 @@
 import { clamp, lerp } from "./math.js";
+import { mixColor, shadeColor } from "./color.js";
+import { partColor, partStroke } from "./renderContext.js";
 
 export function buildBodyAxis(body) {
   const length = body?.length ?? 0;
@@ -395,6 +397,79 @@ export function buildWingAccent(points) {
   const trailing = points[points.length - 1];
   const base = points[0];
   return [base, tip, trailing];
+}
+
+// Normalises a wing-mounted hardpoint into shared measurements so top/side
+// views can render identical payloads without recomputing dimensions.
+export function normalizeWingHardpoint(hardpoint, armament, palette, metrics, options = {}) {
+  if (!armament || !hardpoint || !metrics) {
+    return null;
+  }
+
+  const minChord = options.minChord ?? 0;
+  const maxChord = options.maxChord ?? 1;
+  const chordRatio = clamp(hardpoint.chordRatio ?? 0.5, minChord, maxChord);
+  const span = metrics.span ?? metrics.profileSpan ?? 0;
+  const length = metrics.length ?? 0;
+  const thickness = metrics.thickness ?? 0;
+  const anchorPercent = metrics.positionPercent != null && metrics.lengthPercent != null
+    ? clamp(metrics.positionPercent + metrics.lengthPercent * chordRatio, 0, 1)
+    : null;
+
+  const payloadLength = hardpoint.payloadLength ?? Math.max(18, length * 0.3);
+  const payloadRadius = hardpoint.payloadRadius ?? Math.max(5, thickness * 0.35);
+  const pylonLength = hardpoint.pylonLength ?? Math.max(thickness * 0.6, 8);
+  const payloadDiameter = payloadRadius * 2;
+
+  const ordnanceHeight = armament.type === "missile"
+    ? Math.max(payloadLength * 0.6, payloadRadius * 1.8)
+    : payloadDiameter;
+  const ellipseRy = Math.max(payloadRadius * 0.75, payloadLength * 0.35);
+  const noseOffset = Math.max(payloadRadius * 0.6, payloadLength * 0.25);
+  const tipTopLength = armament.type === "missile"
+    ? Math.max(payloadLength * 0.28, payloadRadius * 0.9)
+    : 0;
+  const tipSideLength = armament.type === "missile" ? payloadLength * 0.22 : 0;
+  const finSpread = armament.type === "missile" ? Math.max(3, payloadRadius * 0.8) : 0;
+  const finSideLength = armament.type === "missile" ? payloadLength * 0.18 : 0;
+
+  const colors = {
+    ordnance: partColor("weapons", shadeColor(palette.secondary, -0.1)),
+    pylon: partColor("weapons", shadeColor(palette.secondary, -0.25)),
+    accent: partStroke("weapons", palette.trim),
+    tip: partColor("weapons", mixColor(palette.accent, palette.secondary, 0.4)),
+    fin: partColor("weapons", shadeColor(palette.accent, -0.15)),
+    nose: partColor("weapons", mixColor(palette.accent, palette.secondary, 0.35)),
+  };
+
+  return {
+    type: armament.type,
+    span,
+    length,
+    thickness,
+    chordRatio,
+    anchorPercent,
+    payloadLength,
+    payloadRadius,
+    payloadDiameter,
+    pylonLength,
+    colors,
+    topProfile: {
+      ordnanceHeight,
+      ellipseRy,
+      noseOffset,
+      finWidth: payloadRadius * 1.8,
+      finHeight: payloadRadius * 0.8,
+      finYOffset: payloadRadius * 0.4,
+      tipLength: tipTopLength,
+    },
+    sideProfile: {
+      bodyHeight: payloadDiameter,
+      tipLength: tipSideLength,
+      finSpread,
+      finLength: finSideLength,
+    },
+  };
 }
 
 export function computeWingPlanform(body, wings) {

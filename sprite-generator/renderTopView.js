@@ -10,6 +10,7 @@ import {
   computeWingPlanform,
   buildStripePath,
   pointsToString,
+  normalizeWingHardpoint,
 } from "./renderParts.js";
 import { clamp } from "./math.js";
 import { computeCanopyPlacement } from "./geometry.js";
@@ -137,21 +138,24 @@ export function drawTopArmament(root, config, axis) {
 
     const wingMountPercent = axis.length > 0 ? clamp(0.5 + (wings.offsetY ?? 0) / axis.length, 0, 1) : 0.5;
     const baseWingY = axis.percentToTopY(wingMountPercent);
-    const ordnanceColor = partColor("weapons", shadeColor(palette.secondary, -0.1));
-    const accentColor = partStroke("weapons", palette.trim);
-    const pylonColor = partColor("weapons", shadeColor(palette.secondary, -0.25));
-
     armament.hardpoints.forEach((hardpoint) => {
-      const chordRatio = clamp(hardpoint.chordRatio ?? 0.5, 0.1, 0.9);
-      const anchorPercent = clamp(planform.positionPercent + planform.lengthPercent * chordRatio, 0, 1);
+      const normalized = normalizeWingHardpoint(
+        hardpoint,
+        armament,
+        palette,
+        planform,
+        { minChord: 0.1, maxChord: 0.9 },
+      );
+      if (!normalized) {
+        return;
+      }
+
+      const anchorPercent = normalized.anchorPercent ?? planform.positionPercent;
       const anchorY = axis.percentToTopY(anchorPercent);
-      const payloadLength = hardpoint.payloadLength ?? Math.max(18, planform.length * 0.3);
-      const payloadRadius = hardpoint.payloadRadius ?? Math.max(5, planform.thickness * 0.35);
-      const pylonLength = hardpoint.pylonLength ?? Math.max(planform.thickness * 0.6, 8);
-      const payloadOffsetY = baseWingY + planform.thickness * 0.25 + pylonLength + payloadRadius;
-      const ordnanceHeight = armament.type === "missile"
-        ? Math.max(payloadLength * 0.6, payloadRadius * 1.8)
-        : payloadRadius * 2;
+      const payloadOffsetY = baseWingY
+        + planform.thickness * 0.25
+        + normalized.pylonLength
+        + normalized.payloadRadius;
 
       [-1, 1].forEach((direction) => {
         const sideGroup = document.createElementNS(SVG_NS, "g");
@@ -163,41 +167,52 @@ export function drawTopArmament(root, config, axis) {
         pylon.setAttribute("x", (lateralBase - 1.6).toString());
         pylon.setAttribute("y", pylonTopY.toString());
         pylon.setAttribute("width", "3.2");
-        pylon.setAttribute("height", pylonLength.toString());
+        pylon.setAttribute("height", normalized.pylonLength.toString());
         pylon.setAttribute("rx", "1.2");
-        pylon.setAttribute("fill", pylonColor);
-        pylon.setAttribute("stroke", accentColor);
+        pylon.setAttribute("fill", normalized.colors.pylon);
+        pylon.setAttribute("stroke", normalized.colors.accent);
         pylon.setAttribute("stroke-width", 0.9);
 
         if (armament.type === "missile") {
           const payload = document.createElementNS(SVG_NS, "rect");
-          payload.setAttribute("x", (lateralBase - payloadRadius).toString());
-          payload.setAttribute("y", (payloadOffsetY - ordnanceHeight).toString());
-          payload.setAttribute("width", (payloadRadius * 2).toString());
-          payload.setAttribute("height", ordnanceHeight.toString());
-          payload.setAttribute("rx", (payloadRadius * 0.55).toString());
-          payload.setAttribute("fill", ordnanceColor);
-          payload.setAttribute("stroke", accentColor);
+          payload.setAttribute("x", (lateralBase - normalized.payloadRadius).toString());
+          payload.setAttribute(
+            "y",
+            (payloadOffsetY - normalized.topProfile.ordnanceHeight).toString(),
+          );
+          payload.setAttribute("width", normalized.payloadDiameter.toString());
+          payload.setAttribute("height", normalized.topProfile.ordnanceHeight.toString());
+          payload.setAttribute("rx", (normalized.payloadRadius * 0.55).toString());
+          payload.setAttribute("fill", normalized.colors.ordnance);
+          payload.setAttribute("stroke", normalized.colors.accent);
           payload.setAttribute("stroke-width", 1);
 
           const tip = document.createElementNS(SVG_NS, "polygon");
-          const tipLength = Math.max(payloadLength * 0.28, payloadRadius * 0.9);
           const tipPoints = [
-            [lateralBase - payloadRadius, payloadOffsetY - ordnanceHeight],
-            [lateralBase, payloadOffsetY - ordnanceHeight - tipLength],
-            [lateralBase + payloadRadius, payloadOffsetY - ordnanceHeight],
+            [lateralBase - normalized.payloadRadius, payloadOffsetY - normalized.topProfile.ordnanceHeight],
+            [
+              lateralBase,
+              payloadOffsetY
+                - normalized.topProfile.ordnanceHeight
+                - normalized.topProfile.tipLength,
+            ],
+            [lateralBase + normalized.payloadRadius, payloadOffsetY - normalized.topProfile.ordnanceHeight],
           ];
           tip.setAttribute("points", pointsToString(tipPoints));
-          tip.setAttribute("fill", partColor("weapons", mixColor(palette.accent, palette.secondary, 0.4)));
-          tip.setAttribute("stroke", accentColor);
+          tip.setAttribute("fill", normalized.colors.tip);
+          tip.setAttribute("stroke", normalized.colors.accent);
           tip.setAttribute("stroke-width", 1);
 
           const fins = document.createElementNS(SVG_NS, "rect");
-          fins.setAttribute("x", (lateralBase - payloadRadius * 0.9).toString());
-          fins.setAttribute("y", (payloadOffsetY - payloadRadius * 0.4).toString());
-          fins.setAttribute("width", (payloadRadius * 1.8).toString());
-          fins.setAttribute("height", (payloadRadius * 0.8).toString());
-          fins.setAttribute("fill", partColor("weapons", shadeColor(palette.accent, -0.15)));
+          const finHalfWidth = normalized.topProfile.finWidth / 2;
+          fins.setAttribute("x", (lateralBase - finHalfWidth).toString());
+          fins.setAttribute(
+            "y",
+            (payloadOffsetY - normalized.topProfile.finYOffset).toString(),
+          );
+          fins.setAttribute("width", normalized.topProfile.finWidth.toString());
+          fins.setAttribute("height", normalized.topProfile.finHeight.toString());
+          fins.setAttribute("fill", normalized.colors.fin);
           fins.setAttribute("opacity", "0.75");
 
           sideGroup.append(pylon, payload, tip, fins);
@@ -205,17 +220,20 @@ export function drawTopArmament(root, config, axis) {
           const payload = document.createElementNS(SVG_NS, "ellipse");
           payload.setAttribute("cx", lateralBase.toString());
           payload.setAttribute("cy", payloadOffsetY.toString());
-          payload.setAttribute("rx", payloadRadius.toString());
-          payload.setAttribute("ry", Math.max(payloadRadius * 0.75, payloadLength * 0.35).toString());
-          payload.setAttribute("fill", ordnanceColor);
-          payload.setAttribute("stroke", accentColor);
+          payload.setAttribute("rx", normalized.payloadRadius.toString());
+          payload.setAttribute("ry", normalized.topProfile.ellipseRy.toString());
+          payload.setAttribute("fill", normalized.colors.ordnance);
+          payload.setAttribute("stroke", normalized.colors.accent);
           payload.setAttribute("stroke-width", 1);
 
           const noseCap = document.createElementNS(SVG_NS, "circle");
           noseCap.setAttribute("cx", lateralBase.toString());
-          noseCap.setAttribute("cy", (payloadOffsetY - Math.max(payloadRadius * 0.6, payloadLength * 0.25)).toString());
-          noseCap.setAttribute("r", (payloadRadius * 0.55).toString());
-          noseCap.setAttribute("fill", partColor("weapons", mixColor(palette.accent, palette.secondary, 0.35)));
+          noseCap.setAttribute(
+            "cy",
+            (payloadOffsetY - normalized.topProfile.noseOffset).toString(),
+          );
+          noseCap.setAttribute("r", (normalized.payloadRadius * 0.55).toString());
+          noseCap.setAttribute("fill", normalized.colors.nose);
 
           sideGroup.append(pylon, payload, noseCap);
         }
