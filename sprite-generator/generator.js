@@ -8,6 +8,98 @@ import { drawSideViewSpaceship } from "./renderSideView.js";
 import { initializeGeometry } from "./geometry.js";
 import { isDebugColorsEnabled } from "./renderContext.js";
 
+// Palette and engine presets used to assemble consistent looking spacecraft.
+// Keeping them colocated with the generator avoids depending on globals.
+const COLOR_PALETTES = [
+  {
+    name: "Midnight Aegis",
+    primary: "#3b4a6b",
+    secondary: "#697fa8",
+    accent: "#f2f5ff",
+    trim: "#1f2436",
+    glow: "#ffd166",
+    cockpit: "#8ecae6",
+  },
+  {
+    name: "Solar Lancer",
+    primary: "#5a2b29",
+    secondary: "#b35830",
+    accent: "#ffe6a7",
+    trim: "#281514",
+    glow: "#ff8c42",
+    cockpit: "#fcd5ce",
+  },
+  {
+    name: "Nebula Drift",
+    primary: "#41335c",
+    secondary: "#6b4f93",
+    accent: "#d8ccff",
+    trim: "#221a33",
+    glow: "#9b5de5",
+    cockpit: "#a0c4ff",
+  },
+  {
+    name: "Verdant Comet",
+    primary: "#23423f",
+    secondary: "#3f7a6b",
+    accent: "#cdeac0",
+    trim: "#142623",
+    glow: "#8be9b3",
+    cockpit: "#a1ffd5",
+  },
+  {
+    name: "Aurora Glint",
+    primary: "#2b3a52",
+    secondary: "#4f6f9c",
+    accent: "#f1f9ff",
+    trim: "#1a2332",
+    glow: "#89cff0",
+    cockpit: "#b9f2ff",
+  },
+  {
+    name: "Crimson Forge",
+    primary: "#642626",
+    secondary: "#9c3d37",
+    accent: "#ffb5a7",
+    trim: "#2d1010",
+    glow: "#ff6d6d",
+    cockpit: "#ffd6d6",
+  },
+];
+
+const ENGINE_STYLE_PRESETS = {
+  jet: {
+    key: "jet",
+    type: "jet",
+    mountPercentRange: [0.68, 0.96],
+    nozzleScaleRange: [0.85, 1.15],
+  },
+  turbofan: {
+    key: "turbofan",
+    type: "jet",
+    mountPercentRange: [0.55, 0.82],
+    nozzleScaleRange: [1.1, 1.35],
+  },
+  propeller: {
+    key: "propeller",
+    type: "propeller",
+    bladeCountRange: [2, 4],
+    radiusScaleRange: [1.05, 1.4],
+    spinnerLengthRatioRange: [0.6, 0.82],
+    bladeWidthRatioRange: [0.18, 0.26],
+    glow: false,
+  },
+  radial: {
+    key: "radial",
+    type: "propeller",
+    bladeCountRange: [3, 5],
+    radiusScaleRange: [1.2, 1.5],
+    spinnerLengthRatioRange: [0.52, 0.7],
+    bladeWidthRatioRange: [0.22, 0.3],
+    glow: false,
+  },
+};
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const NORMALISED_HULL_LENGTH = 100;
 
