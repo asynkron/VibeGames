@@ -4,6 +4,14 @@ import {
   createSideProfileAnchors,
   computeSegmentGeometry,
   sampleHullTopY,
+  getTopSegmentPaths,
+  getNeedleTop,
+  getTopHullPath,
+  buildPlatingPath,
+  getWingTop,
+  getDeltaWingTop,
+  buildWingAccent,
+  buildStripePath,
 } from "./renderParts.js";
 import { clamp, lerp } from "./math.js";
 
@@ -257,11 +265,11 @@ export function computeCanopyPlacement(body, cockpit) {
   };
 }
 
-export function deriveSideViewGeometry(config) {
+export function deriveSideViewGeometry(config, baseAxis) {
   const { body, cockpit, engine, wings, fins, details } = config;
   const rearSegment = body?.segments?.rear ?? null;
 
-  const axis = buildBodyAxis(body);
+  const axis = baseAxis ?? buildBodyAxis(body);
   const halfLength = body.length / 2;
   const percentToBody = (percent) => (percent / 100) * body.length;
   const fuselageRadius = Math.max(body.halfWidth, percentToBody(8.6));
@@ -513,5 +521,120 @@ export function deriveSideViewGeometry(config) {
     lights,
     antenna,
     axis,
+  };
+}
+
+export function initializeGeometry(config) {
+  const { body, wings, details } = config;
+  const axis = buildBodyAxis(body);
+
+  const segmentPaths = body?.segments ? getTopSegmentPaths(body) : null;
+  const frontPath = segmentPaths ? getNeedleTop(config, { segments: segmentPaths }) ?? segmentPaths.front ?? null : null;
+  const midPath = segmentPaths?.mid ?? null;
+  const rearPath = segmentPaths?.rear ?? null;
+
+  const hullPath = getTopHullPath(body);
+  const platingPath = body.plating ? buildPlatingPath(body) : null;
+  const stripePath = details?.stripe ? buildStripePath(body, details, axis) : null;
+
+  const planform = computeWingPlanform(body, wings);
+  let wingPoints = null;
+  if (planform.enabled) {
+    wingPoints = (planform.style ?? wings?.style) === "delta" ? getDeltaWingTop(config, axis) : getWingTop(config, axis);
+  }
+
+  const wingAccent = wingPoints && wings?.tipAccent
+    ? {
+        left: buildWingAccent(wingPoints.left),
+        right: buildWingAccent(wingPoints.right),
+      }
+    : null;
+
+  const sideGeometry = deriveSideViewGeometry(config, axis);
+
+  const frontType = body?.segments?.front?.type ?? "default";
+  const midType = body?.segments?.mid?.type ?? "default";
+  const rearType = body?.segments?.rear?.type ?? "default";
+  const wingStyle = planform.style ?? wings?.style ?? "swept";
+
+  const segmentAnchors = sideGeometry.profile?.segmentAnchors ?? null;
+
+  const lookup = {
+    body: {
+      hull: {
+        default: {
+          top: { path: hullPath },
+          side: sideGeometry.profile,
+        },
+      },
+      front: {},
+      mid: {},
+      rear: {},
+    },
+    wings: {},
+  };
+
+  if (frontPath) {
+    lookup.body.front[frontType] = {
+      top: { path: frontPath },
+      side: segmentAnchors,
+    };
+  }
+
+  if (midPath) {
+    lookup.body.mid[midType] = {
+      top: { path: midPath },
+      side: segmentAnchors,
+    };
+  }
+
+  if (rearPath) {
+    lookup.body.rear[rearType] = {
+      top: { path: rearPath },
+      side: segmentAnchors,
+    };
+  }
+
+  if (wingPoints) {
+    lookup.wings[wingStyle] = {
+      top: wingPoints,
+      side: sideGeometry.wing,
+    };
+  }
+
+  return {
+    axis,
+    lookup,
+    body: {
+      top: {
+        hull: hullPath,
+        front: frontPath,
+        mid: midPath,
+        rear: rearPath,
+        plating: platingPath,
+        stripe: stripePath,
+      },
+      side: sideGeometry.profile,
+      segmentAnchors,
+      segmentTypes: {
+        front: frontType,
+        mid: midType,
+        rear: rearType,
+      },
+    },
+    wings: {
+      planform,
+      top: wingPoints,
+      accent: wingAccent,
+      side: sideGeometry.wing,
+      style: wingStyle,
+    },
+    stabiliser: sideGeometry.stabiliser,
+    thruster: sideGeometry.thruster,
+    armament: sideGeometry.armament,
+    markings: sideGeometry.markings,
+    lights: sideGeometry.lights,
+    canopy: sideGeometry.canopy,
+    antenna: sideGeometry.antenna,
   };
 }

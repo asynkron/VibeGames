@@ -3,6 +3,7 @@ import { clamp } from "./math.js";
 import { mixColor } from "./color.js";
 import { drawTopDownSpaceship } from "./renderTopView.js";
 import { drawSideViewSpaceship } from "./renderSideView.js";
+import { initializeGeometry } from "./geometry.js";
 import { isDebugColorsEnabled } from "./renderContext.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -535,10 +536,13 @@ function renderSpaceship(svg, config, options = {}) {
   });
   svg.appendChild(rootGroup.wrapper);
 
+  const geometry = initializeGeometry(preparedConfig);
+  preparedConfig.geometry = geometry;
+
   if (viewMode === "side") {
-    drawSideViewSpaceship(rootGroup.root, preparedConfig, defs);
+    drawSideViewSpaceship(rootGroup.root, preparedConfig, geometry, defs);
   } else {
-    drawTopDownSpaceship(rootGroup.root, preparedConfig, defs);
+    drawTopDownSpaceship(rootGroup.root, preparedConfig, geometry, defs);
   }
 }
 

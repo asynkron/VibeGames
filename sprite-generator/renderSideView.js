@@ -8,13 +8,11 @@ import {
   pointsToString,
 } from "./renderParts.js";
 import { clamp, lerp } from "./math.js";
-import { deriveSideViewGeometry } from "./geometry.js";
 import { mixColor, shadeColor } from "./color.js";
 import { isDebugColorsEnabled, nextRenderId, partColor, partStroke } from "./renderContext.js";
 import { createSvgElement } from "./svgUtils.js";
 
-export function drawSideViewSpaceship(root, config, defs) {
-  const geometry = deriveSideViewGeometry(config);
+export function drawSideViewSpaceship(root, config, geometry, defs) {
   const axis = geometry.axis;
   drawSideHull(root, config, geometry, axis);
   drawSideAntenna(root, config, geometry, axis);
