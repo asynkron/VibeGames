@@ -264,10 +264,30 @@ export function drawSideCanopy(root, config, geometry, axis, defs) {
   const baseEndY = centerY + canopy.baseEnd + verticalShift;
   const apexX = baseX + canopy.length / 2;
   const apexY = Math.min(baseStartY, baseEndY) - canopy.height;
-  const frameStartX = baseX + canopy.length * 0.08;
-  const frameEndX = endX - canopy.length * 0.08;
-  const frameStartY = lerp(baseStartY, baseEndY, 0.08);
-  const frameEndY = lerp(baseStartY, baseEndY, 0.92);
+  const frameInset = canopy.frameInset ?? canopy.length * 0.08;
+  const frameStartX = baseX + frameInset;
+  const frameEndX = endX - frameInset;
+  const frameStartY = lerp(baseStartY, baseEndY, clamp(canopy.frameStartBlend ?? 0.08, 0, 1));
+  const frameEndY = lerp(baseStartY, baseEndY, clamp(canopy.frameEndBlend ?? 0.92, 0, 1));
+  const frameApexY = apexY + canopy.height * clamp(canopy.frameApexBias ?? 0.1, -0.2, 0.4);
+
+  const bottomControlY = Math.max(baseStartY, baseEndY) - canopy.height * 0.25;
+
+  const sampleTopCurve = (t) => {
+    const inv = 1 - t;
+    return {
+      x: inv * inv * baseX + 2 * inv * t * apexX + t * t * endX,
+      y: inv * inv * baseStartY + 2 * inv * t * apexY + t * t * baseEndY,
+    };
+  };
+
+  const sampleBottomCurve = (t) => {
+    const inv = 1 - t;
+    return {
+      x: inv * inv * baseX + 2 * inv * t * apexX + t * t * endX,
+      y: inv * inv * baseStartY + 2 * inv * t * bottomControlY + t * t * baseEndY,
+    };
+  };
 
   const canopyShape = document.createElementNS(SVG_NS, "path");
   const canopyPath = [
@@ -284,7 +304,7 @@ export function drawSideCanopy(root, config, geometry, axis, defs) {
   root.appendChild(canopyShape);
 
   const frame = document.createElementNS(SVG_NS, "path");
-  const framePath = `M ${frameStartX} ${frameStartY} Q ${apexX} ${apexY + canopy.height * 0.1} ${frameEndX} ${frameEndY}`;
+  const framePath = `M ${frameStartX} ${frameStartY} Q ${apexX} ${frameApexY} ${frameEndX} ${frameEndY}`;
   frame.setAttribute("d", framePath);
   frame.setAttribute(
     "stroke",
@@ -294,6 +314,56 @@ export function drawSideCanopy(root, config, geometry, axis, defs) {
   frame.setAttribute("stroke-linecap", "round");
   frame.setAttribute("fill", "none");
   root.appendChild(frame);
+
+  const ribRatios = Array.isArray(canopy.ribRatios) ? canopy.ribRatios : [];
+  const ribStroke = Math.max(0.6, canopy.frame * (canopy.ribStrokeScale ?? 0.7));
+  const ribColor = debugEnabled
+    ? canopyColor
+    : mixColor(palette.trim, palette.accent, 0.45);
+
+  ribRatios.forEach((ratio) => {
+    const t = clamp(ratio, 0.05, 0.95);
+    const topPoint = sampleTopCurve(t);
+    const bottomPoint = sampleBottomCurve(t);
+    const controlX = lerp(bottomPoint.x, topPoint.x, 0.55);
+    const controlY = lerp(bottomPoint.y, topPoint.y, clamp(canopy.ribCurveBias ?? 0.45, 0, 1));
+    const rib = document.createElementNS(SVG_NS, "path");
+    rib.setAttribute(
+      "d",
+      `M ${bottomPoint.x.toFixed(2)} ${bottomPoint.y.toFixed(2)} Q ${controlX.toFixed(2)} ${controlY.toFixed(2)} ${topPoint.x.toFixed(2)} ${topPoint.y.toFixed(2)}`,
+    );
+    rib.setAttribute("stroke", ribColor);
+    rib.setAttribute("stroke-width", ribStroke);
+    rib.setAttribute("stroke-linecap", "round");
+    rib.setAttribute("stroke-linejoin", "round");
+    rib.setAttribute("fill", "none");
+    rib.setAttribute("opacity", debugEnabled ? "1" : "0.9");
+    root.appendChild(rib);
+  });
+
+  if (Number.isFinite(canopy.beltRatio)) {
+    const beltRatio = clamp(canopy.beltRatio, 0.1, 0.9);
+    const beltStroke = Math.max(0.6, canopy.frame * (canopy.beltStrokeScale ?? 0.55));
+    const belt = document.createElementNS(SVG_NS, "path");
+    const segments = 6;
+    const commands = [];
+    for (let i = 0; i <= segments; i += 1) {
+      const t = i / segments;
+      const topPoint = sampleTopCurve(t);
+      const bottomPoint = sampleBottomCurve(t);
+      const pointX = lerp(bottomPoint.x, topPoint.x, beltRatio);
+      const pointY = lerp(bottomPoint.y, topPoint.y, beltRatio);
+      commands.push(`${i === 0 ? "M" : "L"} ${pointX.toFixed(2)} ${pointY.toFixed(2)}`);
+    }
+    belt.setAttribute("d", commands.join(" "));
+    belt.setAttribute("stroke", debugEnabled ? canopyColor : mixColor(palette.trim, palette.accent, 0.4));
+    belt.setAttribute("stroke-width", beltStroke);
+    belt.setAttribute("stroke-linecap", "round");
+    belt.setAttribute("stroke-linejoin", "round");
+    belt.setAttribute("fill", "none");
+    belt.setAttribute("opacity", debugEnabled ? "1" : "0.85");
+    root.appendChild(belt);
+  }
 }
 
 export function drawSideThrusters(root, config, geometry, axis) {

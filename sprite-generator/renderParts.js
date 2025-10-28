@@ -591,6 +591,7 @@ export function createSideProfileAnchors(profile, segments, geometry, options = 
   const frontConfig = profile.sideAnchorConfig?.front ?? {};
   const midConfig = profile.sideAnchorConfig?.mid ?? {};
   const rearConfig = profile.sideAnchorConfig?.rear ?? {};
+  const bodyStyle = profile.style ?? null;
   const frontSegment = segments?.front ?? null;
   const isNeedleNose = frontSegment?.type === "needle";
   const configNeedleSharpness = clamp(frontConfig.needleSharpness ?? 0, 0, 1);
@@ -707,14 +708,21 @@ export function createSideProfileAnchors(profile, segments, geometry, options = 
     bottomAnchors.splice(1, 0, [tipChinX, mix(noseBottom, belly, chinBlendTaper)]);
   }
 
+  const frontCurve = Number.isFinite(frontSegment?.curve)
+    ? frontSegment.curve
+    : Number.isFinite(profile.noseHeight)
+    ? profile.noseHeight
+    : profile.length * 0.18;
+
   const triangle = useNeedleTriangle
     ? {
         apexInset: clamp(
-          frontLength * (0.24 + needleInfluence * 0.18) + (frontSegment?.curve ?? body.noseCurve ?? 18) * 0.12,
-          frontLength * 0.14,
-          frontLength * 0.45,
+          frontLength * (0.28 + needleInfluence * 0.22 + (bodyStyle === "skinny" ? 0.12 : 0.04))
+            + frontCurve * 0.14,
+          frontLength * 0.16,
+          frontLength * 0.58,
         ),
-        apexBlend: clamp(0.44 - needleInfluence * 0.18, 0.22, 0.56),
+        apexBlend: clamp(0.4 - needleInfluence * 0.2 - (bodyStyle === "skinny" ? 0.04 : 0), 0.16, 0.5),
       }
     : null;
 
