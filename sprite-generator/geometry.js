@@ -17,6 +17,7 @@ export function applySideSegmentProfiles(profile, body, percentToBody) {
   const rearType = rear?.type ?? "";
   const isNeedleNose = frontType === "needle";
   const isThrusterTail = rearType === "thruster";
+  const bodyStyle = body?.style ?? body.segments?.style ?? null;
   const baseProfileHeight = profile.height;
 
   const normalise = (value, min, max) => {
@@ -35,7 +36,11 @@ export function applySideSegmentProfiles(profile, body, percentToBody) {
 
   if (isNeedleNose) {
     const lengthBias = clamp((front?.transitionFactor ?? 0.9) - 0.7, 0, 0.6);
-    frontLength *= 1 + lengthBias * 0.18;
+    const styleNeedleBoost = bodyStyle === "skinny" ? 0.12 : bodyStyle === "bulky" ? 0.02 : 0.08;
+    frontLength *= 1 + lengthBias * (0.24 + styleNeedleBoost);
+    if (bodyStyle === "skinny") {
+      frontLength *= 1.08;
+    }
   }
 
   if (isThrusterTail) {
@@ -88,10 +93,11 @@ export function applySideSegmentProfiles(profile, body, percentToBody) {
   );
 
   if (isNeedleNose) {
+    const styleHeightBoost = bodyStyle === "skinny" ? 0.08 : bodyStyle === "bulky" ? 0.02 : 0.05;
     noseHeight = clamp(
-      noseHeight * (1.05 + needleSharpness * 0.2),
+      noseHeight * (1.08 + needleSharpness * 0.24 + styleHeightBoost),
       percentToBody(4.0),
-      baseProfileHeight * 1.05,
+      baseProfileHeight * 1.1,
     );
   }
 
@@ -103,6 +109,12 @@ export function applySideSegmentProfiles(profile, body, percentToBody) {
   );
   profile.dorsalHeight += percentToBody(2.0) * (bellyBias + transitionRatio - 0.5);
 
+  if (bodyStyle === "skinny") {
+    profile.dorsalHeight *= 0.96;
+  } else if (bodyStyle === "bulky") {
+    profile.dorsalHeight *= 1.04;
+  }
+
   let bellyDrop = clamp(
     percentToBody(3.6)
       + midInsetValue * (0.72 + bellyBias * 0.38)
@@ -111,6 +123,12 @@ export function applySideSegmentProfiles(profile, body, percentToBody) {
     percentToBody(4.0),
     baseProfileHeight * 0.62,
   );
+
+  if (bodyStyle === "skinny") {
+    bellyDrop *= 0.92;
+  } else if (bodyStyle === "bulky") {
+    bellyDrop *= 1.08;
+  }
 
   if (isThrusterTail) {
     bellyDrop = Math.max(
@@ -172,10 +190,12 @@ export function applySideSegmentProfiles(profile, body, percentToBody) {
   let frontBellyBlend = clamp(lerp(0.5, 0.34, bellyRatio), 0.2, 0.85);
 
   if (isNeedleNose) {
-    frontSecondBlend = clamp(lerp(frontSecondBlend, 0.08, 0.6 + needleSharpness * 0.3), 0.04, 0.32);
-    frontEndBlend = clamp(lerp(frontEndBlend, 0.14, 0.6 + needleSharpness * 0.25), 0.05, 0.45);
-    chinBlend = clamp(lerp(chinBlend, 0.28, 0.55 + needleSharpness * 0.25), 0.2, 0.55);
-    frontBellyBlend = clamp(lerp(frontBellyBlend, 0.32, 0.55 + needleSharpness * 0.25), 0.26, 0.62);
+    const blendSharpen = clamp(0.6 + needleSharpness * 0.3 + (bodyStyle === "skinny" ? 0.18 : 0), 0, 1.2);
+    const endSharpen = clamp(0.6 + needleSharpness * 0.25 + (bodyStyle === "skinny" ? 0.12 : 0), 0, 1.2);
+    frontSecondBlend = clamp(lerp(frontSecondBlend, 0.06, blendSharpen), 0.03, 0.26);
+    frontEndBlend = clamp(lerp(frontEndBlend, 0.12, endSharpen), 0.04, 0.4);
+    chinBlend = clamp(lerp(chinBlend, 0.26, 0.55 + needleSharpness * 0.25), 0.18, 0.5);
+    frontBellyBlend = clamp(lerp(frontBellyBlend, 0.3, 0.55 + needleSharpness * 0.25), 0.24, 0.6);
   }
 
   const topDip = clamp(lerp(0.14, 0.06, waistRatio) + spearWeight * 0.05 + canopyWeight * 0.03, 0.03, 0.22);
@@ -284,6 +304,7 @@ export function deriveSideViewGeometry(config) {
     plating: Boolean(body.plating),
     axis,
   };
+  profile.style = body?.style ?? body?.segments?.style ?? null;
 
   profile.noseX = axis.side.nose;
   profile.tailX = axis.side.tail;
@@ -316,6 +337,18 @@ export function deriveSideViewGeometry(config) {
   const canopyBaseEmbed = Math.max(percentToBody(1.0), canopyHeight * 0.18);
   const canopyStartTop = sampleHullTopY(profile, canopyStart);
   const canopyEndTop = sampleHullTopY(profile, canopyEnd);
+  const canopyFraming = cockpit?.canopyFraming ?? null;
+  const canopyFrameScale = canopyFraming?.frameScale ?? 1;
+  const canopyFrameInsetRatio = canopyFraming?.frameInsetRatio ?? 0.08;
+  const canopyFrameStartBlend = canopyFraming?.startBlend ?? 0.08;
+  const canopyFrameEndBlend = canopyFraming?.endBlend ?? 0.92;
+  const canopyFrameApexBias = canopyFraming?.apexBias ?? 0.1;
+  const canopyRibRatios = canopyFraming?.ribRatios ?? [];
+  const canopyRibCurveBias = canopyFraming?.ribCurveBias ?? 0.45;
+  const canopyRibStrokeScale = canopyFraming?.ribStrokeScale ?? 0.7;
+  const canopyBeltRatio = canopyFraming?.beltRatio ?? null;
+  const canopyBeltStrokeScale = canopyFraming?.beltStrokeScale ?? 0.55;
+
   const canopy = {
     length: canopyPlacement.length,
     height: canopyHeight,
@@ -324,10 +357,19 @@ export function deriveSideViewGeometry(config) {
     endPercent: canopyEnd / body.length,
     centerPercent: canopyPlacement.centerPercent,
     offsetY: -(cockpit?.offsetY ?? 0) * 0.25,
-    frame: clamp((cockpit?.width ?? percentToBody(20.0)) * 0.08, percentToBody(1.3), percentToBody(2.7)),
+    frame: clamp((cockpit?.width ?? percentToBody(20.0)) * 0.08 * canopyFrameScale, percentToBody(1.2), percentToBody(3.1)),
     tint: cockpit?.tint ?? "#7ed4ff",
     baseStart: canopyStartTop - (100 + (profile.offsetY ?? 0)) + canopyBaseEmbed,
     baseEnd: canopyEndTop - (100 + (profile.offsetY ?? 0)) + canopyBaseEmbed,
+    frameInset: canopyPlacement.length * canopyFrameInsetRatio,
+    frameStartBlend: canopyFrameStartBlend,
+    frameEndBlend: canopyFrameEndBlend,
+    frameApexBias: canopyFrameApexBias,
+    ribRatios: canopyRibRatios,
+    ribCurveBias: canopyRibCurveBias,
+    ribStrokeScale: canopyRibStrokeScale,
+    beltRatio: canopyBeltRatio,
+    beltStrokeScale: canopyBeltStrokeScale,
   };
 
   const planform = computeWingPlanform(body, wings);

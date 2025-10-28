@@ -275,11 +275,11 @@ const COLOR_PALETTES = [
 const FRONT_SEGMENT_VARIANTS = [
   {
     type: "needle",
-    lengthWeightRange: [0.26, 0.34],
-    tipWidthFactorRange: [0.06, 0.12],
-    shoulderWidthFactorRange: [0.94, 1.1],
-    transitionFactorRange: [0.7, 0.86],
-    curveRange: [26, 36],
+    lengthWeightRange: [0.3, 0.42],
+    tipWidthFactorRange: [0.05, 0.1],
+    shoulderWidthFactorRange: [0.9, 1.08],
+    transitionFactorRange: [0.66, 0.84],
+    curveRange: [28, 40],
   },
   {
     type: "canopy",
@@ -361,6 +361,32 @@ const REAR_SEGMENT_VARIANTS = [
     curveRange: [12, 22],
   },
 ];
+
+const BODY_STYLE_VARIANTS = [
+  {
+    key: "skinny",
+    frontTypes: ["needle"],
+    midTypes: ["slim", "modular"],
+    rearTypes: ["tapered"],
+    widthScaleRange: [0.78, 0.9],
+  },
+  {
+    key: "normal",
+    frontTypes: ["needle", "canopy", "ram"],
+    midTypes: ["slim", "modular"],
+    rearTypes: ["tapered", "thruster"],
+    widthScaleRange: [0.95, 1.05],
+  },
+  {
+    key: "bulky",
+    frontTypes: ["canopy", "ram"],
+    midTypes: ["modular", "bulwark"],
+    rearTypes: ["thruster", "block"],
+    widthScaleRange: [1.12, 1.28],
+  },
+];
+
+const CANOPY_FRAME_VARIANTS = ["single", "split", "triple", "panoramic"];
 
 const randomStack = [];
 let activeRandomSource = Math.random;
@@ -495,6 +521,94 @@ function choose(array) {
   return array[Math.floor(nextRandom() * array.length)];
 }
 
+function pickCanopyFraming(styleKey) {
+  const poolByStyle = {
+    skinny: ["single", "split", "split", "triple"],
+    bulky: ["split", "triple", "panoramic", "panoramic"],
+    normal: CANOPY_FRAME_VARIANTS,
+  };
+  const pool = poolByStyle[styleKey] ?? poolByStyle.normal ?? CANOPY_FRAME_VARIANTS;
+  const key = choose(pool);
+
+  const base = {
+    key,
+    frameScale: 1,
+    frameInsetRatio: 0.08,
+    startBlend: 0.08,
+    endBlend: 0.92,
+    apexBias: 0.1,
+    ribRatios: [],
+    ribCurveBias: 0.45,
+    ribStrokeScale: 0.7,
+    beltRatio: null,
+    beltStrokeScale: 0.55,
+  };
+
+  switch (key) {
+    case "split": {
+      const offset = randomBetween(0.04, 0.08);
+      base.ribRatios = [0.3 + offset, 0.64 + offset * 0.5];
+      base.frameScale = randomBetween(0.95, 1.08);
+      base.frameInsetRatio = randomBetween(0.05, 0.08);
+      base.startBlend = randomBetween(0.06, 0.1);
+      base.endBlend = randomBetween(0.88, 0.94);
+      base.apexBias = randomBetween(0.12, 0.18);
+      base.ribCurveBias = randomBetween(0.38, 0.52);
+      base.ribStrokeScale = randomBetween(0.68, 0.82);
+      base.beltRatio = randomBetween(0.46, 0.58);
+      break;
+    }
+    case "triple": {
+      const shift = randomBetween(-0.02, 0.02);
+      base.ribRatios = [0.26 + shift, 0.5 + shift * 0.5, 0.74 + shift];
+      base.frameScale = randomBetween(1.0, 1.12);
+      base.frameInsetRatio = randomBetween(0.06, 0.1);
+      base.startBlend = randomBetween(0.05, 0.09);
+      base.endBlend = randomBetween(0.88, 0.94);
+      base.apexBias = randomBetween(0.1, 0.18);
+      base.ribCurveBias = randomBetween(0.42, 0.52);
+      base.ribStrokeScale = randomBetween(0.64, 0.78);
+      base.beltRatio = randomBetween(0.5, 0.62);
+      base.beltStrokeScale = randomBetween(0.58, 0.68);
+      break;
+    }
+    case "panoramic": {
+      const spread = randomBetween(0.16, 0.22);
+      const start = randomBetween(0.18, 0.24);
+      base.ribRatios = [start, start + spread * 0.6, start + spread * 1.2, start + spread * 1.8];
+      base.frameScale = randomBetween(1.05, 1.18);
+      base.frameInsetRatio = randomBetween(0.04, 0.06);
+      base.startBlend = randomBetween(0.04, 0.08);
+      base.endBlend = randomBetween(0.9, 0.95);
+      base.apexBias = randomBetween(0.14, 0.22);
+      base.ribCurveBias = randomBetween(0.36, 0.48);
+      base.ribStrokeScale = randomBetween(0.58, 0.72);
+      base.beltRatio = randomBetween(0.42, 0.5);
+      base.beltStrokeScale = randomBetween(0.62, 0.72);
+      break;
+    }
+    default: {
+      base.ribRatios = [randomBetween(0.44, 0.56)];
+      base.frameScale = randomBetween(0.9, 1.02);
+      base.frameInsetRatio = randomBetween(0.07, 0.1);
+      base.startBlend = randomBetween(0.08, 0.12);
+      base.endBlend = randomBetween(0.86, 0.92);
+      base.apexBias = randomBetween(0.08, 0.14);
+      base.ribCurveBias = randomBetween(0.44, 0.52);
+      base.ribStrokeScale = randomBetween(0.68, 0.82);
+      base.beltRatio = null;
+      break;
+    }
+  }
+
+  base.ribRatios = base.ribRatios
+    .filter((value) => Number.isFinite(value))
+    .map((value) => clamp(value, 0.1, 0.9))
+    .sort((a, b) => a - b);
+
+  return base;
+}
+
 function computeArmamentLoadout(body, wings, engine, details, cockpit) {
   const planform = computeWingPlanform(body, wings);
   const heavyArmament = (engine?.count ?? 1) > 2 || Boolean(details?.antenna);
@@ -541,16 +655,58 @@ function computeArmamentLoadout(body, wings, engine, details, cockpit) {
 }
 
 
-function createBodySegments(ranges) {
-  return {
-    front: createFrontSegmentVariant(ranges),
-    mid: createMidSegmentVariant(ranges),
-    rear: createRearSegmentVariant(ranges),
-  };
+function chooseVariantByType(variants, allowedTypes) {
+  const pool = Array.isArray(allowedTypes) && allowedTypes.length
+    ? variants.filter((variant) => allowedTypes.includes(variant.type))
+    : variants;
+  if (!pool.length) {
+    return choose(variants);
+  }
+  return choose(pool);
 }
 
-function createFrontSegmentVariant(ranges) {
-  const variant = choose(FRONT_SEGMENT_VARIANTS);
+function createBodySegments(ranges) {
+  const style = choose(BODY_STYLE_VARIANTS);
+  const widthScale = randomBetween(...(style.widthScaleRange ?? [1, 1]));
+
+  const segments = {
+    front: createFrontSegmentVariant(ranges, style),
+    mid: createMidSegmentVariant(ranges, style),
+    rear: createRearSegmentVariant(ranges, style),
+    style: style.key,
+    widthScale,
+  };
+
+  return segments;
+}
+
+function applyFrontStyleAdjustments(segment, style) {
+  switch (style?.key) {
+    case "skinny":
+      segment.weight *= randomBetween(1.08, 1.22);
+      segment.tipWidthFactor *= randomBetween(0.72, 0.85);
+      segment.shoulderWidthFactor *= randomBetween(0.88, 0.96);
+      segment.transitionFactor *= randomBetween(0.9, 1.05);
+      segment.curve *= randomBetween(1.08, 1.22);
+      break;
+    case "bulky":
+      segment.weight *= randomBetween(0.92, 1.05);
+      segment.tipWidthFactor *= randomBetween(1.18, 1.32);
+      segment.shoulderWidthFactor *= randomBetween(1.08, 1.2);
+      segment.transitionFactor *= randomBetween(1.02, 1.18);
+      segment.curve *= randomBetween(0.86, 0.98);
+      break;
+    default:
+      segment.weight *= randomBetween(0.96, 1.08);
+      segment.tipWidthFactor *= randomBetween(0.9, 1.08);
+      segment.shoulderWidthFactor *= randomBetween(0.94, 1.08);
+      segment.curve *= randomBetween(0.94, 1.08);
+      break;
+  }
+}
+
+function createFrontSegmentVariant(ranges, style) {
+  const variant = chooseVariantByType(FRONT_SEGMENT_VARIANTS, style?.frontTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -559,6 +715,8 @@ function createFrontSegmentVariant(ranges) {
     transitionFactor: randomBetween(...variant.transitionFactorRange),
     curve: randomBetween(...variant.curveRange),
   };
+
+  applyFrontStyleAdjustments(segment, style);
 
   if (ranges?.noseWidthFactor) {
     segment.tipWidthFactor = clamp(segment.tipWidthFactor, ...ranges.noseWidthFactor);
@@ -569,8 +727,38 @@ function createFrontSegmentVariant(ranges) {
   return segment;
 }
 
-function createMidSegmentVariant(ranges) {
-  const variant = choose(MID_SEGMENT_VARIANTS);
+function applyMidStyleAdjustments(segment, style) {
+  switch (style?.key) {
+    case "skinny":
+      segment.weight *= randomBetween(0.92, 1.05);
+      segment.waistWidthFactor *= randomBetween(0.78, 0.9);
+      segment.bellyWidthFactor *= randomBetween(0.82, 0.92);
+      segment.trailingWidthFactor *= randomBetween(0.82, 0.94);
+      segment.inset *= randomBetween(1.12, 1.28);
+      segment.waistPosition *= randomBetween(0.9, 1.05);
+      segment.bellyPosition *= randomBetween(0.95, 1.08);
+      break;
+    case "bulky":
+      segment.weight *= randomBetween(1.08, 1.2);
+      segment.waistWidthFactor *= randomBetween(1.08, 1.2);
+      segment.bellyWidthFactor *= randomBetween(1.18, 1.32);
+      segment.trailingWidthFactor *= randomBetween(1.12, 1.26);
+      segment.inset *= randomBetween(0.72, 0.92);
+      segment.waistPosition *= randomBetween(0.95, 1.1);
+      segment.bellyPosition *= randomBetween(1.0, 1.12);
+      break;
+    default:
+      segment.weight *= randomBetween(0.98, 1.12);
+      segment.waistWidthFactor *= randomBetween(0.94, 1.08);
+      segment.bellyWidthFactor *= randomBetween(0.96, 1.12);
+      segment.trailingWidthFactor *= randomBetween(0.94, 1.08);
+      segment.inset *= randomBetween(0.96, 1.08);
+      break;
+  }
+}
+
+function createMidSegmentVariant(ranges, style) {
+  const variant = chooseVariantByType(MID_SEGMENT_VARIANTS, style?.midTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -582,14 +770,41 @@ function createMidSegmentVariant(ranges) {
     inset: randomBetween(...variant.insetRange),
   };
 
+  applyMidStyleAdjustments(segment, style);
+
   if (ranges?.bodyMidInset) {
     segment.inset = clamp(segment.inset, ...ranges.bodyMidInset);
   }
   return segment;
 }
 
-function createRearSegmentVariant(ranges) {
-  const variant = choose(REAR_SEGMENT_VARIANTS);
+function applyRearStyleAdjustments(segment, style) {
+  switch (style?.key) {
+    case "skinny":
+      segment.weight *= randomBetween(0.92, 1.05);
+      segment.baseWidthFactor *= randomBetween(0.82, 0.94);
+      segment.exhaustWidthFactor *= randomBetween(0.78, 0.9);
+      segment.tailWidthFactor *= randomBetween(0.78, 0.92);
+      segment.curve *= randomBetween(1.0, 1.14);
+      break;
+    case "bulky":
+      segment.weight *= randomBetween(1.08, 1.22);
+      segment.baseWidthFactor *= randomBetween(1.16, 1.3);
+      segment.exhaustWidthFactor *= randomBetween(1.05, 1.2);
+      segment.tailWidthFactor *= randomBetween(1.08, 1.24);
+      segment.curve *= randomBetween(0.9, 1.05);
+      break;
+    default:
+      segment.weight *= randomBetween(0.96, 1.1);
+      segment.baseWidthFactor *= randomBetween(0.96, 1.08);
+      segment.exhaustWidthFactor *= randomBetween(0.92, 1.05);
+      segment.tailWidthFactor *= randomBetween(0.96, 1.08);
+      break;
+  }
+}
+
+function createRearSegmentVariant(ranges, style) {
+  const variant = chooseVariantByType(REAR_SEGMENT_VARIANTS, style?.rearTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -599,6 +814,8 @@ function createRearSegmentVariant(ranges) {
     exhaustPosition: randomBetween(...variant.exhaustPositionRange),
     curve: randomBetween(...variant.curveRange),
   };
+
+  applyRearStyleAdjustments(segment, style);
 
   if (ranges?.tailWidthFactor) {
     segment.tailWidthFactor = clamp(segment.tailWidthFactor, ...ranges.tailWidthFactor);
@@ -664,6 +881,9 @@ function synchroniseBodySegments(body, ranges) {
   body.midInset = mid.inset;
   body.tailWidthFactor = rear.tailWidthFactor;
   body.tailCurve = rear.curve;
+  if (!body.style) {
+    body.style = body.segments?.style ?? null;
+  }
 
   return body;
 }
@@ -736,15 +956,20 @@ function createTopDownConfig(categoryKey, def, palette) {
     wingDihedral *= 0.6;
   }
 
+  const bodySegments = createBodySegments(segmentRanges);
+  const widthScale = clamp(bodySegments.widthScale ?? 1, 0.6, 1.6);
+
   const body = {
     length: bodyLength,
-    halfWidth: bodyHalfWidth,
+    halfWidth: bodyHalfWidth * widthScale,
     startPercent: (ranges.body_start ?? 0) / 100,
     endPercent: (ranges.body_end ?? 100) / 100,
-    segments: createBodySegments(segmentRanges),
+    segments: bodySegments,
     plating: nextRandom() < def.features.platingProbability,
   };
   synchroniseBodySegments(body, segmentRanges);
+  body.style = bodySegments.style;
+  body.widthScale = widthScale;
 
   const cockpit = {
     width: percentToBody(pickPercent(ranges.cockpitWidthPercent)),
@@ -787,6 +1012,8 @@ function createTopDownConfig(categoryKey, def, palette) {
     stripeOffset: percentToBody(pickPercent(ranges.stripeStartPercent)),
     antenna: nextRandom() < def.features.antennaProbability,
   };
+
+  cockpit.canopyFraming = pickCanopyFraming(body.style);
 
   const armament = computeArmamentLoadout(body, wingsConfig, engine, details, cockpit);
 
@@ -913,6 +1140,12 @@ function normaliseTopDownConfig(copy) {
       };
       synchroniseBodySegments(copy.body, segmentRanges);
     }
+  }
+  if (!copy.cockpit) {
+    copy.cockpit = {};
+  }
+  if (!copy.cockpit.canopyFraming) {
+    copy.cockpit.canopyFraming = pickCanopyFraming(copy.body?.style ?? copy.body?.segments?.style ?? null);
   }
   copy.armament = normaliseArmament(copy);
   return copy;
