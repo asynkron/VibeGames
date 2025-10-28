@@ -124,39 +124,22 @@ export function computeSegmentGeometry(body, axis = buildBodyAxis(body)) {
 
 function buildNeedleFrontSegmentPath(geometry) {
   const { nose, nodes, frontCurve, format } = geometry;
-  const transitionNode = nodes[0] ?? {
+  const shoulderNode = nodes[1] ?? nodes[0] ?? {
     width: nose.width * 1.2,
     y: nose.y + Math.max(frontCurve, 8),
   };
-  const shoulderNode = nodes[1] ?? transitionNode;
-  const frontNodes = [
-    { width: nose.width, y: nose.y },
-    { width: transitionNode.width, y: transitionNode.y },
-  ];
+  const apexY = format(nose.y - Math.max(frontCurve, 6));
+  const baseY = format(shoulderNode.y);
+  const baseRightX = format(100 + shoulderNode.width);
+  const baseLeftX = format(100 - shoulderNode.width);
 
-  if (shoulderNode !== transitionNode) {
-    frontNodes.push({ width: shoulderNode.width, y: shoulderNode.y });
-  } else {
-    // Ensure we have a shoulder point so the isolated segment closes cleanly.
-    frontNodes.push({
-      width: shoulderNode.width,
-      y: shoulderNode.y + Math.max(frontCurve * 0.35, 6),
-    });
-  }
-
-  const pathOptions = {
-    startCap: { type: "nose", curve: frontCurve },
-    forwardTensions: new Array(Math.max(frontNodes.length - 1, 1)).fill(0.6),
-    reverseTensions: new Array(Math.max(frontNodes.length - 1, 1)).fill(0.6),
-    format,
-  };
-
-  return buildSegmentOutline(frontNodes, pathOptions);
+  return [`M 100 ${apexY}`, `L ${baseRightX} ${baseY}`, `L ${baseLeftX} ${baseY}`, "Z"].join(" ");
 }
 
 function buildNeedleHullPath(geometry) {
   const { nose, nodes, tail, frontCurve, tailCurve, format } = geometry;
-  const apexY = format(nose.y - frontCurve);
+  const noseCurve = Math.max(frontCurve, 6);
+  const apexY = format(nose.y - noseCurve);
   const baseNode = nodes[1] ?? nodes[0] ?? nose;
   const baseIndex = nodes[1] ? 1 : nodes[0] ? 0 : -1;
   const baseY = format(baseNode.y);
@@ -496,6 +479,28 @@ function buildClosedPathFromSamples(topPoints, bottomPoints, format) {
   return commands.join(" ");
 }
 
+function buildNeedleSideTrianglePath(topPoints, bottomPoints, apexX, apexY, format) {
+  if (!topPoints.length || !bottomPoints.length) {
+    return "";
+  }
+
+  const tipX = format(apexX);
+  const tipY = format(apexY);
+  const commands = [`M ${tipX} ${tipY}`, `L ${format(topPoints[0][0])} ${format(topPoints[0][1])}`];
+
+  for (let i = 1; i < topPoints.length; i += 1) {
+    commands.push(`L ${format(topPoints[i][0])} ${format(topPoints[i][1])}`);
+  }
+
+  for (let i = bottomPoints.length - 1; i >= 0; i -= 1) {
+    commands.push(`L ${format(bottomPoints[i][0])} ${format(bottomPoints[i][1])}`);
+  }
+
+  commands.push(`L ${tipX} ${tipY}`);
+  commands.push("Z");
+  return commands.join(" ");
+}
+
 function sampleAnchoredCurve(anchors, start, end, noseX, format) {
   const result = [];
   const span = Math.max(end - start, 1);
@@ -702,12 +707,24 @@ export function createSideProfileAnchors(profile, segments, geometry, options = 
     bottomAnchors.splice(1, 0, [tipChinX, mix(noseBottom, belly, chinBlendTaper)]);
   }
 
+  const triangle = useNeedleTriangle
+    ? {
+        apexInset: clamp(
+          frontLength * (0.24 + needleInfluence * 0.18) + (frontSegment?.curve ?? body.noseCurve ?? 18) * 0.12,
+          frontLength * 0.14,
+          frontLength * 0.45,
+        ),
+        apexBlend: clamp(0.44 - needleInfluence * 0.18, 0.22, 0.56),
+      }
+    : null;
+
   const noseX = profile.axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
 
   return {
     noseX,
     topAnchors,
     bottomAnchors,
+    triangle,
     boundaries: hasSegments
       ? {
           front: shoulderX,
@@ -773,8 +790,21 @@ function buildSideSegmentedHull(profile) {
     format,
   );
 
-  const hullPath = buildClosedPathFromSamples(hullTop, hullBottom, format);
+  let hullPath = buildClosedPathFromSamples(hullTop, hullBottom, format);
   const segmentPaths = {};
+  const triangle = anchors.triangle ?? null;
+  let apexX = noseX;
+  let apexY = hullTop[0]?.[1] ?? 100;
+
+  if (triangle) {
+    const inset = clamp(triangle.apexInset ?? profile.noseLength * 0.2, profile.length * 0.08, profile.noseLength * 0.65);
+    const blend = clamp(triangle.apexBlend ?? 0.5, 0, 1);
+    const noseTop = anchors.topAnchors?.[0]?.[1] ?? apexY;
+    const noseBottom = anchors.bottomAnchors?.[0]?.[1] ?? noseTop;
+    apexX = noseX - inset;
+    apexY = noseTop + (noseBottom - noseTop) * blend;
+    hullPath = buildNeedleSideTrianglePath(hullTop, hullBottom, apexX, apexY, format);
+  }
 
   const segments = [
     ["front", 0, anchors.boundaries.front],
@@ -790,6 +820,12 @@ function buildSideSegmentedHull(profile) {
     const bottom = sampleAnchoredCurve(anchors.bottomAnchors, start, end, noseX, format);
     segmentPaths[key] = buildClosedPathFromSamples(top, bottom, format);
   });
+
+  if (triangle && (anchors.boundaries?.front ?? 0) > 0.1) {
+    const frontTop = sampleAnchoredCurve(anchors.topAnchors, 0, anchors.boundaries.front, noseX, format);
+    const frontBottom = sampleAnchoredCurve(anchors.bottomAnchors, 0, anchors.boundaries.front, noseX, format);
+    segmentPaths.front = buildNeedleSideTrianglePath(frontTop, frontBottom, apexX, apexY, format);
+  }
 
   return { hullPath, segmentPaths };
 }

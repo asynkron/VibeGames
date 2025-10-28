@@ -17,6 +17,7 @@ import {
   getDeltaWingSide,
   getWingSidePoints,
 } from "./renderParts.js";
+import { applySideSegmentProfiles } from "./geometry.js";
 import { clamp } from "./math.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -89,10 +90,10 @@ const FRONT_SEGMENT_VARIANTS = [
       front: {
         type: "needle",
         length: 36,
-        tipWidthFactor: 0.12,
-        shoulderWidthFactor: 1.06,
-        transitionFactor: 0.82,
-        curve: 28,
+        tipWidthFactor: 0.08,
+        shoulderWidthFactor: 1.08,
+        transitionFactor: 0.76,
+        curve: 32,
       },
     }),
   },
@@ -131,12 +132,12 @@ const MID_SEGMENT_VARIANTS = [
       mid: {
         type: "slim",
         length: 52,
-        waistWidthFactor: 0.82,
-        bellyWidthFactor: 0.96,
-        trailingWidthFactor: 0.92,
+        waistWidthFactor: 0.74,
+        bellyWidthFactor: 0.9,
+        trailingWidthFactor: 0.84,
         waistPosition: 0.34,
         bellyPosition: 0.7,
-        inset: 18,
+        inset: 20,
       },
     }),
   },
@@ -146,12 +147,12 @@ const MID_SEGMENT_VARIANTS = [
       mid: {
         type: "bulwark",
         length: 46,
-        waistWidthFactor: 1.02,
-        bellyWidthFactor: 1.18,
-        trailingWidthFactor: 1.08,
+        waistWidthFactor: 1.18,
+        bellyWidthFactor: 1.32,
+        trailingWidthFactor: 1.22,
         waistPosition: 0.42,
         bellyPosition: 0.8,
-        inset: 10,
+        inset: 8,
       },
     }),
   },
@@ -161,9 +162,9 @@ const MID_SEGMENT_VARIANTS = [
       mid: {
         type: "modular",
         length: 48,
-        waistWidthFactor: 0.92,
-        bellyWidthFactor: 1.04,
-        trailingWidthFactor: 0.98,
+        waistWidthFactor: 0.9,
+        bellyWidthFactor: 1.1,
+        trailingWidthFactor: 1.02,
         waistPosition: 0.36,
         bellyPosition: 0.72,
         inset: 14,
@@ -193,11 +194,11 @@ const REAR_SEGMENT_VARIANTS = [
       rear: {
         type: "thruster",
         length: 38,
-        baseWidthFactor: 1.12,
-        exhaustWidthFactor: 0.82,
-        tailWidthFactor: 0.66,
-        exhaustPosition: 0.76,
-        curve: 26,
+        baseWidthFactor: 1.26,
+        exhaustWidthFactor: 0.96,
+        tailWidthFactor: 0.7,
+        exhaustPosition: 0.78,
+        curve: 24,
       },
     }),
   },
@@ -207,11 +208,11 @@ const REAR_SEGMENT_VARIANTS = [
       rear: {
         type: "block",
         length: 40,
-        baseWidthFactor: 1.18,
-        exhaustWidthFactor: 0.9,
-        tailWidthFactor: 0.74,
+        baseWidthFactor: 1.3,
+        exhaustWidthFactor: 0.92,
+        tailWidthFactor: 0.82,
         exhaustPosition: 0.68,
-        curve: 24,
+        curve: 16,
       },
     }),
   },
@@ -443,27 +444,14 @@ function createProfile(body, axis) {
     offsetY: 0,
     plating: true,
     axis,
-    sideAnchorConfig: {
-      front: {
-        topSecondBlend: 0.28,
-        topEndBlend: 0.16,
-        bottomSecondBlend: 0.42,
-        bottomEndBlend: 0.48,
-        needleSharpness: 0.8,
-      },
-      mid: {
-        topDip: 0.08,
-        topCrestOffset: 0.04,
-      },
-      rear: {
-        topBlend: 0.62,
-        bottomBlend: 0.7,
-      },
-    },
   };
 
   profile.noseX = axis.side.nose;
   profile.tailX = axis.side.tail;
+
+  const percentToBody = (percent) => (percent / 100) * body.length;
+  applySideSegmentProfiles(profile, body, percentToBody);
+
   profile.hullAnchors = null;
   profile.segmentAnchors = null;
   return profile;
@@ -714,7 +702,7 @@ function paintSideSegment(svg, body, profile, sideHull, segment, options = {}) {
 }
 
 function paintFullTopHull(svg, body, options = {}) {
-  const { highlight, showPlating = true, baseOpacity = 0.45 } = options;
+  const { highlight, showPlating = true, baseOpacity = 0.45, showOutline = true } = options;
   const segments = getTopSegmentPaths(body) ?? {};
   const frontPath = body.segments.front.type === "needle"
     ? getNeedleTop({ body }, { segments }) ?? segments.front
@@ -754,16 +742,18 @@ function paintFullTopHull(svg, body, options = {}) {
     });
   }
 
-  const hull = getTopHullPath(body);
-  appendPath(svg, hull, {
-    fill: "none",
-    stroke: palette.accent,
-    strokeWidth: 1.8,
-  });
+  if (showOutline) {
+    const hull = getTopHullPath(body);
+    appendPath(svg, hull, {
+      fill: "none",
+      stroke: palette.accent,
+      strokeWidth: 1.8,
+    });
+  }
 }
 
 function paintFullSideHull(svg, body, profile, sideHull, options = {}) {
-  const { highlight, showIntake = true, baseOpacity = 0.45 } = options;
+  const { highlight, showIntake = true, baseOpacity = 0.45, showOutline = true } = options;
   const segmentPaths = sideHull.segmentPaths ?? {};
   const frontPath = body.segments.front.type === "needle"
     ? getNeedleSide({ body }, profile, { segmentPaths }) ?? segmentPaths.front
@@ -803,11 +793,13 @@ function paintFullSideHull(svg, body, profile, sideHull, options = {}) {
     });
   }
 
-  appendPath(svg, sideHull.hullPath, {
-    fill: "none",
-    stroke: palette.accent,
-    strokeWidth: 1.8,
-  });
+  if (showOutline) {
+    appendPath(svg, sideHull.hullPath, {
+      fill: "none",
+      stroke: palette.accent,
+      strokeWidth: 1.8,
+    });
+  }
 }
 
 function getWingTopPoints(config, axis) {
@@ -1220,7 +1212,7 @@ function renderCompositeVariants() {
     const wingSide = getWingSidePointsForConfig(config, planform, profile, axis);
 
     addCompositeFigure(topContainer, label, (svg) => {
-      paintFullTopHull(svg, config.body, { baseOpacity: 0.6 });
+      paintFullTopHull(svg, config.body, { baseOpacity: 0.6, showOutline: false });
       paintWingTop(svg, wingTop, { opacity: 0.85, showAccent: config.wings?.tipAccent !== false });
       if (config.armament?.mount === "wing") {
         renderWingOrdnanceTop(svg, config, axis);
@@ -1230,7 +1222,7 @@ function renderCompositeVariants() {
     });
 
     addCompositeFigure(sideContainer, label, (svg) => {
-      paintFullSideHull(svg, config.body, profile, sideHull, { baseOpacity: 0.6 });
+      paintFullSideHull(svg, config.body, profile, sideHull, { baseOpacity: 0.6, showOutline: false });
       paintWingSide(svg, wingSide, { opacity: 0.85 });
       if (config.armament?.mount === "wing") {
         renderWingOrdnanceSide(svg, config, planform, profile, axis);
