@@ -1,0 +1,16 @@
+{
+  "name": "sprite-generator",
+  "version": "1.0.0",
+  "description": "SpriteGenerator is a playground for composing modular SVG sprites. The first module focuses on procedural spaceships that are assembled from themed parts and animated with subtle CRT inspired motion. The viewer shows a parent configuration and generates a grid of offspring variants that mutate individual parts without losing the ship's archetype.",
+  "main": "color.js",
+  "type": "module",
+  "scripts": {
+    "export:debug": "node scripts/exportDebugParts.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "jsdom": "^27.0.1"
+  }
+}
