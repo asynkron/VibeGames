@@ -122,7 +122,39 @@ export function computeSegmentGeometry(body, axis = buildBodyAxis(body)) {
   };
 }
 
-function buildNeedleFrontPath(geometry) {
+function buildNeedleFrontSegmentPath(geometry) {
+  const { nose, nodes, frontCurve, format } = geometry;
+  const transitionNode = nodes[0] ?? {
+    width: nose.width * 1.2,
+    y: nose.y + Math.max(frontCurve, 8),
+  };
+  const shoulderNode = nodes[1] ?? transitionNode;
+  const frontNodes = [
+    { width: nose.width, y: nose.y },
+    { width: transitionNode.width, y: transitionNode.y },
+  ];
+
+  if (shoulderNode !== transitionNode) {
+    frontNodes.push({ width: shoulderNode.width, y: shoulderNode.y });
+  } else {
+    // Ensure we have a shoulder point so the isolated segment closes cleanly.
+    frontNodes.push({
+      width: shoulderNode.width,
+      y: shoulderNode.y + Math.max(frontCurve * 0.35, 6),
+    });
+  }
+
+  const pathOptions = {
+    startCap: { type: "nose", curve: frontCurve },
+    forwardTensions: new Array(Math.max(frontNodes.length - 1, 1)).fill(0.6),
+    reverseTensions: new Array(Math.max(frontNodes.length - 1, 1)).fill(0.6),
+    format,
+  };
+
+  return buildSegmentOutline(frontNodes, pathOptions);
+}
+
+function buildNeedleHullPath(geometry) {
   const { nose, nodes, tail, frontCurve, tailCurve, format } = geometry;
   const apexY = format(nose.y - frontCurve);
   const baseNode = nodes[1] ?? nodes[0] ?? nose;
@@ -190,7 +222,7 @@ export function getTopHullPath(body) {
   const needleAsTriangle = frontType === "needle";
 
   if (needleAsTriangle) {
-    return buildNeedleFrontPath(geometry);
+    return buildNeedleHullPath(geometry);
   }
 
   commands.push(`M ${format(100 - nose.width)} ${format(nose.y)}`);
@@ -231,16 +263,13 @@ export function getTopSegmentPaths(body) {
   const midNodes = [nodes[1], nodes[2], nodes[3], nodes[4]];
   const rearNodes = [nodes[4], nodes[5], nodes[6], tail];
 
-  let frontPath;
-  if (body.segments?.front?.type === "needle") {
-    frontPath = buildNeedleFrontPath(geometry);
-  } else {
-    frontPath = buildSegmentOutline(frontNodes, {
+  const frontPath = body.segments?.front?.type === "needle"
+    ? buildNeedleFrontSegmentPath(geometry)
+    : buildSegmentOutline(frontNodes, {
       startCap: { type: "nose", curve: frontCurve },
       forwardTensions: [0.6, 0.6],
       format,
     });
-  }
 
   const midPath = buildSegmentOutline(midNodes, {
     forwardTensions: [0.6, 0.6, 0.6],
