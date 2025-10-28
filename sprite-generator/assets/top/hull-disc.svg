@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <ellipse
+    data-fill="hull"
+    data-stroke="outline"
+    stroke-width="3"
+    cx="100"
+    cy="112"
+    rx="58"
+    ry="70"
+  />
+  <circle data-fill="detail" cx="100" cy="76" r="12" />
+</svg>

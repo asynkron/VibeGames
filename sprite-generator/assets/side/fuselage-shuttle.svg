@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <path
+    data-fill="hull"
+    data-stroke="outline"
+    stroke-width="2.4"
+    d="M42 134 L154 134 L170 128 L170 110 L154 104 L102 84 L60 84 L42 100 Z"
+  />
+  <path data-stroke="markings" stroke-width="2" fill="none" d="M72 96 L130 112" />
+</svg>

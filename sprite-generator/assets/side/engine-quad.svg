@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect data-fill="thruster" data-stroke="outline" stroke-width="1.6" x="124" y="118" width="10" height="18" rx="2" />
+  <rect data-fill="thruster" data-stroke="outline" stroke-width="1.6" x="136" y="122" width="10" height="18" rx="2" />
+  <rect data-fill="thruster" data-stroke="outline" stroke-width="1.6" x="148" y="122" width="10" height="18" rx="2" />
+  <rect data-fill="thruster" data-stroke="outline" stroke-width="1.6" x="160" y="118" width="10" height="18" rx="2" />
+  <rect data-fill="exhaust" x="124" y="134" width="10" height="4" rx="2" />
+  <rect data-fill="exhaust" x="136" y="138" width="10" height="4" rx="2" />
+  <rect data-fill="exhaust" x="148" y="138" width="10" height="4" rx="2" />
+  <rect data-fill="exhaust" x="160" y="134" width="10" height="4" rx="2" />
+</svg>

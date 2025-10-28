@@ -52,7 +52,7 @@ function updateDebugToggleButton() {
 
 if (hasGeneratorUi) {
   populateCategorySelect();
-  initialise();
+  initialise().catch((error) => console.error(error));
 }
 
 function populateCategorySelect() {
@@ -65,49 +65,49 @@ function populateCategorySelect() {
   categorySelect.value = currentCategory;
 }
 
-function initialise() {
+async function initialise() {
   parentConfig = createBaseConfig(currentCategory);
   selectedConfig = cloneConfig(parentConfig);
-  renderDetail(selectedConfig);
-  renderGrid();
+  await renderDetail(selectedConfig);
+  await renderGrid();
 
-  categorySelect.addEventListener("change", () => {
+  categorySelect.addEventListener("change", async () => {
     currentCategory = categorySelect.value;
     parentConfig = createBaseConfig(currentCategory);
     selectedConfig = cloneConfig(parentConfig);
-    renderDetail(selectedConfig);
-    renderGrid();
+    await renderDetail(selectedConfig);
+    await renderGrid();
   });
 
-  newSeedButton.addEventListener("click", () => {
+  newSeedButton.addEventListener("click", async () => {
     parentConfig = createBaseConfig(currentCategory);
     selectedConfig = cloneConfig(parentConfig);
-    renderDetail(selectedConfig);
-    renderGrid();
+    await renderDetail(selectedConfig);
+    await renderGrid();
   });
 
-  shufflePaletteButton.addEventListener("click", () => {
+  shufflePaletteButton.addEventListener("click", async () => {
     const updated = cloneConfig(parentConfig);
     updated.palette = pickPalette(updated.palette.name);
     parentConfig = updated;
     selectedConfig = cloneConfig(updated);
-    renderDetail(selectedConfig);
-    renderGrid();
+    await renderDetail(selectedConfig);
+    await renderGrid();
   });
 
   if (debugToggleButton) {
-    debugToggleButton.addEventListener("click", () => {
+    debugToggleButton.addEventListener("click", async () => {
       const nextValue = !isDebugColorsEnabled();
       setDebugColorsEnabled(nextValue);
       updateDebugToggleButton();
-      renderDetail(selectedConfig);
-      renderGrid();
+      await renderDetail(selectedConfig);
+      await renderGrid();
     });
     updateDebugToggleButton();
   }
 }
 
-function renderGrid() {
+async function renderGrid() {
   spriteGrid.innerHTML = "";
 
   const configs = [];
@@ -116,19 +116,25 @@ function renderGrid() {
     configs.push(mutateConfig(parentConfig));
   }
 
-  configs.forEach((config, index) => {
-    const card = createSpriteCard(config, index === 0);
-    card.addEventListener("click", () => {
-      parentConfig = cloneConfig(config);
-      selectedConfig = cloneConfig(config);
-      renderDetail(selectedConfig);
-      renderGrid();
-    });
+  const cards = await Promise.all(
+    configs.map(async (config, index) => {
+      const card = await createSpriteCard(config, index === 0);
+      card.addEventListener("click", async () => {
+        parentConfig = cloneConfig(config);
+        selectedConfig = cloneConfig(config);
+        await renderDetail(selectedConfig);
+        await renderGrid();
+      });
+      return card;
+    }),
+  );
+
+  cards.forEach((card) => {
     spriteGrid.appendChild(card);
   });
 }
 
-function createSpriteCard(config, isParent) {
+async function createSpriteCard(config, isParent) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "sprite-card";
@@ -143,15 +149,15 @@ function createSpriteCard(config, isParent) {
     viewportWrapper.classList.add("dual");
 
     const topSvg = createViewportSvg("Top-down spaceship preview");
-    renderSpaceship(topSvg, config, { viewMode: "top", drawFrame: true });
+    await renderSpaceship(topSvg, config, { viewMode: "top", drawFrame: true });
 
     const sideSvg = createViewportSvg("Side profile spaceship preview");
-    renderSpaceship(sideSvg, config, { viewMode: "side", drawFrame: true });
+    await renderSpaceship(sideSvg, config, { viewMode: "side", drawFrame: true });
 
     viewportWrapper.append(topSvg, sideSvg);
   } else {
     const singleSvg = createViewportSvg("Spaceship preview");
-    renderSpaceship(singleSvg, config, {
+    await renderSpaceship(singleSvg, config, {
       viewMode: VIEW_MODE.value,
       drawFrame: true,
     });
@@ -179,7 +185,7 @@ function createViewportSvg(label) {
   return svg;
 }
 
-function renderDetail(config) {
+async function renderDetail(config) {
   const mode = VIEW_MODE.value;
 
   if (detailViewportContainer) {
@@ -191,16 +197,16 @@ function renderDetail(config) {
   }
 
   if (mode === "both") {
-    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
-    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
+    await renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
+    await renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
     setViewportVisibility(detailTopView, true);
     setViewportVisibility(detailSideView, true);
   } else if (mode === "side") {
-    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
+    await renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
     setViewportVisibility(detailSideView, true);
     clearViewport(detailTopView);
   } else {
-    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
+    await renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
     setViewportVisibility(detailTopView, true);
     clearViewport(detailSideView);
   }

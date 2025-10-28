@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <path
+    data-fill="hull"
+    data-stroke="outline"
+    stroke-width="3.2"
+    d="M100 24 L148 54 L160 108 L148 152 L100 180 L52 152 L40 108 L52 54 Z"
+  />
+  <rect data-fill="detail" x="78" y="70" width="44" height="34" rx="6" />
+</svg>

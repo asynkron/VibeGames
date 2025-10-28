@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <path
+    data-fill="canopy"
+    data-stroke="outline"
+    stroke-width="1.6"
+    d="M100 82 C112 88 120 100 120 110 C120 120 110 132 100 134 C90 132 80 120 80 110 C80 100 88 88 100 82 Z"
+  />
+</svg>

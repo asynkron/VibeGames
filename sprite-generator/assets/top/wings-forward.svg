@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <path
+    data-fill="wing"
+    data-stroke="outline"
+    stroke-width="2.4"
+    d="M100 94 L30 118 L94 82 Z"
+  />
+  <path
+    data-fill="wing"
+    data-stroke="outline"
+    stroke-width="2.4"
+    d="M100 94 L170 118 L106 82 Z"
+  />
+</svg>

@@ -12,7 +12,6 @@ const DEBUG_PART_COLORS = {
 };
 
 let debugColorsEnabled = false;
-let renderCounter = 0;
 
 export function isDebugColorsEnabled() {
   return debugColorsEnabled;
@@ -30,7 +29,3 @@ export function partStroke(part, fallback) {
   return debugColorsEnabled ? DEBUG_PART_COLORS[part] ?? fallback : fallback;
 }
 
-export function nextRenderId() {
-  renderCounter += 1;
-  return renderCounter;
-}

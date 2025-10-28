@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect data-fill="thruster" data-stroke="outline" stroke-width="1.8" x="132" y="120" width="12" height="20" rx="3" />
+  <rect data-fill="thruster" data-stroke="outline" stroke-width="1.8" x="148" y="120" width="12" height="20" rx="3" />
+  <rect data-fill="exhaust" x="132" y="136" width="12" height="4" rx="2" />
+  <rect data-fill="exhaust" x="148" y="136" width="12" height="4" rx="2" />
+</svg>

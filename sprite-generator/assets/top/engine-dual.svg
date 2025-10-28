@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle data-fill="thruster" data-stroke="outline" stroke-width="2" cx="82" cy="164" r="12" />
+  <circle data-fill="thruster" data-stroke="outline" stroke-width="2" cx="118" cy="164" r="12" />
+  <circle data-fill="exhaust" cx="82" cy="164" r="6" />
+  <circle data-fill="exhaust" cx="118" cy="164" r="6" />
+</svg>

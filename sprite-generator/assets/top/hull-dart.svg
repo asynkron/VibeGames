@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <path
+    data-fill="hull"
+    data-stroke="outline"
+    stroke-width="2.5"
+    d="M100 16 L136 68 L126 150 L100 186 L74 150 L64 68 Z"
+  />
+  <circle data-fill="detail" cx="100" cy="70" r="8" />
+</svg>

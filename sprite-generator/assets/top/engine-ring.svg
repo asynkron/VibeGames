@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <ellipse data-stroke="outline" stroke-width="2.4" fill="none" cx="100" cy="160" rx="46" ry="18" />
+  <ellipse data-fill="thruster" cx="100" cy="160" rx="36" ry="12" />
+  <ellipse data-fill="exhaust" cx="100" cy="160" rx="20" ry="6" />
+</svg>
