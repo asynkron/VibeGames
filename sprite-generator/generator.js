@@ -1,5 +1,6 @@
 import { computeWingPlanform } from "./renderParts.js";
 import { createSpaceshipFactories } from "./factories/index.js";
+import { DEFAULT_PART_LIBRARY } from "./factories/BaseSpaceshipFactory.js";
 import { clamp } from "./math.js";
 import { mixColor } from "./color.js";
 import { drawTopDownSpaceship } from "./renderTopView.js";
@@ -15,27 +16,113 @@ const NORMALISED_HULL_LENGTH = 100;
 let CATEGORY_DEFINITIONS = {};
 let FACTORY_REGISTRY = new Map();
 
-const BODY_STYLE_VARIANTS = [
+const ENGINE_STYLE_PRESETS = {
+  jet: {
+    key: "jet",
+    type: "jet",
+    mountPercentRange: [0.78, 1.0],
+    nozzleScaleRange: [0.9, 1.12],
+    glow: true,
+  },
+  turbofan: {
+    key: "turbofan",
+    type: "jet",
+    mountPercentRange: [0.7, 0.9],
+    nozzleScaleRange: [0.7, 0.95],
+    glow: false,
+  },
+  propeller: {
+    key: "propeller",
+    type: "propeller",
+    mountPercentRange: [0.02, 0.12],
+    bladeCountRange: [2, 4],
+    bladeWidthRatioRange: [0.16, 0.24],
+    spinnerLengthRatioRange: [0.55, 0.85],
+    radiusScaleRange: [1.08, 1.32],
+  },
+  radial: {
+    key: "radial",
+    type: "propeller",
+    mountPercentRange: [0.05, 0.18],
+    bladeCountRange: [3, 5],
+    bladeWidthRatioRange: [0.18, 0.28],
+    spinnerLengthRatioRange: [0.68, 0.95],
+    radiusScaleRange: [1.24, 1.45],
+  },
+};
+
+const COLOR_PALETTES = [
   {
-    key: "skinny",
-    frontTypes: ["needle"],
-    midTypes: ["slim", "modular"],
-    rearTypes: ["tapered"],
-    widthScaleRange: [0.78, 0.9],
+    name: "Photon Ember",
+    primary: "#28395a",
+    secondary: "#142035",
+    accent: "#f9813a",
+    trim: "#fcd34d",
+    cockpit: "#7ed4ff",
+    glow: "#fbbf24",
   },
   {
-    key: "normal",
-    frontTypes: ["needle", "canopy", "ram"],
-    midTypes: ["slim", "modular"],
-    rearTypes: ["tapered", "thruster"],
-    widthScaleRange: [0.95, 1.05],
+    name: "Vanta Bloom",
+    primary: "#1b1f3b",
+    secondary: "#0d1321",
+    accent: "#90cdf4",
+    trim: "#f0f4ff",
+    cockpit: "#a5f3fc",
+    glow: "#7dd3fc",
   },
   {
-    key: "bulky",
-    frontTypes: ["canopy", "ram"],
-    midTypes: ["modular", "bulwark"],
-    rearTypes: ["thruster", "block"],
-    widthScaleRange: [1.12, 1.28],
+    name: "Nebula Forge",
+    primary: "#302b63",
+    secondary: "#1a1446",
+    accent: "#e94560",
+    trim: "#ffd166",
+    cockpit: "#8ec5ff",
+    glow: "#ff9d5c",
+  },
+  {
+    name: "Aurora Relay",
+    primary: "#254d6b",
+    secondary: "#12263a",
+    accent: "#5eead4",
+    trim: "#f0fdfa",
+    cockpit: "#9ae6b4",
+    glow: "#34d399",
+  },
+  {
+    name: "Solar Courier",
+    primary: "#49392c",
+    secondary: "#2d221c",
+    accent: "#fbbf24",
+    trim: "#fde68a",
+    cockpit: "#fef3c7",
+    glow: "#fcd34d",
+  },
+  {
+    name: "Ion Drift",
+    primary: "#1c2f35",
+    secondary: "#0f1b21",
+    accent: "#5bbaed",
+    trim: "#a5f3fc",
+    cockpit: "#bae6fd",
+    glow: "#38bdf8",
+  },
+  {
+    name: "Crimson Carrier",
+    primary: "#3b1f2b",
+    secondary: "#200912",
+    accent: "#f472b6",
+    trim: "#fbcfe8",
+    cockpit: "#fce7f3",
+    glow: "#fb7185",
+  },
+  {
+    name: "Verdant Relay",
+    primary: "#27413c",
+    secondary: "#11211d",
+    accent: "#4ade80",
+    trim: "#bbf7d0",
+    cockpit: "#86efac",
+    glow: "#34d399",
   },
 ];
 
@@ -71,6 +158,14 @@ function runWithSeed(seed, factory) {
     return factory();
   }
   return runWithRandomSource(createSeededRandom(seed), factory);
+}
+
+function getFactoryPartLibrary(categoryKey) {
+  const factory = FACTORY_REGISTRY.get(categoryKey);
+  if (factory && typeof factory.getPartLibrary === "function") {
+    return factory.getPartLibrary() ?? DEFAULT_PART_LIBRARY;
+  }
+  return DEFAULT_PART_LIBRARY;
 }
 
 function renderSpaceship(svg, config, options = {}) {
@@ -246,13 +341,19 @@ function applyEnginePreset(engine, preset) {
   return engine;
 }
 
-function pickCanopyFraming(styleKey) {
-  const poolByStyle = {
-    skinny: ["single", "split", "split", "triple"],
-    bulky: ["split", "triple", "panoramic", "panoramic"],
-    normal: CANOPY_FRAME_VARIANTS,
+function pickCanopyFraming(styleKey, parts) {
+  const frames = parts?.canopyFrames ?? DEFAULT_PART_LIBRARY.canopyFrames ?? CANOPY_FRAME_VARIANTS;
+  const ensureFrames = (options) => {
+    const filtered = options.filter((option) => frames.includes(option));
+    return filtered.length ? filtered : frames.slice();
   };
-  const pool = poolByStyle[styleKey] ?? poolByStyle.normal ?? CANOPY_FRAME_VARIANTS;
+  const poolByStyle = {
+    skinny: ensureFrames(["single", "split", "split", "triple"]),
+    bulky: ensureFrames(["split", "triple", "panoramic", "panoramic"]),
+    normal: frames.slice(),
+  };
+  const basePool = poolByStyle.normal.length ? poolByStyle.normal : frames.slice();
+  const pool = poolByStyle[styleKey] && poolByStyle[styleKey].length ? poolByStyle[styleKey] : basePool;
   const key = choose(pool);
 
   const base = {
@@ -390,14 +491,16 @@ function chooseVariantByType(variants, allowedTypes) {
   return choose(pool);
 }
 
-function createBodySegments(ranges) {
-  const style = choose(BODY_STYLE_VARIANTS);
-  const widthScale = randomBetween(...(style.widthScaleRange ?? [1, 1]));
+function createBodySegments(ranges, parts) {
+  const styleVariants = parts?.bodyStyles ?? DEFAULT_PART_LIBRARY.bodyStyles;
+  const style = choose(styleVariants);
+  const widthScaleRange = style?.widthScaleRange ?? [1, 1];
+  const widthScale = randomBetween(...widthScaleRange);
 
   const segments = {
-    front: createFrontSegmentVariant(ranges, style),
-    mid: createMidSegmentVariant(ranges, style),
-    rear: createRearSegmentVariant(ranges, style),
+    front: createFrontSegmentVariant(ranges, style, parts),
+    mid: createMidSegmentVariant(ranges, style, parts),
+    rear: createRearSegmentVariant(ranges, style, parts),
     style: style.key,
     widthScale,
   };
@@ -420,8 +523,10 @@ function applySegmentStyleAdjustments(segment, style, adjustmentMap) {
   });
 }
 
-function createFrontSegmentVariant(ranges, style) {
-  const variant = chooseVariantByType(FRONT_SEGMENT_VARIANTS, style?.frontTypes);
+function createFrontSegmentVariant(ranges, style, parts) {
+  const variants = parts?.frontSegments ?? DEFAULT_PART_LIBRARY.frontSegments;
+  const adjustments = parts?.frontStyleAdjustments ?? DEFAULT_PART_LIBRARY.frontStyleAdjustments;
+  const variant = chooseVariantByType(variants, style?.frontTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -431,7 +536,7 @@ function createFrontSegmentVariant(ranges, style) {
     curve: randomBetween(...variant.curveRange),
   };
 
-  applySegmentStyleAdjustments(segment, style, FRONT_STYLE_ADJUSTMENTS);
+  applySegmentStyleAdjustments(segment, style, adjustments);
 
   if (ranges?.noseWidthFactor) {
     segment.tipWidthFactor = clamp(segment.tipWidthFactor, ...ranges.noseWidthFactor);
@@ -442,8 +547,10 @@ function createFrontSegmentVariant(ranges, style) {
   return segment;
 }
 
-function createMidSegmentVariant(ranges, style) {
-  const variant = chooseVariantByType(MID_SEGMENT_VARIANTS, style?.midTypes);
+function createMidSegmentVariant(ranges, style, parts) {
+  const variants = parts?.midSegments ?? DEFAULT_PART_LIBRARY.midSegments;
+  const adjustments = parts?.midStyleAdjustments ?? DEFAULT_PART_LIBRARY.midStyleAdjustments;
+  const variant = chooseVariantByType(variants, style?.midTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -455,7 +562,7 @@ function createMidSegmentVariant(ranges, style) {
     inset: randomBetween(...variant.insetRange),
   };
 
-  applySegmentStyleAdjustments(segment, style, MID_STYLE_ADJUSTMENTS);
+  applySegmentStyleAdjustments(segment, style, adjustments);
 
   if (ranges?.bodyMidInset) {
     segment.inset = clamp(segment.inset, ...ranges.bodyMidInset);
@@ -463,8 +570,10 @@ function createMidSegmentVariant(ranges, style) {
   return segment;
 }
 
-function createRearSegmentVariant(ranges, style) {
-  const variant = chooseVariantByType(REAR_SEGMENT_VARIANTS, style?.rearTypes);
+function createRearSegmentVariant(ranges, style, parts) {
+  const variants = parts?.rearSegments ?? DEFAULT_PART_LIBRARY.rearSegments;
+  const adjustments = parts?.rearStyleAdjustments ?? DEFAULT_PART_LIBRARY.rearStyleAdjustments;
+  const variant = chooseVariantByType(variants, style?.rearTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -475,7 +584,7 @@ function createRearSegmentVariant(ranges, style) {
     curve: randomBetween(...variant.curveRange),
   };
 
-  applySegmentStyleAdjustments(segment, style, REAR_STYLE_ADJUSTMENTS);
+  applySegmentStyleAdjustments(segment, style, adjustments);
 
   if (ranges?.tailWidthFactor) {
     segment.tailWidthFactor = clamp(segment.tailWidthFactor, ...ranges.tailWidthFactor);
@@ -551,11 +660,12 @@ function synchroniseBodySegments(body, ranges) {
 
 function createBaseConfig(categoryKey) {
   const def = CATEGORY_DEFINITIONS[categoryKey];
+  const parts = getFactoryPartLibrary(categoryKey);
   const palette = pickPalette();
-  return normaliseConfig(createTopDownConfig(categoryKey, def, palette));
+  return normaliseConfig(createTopDownConfig(categoryKey, def, palette, parts));
 }
 
-function createTopDownConfig(categoryKey, def, palette) {
+function createTopDownConfig(categoryKey, def, palette, parts) {
   const ranges = def.ranges;
 
   const bodyLengthPercent = (ranges.body_end ?? 100) - (ranges.body_start ?? 0);
@@ -616,7 +726,7 @@ function createTopDownConfig(categoryKey, def, palette) {
     wingDihedral *= 0.6;
   }
 
-  const bodySegments = createBodySegments(segmentRanges);
+  const bodySegments = createBodySegments(segmentRanges, parts);
   const widthScale = clamp(bodySegments.widthScale ?? 1, 0.6, 1.6);
 
   const body = {
@@ -723,7 +833,7 @@ function createTopDownConfig(categoryKey, def, palette) {
     antenna: nextRandom() < def.features.antennaProbability,
   };
 
-  cockpit.canopyFraming = pickCanopyFraming(body.style);
+  cockpit.canopyFraming = pickCanopyFraming(body.style, parts);
 
   const armament = computeArmamentLoadout(body, wingsConfig, engine, details, cockpit);
 
@@ -936,8 +1046,13 @@ function normaliseTopDownConfig(copy) {
   if (!copy.cockpit) {
     copy.cockpit = {};
   }
+  const parts = getFactoryPartLibrary(copy.category);
+
   if (!copy.cockpit.canopyFraming) {
-    copy.cockpit.canopyFraming = pickCanopyFraming(copy.body?.style ?? copy.body?.segments?.style ?? null);
+    copy.cockpit.canopyFraming = pickCanopyFraming(
+      copy.body?.style ?? copy.body?.segments?.style ?? null,
+      parts,
+    );
   }
   copy.armament = normaliseArmament(copy);
   return copy;
