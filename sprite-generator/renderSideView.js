@@ -1,12 +1,4 @@
-import {
-  buildSideHullGeometry,
-  buildSidePanelLines,
-  buildSegmentDividerPath,
-  buildSideIntakePath,
-  getWingSidePoints,
-  getDeltaWingSide,
-  pointsToString,
-} from "./renderParts.js";
+import { getWingSidePoints, getDeltaWingSide, pointsToString } from "./renderParts.js";
 import { clamp, lerp } from "./math.js";
 import { mixColor, shadeColor } from "./color.js";
 import { isDebugColorsEnabled, nextRenderId, partColor, partStroke } from "./renderContext.js";
@@ -22,7 +14,6 @@ function getSideWing(geometry) {
 
 export function drawSideViewSpaceship(root, config, geometry, defs) {
   const axis = geometry.axis;
-  drawSideHull(root, config, geometry, axis);
   drawSideAntenna(root, config, geometry, axis);
   drawSideWing(root, config, geometry, axis);
   drawSideStabiliser(root, config, geometry, axis);
@@ -31,99 +22,6 @@ export function drawSideViewSpaceship(root, config, geometry, defs) {
   drawSideEngines(root, config, geometry, axis);
   drawSideWeapons(root, config, geometry, axis);
   drawSideLights(root, config, geometry, axis);
-}
-
-export function drawSideHull(root, config, geometry, axis) {
-  const { palette } = config;
-  const profile = getSideProfile(geometry);
-  if (!profile) {
-    return;
-  }
-  const group = createSvgElement("g");
-
-  const hullGeometry = buildSideHullGeometry(profile);
-
-  if (hullGeometry.segmentPaths) {
-    const segmentOrder = ["front", "mid", "rear"];
-    const shading = [0.08, 0, -0.08];
-    segmentOrder.forEach((key, index) => {
-      const pathData = hullGeometry.segmentPaths[key];
-      if (!pathData) {
-        return;
-      }
-      const segment = createSvgElement("path", {
-        d: pathData,
-        fill: partColor("hull", shadeColor(palette.primary, shading[index] ?? 0)),
-        stroke: "none",
-      });
-      group.appendChild(segment);
-    });
-
-    if (profile.segmentAnchors?.boundaries) {
-      const seamCommands = [];
-      const { boundaries, topAnchors, bottomAnchors, noseX } = profile.segmentAnchors;
-      const dividerOffsets = [boundaries.front, boundaries.mid];
-      dividerOffsets.forEach((offset) => {
-        const divider = buildSegmentDividerPath(topAnchors, bottomAnchors, noseX, offset);
-        if (divider) {
-          seamCommands.push(divider);
-        }
-      });
-      if (seamCommands.length) {
-        const seams = createSvgElement("path", {
-          d: seamCommands.join(" "),
-          stroke: mixColor(palette.trim, palette.accent, 0.4),
-          "stroke-width": 1.2,
-          "stroke-linecap": "round",
-          fill: "none",
-          opacity: "0.75",
-        });
-        group.appendChild(seams);
-      }
-    }
-
-    const outline = createSvgElement("path", {
-      d: hullGeometry.hullPath,
-      fill: "none",
-      stroke: palette.accent,
-      "stroke-width": 2.4,
-      "stroke-linejoin": "round",
-    });
-    group.appendChild(outline);
-  } else {
-    const hull = createSvgElement("path", {
-      d: hullGeometry.hullPath,
-      fill: partColor("hull", palette.primary),
-      stroke: palette.accent,
-      "stroke-width": 2.4,
-      "stroke-linejoin": "round",
-    });
-    group.appendChild(hull);
-  }
-
-  if (profile.plating) {
-    const plating = createSvgElement("path", {
-      d: buildSidePanelLines(profile),
-      stroke: mixColor(palette.trim, palette.accent, 0.4),
-      "stroke-width": 1.2,
-      "stroke-linecap": "round",
-      fill: "none",
-      opacity: "0.6",
-    });
-    group.appendChild(plating);
-  }
-
-  if (profile.intakeHeight > 0 && profile.intakeDepth > 0) {
-    const intake = createSvgElement("path", {
-      d: buildSideIntakePath(profile),
-      fill: partColor("hull", shadeColor(palette.secondary, -0.2)),
-      stroke: palette.trim,
-      "stroke-width": 1.2,
-    });
-    group.appendChild(intake);
-  }
-
-  root.appendChild(group);
 }
 
 export function drawSideAntenna(root, config, geometry, axis) {
