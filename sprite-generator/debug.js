@@ -665,7 +665,55 @@ function appendLine(svg, x1, y1, x2, y2, options = {}) {
   return line;
 }
 
-function paintTopHull(svg, body, options = {}) {
+function paintTopSegment(svg, body, segment, options = {}) {
+  const { strokeWidth = 2.2, fill = palette.primary } = options;
+  const segments = getTopSegmentPaths(body) ?? {};
+  const frontPath = body.segments.front.type === "needle"
+    ? getNeedleTop({ body }, { segments }) ?? segments.front
+    : segments.front;
+  const segmentPath = segment === "front"
+    ? frontPath
+    : segment === "mid"
+      ? segments.mid
+      : segments.rear;
+
+  if (!segmentPath) {
+    return;
+  }
+
+  appendPath(svg, segmentPath, {
+    fill,
+    stroke: palette.accent,
+    strokeWidth,
+    lineJoin: "round",
+  });
+}
+
+function paintSideSegment(svg, body, profile, sideHull, segment, options = {}) {
+  const { strokeWidth = 2, fill = palette.primary } = options;
+  const segmentPaths = sideHull.segmentPaths ?? {};
+  const frontPath = body.segments.front.type === "needle"
+    ? getNeedleSide({ body }, profile, { segmentPaths }) ?? segmentPaths.front
+    : segmentPaths.front;
+  const segmentPath = segment === "front"
+    ? frontPath
+    : segment === "mid"
+      ? segmentPaths.mid
+      : segmentPaths.rear;
+
+  if (!segmentPath) {
+    return;
+  }
+
+  appendPath(svg, segmentPath, {
+    fill,
+    stroke: palette.accent,
+    strokeWidth,
+    lineJoin: "round",
+  });
+}
+
+function paintFullTopHull(svg, body, options = {}) {
   const { highlight, showPlating = true, baseOpacity = 0.45 } = options;
   const segments = getTopSegmentPaths(body) ?? {};
   const frontPath = body.segments.front.type === "needle"
@@ -714,7 +762,7 @@ function paintTopHull(svg, body, options = {}) {
   });
 }
 
-function paintSideHull(svg, body, profile, sideHull, options = {}) {
+function paintFullSideHull(svg, body, profile, sideHull, options = {}) {
   const { highlight, showIntake = true, baseOpacity = 0.45 } = options;
   const segmentPaths = sideHull.segmentPaths ?? {};
   const frontPath = body.segments.front.type === "needle"
@@ -1064,10 +1112,10 @@ function renderSegmentGroups() {
     const { profile } = prepareProfile(body, axis);
     const sideHull = buildSideHullGeometry(profile);
     addCompositeFigure(frontTop, label, (svg) => {
-      paintTopHull(svg, body, { highlight: "front" });
+      paintTopSegment(svg, body, "front");
     });
     addCompositeFigure(frontSide, label, (svg) => {
-      paintSideHull(svg, body, profile, sideHull, { highlight: "front" });
+      paintSideSegment(svg, body, profile, sideHull, "front");
     });
   });
 
@@ -1076,10 +1124,10 @@ function renderSegmentGroups() {
     const { profile } = prepareProfile(body, axis);
     const sideHull = buildSideHullGeometry(profile);
     addCompositeFigure(midTop, label, (svg) => {
-      paintTopHull(svg, body, { highlight: "mid" });
+      paintTopSegment(svg, body, "mid", { fill: shadeColor(palette.primary, -0.2) });
     });
     addCompositeFigure(midSide, label, (svg) => {
-      paintSideHull(svg, body, profile, sideHull, { highlight: "mid" });
+      paintSideSegment(svg, body, profile, sideHull, "mid", { fill: shadeColor(palette.primary, -0.2) });
     });
   });
 
@@ -1088,10 +1136,10 @@ function renderSegmentGroups() {
     const { profile } = prepareProfile(body, axis);
     const sideHull = buildSideHullGeometry(profile);
     addCompositeFigure(rearTop, label, (svg) => {
-      paintTopHull(svg, body, { highlight: "rear" });
+      paintTopSegment(svg, body, "rear", { fill: shadeColor(palette.primary, -0.1) });
     });
     addCompositeFigure(rearSide, label, (svg) => {
-      paintSideHull(svg, body, profile, sideHull, { highlight: "rear" });
+      paintSideSegment(svg, body, profile, sideHull, "rear", { fill: shadeColor(palette.primary, -0.1) });
     });
   });
 }
@@ -1104,17 +1152,14 @@ function renderWingVariants() {
     const axis = buildBodyAxis(config.body);
     const { profile } = prepareProfile(config.body, axis);
     const planform = computeWingPlanform(config.body, config.wings);
-    const sideHull = buildSideHullGeometry(profile);
     const wingTop = getWingTopPoints(config, axis);
     const wingSide = getWingSidePointsForConfig(config, planform, profile, axis);
 
     addCompositeFigure(topContainer, label, (svg) => {
-      paintTopHull(svg, config.body, { showPlating: false, baseOpacity: 0.25 });
       paintWingTop(svg, wingTop, { opacity: 0.95, showAccent: config.wings.tipAccent !== false });
     });
 
     addCompositeFigure(sideContainer, label, (svg) => {
-      paintSideHull(svg, config.body, profile, sideHull, { showIntake: false, baseOpacity: 0.25 });
       paintWingSide(svg, wingSide, { opacity: 0.95 });
     });
   });
@@ -1130,19 +1175,12 @@ function renderArmamentVariants() {
     const axis = buildBodyAxis(config.body);
     const { profile } = prepareProfile(config.body, axis);
     const planform = computeWingPlanform(config.body, config.wings);
-    const sideHull = buildSideHullGeometry(profile);
-    const wingTopPoints = getWingTopPoints(config, axis);
-    const wingSidePoints = getWingSidePointsForConfig(config, planform, profile, axis);
 
     addCompositeFigure(wingTop, label, (svg) => {
-      paintTopHull(svg, config.body, { baseOpacity: 0.25 });
-      paintWingTop(svg, wingTopPoints, { opacity: 0.85, showAccent: config.wings.tipAccent !== false });
       renderWingOrdnanceTop(svg, config, axis);
     });
 
     addCompositeFigure(wingSide, label, (svg) => {
-      paintSideHull(svg, config.body, profile, sideHull, { baseOpacity: 0.25 });
-      paintWingSide(svg, wingSidePoints, { opacity: 0.85 });
       renderWingOrdnanceSide(svg, config, planform, profile, axis);
     });
   });
@@ -1150,15 +1188,12 @@ function renderArmamentVariants() {
   ARMAMENT_NOSE_VARIANTS.forEach(({ label, config }) => {
     const axis = buildBodyAxis(config.body);
     const { profile } = prepareProfile(config.body, axis);
-    const sideHull = buildSideHullGeometry(profile);
 
     addCompositeFigure(noseTop, label, (svg) => {
-      paintTopHull(svg, config.body, { baseOpacity: 0.35 });
       renderNoseArmamentTop(svg, config, axis);
     });
 
     addCompositeFigure(noseSide, label, (svg) => {
-      paintSideHull(svg, config.body, profile, sideHull, { baseOpacity: 0.35 });
       renderNoseArmamentSide(svg, config, profile, axis);
     });
   });
@@ -1177,7 +1212,7 @@ function renderCompositeVariants() {
     const wingSide = getWingSidePointsForConfig(config, planform, profile, axis);
 
     addCompositeFigure(topContainer, label, (svg) => {
-      paintTopHull(svg, config.body, { baseOpacity: 0.6 });
+      paintFullTopHull(svg, config.body, { baseOpacity: 0.6 });
       paintWingTop(svg, wingTop, { opacity: 0.85, showAccent: config.wings?.tipAccent !== false });
       if (config.armament?.mount === "wing") {
         renderWingOrdnanceTop(svg, config, axis);
@@ -1187,7 +1222,7 @@ function renderCompositeVariants() {
     });
 
     addCompositeFigure(sideContainer, label, (svg) => {
-      paintSideHull(svg, config.body, profile, sideHull, { baseOpacity: 0.6 });
+      paintFullSideHull(svg, config.body, profile, sideHull, { baseOpacity: 0.6 });
       paintWingSide(svg, wingSide, { opacity: 0.85 });
       if (config.armament?.mount === "wing") {
         renderWingOrdnanceSide(svg, config, planform, profile, axis);
