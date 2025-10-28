@@ -1,8 +1,92 @@
 import { BaseSpaceshipFactory } from "./BaseSpaceshipFactory.js";
+import { createStandardGeometry } from "./geometryDefinitions.js";
+
+const FIGHTER_GEOMETRY = createStandardGeometry({
+  bodyStyles: [
+    {
+      key: "skinny",
+      frontTypes: ["needle"],
+      midTypes: ["slim", "modular"],
+      rearTypes: ["tapered"],
+      widthScaleRange: [0.74, 0.88],
+    },
+    {
+      key: "normal",
+      frontTypes: ["needle", "canopy"],
+      midTypes: ["slim", "modular"],
+      rearTypes: ["tapered", "thruster"],
+      widthScaleRange: [0.9, 1.02],
+    },
+    {
+      key: "bulky",
+      frontTypes: ["canopy", "ram"],
+      midTypes: ["modular"],
+      rearTypes: ["thruster"],
+      widthScaleRange: [1.02, 1.18],
+    },
+  ],
+  segments: {
+    front: [
+      {
+        type: "needle",
+        lengthWeightRange: [0.34, 0.44],
+        tipWidthFactorRange: [0.1, 0.18],
+        shoulderWidthFactorRange: [1.02, 1.14],
+        transitionFactorRange: [0.7, 0.86],
+        curveRange: [26, 38],
+      },
+      {
+        type: "canopy",
+        lengthWeightRange: [0.3, 0.38],
+        tipWidthFactorRange: [0.32, 0.46],
+        shoulderWidthFactorRange: [1.04, 1.16],
+        transitionFactorRange: [0.88, 1.02],
+        curveRange: [16, 24],
+      },
+      {
+        type: "ram",
+        lengthWeightRange: [0.28, 0.34],
+        tipWidthFactorRange: [0.22, 0.3],
+        shoulderWidthFactorRange: [0.96, 1.08],
+        transitionFactorRange: [0.82, 0.94],
+        curveRange: [20, 28],
+      },
+    ],
+    rear: [
+      {
+        type: "tapered",
+        lengthWeightRange: [0.32, 0.4],
+        baseWidthFactorRange: [0.92, 1.04],
+        exhaustWidthFactorRange: [0.6, 0.72],
+        tailWidthFactorRange: [0.44, 0.58],
+        exhaustPositionRange: [0.58, 0.72],
+        curveRange: [18, 26],
+      },
+      {
+        type: "thruster",
+        lengthWeightRange: [0.36, 0.48],
+        baseWidthFactorRange: [1.08, 1.28],
+        exhaustWidthFactorRange: [0.82, 1.02],
+        tailWidthFactorRange: [0.6, 0.72],
+        exhaustPositionRange: [0.64, 0.82],
+        curveRange: [20, 30],
+      },
+      {
+        type: "block",
+        lengthWeightRange: [0.34, 0.46],
+        baseWidthFactorRange: [1.04, 1.24],
+        exhaustWidthFactorRange: [0.9, 1.08],
+        tailWidthFactorRange: [0.66, 0.82],
+        exhaustPositionRange: [0.6, 0.76],
+        curveRange: [14, 24],
+      },
+    ],
+  },
+});
 
 export class FighterSpaceShipFactory extends BaseSpaceshipFactory {
   constructor() {
-    super("fighter");
+    super("fighter", FIGHTER_GEOMETRY);
   }
 
   buildDefinition() {

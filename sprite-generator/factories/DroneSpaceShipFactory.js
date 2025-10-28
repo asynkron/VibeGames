@@ -1,8 +1,92 @@
 import { BaseSpaceshipFactory } from "./BaseSpaceshipFactory.js";
+import { createStandardGeometry } from "./geometryDefinitions.js";
+
+const DRONE_GEOMETRY = createStandardGeometry({
+  bodyStyles: [
+    {
+      key: "skinny",
+      frontTypes: ["needle", "canopy"],
+      midTypes: ["slim"],
+      rearTypes: ["thruster"],
+      widthScaleRange: [0.84, 0.98],
+    },
+    {
+      key: "normal",
+      frontTypes: ["needle", "canopy", "ram"],
+      midTypes: ["slim", "modular"],
+      rearTypes: ["thruster"],
+      widthScaleRange: [0.96, 1.12],
+    },
+    {
+      key: "bulky",
+      frontTypes: ["canopy", "ram"],
+      midTypes: ["modular", "bulwark"],
+      rearTypes: ["thruster", "block"],
+      widthScaleRange: [1.1, 1.26],
+    },
+  ],
+  segments: {
+    front: [
+      {
+        type: "needle",
+        lengthWeightRange: [0.32, 0.4],
+        tipWidthFactorRange: [0.12, 0.22],
+        shoulderWidthFactorRange: [1.04, 1.18],
+        transitionFactorRange: [0.72, 0.9],
+        curveRange: [24, 34],
+      },
+      {
+        type: "canopy",
+        lengthWeightRange: [0.3, 0.4],
+        tipWidthFactorRange: [0.36, 0.54],
+        shoulderWidthFactorRange: [1.08, 1.22],
+        transitionFactorRange: [0.9, 1.08],
+        curveRange: [14, 24],
+      },
+      {
+        type: "ram",
+        lengthWeightRange: [0.28, 0.36],
+        tipWidthFactorRange: [0.24, 0.38],
+        shoulderWidthFactorRange: [1, 1.14],
+        transitionFactorRange: [0.84, 1.0],
+        curveRange: [18, 28],
+      },
+    ],
+    rear: [
+      {
+        type: "tapered",
+        lengthWeightRange: [0.3, 0.38],
+        baseWidthFactorRange: [0.96, 1.12],
+        exhaustWidthFactorRange: [0.68, 0.82],
+        tailWidthFactorRange: [0.5, 0.66],
+        exhaustPositionRange: [0.6, 0.78],
+        curveRange: [16, 26],
+      },
+      {
+        type: "thruster",
+        lengthWeightRange: [0.34, 0.46],
+        baseWidthFactorRange: [1.12, 1.34],
+        exhaustWidthFactorRange: [0.88, 1.08],
+        tailWidthFactorRange: [0.62, 0.78],
+        exhaustPositionRange: [0.64, 0.84],
+        curveRange: [20, 30],
+      },
+      {
+        type: "block",
+        lengthWeightRange: [0.34, 0.46],
+        baseWidthFactorRange: [1.12, 1.3],
+        exhaustWidthFactorRange: [0.94, 1.12],
+        tailWidthFactorRange: [0.7, 0.86],
+        exhaustPositionRange: [0.62, 0.8],
+        curveRange: [16, 26],
+      },
+    ],
+  },
+});
 
 export class DroneSpaceShipFactory extends BaseSpaceshipFactory {
   constructor() {
-    super("drone");
+    super("drone", DRONE_GEOMETRY);
   }
 
   buildDefinition() {

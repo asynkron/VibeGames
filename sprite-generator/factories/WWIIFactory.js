@@ -1,8 +1,92 @@
 import { BaseSpaceshipFactory } from "./BaseSpaceshipFactory.js";
+import { createStandardGeometry } from "./geometryDefinitions.js";
+
+const WWII_GEOMETRY = createStandardGeometry({
+  bodyStyles: [
+    {
+      key: "skinny",
+      frontTypes: ["needle", "canopy"],
+      midTypes: ["slim"],
+      rearTypes: ["tapered"],
+      widthScaleRange: [0.76, 0.9],
+    },
+    {
+      key: "normal",
+      frontTypes: ["needle", "canopy", "ram"],
+      midTypes: ["slim", "modular"],
+      rearTypes: ["tapered", "thruster"],
+      widthScaleRange: [0.9, 1.06],
+    },
+    {
+      key: "bulky",
+      frontTypes: ["canopy", "ram"],
+      midTypes: ["modular", "bulwark"],
+      rearTypes: ["thruster", "block"],
+      widthScaleRange: [1.04, 1.18],
+    },
+  ],
+  segments: {
+    front: [
+      {
+        type: "needle",
+        lengthWeightRange: [0.34, 0.44],
+        tipWidthFactorRange: [0.12, 0.18],
+        shoulderWidthFactorRange: [1.02, 1.14],
+        transitionFactorRange: [0.72, 0.88],
+        curveRange: [26, 36],
+      },
+      {
+        type: "canopy",
+        lengthWeightRange: [0.3, 0.38],
+        tipWidthFactorRange: [0.38, 0.52],
+        shoulderWidthFactorRange: [1.06, 1.18],
+        transitionFactorRange: [0.88, 1.04],
+        curveRange: [16, 26],
+      },
+      {
+        type: "ram",
+        lengthWeightRange: [0.28, 0.36],
+        tipWidthFactorRange: [0.24, 0.34],
+        shoulderWidthFactorRange: [0.98, 1.1],
+        transitionFactorRange: [0.84, 0.98],
+        curveRange: [18, 28],
+      },
+    ],
+    rear: [
+      {
+        type: "tapered",
+        lengthWeightRange: [0.32, 0.4],
+        baseWidthFactorRange: [0.94, 1.08],
+        exhaustWidthFactorRange: [0.64, 0.78],
+        tailWidthFactorRange: [0.48, 0.64],
+        exhaustPositionRange: [0.58, 0.74],
+        curveRange: [16, 26],
+      },
+      {
+        type: "thruster",
+        lengthWeightRange: [0.34, 0.44],
+        baseWidthFactorRange: [1.06, 1.26],
+        exhaustWidthFactorRange: [0.82, 1.0],
+        tailWidthFactorRange: [0.6, 0.74],
+        exhaustPositionRange: [0.62, 0.8],
+        curveRange: [18, 28],
+      },
+      {
+        type: "block",
+        lengthWeightRange: [0.34, 0.44],
+        baseWidthFactorRange: [1.1, 1.28],
+        exhaustWidthFactorRange: [0.9, 1.08],
+        tailWidthFactorRange: [0.68, 0.84],
+        exhaustPositionRange: [0.62, 0.78],
+        curveRange: [14, 24],
+      },
+    ],
+  },
+});
 
 export class WWIIFactory extends BaseSpaceshipFactory {
   constructor() {
-    super("ww2");
+    super("ww2", WWII_GEOMETRY);
   }
 
   buildDefinition() {

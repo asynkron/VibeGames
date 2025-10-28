@@ -5,10 +5,15 @@
  * factories extend this class and supply their unique configuration payloads.
  */
 export class BaseSpaceshipFactory {
-  constructor(key) {
+  constructor(key, geometryDefinition = null) {
     this.key = key;
     this.definition = this.buildDefinition();
+    this.geometry = geometryDefinition ?? this.buildGeometry();
     this.helpers = null;
+
+    if (!this.geometry) {
+      throw new Error(`Factory ${this.key} is missing a geometry definition.`);
+    }
   }
 
   /**
@@ -22,6 +27,14 @@ export class BaseSpaceshipFactory {
 
   getDefinition() {
     return this.definition;
+  }
+
+  buildGeometry() {
+    return null;
+  }
+
+  getGeometry() {
+    return this.geometry;
   }
 
   attachHelpers(helpers) {

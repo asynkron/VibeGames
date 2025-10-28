@@ -1,5 +1,6 @@
 import { computeWingPlanform } from "./renderParts.js";
 import { createSpaceshipFactories } from "./factories/index.js";
+import { createStandardGeometry } from "./factories/geometryDefinitions.js";
 import { clamp } from "./math.js";
 import { mixColor } from "./color.js";
 import { drawTopDownSpaceship } from "./renderTopView.js";
@@ -13,31 +14,9 @@ const NORMALISED_HULL_LENGTH = 100;
 // Category metadata expressed entirely in hull-relative percentages so generation logic
 // never depends on legacy absolute measurements.
 let CATEGORY_DEFINITIONS = {};
+let CATEGORY_GEOMETRY = {};
 let FACTORY_REGISTRY = new Map();
-
-const BODY_STYLE_VARIANTS = [
-  {
-    key: "skinny",
-    frontTypes: ["needle"],
-    midTypes: ["slim", "modular"],
-    rearTypes: ["tapered"],
-    widthScaleRange: [0.78, 0.9],
-  },
-  {
-    key: "normal",
-    frontTypes: ["needle", "canopy", "ram"],
-    midTypes: ["slim", "modular"],
-    rearTypes: ["tapered", "thruster"],
-    widthScaleRange: [0.95, 1.05],
-  },
-  {
-    key: "bulky",
-    frontTypes: ["canopy", "ram"],
-    midTypes: ["modular", "bulwark"],
-    rearTypes: ["thruster", "block"],
-    widthScaleRange: [1.12, 1.28],
-  },
-];
+const DEFAULT_GEOMETRY = createStandardGeometry();
 
 const CANOPY_FRAME_VARIANTS = ["single", "split", "triple", "panoramic"];
 
@@ -390,19 +369,32 @@ function chooseVariantByType(variants, allowedTypes) {
   return choose(pool);
 }
 
-function createBodySegments(ranges) {
-  const style = choose(BODY_STYLE_VARIANTS);
+function createBodySegments(ranges, geometryDefinition) {
+  const geometry = geometryDefinition ?? DEFAULT_GEOMETRY;
+  const styleVariants = geometry.bodyStyles && geometry.bodyStyles.length
+    ? geometry.bodyStyles
+    : DEFAULT_GEOMETRY.bodyStyles;
+  const frontVariants = geometry.segments?.front && geometry.segments.front.length
+    ? geometry.segments.front
+    : DEFAULT_GEOMETRY.segments.front;
+  const midVariants = geometry.segments?.mid && geometry.segments.mid.length
+    ? geometry.segments.mid
+    : DEFAULT_GEOMETRY.segments.mid;
+  const rearVariants = geometry.segments?.rear && geometry.segments.rear.length
+    ? geometry.segments.rear
+    : DEFAULT_GEOMETRY.segments.rear;
+  const adjustments = geometry.styleAdjustments ?? DEFAULT_GEOMETRY.styleAdjustments;
+
+  const style = choose(styleVariants);
   const widthScale = randomBetween(...(style.widthScaleRange ?? [1, 1]));
 
-  const segments = {
-    front: createFrontSegmentVariant(ranges, style),
-    mid: createMidSegmentVariant(ranges, style),
-    rear: createRearSegmentVariant(ranges, style),
+  return {
+    front: createFrontSegmentVariant(ranges, style, frontVariants, adjustments.front),
+    mid: createMidSegmentVariant(ranges, style, midVariants, adjustments.mid),
+    rear: createRearSegmentVariant(ranges, style, rearVariants, adjustments.rear),
     style: style.key,
     widthScale,
   };
-
-  return segments;
 }
 
 function applySegmentStyleAdjustments(segment, style, adjustmentMap) {
@@ -420,8 +412,9 @@ function applySegmentStyleAdjustments(segment, style, adjustmentMap) {
   });
 }
 
-function createFrontSegmentVariant(ranges, style) {
-  const variant = chooseVariantByType(FRONT_SEGMENT_VARIANTS, style?.frontTypes);
+function createFrontSegmentVariant(ranges, style, variants, adjustmentMap) {
+  const availableVariants = variants && variants.length ? variants : DEFAULT_GEOMETRY.segments.front;
+  const variant = chooseVariantByType(availableVariants, style?.frontTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -431,7 +424,7 @@ function createFrontSegmentVariant(ranges, style) {
     curve: randomBetween(...variant.curveRange),
   };
 
-  applySegmentStyleAdjustments(segment, style, FRONT_STYLE_ADJUSTMENTS);
+  applySegmentStyleAdjustments(segment, style, adjustmentMap ?? DEFAULT_GEOMETRY.styleAdjustments.front);
 
   if (ranges?.noseWidthFactor) {
     segment.tipWidthFactor = clamp(segment.tipWidthFactor, ...ranges.noseWidthFactor);
@@ -442,8 +435,9 @@ function createFrontSegmentVariant(ranges, style) {
   return segment;
 }
 
-function createMidSegmentVariant(ranges, style) {
-  const variant = chooseVariantByType(MID_SEGMENT_VARIANTS, style?.midTypes);
+function createMidSegmentVariant(ranges, style, variants, adjustmentMap) {
+  const availableVariants = variants && variants.length ? variants : DEFAULT_GEOMETRY.segments.mid;
+  const variant = chooseVariantByType(availableVariants, style?.midTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -455,7 +449,7 @@ function createMidSegmentVariant(ranges, style) {
     inset: randomBetween(...variant.insetRange),
   };
 
-  applySegmentStyleAdjustments(segment, style, MID_STYLE_ADJUSTMENTS);
+  applySegmentStyleAdjustments(segment, style, adjustmentMap ?? DEFAULT_GEOMETRY.styleAdjustments.mid);
 
   if (ranges?.bodyMidInset) {
     segment.inset = clamp(segment.inset, ...ranges.bodyMidInset);
@@ -463,8 +457,9 @@ function createMidSegmentVariant(ranges, style) {
   return segment;
 }
 
-function createRearSegmentVariant(ranges, style) {
-  const variant = chooseVariantByType(REAR_SEGMENT_VARIANTS, style?.rearTypes);
+function createRearSegmentVariant(ranges, style, variants, adjustmentMap) {
+  const availableVariants = variants && variants.length ? variants : DEFAULT_GEOMETRY.segments.rear;
+  const variant = chooseVariantByType(availableVariants, style?.rearTypes);
   const segment = {
     type: variant.type,
     weight: randomBetween(...variant.lengthWeightRange),
@@ -475,7 +470,7 @@ function createRearSegmentVariant(ranges, style) {
     curve: randomBetween(...variant.curveRange),
   };
 
-  applySegmentStyleAdjustments(segment, style, REAR_STYLE_ADJUSTMENTS);
+  applySegmentStyleAdjustments(segment, style, adjustmentMap ?? DEFAULT_GEOMETRY.styleAdjustments.rear);
 
   if (ranges?.tailWidthFactor) {
     segment.tailWidthFactor = clamp(segment.tailWidthFactor, ...ranges.tailWidthFactor);
@@ -551,11 +546,12 @@ function synchroniseBodySegments(body, ranges) {
 
 function createBaseConfig(categoryKey) {
   const def = CATEGORY_DEFINITIONS[categoryKey];
+  const geometryDefinition = CATEGORY_GEOMETRY[categoryKey] ?? DEFAULT_GEOMETRY;
   const palette = pickPalette();
-  return normaliseConfig(createTopDownConfig(categoryKey, def, palette));
+  return normaliseConfig(createTopDownConfig(categoryKey, def, palette, geometryDefinition));
 }
 
-function createTopDownConfig(categoryKey, def, palette) {
+function createTopDownConfig(categoryKey, def, palette, geometryDefinition) {
   const ranges = def.ranges;
 
   const bodyLengthPercent = (ranges.body_end ?? 100) - (ranges.body_start ?? 0);
@@ -616,7 +612,7 @@ function createTopDownConfig(categoryKey, def, palette) {
     wingDihedral *= 0.6;
   }
 
-  const bodySegments = createBodySegments(segmentRanges);
+  const bodySegments = createBodySegments(segmentRanges, geometryDefinition);
   const widthScale = clamp(bodySegments.widthScale ?? 1, 0.6, 1.6);
 
   const body = {
@@ -1009,8 +1005,10 @@ function randomId() {
 const SPACESHIP_FACTORIES = createSpaceshipFactories();
 FACTORY_REGISTRY = new Map(SPACESHIP_FACTORIES.map((factory) => [factory.key, factory]));
 CATEGORY_DEFINITIONS = {};
+CATEGORY_GEOMETRY = {};
 SPACESHIP_FACTORIES.forEach((factory) => {
   CATEGORY_DEFINITIONS[factory.key] = factory.getDefinition();
+  CATEGORY_GEOMETRY[factory.key] = factory.getGeometry() ?? DEFAULT_GEOMETRY;
 });
 
 const FACTORY_HELPERS = {
