@@ -12,6 +12,14 @@ import { mixColor, shadeColor } from "./color.js";
 import { isDebugColorsEnabled, nextRenderId, partColor, partStroke } from "./renderContext.js";
 import { createSvgElement } from "./svgUtils.js";
 
+function getSideProfile(geometry) {
+  return geometry?.profile ?? geometry?.body?.side ?? null;
+}
+
+function getSideWing(geometry) {
+  return geometry?.wing ?? geometry?.wings?.side ?? null;
+}
+
 export function drawSideViewSpaceship(root, config, geometry, defs) {
   const axis = geometry.axis;
   drawSideHull(root, config, geometry, axis);
@@ -27,7 +35,10 @@ export function drawSideViewSpaceship(root, config, geometry, defs) {
 
 export function drawSideHull(root, config, geometry, axis) {
   const { palette } = config;
-  const { profile } = geometry;
+  const profile = getSideProfile(geometry);
+  if (!profile) {
+    return;
+  }
   const group = createSvgElement("g");
 
   const hullGeometry = buildSideHullGeometry(profile);
@@ -117,8 +128,9 @@ export function drawSideHull(root, config, geometry, axis) {
 
 export function drawSideAntenna(root, config, geometry, axis) {
   const { palette } = config;
-  const { antenna, profile } = geometry;
-  if (!antenna) {
+  const { antenna } = geometry;
+  const profile = getSideProfile(geometry);
+  if (!antenna || !profile) {
     return;
   }
 
@@ -151,8 +163,9 @@ export function drawSideAntenna(root, config, geometry, axis) {
 
 export function drawSideWing(root, config, geometry, axis) {
   const { palette } = config;
-  const { wing: wingProfile, profile } = geometry;
-  if (!wingProfile?.enabled) {
+  const profile = getSideProfile(geometry);
+  const wingProfile = getSideWing(geometry);
+  if (!profile || !wingProfile?.enabled) {
     return;
   }
 
@@ -185,8 +198,9 @@ export function drawSideWing(root, config, geometry, axis) {
 
 export function drawSideStabiliser(root, config, geometry, axis) {
   const { palette } = config;
-  const { stabiliser, profile } = geometry;
-  if (!stabiliser) {
+  const { stabiliser } = geometry;
+  const profile = getSideProfile(geometry);
+  if (!stabiliser || !profile) {
     return;
   }
   const tailX = axis.percentToSideX(1);
@@ -228,8 +242,9 @@ export function drawSideStabiliser(root, config, geometry, axis) {
 
 export function drawSideCanopy(root, config, geometry, axis, defs) {
   const { palette } = config;
-  const { canopy, profile } = geometry;
-  if (!canopy) {
+  const { canopy } = geometry;
+  const profile = getSideProfile(geometry);
+  if (!canopy || !profile) {
     return;
   }
 
@@ -376,8 +391,9 @@ export function drawSideCanopy(root, config, geometry, axis, defs) {
 
 export function drawSideThrusters(root, config, geometry, axis) {
   const { palette } = config;
-  const { thruster, profile } = geometry;
-  if (!thruster) {
+  const { thruster } = geometry;
+  const profile = getSideProfile(geometry);
+  if (!thruster || !profile) {
     return;
   }
   const tailX = axis.percentToSideX(1);
@@ -458,8 +474,10 @@ export function drawSideThrusters(root, config, geometry, axis) {
 
 export function drawSideWeapons(root, config, geometry, axis) {
   const { palette } = config;
-  const { armament, profile, wing } = geometry;
-  if (!armament) {
+  const { armament } = geometry;
+  const profile = getSideProfile(geometry);
+  const wing = getSideWing(geometry);
+  if (!armament || !profile) {
     return;
   }
 
@@ -588,8 +606,9 @@ export function drawSideWeapons(root, config, geometry, axis) {
 
 export function drawSideMarkings(root, config, geometry, axis) {
   const { palette } = config;
-  const { markings, profile } = geometry;
-  if (!markings?.enabled) {
+  const { markings } = geometry;
+  const profile = getSideProfile(geometry);
+  if (!markings?.enabled || !profile) {
     return;
   }
   const startPercent = clamp(markings.stripeStartPercent ?? 0, 0, 1);
@@ -623,8 +642,9 @@ export function drawSideMarkings(root, config, geometry, axis) {
 
 export function drawSideLights(root, config, geometry, axis) {
   const { palette } = config;
-  const { lights, profile } = geometry;
-  if (!lights) {
+  const { lights } = geometry;
+  const profile = getSideProfile(geometry);
+  if (!lights || !profile) {
     return;
   }
   const noseX = axis.percentToSideX(0);
