@@ -417,67 +417,123 @@ function createMaterial(color, { metalness = 0.35, roughness = 0.45, emissive = 
   return mat;
 }
 
+function createTrimDetail(material, width, height, depth) {
+  // Sub-panels give the silhouettes a layered feel without complicating UVs.
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+  panel.castShadow = false;
+  panel.receiveShadow = false;
+  return panel;
+}
+
 function buildHullGeometry(model) {
   const group = new THREE.Group();
   const color = model.palette.hull;
   const material = createMaterial(color);
+  const accentMaterial = createMaterial(model.palette.accent, { metalness: 0.5, roughness: 0.35 });
 
   switch (model.hull) {
     case "needle": {
-      const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.65, 6, 18), material);
+      const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.65, 6.6, 18, 1, true), material);
       fuselage.rotation.z = Math.PI / 2;
       group.add(fuselage);
 
-      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.65, 1.2, 18), material);
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.65, 1.4, 18), material);
       nose.rotation.z = Math.PI / 2;
-      nose.position.x = 3.8;
+      nose.position.x = 4;
       group.add(nose);
 
-      const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.35, 1.8, 12), material);
+      const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.3, 2.2, 14), material);
       tail.rotation.z = Math.PI / 2;
-      tail.position.x = -3.5;
+      tail.position.x = -3.8;
       group.add(tail);
+
+      const spine = createTrimDetail(accentMaterial, 6.2, 0.12, 0.4);
+      spine.rotation.z = Math.PI / 2;
+      spine.position.x = 0.2;
+      spine.position.y = 0.42;
+      group.add(spine);
+
+      const intake = createTrimDetail(accentMaterial, 2, 0.22, 0.22);
+      intake.rotation.z = Math.PI / 2;
+      intake.position.set(1.1, -0.35, 0);
+      group.add(intake);
       break;
     }
     case "broadhead": {
       const body = new THREE.Mesh(new THREE.BoxGeometry(4.8, 1.2, 1.8), material);
       group.add(body);
 
-      const prow = new THREE.Mesh(new THREE.ConeGeometry(1.3, 1.6, 4), material);
+      const prow = new THREE.Mesh(new THREE.ConeGeometry(1.3, 1.8, 18), material);
       prow.rotation.z = Math.PI / 2;
-      prow.position.x = 3.1;
+      prow.position.x = 2.8;
       group.add(prow);
 
-      const stern = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.9, 2.2, 12), material);
+      const prowRidge = createTrimDetail(accentMaterial, 2.1, 0.18, 0.65);
+      prowRidge.rotation.z = Math.PI / 2;
+      prowRidge.position.set(1.6, 0.35, 0);
+      group.add(prowRidge);
+
+      const stern = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.9, 2.4, 12), material);
       stern.rotation.z = Math.PI / 2;
-      stern.position.x = -3.3;
+      stern.position.x = -3.1;
       group.add(stern);
+
+      for (let i = 0; i < 3; i += 1) {
+        const plating = createTrimDetail(accentMaterial, 1.2, 0.2, 2.6 - i * 0.4);
+        plating.rotation.z = Math.PI / 2;
+        plating.position.set(-0.8 - i * 0.9, 0.6 - i * 0.08, 0);
+        group.add(plating);
+      }
       break;
     }
     case "arrow": {
       const core = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.9, 1.2), material);
       group.add(core);
 
-      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.9, 2.1, 8), material);
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.9, 2.2, 14), material);
       spike.rotation.z = Math.PI / 2;
-      spike.position.x = 3.2;
+      spike.position.x = 3.3;
       group.add(spike);
 
-      const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.5, 2.4, 12), material);
+      const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.5, 1.8, 12), material);
       tail.rotation.z = Math.PI / 2;
-      tail.position.x = -3.1;
+      tail.position.x = -3;
       group.add(tail);
+
+      const keel = createTrimDetail(accentMaterial, 4.6, 0.14, 0.5);
+      keel.rotation.z = Math.PI / 2;
+      keel.position.set(0.4, -0.45, 0);
+      group.add(keel);
+
+      const canard = createTrimDetail(accentMaterial, 1, 0.1, 0.8);
+      canard.rotation.z = Math.PI / 2;
+      canard.position.set(2.4, 0.2, 0);
+      group.add(canard);
       break;
     }
     case "dragonfly": {
       const segments = new THREE.Group();
-      for (let i = 0; i < 4; i += 1) {
-        const segment = new THREE.Mesh(new THREE.CapsuleGeometry(0.75 - i * 0.08, 1.1, 8, 12), material);
-        segment.rotation.z = Math.PI / 2;
-        segment.position.x = 2 - i * 1.6;
-        segments.add(segment);
+      for (let i = 0; i < 3; i += 1) {
+        const module = new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 0.8, 6, 12), material);
+        module.rotation.z = Math.PI / 2;
+        module.position.set(1.2 - i * 1.5, 0.1 * Math.sin(i), 0);
+        segments.add(module);
+
+        const harness = createTrimDetail(accentMaterial, 0.9, 0.12, 1.1);
+        harness.rotation.z = Math.PI / 2;
+        harness.position.set(1.2 - i * 1.5, 0.4, 0);
+        segments.add(harness);
       }
       group.add(segments);
+
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 0.8), material);
+      tail.position.set(-2.7, 0, 0);
+      group.add(tail);
+
+      const tailStruts = createTrimDetail(accentMaterial, 1.4, 0.12, 1.2);
+      tailStruts.rotation.z = Math.PI / 2;
+      tailStruts.position.set(-2.7, 0.45, 0);
+      group.add(tailStruts);
       break;
     }
     case "bastion":
@@ -485,15 +541,32 @@ function buildHullGeometry(model) {
       const chassis = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.6, 2.5), material);
       group.add(chassis);
 
-      const prow = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 1.6, 6), material);
+      const prow = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 1.8, 12), material);
       prow.rotation.z = Math.PI / 2;
       prow.position.x = 3.2;
       group.add(prow);
 
-      const stern = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 1.8, 12), material);
+      const stern = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 2.2, 12), material);
       stern.rotation.z = Math.PI / 2;
       stern.position.x = -3.2;
       group.add(stern);
+
+      for (let i = -1; i <= 1; i += 1) {
+        const nacelle = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 1.6, 8, 16), material);
+        nacelle.rotation.z = Math.PI / 2;
+        nacelle.position.set(0.5 + i * 1.2, -0.7 + Math.abs(i) * 0.1, 1.5 - Math.abs(i) * 0.6);
+        group.add(nacelle);
+
+        const glowRing = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.06, 12, 24), accentMaterial);
+        glowRing.rotation.set(Math.PI / 2, 0, 0);
+        glowRing.position.copy(nacelle.position.clone().add(new THREE.Vector3(0.8, 0, 0)));
+        group.add(glowRing);
+      }
+
+      const dorsalFin = createTrimDetail(accentMaterial, 2.8, 0.18, 1.4);
+      dorsalFin.rotation.z = Math.PI / 2;
+      dorsalFin.position.set(0.2, 0.75, 0);
+      group.add(dorsalFin);
       break;
     }
   }
@@ -511,10 +584,9 @@ function buildCockpit(model) {
     opacity: 0.9,
     transparent: true,
   });
-
-  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.65, 24, 16, 0, Math.PI), glassMaterial);
-  cockpit.scale.set(1, 0.8, 1.2);
-  cockpit.rotation.x = Math.PI / 2;
+  const frameMaterial = createMaterial(model.palette.accent, { metalness: 0.55, roughness: 0.25 });
+  const shroudMaterial = createMaterial(model.palette.hull, { metalness: 0.45, roughness: 0.4 });
+  const canopyGeometry = new THREE.SphereGeometry(0.65, 24, 16, 0, Math.PI);
 
   const offsets = {
     front: 2.6,
@@ -523,76 +595,221 @@ function buildCockpit(model) {
     tandem: 1.4,
   };
 
-  cockpit.position.x = offsets[model.cockpit] ?? 1.4;
-  cockpit.position.y = 0.45;
+  const canopyHeight = 0.82;
+  const anchorX = offsets[model.cockpit] ?? 1.4;
+
+  // Build a canopy assembly that sits proud of the fuselage so the silhouette reads
+  // like a fighter jet cockpit with a framed bubble and dorsal shroud.
+  const createCanopyAssembly = (offsetX) => {
+    const assembly = new THREE.Group();
+
+    const canopy = new THREE.Mesh(canopyGeometry, glassMaterial);
+    canopy.scale.set(1, 0.8, 1.2);
+    canopy.rotation.x = Math.PI / 2;
+    canopy.position.set(offsetX, canopyHeight, 0);
+    assembly.add(canopy);
+
+    const shroud = createTrimDetail(shroudMaterial, 1.6, 0.12, 1.1);
+    shroud.rotation.z = Math.PI / 2;
+    shroud.position.set(offsetX - 0.05, canopyHeight - 0.28, 0);
+    assembly.add(shroud);
+
+    const frame = createTrimDetail(frameMaterial, 1.2, 0.05, 0.26);
+    frame.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+    frame.position.set(offsetX + 0.25, canopyHeight + 0.08, 0);
+    assembly.add(frame);
+
+    const spine = createTrimDetail(frameMaterial, 0.9, 0.04, 1.2);
+    spine.rotation.z = Math.PI / 2;
+    spine.position.set(offsetX + 0.32, canopyHeight + 0.22, 0);
+    assembly.add(spine);
+
+    return assembly;
+  };
 
   if (model.cockpit === "tandem") {
-    const secondSeat = cockpit.clone();
-    secondSeat.position.x -= 1.2;
-    return new THREE.Group().add(cockpit, secondSeat);
+    const cockpitGroup = new THREE.Group();
+    cockpitGroup.add(createCanopyAssembly(anchorX));
+    cockpitGroup.add(createCanopyAssembly(anchorX - 1.15));
+    return cockpitGroup;
   }
 
-  return cockpit;
+  return createCanopyAssembly(anchorX);
 }
 
 function buildWingGeometry(model) {
   const group = new THREE.Group();
   const material = createMaterial(model.palette.accent, { metalness: 0.25, roughness: 0.5 });
+  const trimMaterial = createMaterial(model.palette.glow, { metalness: 0.1, roughness: 0.2, emissive: 0x112233 });
+  // A hull-tone mount helps sell the idea that the wings sprout from a reinforced shoulder.
+  const mountMaterial = createMaterial(model.palette.hull, { metalness: 0.45, roughness: 0.4 });
   const { wings } = model;
 
-  const addWingPair = (geometryFactory, position) => {
-    const left = new THREE.Mesh(geometryFactory(), material);
-    const right = left.clone();
-    left.position.set(position.x, position.y, position.z);
-    right.position.set(position.x, position.y, -position.z);
-    right.scale.z *= -1;
-    group.add(left, right);
+  // Each wing variant returns its own group per side so we can dial in dihedral,
+  // sweep, and winglet accents independently for fighter silhouettes.
+  const addWingPair = (factory, position) => {
+    const leftWing = factory(1);
+    leftWing.position.set(position.x, position.y, position.z);
+    group.add(leftWing);
+
+    const rightWing = factory(-1);
+    rightWing.position.set(position.x, position.y, -position.z);
+    group.add(rightWing);
   };
 
   switch (wings) {
     case "delta": {
-      addWingPair(
-        () => new THREE.BoxGeometry(3.2, 0.2, 1.8),
-        { x: 0.4, y: 0, z: 1.6 },
-      );
+      // Broad, aggressive triangles inspired by classic R-Type craft.
+      addWingPair((side) => {
+        const wingGroup = new THREE.Group();
+
+        const rootFairing = createTrimDetail(mountMaterial, 1.6, 0.18, 0.55);
+        rootFairing.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        rootFairing.position.set(0.25, 0.22, 0.28 * side);
+        wingGroup.add(rootFairing);
+
+        const delta = new THREE.Mesh(new THREE.ConeGeometry(2.8, 5.4, 4, 1, true), material);
+        delta.rotation.set(Math.PI / 2.2, Math.PI / 10 * side, Math.PI / 2);
+        delta.position.set(1.3, 0.3, 0);
+        wingGroup.add(delta);
+
+        const strake = createTrimDetail(trimMaterial, 3.4, 0.08, 0.36);
+        strake.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        strake.position.set(1.5, 0.18, 0.44 * side);
+        wingGroup.add(strake);
+
+        const ventral = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.14, 0.22), material);
+        ventral.rotation.set(Math.PI / 2.05, 0, Math.PI / 2);
+        ventral.position.set(1.8, -0.1, 0.06 * side);
+        wingGroup.add(ventral);
+
+        return wingGroup;
+      }, { x: 0.5, y: 0.68, z: 2.35 });
       break;
     }
     case "forward-swept": {
-      addWingPair(
-        () => {
-          const geom = new THREE.BoxGeometry(3.4, 0.15, 1.2);
-          geom.translate(1.1, 0, 0);
-          return geom;
-        },
-        { x: 0.1, y: 0.1, z: 1.4 },
-      );
+      // Forward canted wings with high-mounted canards for a sleek interceptor look.
+      addWingPair((side) => {
+        const wingGroup = new THREE.Group();
+
+        const rootFairing = createTrimDetail(mountMaterial, 1.2, 0.14, 0.48);
+        rootFairing.rotation.set(Math.PI / 2, 0, Math.PI / 2.2);
+        rootFairing.position.set(0.2, 0.28, 0.32 * side);
+        wingGroup.add(rootFairing);
+
+        const forwardPlane = new THREE.Mesh(new THREE.BoxGeometry(4, 0.1, 0.95), material);
+        forwardPlane.rotation.set(Math.PI / 2.4, Math.PI / 9 * side, Math.PI / 2.1);
+        forwardPlane.position.set(1.4, 0.4, 0);
+        wingGroup.add(forwardPlane);
+
+        const canard = createTrimDetail(trimMaterial, 2.2, 0.05, 0.3);
+        canard.rotation.set(Math.PI / 2, 0, Math.PI / 2.3);
+        canard.position.set(2.4, 0.92, 0.46 * side);
+        wingGroup.add(canard);
+
+        const wingtip = new THREE.Mesh(new THREE.ConeGeometry(0.26, 1.2, 12), trimMaterial);
+        wingtip.rotation.set(Math.PI / 2.3, 0, 0);
+        wingtip.position.set(3.3, 0.2, 0.16 * side);
+        wingGroup.add(wingtip);
+
+        return wingGroup;
+      }, { x: 0.4, y: 0.74, z: 2.1 });
       break;
     }
     case "gull": {
-      addWingPair(
-        () => {
-          const geom = new THREE.BoxGeometry(2.4, 0.18, 0.9);
-          return geom;
-        },
-        { x: 0.8, y: 0.3, z: 1.3 },
-      );
+      // Suspended engine pods evoke the classic Y-wing profile.
+      addWingPair((side) => {
+        const wingGroup = new THREE.Group();
+
+        const spar = createTrimDetail(mountMaterial, 2.6, 0.12, 0.18);
+        spar.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        spar.position.set(0.6, 0.4, 0.14 * side);
+        wingGroup.add(spar);
+
+        const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.26, 1.6, 0.26), mountMaterial);
+        pylon.position.set(1.2, -0.1, 0.86 * side);
+        wingGroup.add(pylon);
+
+        const nacelle = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 2.8, 18), material);
+        nacelle.rotation.z = Math.PI / 2;
+        nacelle.position.set(1.2, 0.1, 1.6 * side);
+        wingGroup.add(nacelle);
+
+        const connector = createTrimDetail(trimMaterial, 2.4, 0.06, 0.32);
+        connector.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        connector.position.set(2.1, 0.32, 1.1 * side);
+        wingGroup.add(connector);
+
+        const winglet = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 0.4), material);
+        winglet.rotation.set(Math.PI / 2.1, -Math.PI / 12 * side, Math.PI / 2);
+        winglet.position.set(2.4, 0.95, 1.3 * side);
+        wingGroup.add(winglet);
+
+        return wingGroup;
+      }, { x: 0.6, y: 0.7, z: 2.6 });
       break;
     }
     case "blade": {
-      addWingPair(
-        () => new THREE.BoxGeometry(3.6, 0.1, 0.6),
-        { x: 1, y: 0.05, z: 1.1 },
-      );
+      // Downward fins double as strike foils for dramatic silhouettes.
+      addWingPair((side) => {
+        const wingGroup = new THREE.Group();
+
+        const shoulder = createTrimDetail(mountMaterial, 1.4, 0.16, 0.44);
+        shoulder.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        shoulder.position.set(0.22, 0.3, 0.26 * side);
+        wingGroup.add(shoulder);
+
+        const mainBlade = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.1, 0.65), material);
+        mainBlade.rotation.set(Math.PI / 1.95, Math.PI / 16 * side, Math.PI / 2.05);
+        mainBlade.position.set(1.4, 0.22, 0);
+        wingGroup.add(mainBlade);
+
+        const ventral = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.8, 16), material);
+        ventral.rotation.set(-Math.PI / 2.4, 0, 0);
+        ventral.position.set(2, -0.45, 0.18 * side);
+        wingGroup.add(ventral);
+
+        const edge = createTrimDetail(trimMaterial, 3, 0.05, 0.16);
+        edge.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        edge.position.set(1.3, -0.05, 0.22 * side);
+        wingGroup.add(edge);
+
+        return wingGroup;
+      }, { x: 0.7, y: 0.66, z: 1.95 });
       break;
     }
     case "quad":
     default: {
-      for (let tier = 0; tier < 2; tier += 1) {
-        addWingPair(
-          () => new THREE.BoxGeometry(2.6, 0.12, 0.8),
-          { x: 0.3 + tier * 1.5, y: -0.1 + tier * 0.25, z: 1.2 + tier * 0.4 },
-        );
-      }
+      // Four foils stacked like an X-wing with glowing cannons on the tips.
+      addWingPair((side) => {
+        const wingGroup = new THREE.Group();
+
+        const root = createTrimDetail(mountMaterial, 1.8, 0.18, 0.5);
+        root.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+        root.position.set(0.3, 0.24, 0.32 * side);
+        wingGroup.add(root);
+
+        const buildFoil = (verticalOffset) => {
+          const foil = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.08, 0.9), material);
+          foil.rotation.set(Math.PI / 2.2, Math.PI / 18 * side, Math.PI / 2);
+          foil.position.set(1.4, 0.34 + verticalOffset, 0);
+          wingGroup.add(foil);
+
+          const cannon = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.4, 12), trimMaterial);
+          cannon.rotation.z = Math.PI / 2;
+          cannon.position.set(3, 0.3 + verticalOffset, 0.38 * side);
+          wingGroup.add(cannon);
+
+          const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 12), trimMaterial);
+          muzzle.position.set(3.75, 0.3 + verticalOffset, 0.38 * side);
+          wingGroup.add(muzzle);
+        };
+
+        buildFoil(0.28);
+        buildFoil(-0.28);
+
+        return wingGroup;
+      }, { x: 0.5, y: 0.76, z: 2.3 });
       break;
     }
   }
@@ -604,44 +821,65 @@ function buildWeaponGeometry(model) {
   const group = new THREE.Group();
   const material = createMaterial(model.palette.hull, { metalness: 0.45, roughness: 0.35 });
   const accentMaterial = createMaterial(model.palette.accent, { metalness: 0.5, roughness: 0.25 });
+  const glowMaterial = createMaterial(model.palette.glow, { metalness: 0.1, roughness: 0.2, emissive: 0x223344 });
 
   const cannonPair = (offset) => {
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 12), accentMaterial);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.8, 12), accentMaterial);
     barrel.rotation.z = Math.PI / 2;
     barrel.position.set(2.6, -0.2, offset);
 
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.6, 12), material);
+    const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 10, 24), glowMaterial);
+    muzzle.rotation.y = Math.PI / 2;
+    muzzle.position.set(3.2, -0.2, offset);
+
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 0.8, 12), material);
     base.rotation.z = Math.PI / 2;
     base.position.set(1.6, -0.2, offset);
-    group.add(barrel, base);
+    group.add(barrel, base, muzzle);
   };
 
   switch (model.weapon) {
     case "pulse": {
       cannonPair(0.55);
       cannonPair(-0.55);
+
+      const capacitor = createTrimDetail(glowMaterial, 1.2, 0.2, 0.8);
+      capacitor.rotation.z = Math.PI / 2;
+      capacitor.position.set(1, 0.1, 0);
+      group.add(capacitor);
       break;
     }
     case "gatling": {
       for (let i = 0; i < 3; i += 1) {
         cannonPair(0.9 - i * 0.9);
       }
+
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.8, 14), material);
+      drum.position.set(0.4, -0.2, 0);
+      group.add(drum);
       break;
     }
     case "lance": {
-      const emitter = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 2.8, 16), accentMaterial);
+      const emitter = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 3, 20), accentMaterial);
       emitter.rotation.z = Math.PI / 2;
-      emitter.position.set(2.8, 0.1, 0);
+      emitter.position.set(2.9, 0.1, 0);
       group.add(emitter);
+
+      const charge = new THREE.Mesh(new THREE.SphereGeometry(0.35, 18, 12), glowMaterial);
+      charge.position.set(1.2, 0.1, 0);
+      group.add(charge);
       break;
     }
     case "turret": {
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), material);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.55, 16, 12), material);
       dome.position.set(0.4, 0.6, 0);
-      const turretBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.4, 10), accentMaterial);
+      const turretBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.6, 10), accentMaterial);
       turretBarrel.rotation.z = Math.PI / 2;
-      turretBarrel.position.set(1.4, 0.7, 0);
-      group.add(dome, turretBarrel);
+      turretBarrel.position.set(1.5, 0.7, 0);
+      const sensor = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.6, 10), glowMaterial);
+      sensor.rotation.z = Math.PI / 2;
+      sensor.position.set(0.8, 0.6, 0);
+      group.add(dome, turretBarrel, sensor);
       break;
     }
     case "quad":
@@ -650,6 +888,11 @@ function buildWeaponGeometry(model) {
       cannonPair(0.3);
       cannonPair(-0.3);
       cannonPair(-0.9);
+
+      const targeting = createTrimDetail(glowMaterial, 1.6, 0.14, 0.4);
+      targeting.rotation.z = Math.PI / 2;
+      targeting.position.set(0.6, 0.1, 0);
+      group.add(targeting);
       break;
     }
   }
@@ -661,18 +904,21 @@ function buildOrdnanceGeometry(model) {
   const group = new THREE.Group();
   const material = createMaterial(model.palette.hull, { metalness: 0.35, roughness: 0.4 });
   const accent = createMaterial(model.palette.accent, { metalness: 0.35, roughness: 0.3 });
+  const glow = createMaterial(model.palette.glow, { metalness: 0.1, roughness: 0.25, emissive: 0x112233 });
 
   switch (model.ordnance) {
     case "missile-pods": {
       for (let i = 0; i < 2; i += 1) {
-        const pod = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 0.6), material);
+        const pod = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 0.7), material);
         pod.position.set(-0.6, -0.5, 0.9 - i * 1.8);
         group.add(pod);
 
-        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.6, 10), accent);
-        cap.rotation.z = Math.PI / 2;
-        cap.position.set(-1.1, -0.5, 0.9 - i * 1.8);
-        group.add(cap);
+        for (let row = 0; row < 2; row += 1) {
+          const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.2, 10), glow);
+          nozzle.rotation.z = Math.PI / 2;
+          nozzle.position.set(-1.2, -0.5 + row * 0.25, 0.9 - i * 1.8 - 0.2 + row * 0.2);
+          group.add(nozzle);
+        }
       }
       break;
     }
@@ -682,35 +928,45 @@ function buildOrdnanceGeometry(model) {
       group.add(rack);
 
       for (let i = 0; i < 4; i += 1) {
-        const bomb = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.6, 4, 8), accent);
+        const bomb = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.7, 6, 10), accent);
         bomb.rotation.x = Math.PI / 2;
         bomb.position.set(-0.5, -1.2, 0.6 - i * 0.4);
-        group.add(bomb);
+        const fins = createTrimDetail(glow, 0.5, 0.04, 0.4);
+        fins.rotation.x = Math.PI / 2;
+        fins.position.set(-0.3, -1.2, 0.6 - i * 0.4);
+        group.add(bomb, fins);
       }
       break;
     }
     case "torpedo": {
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 2.2, 12), material);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 2.6, 12), material);
       tube.rotation.x = Math.PI / 2;
       tube.position.set(0.6, -0.4, 0);
       group.add(tube);
 
-      const warhead = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.6, 12), accent);
+      const warhead = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.7, 12), accent);
       warhead.rotation.x = Math.PI / 2;
-      warhead.position.set(1.7, -0.4, 0);
+      warhead.position.set(2, -0.4, 0);
       group.add(warhead);
+
+      const guidance = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.05, 10, 24), glow);
+      guidance.rotation.x = Math.PI / 2;
+      guidance.position.set(1, -0.4, 0);
+      group.add(guidance);
       break;
     }
     case "drone-bay": {
-      const bay = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 1.6), material);
+      const bay = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.7, 1.8), material);
       bay.position.set(-0.8, -0.4, 0);
       group.add(bay);
 
       for (let i = 0; i < 3; i += 1) {
-        const drone = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.6, 8), accent);
+        const drone = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.5, 6, 8), accent);
         drone.rotation.z = Math.PI / 2;
-        drone.position.set(-1.6, -0.2 + i * 0.2, -0.6 + i * 0.6);
-        group.add(drone);
+        drone.position.set(-1.5, -0.2 + i * 0.25, -0.6 + i * 0.6);
+        const thruster = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), glow);
+        thruster.position.copy(drone.position.clone().add(new THREE.Vector3(-0.25, 0, 0)));
+        group.add(drone, thruster);
       }
       break;
     }
@@ -718,7 +974,9 @@ function buildOrdnanceGeometry(model) {
     default: {
       const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 0.5, 12, 1, true), accent);
       bowl.position.set(-0.6, -0.3, 0);
-      group.add(bowl);
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 12), glow);
+      core.position.set(-0.6, -0.1, 0);
+      group.add(bowl, core);
       break;
     }
   }
@@ -729,31 +987,41 @@ function buildOrdnanceGeometry(model) {
 function buildFins(model) {
   const group = new THREE.Group();
   const material = createMaterial(model.palette.accent, { metalness: 0.28, roughness: 0.35 });
+  const glow = createMaterial(model.palette.glow, { metalness: 0.1, roughness: 0.25, emissive: 0x112233 });
 
   switch (model.fins) {
     case "twin-vertical": {
-      const left = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.4, 0.7), material);
-      left.position.set(-2.8, 0.6, 0.8);
+      const left = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.6, 0.7), material);
+      left.position.set(-2.8, 0.7, 0.8);
       const right = left.clone();
       right.position.z = -0.8;
-      group.add(left, right);
+      const brace = createTrimDetail(glow, 0.8, 0.08, 1.4);
+      brace.rotation.z = Math.PI / 2;
+      brace.position.set(-2.6, 0.3, 0);
+      group.add(left, right, brace);
       break;
     }
     case "v-tail": {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.2, 0.8), material);
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.4, 0.9), material);
       fin.position.set(-2.4, 0.5, 0.6);
-      fin.rotation.x = THREE.MathUtils.degToRad(25);
+      fin.rotation.x = THREE.MathUtils.degToRad(28);
       const mirrored = fin.clone();
-      mirrored.rotation.x = -THREE.MathUtils.degToRad(25);
+      mirrored.rotation.x = -THREE.MathUtils.degToRad(28);
       mirrored.position.z = -0.6;
-      group.add(fin, mirrored);
+      const joint = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.8, 12), glow);
+      joint.rotation.z = Math.PI / 2;
+      joint.position.set(-2.2, 0.3, 0);
+      group.add(fin, mirrored, joint);
       break;
     }
     case "ring": {
-      const torus = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 12, 32), material);
+      const torus = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.06, 16, 32), material);
       torus.rotation.y = Math.PI / 2;
       torus.position.set(-2.4, 0.1, 0);
-      group.add(torus);
+      const spokes = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 12), glow);
+      spokes.position.set(-2.4, 0.1, 0);
+      spokes.rotation.x = Math.PI / 2;
+      group.add(torus, spokes);
       break;
     }
     case "grid": {
@@ -762,14 +1030,23 @@ function buildFins(model) {
         finPiece.position.set(-2.6 - i * 0.2, 0.4 + i * 0.1, 0);
         group.add(finPiece);
       }
+      const lattice = createTrimDetail(glow, 1.4, 0.06, 0.2);
+      lattice.rotation.z = Math.PI / 2;
+      lattice.position.set(-2.8, 0.85, 0);
+      group.add(lattice);
       break;
     }
     case "quad":
     default: {
-      for (let i = 0; i < 4; i += 1) {
-        const finPiece = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.1, 0.4), material);
-        finPiece.position.set(-2.5, 0.2 + i * 0.25, -0.75 + i * 0.5);
-        group.add(finPiece);
+      for (let i = 0; i < 2; i += 1) {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.3, 0.7), material);
+        fin.position.set(-2.6 - i * 0.45, 0.55 + i * 0.25, 1);
+        const mirrored = fin.clone();
+        mirrored.position.z = -1;
+        const link = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2, 10), glow);
+        link.rotation.x = Math.PI / 2;
+        link.position.set(-2.6 - i * 0.45, 0.4 + i * 0.2, 0);
+        group.add(fin, mirrored, link);
       }
       break;
     }
