@@ -151,6 +151,7 @@ const CATEGORY_DEFINITIONS = {
     label: "Drone",
     description: "Compact unmanned craft with exposed thrusters and sensor pods.",
     wingStyles: ["delta", "box", "ladder"],
+    engineStyles: ["jet", "turbofan"],
     ranges: {
       body_start: 0,
       body_end: 100,
@@ -190,6 +191,151 @@ const CATEGORY_DEFINITIONS = {
       wingTipAccentProbability: 0.45,
       winglessProbability: 0.3,
       aftWingProbability: 0.2,
+    },
+  },
+  biplane: {
+    label: "Biplane",
+    description: "Classic 1910s two-wing fighters with exposed frames and rotary props.",
+    wingStyles: ["box", "broad"],
+    engineStyles: ["propeller"],
+    engineMountPercentRange: [0.02, 0.12],
+    wingLayers: [
+      { offsetPercent: -6, heightPercent: 4.5, thicknessScale: 0.85 },
+      { offsetPercent: 6, heightPercent: -4.5, thicknessScale: 0.85 },
+    ],
+    ranges: {
+      body_start: 0,
+      body_end: 100,
+      bodyWidthPercent: [16.0, 24.0],
+      bodyMidInsetPercent: [4.0, 10.0],
+      noseCurvePercent: [6.0, 12.0],
+      tailCurvePercent: [8.0, 16.0],
+      noseWidthFactor: [0.42, 0.58],
+      tailWidthFactor: [0.5, 0.68],
+      cockpitWidthPercent: [14.0, 22.0],
+      cockpitHeightPercent: [12.0, 22.0],
+      cockpit_center_start: 46.0,
+      cockpit_center_end: 58.0,
+      engineCount: [1, 1],
+      engineSizePercent: [10.0, 16.0],
+      engineSpacingPercent: [0, 0],
+      nozzlePercent: [0, 0],
+      wingSpanPercent: [48.0, 70.0],
+      wingSweepPercent: [4.0, 10.0],
+      wingForwardPercent: [2.0, 8.0],
+      wingThicknessPercent: [9.0, 15.0],
+      wing_attach_start: 46.0,
+      wing_attach_end: 60.0,
+      wingDihedralPercent: [4.0, 14.0],
+      finCount: [1, 1],
+      finHeightPercent: [18.0, 32.0],
+      finWidthPercent: [8.0, 16.0],
+      stripeStartPercent: [18.0, 42.0],
+    },
+    features: {
+      topFinProbability: 0.4,
+      sideFinProbability: 0.15,
+      bottomFinProbability: 0.25,
+      platingProbability: 0.35,
+      stripeProbability: 0.45,
+      antennaProbability: 0.25,
+      wingTipAccentProbability: 0.3,
+      winglessProbability: 0.0,
+      aftWingProbability: 0.0,
+    },
+  },
+  ww2: {
+    label: "WWII Fighter",
+    description: "Streamlined 1940s aircraft with powerful piston engines and distinctive tails.",
+    wingStyles: ["broad", "swept"],
+    engineStyles: ["propeller", "radial"],
+    engineMountPercentRange: [0.38, 0.58],
+    ranges: {
+      body_start: 0,
+      body_end: 100,
+      bodyWidthPercent: [18.0, 28.0],
+      bodyMidInsetPercent: [4.0, 11.0],
+      noseCurvePercent: [8.0, 16.0],
+      tailCurvePercent: [12.0, 22.0],
+      noseWidthFactor: [0.42, 0.6],
+      tailWidthFactor: [0.52, 0.72],
+      cockpitWidthPercent: [16.0, 24.0],
+      cockpitHeightPercent: [12.0, 20.0],
+      cockpit_center_start: 48.0,
+      cockpit_center_end: 60.0,
+      engineCount: [1, 2],
+      engineSizePercent: [12.0, 20.0],
+      engineSpacingPercent: [24.0, 46.0],
+      nozzlePercent: [0, 0],
+      wingSpanPercent: [42.0, 64.0],
+      wingSweepPercent: [10.0, 24.0],
+      wingForwardPercent: [6.0, 16.0],
+      wingThicknessPercent: [8.0, 14.0],
+      wing_attach_start: 50.0,
+      wing_attach_end: 62.0,
+      wingDihedralPercent: [6.0, 16.0],
+      finCount: [1, 1],
+      finHeightPercent: [20.0, 36.0],
+      finWidthPercent: [8.0, 16.0],
+      stripeStartPercent: [20.0, 48.0],
+    },
+    features: {
+      topFinProbability: 0.6,
+      sideFinProbability: 0.2,
+      bottomFinProbability: 0.25,
+      platingProbability: 0.55,
+      stripeProbability: 0.6,
+      antennaProbability: 0.35,
+      wingTipAccentProbability: 0.45,
+      winglessProbability: 0.0,
+      aftWingProbability: 0.1,
+    },
+  },
+  jet: {
+    label: "Jet Fighter",
+    description: "Modern supersonic aircraft with sleek intakes and afterburning engines.",
+    wingStyles: ["delta", "swept", "forward"],
+    engineStyles: ["jet", "turbofan"],
+    engineMountPercentRange: [0.72, 0.96],
+    ranges: {
+      body_start: 0,
+      body_end: 100,
+      bodyWidthPercent: [20.0, 30.0],
+      bodyMidInsetPercent: [6.0, 16.0],
+      noseCurvePercent: [10.0, 22.0],
+      tailCurvePercent: [12.0, 24.0],
+      noseWidthFactor: [0.32, 0.48],
+      tailWidthFactor: [0.46, 0.64],
+      cockpitWidthPercent: [18.0, 26.0],
+      cockpitHeightPercent: [12.0, 20.0],
+      cockpit_center_start: 48.0,
+      cockpit_center_end: 58.0,
+      engineCount: [1, 2],
+      engineSizePercent: [13.0, 22.0],
+      engineSpacingPercent: [20.0, 36.0],
+      nozzlePercent: [14.0, 26.0],
+      wingSpanPercent: [36.0, 58.0],
+      wingSweepPercent: [18.0, 34.0],
+      wingForwardPercent: [6.0, 14.0],
+      wingThicknessPercent: [8.0, 14.0],
+      wing_attach_start: 48.0,
+      wing_attach_end: 58.0,
+      wingDihedralPercent: [2.0, 12.0],
+      finCount: [1, 2],
+      finHeightPercent: [24.0, 44.0],
+      finWidthPercent: [8.0, 16.0],
+      stripeStartPercent: [14.0, 32.0],
+    },
+    features: {
+      topFinProbability: 0.75,
+      sideFinProbability: 0.45,
+      bottomFinProbability: 0.35,
+      platingProbability: 0.65,
+      stripeProbability: 0.55,
+      antennaProbability: 0.2,
+      wingTipAccentProbability: 0.75,
+      winglessProbability: 0.05,
+      aftWingProbability: 0.5,
     },
   },
 };
@@ -266,6 +412,41 @@ const REAR_STYLE_ADJUSTMENTS = {
     exhaustWidthFactor: [1.05, 1.2],
     tailWidthFactor: [1.08, 1.24],
     curve: [0.9, 1.05],
+  },
+};
+
+const ENGINE_STYLE_PRESETS = {
+  jet: {
+    key: "jet",
+    type: "jet",
+    mountPercentRange: [0.78, 1.0],
+    nozzleScaleRange: [0.9, 1.12],
+    glow: true,
+  },
+  turbofan: {
+    key: "turbofan",
+    type: "jet",
+    mountPercentRange: [0.7, 0.9],
+    nozzleScaleRange: [0.7, 0.95],
+    glow: false,
+  },
+  propeller: {
+    key: "propeller",
+    type: "propeller",
+    mountPercentRange: [0.02, 0.12],
+    bladeCountRange: [2, 4],
+    bladeWidthRatioRange: [0.16, 0.24],
+    spinnerLengthRatioRange: [0.55, 0.85],
+    radiusScaleRange: [1.08, 1.32],
+  },
+  radial: {
+    key: "radial",
+    type: "propeller",
+    mountPercentRange: [0.05, 0.18],
+    bladeCountRange: [3, 5],
+    bladeWidthRatioRange: [0.18, 0.28],
+    spinnerLengthRatioRange: [0.68, 0.95],
+    radiusScaleRange: [1.24, 1.45],
   },
 };
 
@@ -598,6 +779,75 @@ function randomInt(min, max) {
 
 function choose(array) {
   return array[Math.floor(nextRandom() * array.length)];
+}
+
+function resolveEnginePreset(entry) {
+  if (!entry) {
+    return ENGINE_STYLE_PRESETS.jet;
+  }
+  if (typeof entry === "string") {
+    return ENGINE_STYLE_PRESETS[entry] ?? ENGINE_STYLE_PRESETS.jet;
+  }
+  const preset = ENGINE_STYLE_PRESETS[entry.key] ?? ENGINE_STYLE_PRESETS.jet;
+  return { ...preset, ...entry, key: preset.key, type: preset.type };
+}
+
+function resolveEngineMountPercentRange(range, preset) {
+  if (!range) {
+    return preset.mountPercentRange ?? [0.8, 1];
+  }
+  if (Array.isArray(range) && range.length === 2) {
+    return range;
+  }
+  if (typeof range === "object" && preset?.key && Array.isArray(range[preset.key])) {
+    const candidate = range[preset.key];
+    if (candidate.length === 2) {
+      return candidate;
+    }
+  }
+  return preset.mountPercentRange ?? [0.8, 1];
+}
+
+function applyEnginePreset(engine, preset) {
+  if (!engine || !preset) {
+    return engine;
+  }
+
+  engine.style = preset.key;
+  engine.type = preset.type;
+
+  if (preset.type === "jet") {
+    const scaleRange = preset.nozzleScaleRange ?? [1, 1];
+    const nozzleScale = randomBetween(scaleRange[0], scaleRange[1]);
+    const minimumNozzle = engine.size * 0.6;
+    engine.nozzleLength = Math.max(engine.nozzleLength * nozzleScale, minimumNozzle);
+    engine.intakeRadius = engine.size * 0.55;
+    engine.intakeDepth = engine.size * 0.45;
+    engine.hasFlame = preset.glow !== false;
+  } else if (preset.type === "propeller") {
+    const bladeRange = preset.bladeCountRange ?? [2, 4];
+    const minBlades = Math.max(2, Math.ceil(bladeRange[0] ?? 2));
+    const maxBlades = Math.max(minBlades, Math.floor(bladeRange[1] ?? minBlades));
+    engine.bladeCount = randomInt(minBlades, maxBlades);
+
+    const radiusRange = preset.radiusScaleRange ?? [1, 1.2];
+    const radiusScale = randomBetween(radiusRange[0], radiusRange[1]);
+    engine.propellerRadius = Math.max(engine.size * 0.6, (engine.size / 2) * radiusScale);
+
+    const spinnerRange = preset.spinnerLengthRatioRange ?? [0.6, 0.8];
+    engine.spinnerLength = Math.max(engine.size * spinnerRange[0], engine.size * randomBetween(spinnerRange[0], spinnerRange[1]));
+
+    const bladeWidthRange = preset.bladeWidthRatioRange ?? [0.16, 0.24];
+    engine.bladeWidth = Math.max(
+      engine.propellerRadius * bladeWidthRange[0],
+      engine.propellerRadius * randomBetween(bladeWidthRange[0], bladeWidthRange[1]),
+    );
+    engine.hubRadius = engine.size * 0.45;
+    engine.nozzleLength = 0;
+    engine.hasFlame = false;
+  }
+
+  return engine;
 }
 
 function pickCanopyFraming(styleKey) {
@@ -992,13 +1242,27 @@ function createTopDownConfig(categoryKey, def, palette) {
     tint: palette.cockpit,
   };
 
+  const engineStyleEntry = def.engineStyles?.length ? choose(def.engineStyles) : "jet";
+  const enginePreset = resolveEnginePreset(engineStyleEntry);
+  const engineMountRange = resolveEngineMountPercentRange(
+    def.engineMountPercentRange,
+    enginePreset,
+  );
+  const engineMountPercent = clamp(
+    randomBetween(engineMountRange[0], engineMountRange[1]),
+    0,
+    1,
+  );
+
   const engine = {
     count: randomInt(...ranges.engineCount),
     size: percentToBody(pickPercent(ranges.engineSizePercent)),
     spacing: percentToBody(pickPercent(ranges.engineSpacingPercent)),
     nozzleLength: percentToBody(pickPercent(ranges.nozzlePercent)),
     glow: palette.glow,
+    mountPercent: engineMountPercent,
   };
+  applyEnginePreset(engine, enginePreset);
 
   const wingsConfig = {
     enabled: wingsEnabled,
@@ -1011,7 +1275,43 @@ function createTopDownConfig(categoryKey, def, palette) {
     offsetY: wingOffset,
     dihedral: wingDihedral,
     tipAccent: wingsEnabled && nextRandom() < def.features.wingTipAccentProbability,
+    mountHeight: 0,
   };
+
+  if (wingsConfig.enabled) {
+    const layerDefinitions = Array.isArray(def.wingLayers) && def.wingLayers.length
+      ? def.wingLayers
+      : [{ offsetPercent: 0, heightPercent: 0, thicknessScale: 1 }];
+
+    const layers = layerDefinitions.map((layer, index) => {
+      const spanScale = layer.spanScale ?? 1;
+      const forwardScale = layer.forwardScale ?? spanScale;
+      const sweepScale = layer.sweepScale ?? spanScale;
+      return {
+        offsetY: wingOffset + percentToBody(layer.offsetPercent ?? 0),
+        mountHeight: percentToBody(layer.heightPercent ?? 0) + wingsConfig.mountHeight,
+        thickness: Math.max(6, wingThickness * (layer.thicknessScale ?? 1)),
+        span: Math.max(8, wingSpan * spanScale),
+        forward: Math.max(0, wingForward * forwardScale),
+        sweep: Math.max(0, wingSweep * sweepScale),
+        style: layer.style ?? wingsConfig.style,
+        tipAccent: layer.tipAccent ?? (index === 0 ? wingsConfig.tipAccent : false),
+      };
+    });
+
+    const baseLayer = layers[0];
+    wingsConfig.offsetY = baseLayer.offsetY;
+    wingsConfig.mountHeight = baseLayer.mountHeight;
+    wingsConfig.thickness = baseLayer.thickness;
+    wingsConfig.span = baseLayer.span;
+    wingsConfig.forward = baseLayer.forward;
+    wingsConfig.sweep = baseLayer.sweep;
+    wingsConfig.style = baseLayer.style;
+    wingsConfig.tipAccent = baseLayer.tipAccent;
+    wingsConfig.layers = layers;
+  } else {
+    wingsConfig.layers = [];
+  }
 
   const fins = {
     top: nextRandom() < def.features.topFinProbability ? 1 : 0,
@@ -1120,7 +1420,35 @@ function normaliseConfig(config) {
 }
 
 function normaliseTopDownConfig(copy) {
+  copy.engine.size = Math.max(6, copy.engine.size ?? 6);
   copy.engine.count = Math.max(1, Math.round(copy.engine.count));
+  copy.engine.spacing = Math.max(0, copy.engine.spacing ?? 0);
+  copy.engine.style = copy.engine.style || "jet";
+  copy.engine.type = copy.engine.type || (copy.engine.style === "propeller" ? "propeller" : "jet");
+  copy.engine.mountPercent = clamp(copy.engine.mountPercent ?? (copy.engine.type === "propeller" ? 0.1 : 1), 0, 1);
+  copy.engine.mountOffset = Number.isFinite(copy.engine.mountOffset) ? copy.engine.mountOffset : 0;
+  if (copy.engine.type === "propeller") {
+    copy.engine.bladeCount = Math.max(2, Math.round(copy.engine.bladeCount ?? 2));
+    copy.engine.propellerRadius = Math.max(
+      copy.engine.size * 0.6,
+      copy.engine.propellerRadius ?? copy.engine.size,
+    );
+    copy.engine.hubRadius = Math.max(2, Math.min(copy.engine.propellerRadius * 0.8, copy.engine.hubRadius ?? copy.engine.size * 0.45));
+    copy.engine.spinnerLength = Math.max(
+      copy.engine.size * 0.4,
+      copy.engine.spinnerLength ?? copy.engine.size * 0.6,
+    );
+    copy.engine.bladeWidth = Math.max(
+      1.2,
+      Math.min(copy.engine.propellerRadius, copy.engine.bladeWidth ?? copy.engine.propellerRadius * 0.2),
+    );
+    copy.engine.hasFlame = false;
+  } else {
+    copy.engine.nozzleLength = Math.max(copy.engine.size * 0.4, copy.engine.nozzleLength ?? copy.engine.size * 0.6);
+    copy.engine.intakeRadius = Math.max(copy.engine.size * 0.45, copy.engine.intakeRadius ?? copy.engine.size * 0.5);
+    copy.engine.intakeDepth = Math.max(copy.engine.size * 0.3, copy.engine.intakeDepth ?? copy.engine.size * 0.4);
+    copy.engine.hasFlame = copy.engine.hasFlame !== false;
+  }
   copy.fins.side = Math.max(0, Math.round(copy.fins.side));
   copy.fins.height = Math.max(8, copy.fins.height);
   copy.fins.width = Math.max(6, copy.fins.width);
@@ -1139,6 +1467,7 @@ function normaliseTopDownConfig(copy) {
       copy.wings.mountHeight = 0;
       copy.wings.span = Math.max(0, copy.wings.span ?? 0);
       copy.wings.thickness = Math.max(0, copy.wings.thickness ?? 0);
+      copy.wings.layers = [];
     } else {
       copy.wings.mount = copy.wings.mount || "mid";
       const halfLength = copy.body.length / 2;
@@ -1155,6 +1484,42 @@ function normaliseTopDownConfig(copy) {
       if (!Number.isFinite(copy.wings.mountHeight)) {
         copy.wings.mountHeight = 0;
       }
+      if (!Array.isArray(copy.wings.layers) || !copy.wings.layers.length) {
+        copy.wings.layers = [
+          {
+            offsetY: copy.wings.offsetY,
+            mountHeight: copy.wings.mountHeight,
+            thickness: copy.wings.thickness,
+            span: copy.wings.span,
+            forward: copy.wings.forward,
+            sweep: copy.wings.sweep,
+            style: copy.wings.style,
+            tipAccent: copy.wings.tipAccent,
+          },
+        ];
+      } else {
+        copy.wings.layers = copy.wings.layers.map((layer, index) => {
+          const entry = { ...layer };
+          entry.offsetY = Number.isFinite(entry.offsetY) ? entry.offsetY : copy.wings.offsetY;
+          entry.mountHeight = Number.isFinite(entry.mountHeight) ? entry.mountHeight : copy.wings.mountHeight;
+          entry.thickness = Math.max(4, entry.thickness ?? copy.wings.thickness);
+          entry.span = Math.max(12, entry.span ?? copy.wings.span);
+          entry.forward = Math.max(0, entry.forward ?? copy.wings.forward);
+          entry.sweep = Math.max(0, entry.sweep ?? copy.wings.sweep);
+          entry.style = entry.style ?? copy.wings.style;
+          entry.tipAccent = Boolean(index === 0 ? copy.wings.tipAccent : entry.tipAccent);
+          return entry;
+        });
+      }
+      const baseLayer = copy.wings.layers[0];
+      copy.wings.offsetY = baseLayer.offsetY;
+      copy.wings.mountHeight = baseLayer.mountHeight;
+      copy.wings.thickness = baseLayer.thickness;
+      copy.wings.span = baseLayer.span;
+      copy.wings.forward = baseLayer.forward;
+      copy.wings.sweep = baseLayer.sweep;
+      copy.wings.style = baseLayer.style;
+      copy.wings.tipAccent = Boolean(baseLayer.tipAccent);
     }
   }
   if (copy.body?.segments) {

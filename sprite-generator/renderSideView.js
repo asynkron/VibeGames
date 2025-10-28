@@ -28,7 +28,7 @@ export function drawSideViewSpaceship(root, config, geometry, defs) {
   drawSideStabiliser(root, config, geometry, axis);
   drawSideMarkings(root, config, geometry, axis);
   drawSideCanopy(root, config, geometry, axis, defs);
-  drawSideThrusters(root, config, geometry, axis);
+  drawSideEngines(root, config, geometry, axis);
   drawSideWeapons(root, config, geometry, axis);
   drawSideLights(root, config, geometry, axis);
 }
@@ -168,32 +168,40 @@ export function drawSideWing(root, config, geometry, axis) {
   if (!profile || !wingProfile?.enabled) {
     return;
   }
+  const layers = Array.isArray(wingProfile.layers) && wingProfile.layers.length
+    ? wingProfile.layers
+    : [wingProfile];
 
-  const points = wingProfile.style === "delta"
-    ? getDeltaWingSide(config, wingProfile, profile, axis)
-    : getWingSidePoints(wingProfile, profile, axis);
-  if (!points) {
-    return;
-  }
+  layers.forEach((layer) => {
+    if (!layer?.enabled) {
+      return;
+    }
+    const layerPoints = layer.style === "delta"
+      ? getDeltaWingSide(config, layer, profile, axis)
+      : getWingSidePoints(layer, profile, axis);
+    if (!layerPoints) {
+      return;
+    }
 
-  const wing = createSvgElement("polygon", {
-    points: pointsToString(points),
-    fill: partColor("wing", shadeColor(palette.secondary, -0.1)),
-    stroke: palette.trim,
-    "stroke-width": 1.8,
-    "stroke-linejoin": "round",
-  });
-  root.appendChild(wing);
-
-  if (wingProfile.accent) {
-    const accent = createSvgElement("polyline", {
-      points: pointsToString([points[0], points[1], points[2]]),
-      stroke: partStroke("wing", palette.accent),
-      "stroke-width": 2,
-      fill: "none",
+    const wing = createSvgElement("polygon", {
+      points: pointsToString(layerPoints),
+      fill: partColor("wing", shadeColor(palette.secondary, -0.1)),
+      stroke: palette.trim,
+      "stroke-width": 1.8,
+      "stroke-linejoin": "round",
     });
-    root.appendChild(accent);
-  }
+    root.appendChild(wing);
+
+    if (layer.accent) {
+      const accent = createSvgElement("polyline", {
+        points: pointsToString([layerPoints[0], layerPoints[1], layerPoints[2]]),
+        stroke: partStroke("wing", palette.accent),
+        "stroke-width": 2,
+        fill: "none",
+      });
+      root.appendChild(accent);
+    }
+  });
 }
 
 export function drawSideStabiliser(root, config, geometry, axis) {
@@ -389,84 +397,154 @@ export function drawSideCanopy(root, config, geometry, axis, defs) {
   }
 }
 
-export function drawSideThrusters(root, config, geometry, axis) {
+export function drawSideEngines(root, config, geometry, axis) {
   const { palette } = config;
-  const { thruster } = geometry;
+  const { engine } = geometry;
   const profile = getSideProfile(geometry);
-  if (!thruster || !profile) {
+  if (!engine || !profile) {
     return;
   }
-  const tailX = axis.percentToSideX(1);
-  const baseY = 100 + (profile.offsetY ?? 0) + (thruster.offsetY ?? 0);
+  if (engine.type === "propeller") {
+    drawSidePropellers(root, palette, engine, profile, axis);
+  } else {
+    drawSideJetExhaust(root, palette, engine, profile, axis);
+  }
+}
+
+function drawSideJetExhaust(root, palette, engine, profile, axis) {
+  const tailX = axis.percentToSideX(engine.mountPercent ?? 1);
+  const baseY = 100 + (profile.offsetY ?? 0) + (engine.offsetY ?? 0);
   const group = createSvgElement("g");
-  const thrusterBodyColor = partColor("thruster", shadeColor(palette.secondary, -0.05));
-  const thrusterNozzleColor = partColor(
-    "thruster",
-    mixColor(palette.secondary, palette.accent, 0.35),
-  );
-  const exhaustColor = partColor("exhaust", thruster.glow);
+  const bodyColor = partColor("thruster", shadeColor(palette.secondary, -0.05));
+  const nozzleColor = partColor("thruster", mixColor(palette.secondary, palette.accent, 0.35));
+  const exhaustColor = partColor("exhaust", engine.glow);
   const debugEnabled = isDebugColorsEnabled();
 
-  for (let i = 0; i < thruster.count; i += 1) {
-    const offset = i - (thruster.count - 1) / 2;
-    const y = baseY + offset * thruster.spacing;
-    const housingHeight = thruster.radius * 1.8;
-    const housingWidth = thruster.radius * 1.6;
+  for (let i = 0; i < engine.count; i += 1) {
+    const offset = i - (engine.count - 1) / 2;
+    const y = baseY + offset * engine.spacing;
+    const housingHeight = engine.radius * 1.8;
+    const housingWidth = engine.radius * 1.6;
     const housing = createSvgElement("rect", {
-      x: String(tailX - thruster.nozzleLength - housingWidth),
+      x: String(tailX - engine.nozzleLength - housingWidth),
       y: String(y - housingHeight / 2),
       width: String(housingWidth),
       height: String(housingHeight),
-      rx: String(thruster.radius * 0.4),
-      fill: thrusterBodyColor,
+      rx: String(engine.radius * 0.4),
+      fill: bodyColor,
       stroke: palette.trim,
       "stroke-width": 1.4,
     });
 
     const nozzle = createSvgElement("rect", {
-      x: String(tailX - thruster.nozzleLength),
-      y: String(y - thruster.radius * 0.75),
-      width: String(thruster.nozzleLength),
-      height: String(thruster.radius * 1.5),
-      rx: String(thruster.radius * 0.3),
-      fill: thrusterNozzleColor,
+      x: String(tailX - engine.nozzleLength),
+      y: String(y - engine.radius * 0.75),
+      width: String(engine.nozzleLength),
+      height: String(engine.radius * 1.5),
+      rx: String(engine.radius * 0.3),
+      fill: nozzleColor,
       stroke: palette.trim,
       "stroke-width": 1.2,
     });
 
-    const flameReach = Math.max(thruster.nozzleLength * 0.85, thruster.radius * 1.2);
-    const flamePoints = [
-      [tailX, y - thruster.radius * 0.35],
-      [tailX + flameReach, y],
-      [tailX, y + thruster.radius * 0.35],
-    ];
-    const flame = createSvgElement(
-      "polygon",
-      {
-        points: pointsToString(flamePoints),
+    group.append(housing, nozzle);
+
+    if (engine.hasFlame) {
+      const flameReach = Math.max(engine.nozzleLength * 0.85, engine.radius * 1.2);
+      const flamePoints = [
+        [tailX, y - engine.radius * 0.35],
+        [tailX + flameReach, y],
+        [tailX, y + engine.radius * 0.35],
+      ];
+      const flame = createSvgElement(
+        "polygon",
+        {
+          points: pointsToString(flamePoints),
+          fill: exhaustColor,
+          opacity: "0.85",
+        },
+        ["thruster-flame", "thruster-flame--horizontal"],
+      );
+      const glow = createSvgElement("circle", {
+        cx: String(tailX),
+        cy: String(y),
+        r: String(engine.radius * 0.85),
         fill: exhaustColor,
         opacity: "0.85",
-      },
-      ["thruster-flame", "thruster-flame--horizontal"],
-    );
+      });
+      const core = createSvgElement("circle", {
+        cx: String(tailX),
+        cy: String(y),
+        r: String(engine.radius * 0.4),
+        fill: debugEnabled ? exhaustColor : mixColor(engine.glow, "#ffffff", 0.5),
+        opacity: "0.9",
+      });
+      group.append(flame, glow, core);
+    }
+  }
 
-    const glow = createSvgElement("circle", {
-      cx: String(tailX),
-      cy: String(y),
-      r: String(thruster.radius * 0.85),
-      fill: exhaustColor,
-      opacity: "0.85",
+  root.appendChild(group);
+}
+
+function drawSidePropellers(root, palette, engine, profile, axis) {
+  const noseX = axis.percentToSideX(engine.mountPercent ?? 0);
+  const baseY = 100 + (profile.offsetY ?? 0) + (engine.mountOffset ?? 0);
+  const group = createSvgElement("g");
+  const housingColor = partColor("thruster", shadeColor(palette.secondary, -0.05));
+  const accentColor = partStroke("thruster", palette.trim);
+  const bladeColor = partColor("thruster", mixColor(palette.secondary, palette.accent, 0.3));
+
+  for (let i = 0; i < engine.count; i += 1) {
+    const offset = i - (engine.count - 1) / 2;
+    const y = baseY + offset * engine.spacing;
+    const housingLength = engine.spinnerLength * 0.75;
+    const housingHeight = engine.hubRadius * 2;
+
+    const housing = createSvgElement("rect", {
+      x: String(noseX - housingLength),
+      y: String(y - housingHeight / 2),
+      width: String(housingLength),
+      height: String(housingHeight),
+      rx: String(engine.hubRadius * 0.6),
+      fill: housingColor,
+      stroke: palette.trim,
+      "stroke-width": 1.2,
     });
 
-    const core = createSvgElement("circle", {
-      cx: String(tailX),
-      cy: String(y),
-      r: String(thruster.radius * 0.4),
-      fill: debugEnabled ? exhaustColor : mixColor(thruster.glow, "#ffffff", 0.5),
-      opacity: "0.9",
+    const spinnerPoints = [
+      [noseX - housingLength * 0.1, y - engine.hubRadius],
+      [noseX + engine.spinnerLength, y],
+      [noseX - housingLength * 0.1, y + engine.hubRadius],
+    ];
+    const spinner = createSvgElement("polygon", {
+      points: pointsToString(spinnerPoints),
+      fill: partColor("thruster", mixColor(palette.accent, palette.secondary, 0.55)),
+      stroke: palette.trim,
+      "stroke-width": 1.1,
     });
 
-    group.append(housing, nozzle, flame, glow, core);
+    const propX = noseX + engine.spinnerLength;
+    const propDisc = createSvgElement("ellipse", {
+      cx: String(propX),
+      cy: String(y),
+      rx: String(engine.bladeWidth * 1.2),
+      ry: String(engine.radius),
+      fill: "none",
+      stroke: bladeColor,
+      "stroke-width": 1.4,
+      opacity: "0.75",
+    });
+
+    const hub = createSvgElement("circle", {
+      cx: String(propX),
+      cy: String(y),
+      r: String(engine.hubRadius * 0.65),
+      fill: partColor("thruster", mixColor(palette.secondary, "#ffffff", 0.25)),
+      stroke: accentColor,
+      "stroke-width": 1.1,
+    });
+
+    group.append(housing, spinner, propDisc, hub);
   }
 
   root.appendChild(group);
