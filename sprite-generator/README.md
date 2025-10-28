@@ -23,7 +23,8 @@ Then open the reported `http://localhost` URL.
 
 ## Extending
 
-- Add more archetypes by defining ranges and feature probabilities in `CATEGORY_DEFINITIONS` inside `generator.js`.
+- Add more archetypes by creating a new factory in `factories/` and exposing it from `factories/index.js`. Each factory bundles
+  its own ranges, features, and rendering hooks so you can add or remove a type without touching existing ones.
 - To introduce a new part (for example, weapon pods), follow the existing pattern: extend the configuration, add a draw helper, and include it in `renderSpaceship`.
 - Sprite families for other asset types (turrets, vehicles) can reuse the layout and mutation helpers. Only part-specific drawing logic needs to change.
 - The `normaliseConfig` helper is designed to keep interpolated values sensible; update it if additional discrete traits are introduced.

@@ -1,4 +1,5 @@
 import { computeWingPlanform } from "./renderParts.js";
+import { createSpaceshipFactories } from "./factories/index.js";
 import { clamp } from "./math.js";
 import { mixColor } from "./color.js";
 import { drawTopDownSpaceship } from "./renderTopView.js";
@@ -11,613 +12,8 @@ const NORMALISED_HULL_LENGTH = 100;
 
 // Category metadata expressed entirely in hull-relative percentages so generation logic
 // never depends on legacy absolute measurements.
-const CATEGORY_DEFINITIONS = {
-  fighter: {
-    label: "Fighter",
-    description: "Aggressive interceptors with sharp silhouettes and agile control surfaces.",
-    wingStyles: ["delta", "swept", "forward"],
-    ranges: {
-      body_start: 0,
-      body_end: 100,
-      bodyWidthPercent: [21.33, 35.0],
-      bodyMidInsetPercent: [6.67, 18.33],
-      noseCurvePercent: [12.0, 25.0],
-      tailCurvePercent: [10.67, 21.67],
-      noseWidthFactor: [0.32, 0.45],
-      tailWidthFactor: [0.48, 0.64],
-      cockpitWidthPercent: [18.67, 30.0],
-      cockpitHeightPercent: [12.0, 21.67],
-      cockpit_center_start: 46.0,
-      cockpit_center_end: 55.0,
-      engineCount: [1, 2],
-      engineSizePercent: [12.0, 23.33],
-      engineSpacingPercent: [18.67, 36.67],
-      nozzlePercent: [13.33, 26.67],
-      wingSpanPercent: [34.67, 58.33],
-      wingSweepPercent: [17.33, 33.33],
-      wingForwardPercent: [5.33, 15.0],
-      wingThicknessPercent: [8.0, 15.0],
-      wing_attach_start: 46.0,
-      wing_attach_end: 55.0,
-      wingDihedralPercent: [-4.0, 11.67],
-      finCount: [1, 2],
-      finHeightPercent: [21.33, 43.33],
-      finWidthPercent: [6.67, 15.0],
-      stripeStartPercent: [12.0, 31.67],
-    },
-    features: {
-      topFinProbability: 0.7,
-      sideFinProbability: 0.45,
-      bottomFinProbability: 0.25,
-      platingProbability: 0.6,
-      stripeProbability: 0.55,
-      antennaProbability: 0.35,
-      wingTipAccentProbability: 0.7,
-      winglessProbability: 0.12,
-      aftWingProbability: 0.38,
-    },
-  },
-  freight: {
-    label: "Freight",
-    description: "Bulky haulers with reinforced hulls and multiple engines.",
-    wingStyles: ["broad", "box"],
-    ranges: {
-      body_start: 0,
-      body_end: 100,
-      bodyWidthPercent: [21.05, 34.67],
-      bodyMidInsetPercent: [2.11, 8.0],
-      noseCurvePercent: [5.26, 12.0],
-      tailCurvePercent: [11.58, 24.0],
-      noseWidthFactor: [0.5, 0.65],
-      tailWidthFactor: [0.6, 0.78],
-      cockpitWidthPercent: [15.79, 26.67],
-      cockpitHeightPercent: [8.42, 14.67],
-      cockpit_center_start: 52.11,
-      cockpit_center_end: 60.67,
-      engineCount: [2, 4],
-      engineSizePercent: [10.53, 18.67],
-      engineSpacingPercent: [17.89, 33.33],
-      nozzlePercent: [12.63, 24.0],
-      wingSpanPercent: [21.05, 38.67],
-      wingSweepPercent: [6.32, 16.0],
-      wingForwardPercent: [2.11, 8.0],
-      wingThicknessPercent: [9.47, 17.33],
-      wing_attach_start: 56.32,
-      wing_attach_end: 67.33,
-      wingDihedralPercent: [-2.11, 5.33],
-      finCount: [2, 3],
-      finHeightPercent: [12.63, 25.33],
-      finWidthPercent: [6.32, 14.67],
-      stripeStartPercent: [16.84, 37.33],
-    },
-    features: {
-      topFinProbability: 0.45,
-      sideFinProbability: 0.6,
-      bottomFinProbability: 0.4,
-      platingProbability: 0.85,
-      stripeProbability: 0.4,
-      antennaProbability: 0.2,
-      wingTipAccentProbability: 0.35,
-      winglessProbability: 0.05,
-      aftWingProbability: 0.25,
-    },
-  },
-  transport: {
-    label: "Transport",
-    description: "Versatile shuttles balancing passenger pods and engine pods.",
-    wingStyles: ["swept", "ladder", "split"],
-    ranges: {
-      body_start: 0,
-      body_end: 100,
-      bodyWidthPercent: [20.0, 35.38],
-      bodyMidInsetPercent: [3.53, 12.31],
-      noseCurvePercent: [8.24, 18.46],
-      tailCurvePercent: [9.41, 21.54],
-      noseWidthFactor: [0.38, 0.55],
-      tailWidthFactor: [0.55, 0.7],
-      cockpitWidthPercent: [15.29, 26.15],
-      cockpitHeightPercent: [10.59, 18.46],
-      cockpit_center_start: 48.82,
-      cockpit_center_end: 57.69,
-      engineCount: [2, 3],
-      engineSizePercent: [10.59, 20.0],
-      engineSpacingPercent: [17.65, 33.85],
-      nozzlePercent: [11.76, 24.62],
-      wingSpanPercent: [28.24, 49.23],
-      wingSweepPercent: [10.59, 24.62],
-      wingForwardPercent: [3.53, 12.31],
-      wingThicknessPercent: [8.24, 15.38],
-      wing_attach_start: 50.0,
-      wing_attach_end: 62.31,
-      wingDihedralPercent: [-1.18, 9.23],
-      finCount: [1, 2],
-      finHeightPercent: [16.47, 33.85],
-      finWidthPercent: [7.06, 15.38],
-      stripeStartPercent: [11.76, 33.85],
-    },
-    features: {
-      topFinProbability: 0.55,
-      sideFinProbability: 0.35,
-      bottomFinProbability: 0.35,
-      platingProbability: 0.65,
-      stripeProbability: 0.5,
-      antennaProbability: 0.3,
-      wingTipAccentProbability: 0.5,
-      winglessProbability: 0.08,
-      aftWingProbability: 0.3,
-    },
-  },
-  drone: {
-    label: "Drone",
-    description: "Compact unmanned craft with exposed thrusters and sensor pods.",
-    wingStyles: ["delta", "box", "ladder"],
-    engineStyles: ["jet", "turbofan"],
-    ranges: {
-      body_start: 0,
-      body_end: 100,
-      bodyWidthPercent: [23.33, 40.0],
-      bodyMidInsetPercent: [6.67, 20.0],
-      noseCurvePercent: [8.33, 24.44],
-      tailCurvePercent: [8.33, 26.67],
-      noseWidthFactor: [0.4, 0.58],
-      tailWidthFactor: [0.5, 0.7],
-      cockpitWidthPercent: [13.33, 26.67],
-      cockpitHeightPercent: [10.0, 20.0],
-      cockpit_center_start: 41.67,
-      cockpit_center_end: 54.44,
-      engineCount: [3, 5],
-      engineSizePercent: [11.67, 24.44],
-      engineSpacingPercent: [16.67, 35.56],
-      nozzlePercent: [11.67, 26.67],
-      wingSpanPercent: [26.67, 53.33],
-      wingSweepPercent: [8.33, 24.44],
-      wingForwardPercent: [1.67, 11.11],
-      wingThicknessPercent: [10.0, 20.0],
-      wing_attach_start: 41.67,
-      wing_attach_end: 54.44,
-      wingDihedralPercent: [-10.0, 6.67],
-      finCount: [0, 2],
-      finHeightPercent: [15.0, 35.56],
-      finWidthPercent: [6.67, 17.78],
-      stripeStartPercent: [10.0, 28.89],
-    },
-    features: {
-      topFinProbability: 0.35,
-      sideFinProbability: 0.5,
-      bottomFinProbability: 0.55,
-      platingProbability: 0.5,
-      stripeProbability: 0.35,
-      antennaProbability: 0.55,
-      wingTipAccentProbability: 0.45,
-      winglessProbability: 0.3,
-      aftWingProbability: 0.2,
-    },
-  },
-  biplane: {
-    label: "Biplane",
-    description: "Classic 1910s two-wing fighters with exposed frames and rotary props.",
-    wingStyles: ["box", "broad"],
-    engineStyles: ["propeller"],
-    engineMountPercentRange: [0.02, 0.12],
-    wingLayers: [
-      { offsetPercent: -6, heightPercent: 4.5, thicknessScale: 0.85 },
-      { offsetPercent: 6, heightPercent: -4.5, thicknessScale: 0.85 },
-    ],
-    ranges: {
-      body_start: 0,
-      body_end: 100,
-      bodyWidthPercent: [16.0, 24.0],
-      bodyMidInsetPercent: [4.0, 10.0],
-      noseCurvePercent: [6.0, 12.0],
-      tailCurvePercent: [8.0, 16.0],
-      noseWidthFactor: [0.42, 0.58],
-      tailWidthFactor: [0.5, 0.68],
-      cockpitWidthPercent: [14.0, 22.0],
-      cockpitHeightPercent: [12.0, 22.0],
-      cockpit_center_start: 46.0,
-      cockpit_center_end: 58.0,
-      engineCount: [1, 1],
-      engineSizePercent: [10.0, 16.0],
-      engineSpacingPercent: [0, 0],
-      nozzlePercent: [0, 0],
-      wingSpanPercent: [48.0, 70.0],
-      wingSweepPercent: [4.0, 10.0],
-      wingForwardPercent: [2.0, 8.0],
-      wingThicknessPercent: [9.0, 15.0],
-      wing_attach_start: 46.0,
-      wing_attach_end: 60.0,
-      wingDihedralPercent: [4.0, 14.0],
-      finCount: [1, 1],
-      finHeightPercent: [18.0, 32.0],
-      finWidthPercent: [8.0, 16.0],
-      stripeStartPercent: [18.0, 42.0],
-    },
-    features: {
-      topFinProbability: 0.4,
-      sideFinProbability: 0.15,
-      bottomFinProbability: 0.25,
-      platingProbability: 0.35,
-      stripeProbability: 0.45,
-      antennaProbability: 0.25,
-      wingTipAccentProbability: 0.3,
-      winglessProbability: 0.0,
-      aftWingProbability: 0.0,
-    },
-  },
-  ww2: {
-    label: "WWII Fighter",
-    description: "Streamlined 1940s aircraft with powerful piston engines and distinctive tails.",
-    wingStyles: ["broad", "swept"],
-    engineStyles: ["propeller", "radial"],
-    engineMountPercentRange: [0.38, 0.58],
-    ranges: {
-      body_start: 0,
-      body_end: 100,
-      bodyWidthPercent: [18.0, 28.0],
-      bodyMidInsetPercent: [4.0, 11.0],
-      noseCurvePercent: [8.0, 16.0],
-      tailCurvePercent: [12.0, 22.0],
-      noseWidthFactor: [0.42, 0.6],
-      tailWidthFactor: [0.52, 0.72],
-      cockpitWidthPercent: [16.0, 24.0],
-      cockpitHeightPercent: [12.0, 20.0],
-      cockpit_center_start: 48.0,
-      cockpit_center_end: 60.0,
-      engineCount: [1, 2],
-      engineSizePercent: [12.0, 20.0],
-      engineSpacingPercent: [24.0, 46.0],
-      nozzlePercent: [0, 0],
-      wingSpanPercent: [42.0, 64.0],
-      wingSweepPercent: [10.0, 24.0],
-      wingForwardPercent: [6.0, 16.0],
-      wingThicknessPercent: [8.0, 14.0],
-      wing_attach_start: 50.0,
-      wing_attach_end: 62.0,
-      wingDihedralPercent: [6.0, 16.0],
-      finCount: [1, 1],
-      finHeightPercent: [20.0, 36.0],
-      finWidthPercent: [8.0, 16.0],
-      stripeStartPercent: [20.0, 48.0],
-    },
-    features: {
-      topFinProbability: 0.6,
-      sideFinProbability: 0.2,
-      bottomFinProbability: 0.25,
-      platingProbability: 0.55,
-      stripeProbability: 0.6,
-      antennaProbability: 0.35,
-      wingTipAccentProbability: 0.45,
-      winglessProbability: 0.0,
-      aftWingProbability: 0.1,
-    },
-  },
-  jet: {
-    label: "Jet Fighter",
-    description: "Modern supersonic aircraft with sleek intakes and afterburning engines.",
-    wingStyles: ["delta", "swept", "forward"],
-    engineStyles: ["jet", "turbofan"],
-    engineMountPercentRange: [0.72, 0.96],
-    ranges: {
-      body_start: 0,
-      body_end: 100,
-      bodyWidthPercent: [20.0, 30.0],
-      bodyMidInsetPercent: [6.0, 16.0],
-      noseCurvePercent: [10.0, 22.0],
-      tailCurvePercent: [12.0, 24.0],
-      noseWidthFactor: [0.32, 0.48],
-      tailWidthFactor: [0.46, 0.64],
-      cockpitWidthPercent: [18.0, 26.0],
-      cockpitHeightPercent: [12.0, 20.0],
-      cockpit_center_start: 48.0,
-      cockpit_center_end: 58.0,
-      engineCount: [1, 2],
-      engineSizePercent: [13.0, 22.0],
-      engineSpacingPercent: [20.0, 36.0],
-      nozzlePercent: [14.0, 26.0],
-      wingSpanPercent: [36.0, 58.0],
-      wingSweepPercent: [18.0, 34.0],
-      wingForwardPercent: [6.0, 14.0],
-      wingThicknessPercent: [8.0, 14.0],
-      wing_attach_start: 48.0,
-      wing_attach_end: 58.0,
-      wingDihedralPercent: [2.0, 12.0],
-      finCount: [1, 2],
-      finHeightPercent: [24.0, 44.0],
-      finWidthPercent: [8.0, 16.0],
-      stripeStartPercent: [14.0, 32.0],
-    },
-    features: {
-      topFinProbability: 0.75,
-      sideFinProbability: 0.45,
-      bottomFinProbability: 0.35,
-      platingProbability: 0.65,
-      stripeProbability: 0.55,
-      antennaProbability: 0.2,
-      wingTipAccentProbability: 0.75,
-      winglessProbability: 0.05,
-      aftWingProbability: 0.5,
-    },
-  },
-};
-
-// Style-specific multipliers keep the hull shaping data-driven rather than hard-coded logic.
-const FRONT_STYLE_ADJUSTMENTS = {
-  normal: {
-    weight: [0.96, 1.08],
-    tipWidthFactor: [0.9, 1.08],
-    shoulderWidthFactor: [0.94, 1.08],
-    curve: [0.94, 1.08],
-  },
-  skinny: {
-    weight: [1.08, 1.22],
-    tipWidthFactor: [0.72, 0.85],
-    shoulderWidthFactor: [0.88, 0.96],
-    transitionFactor: [0.9, 1.05],
-    curve: [1.08, 1.22],
-  },
-  bulky: {
-    weight: [0.92, 1.05],
-    tipWidthFactor: [1.18, 1.32],
-    shoulderWidthFactor: [1.08, 1.2],
-    transitionFactor: [1.02, 1.18],
-    curve: [0.86, 0.98],
-  },
-};
-
-const MID_STYLE_ADJUSTMENTS = {
-  normal: {
-    weight: [0.98, 1.12],
-    waistWidthFactor: [0.94, 1.08],
-    bellyWidthFactor: [0.96, 1.12],
-    trailingWidthFactor: [0.94, 1.08],
-    inset: [0.96, 1.08],
-  },
-  skinny: {
-    weight: [0.92, 1.05],
-    waistWidthFactor: [0.78, 0.9],
-    bellyWidthFactor: [0.82, 0.92],
-    trailingWidthFactor: [0.82, 0.94],
-    inset: [1.12, 1.28],
-    waistPosition: [0.9, 1.05],
-    bellyPosition: [0.95, 1.08],
-  },
-  bulky: {
-    weight: [1.08, 1.2],
-    waistWidthFactor: [1.08, 1.2],
-    bellyWidthFactor: [1.18, 1.32],
-    trailingWidthFactor: [1.12, 1.26],
-    inset: [0.72, 0.92],
-    waistPosition: [0.95, 1.1],
-    bellyPosition: [1.0, 1.12],
-  },
-};
-
-const REAR_STYLE_ADJUSTMENTS = {
-  normal: {
-    weight: [0.96, 1.1],
-    baseWidthFactor: [0.96, 1.08],
-    exhaustWidthFactor: [0.92, 1.05],
-    tailWidthFactor: [0.96, 1.08],
-  },
-  skinny: {
-    weight: [0.92, 1.05],
-    baseWidthFactor: [0.82, 0.94],
-    exhaustWidthFactor: [0.78, 0.9],
-    tailWidthFactor: [0.78, 0.92],
-    curve: [1.0, 1.14],
-  },
-  bulky: {
-    weight: [1.08, 1.22],
-    baseWidthFactor: [1.16, 1.3],
-    exhaustWidthFactor: [1.05, 1.2],
-    tailWidthFactor: [1.08, 1.24],
-    curve: [0.9, 1.05],
-  },
-};
-
-const ENGINE_STYLE_PRESETS = {
-  jet: {
-    key: "jet",
-    type: "jet",
-    mountPercentRange: [0.78, 1.0],
-    nozzleScaleRange: [0.9, 1.12],
-    glow: true,
-  },
-  turbofan: {
-    key: "turbofan",
-    type: "jet",
-    mountPercentRange: [0.7, 0.9],
-    nozzleScaleRange: [0.7, 0.95],
-    glow: false,
-  },
-  propeller: {
-    key: "propeller",
-    type: "propeller",
-    mountPercentRange: [0.02, 0.12],
-    bladeCountRange: [2, 4],
-    bladeWidthRatioRange: [0.16, 0.24],
-    spinnerLengthRatioRange: [0.55, 0.85],
-    radiusScaleRange: [1.08, 1.32],
-  },
-  radial: {
-    key: "radial",
-    type: "propeller",
-    mountPercentRange: [0.05, 0.18],
-    bladeCountRange: [3, 5],
-    bladeWidthRatioRange: [0.18, 0.28],
-    spinnerLengthRatioRange: [0.68, 0.95],
-    radiusScaleRange: [1.24, 1.45],
-  },
-};
-
-const COLOR_PALETTES = [
-  {
-    name: "Photon Ember",
-    primary: "#28395a",
-    secondary: "#142035",
-    accent: "#f9813a",
-    trim: "#fcd34d",
-    cockpit: "#7ed4ff",
-    glow: "#fbbf24",
-  },
-  {
-    name: "Vanta Bloom",
-    primary: "#1b1f3b",
-    secondary: "#0d1321",
-    accent: "#90cdf4",
-    trim: "#f0f4ff",
-    cockpit: "#a5f3fc",
-    glow: "#7dd3fc",
-  },
-  {
-    name: "Nebula Forge",
-    primary: "#302b63",
-    secondary: "#1a1446",
-    accent: "#e94560",
-    trim: "#ffd166",
-    cockpit: "#8ec5ff",
-    glow: "#ff9d5c",
-  },
-  {
-    name: "Aurora Relay",
-    primary: "#254d6b",
-    secondary: "#12263a",
-    accent: "#5eead4",
-    trim: "#f0fdfa",
-    cockpit: "#9ae6b4",
-    glow: "#34d399",
-  },
-  {
-    name: "Solar Courier",
-    primary: "#49392c",
-    secondary: "#2d221c",
-    accent: "#fbbf24",
-    trim: "#fde68a",
-    cockpit: "#fef3c7",
-    glow: "#fcd34d",
-  },
-  {
-    name: "Ion Drift",
-    primary: "#1c2f35",
-    secondary: "#0f1b21",
-    accent: "#5bbaed",
-    trim: "#a5f3fc",
-    cockpit: "#bae6fd",
-    glow: "#38bdf8",
-  },
-  {
-    name: "Crimson Carrier",
-    primary: "#3b1f2b",
-    secondary: "#200912",
-    accent: "#f472b6",
-    trim: "#fbcfe8",
-    cockpit: "#fce7f3",
-    glow: "#fb7185",
-  },
-  {
-    name: "Verdant Relay",
-    primary: "#27413c",
-    secondary: "#11211d",
-    accent: "#4ade80",
-    trim: "#bbf7d0",
-    cockpit: "#86efac",
-    glow: "#34d399",
-  },
-];
-
-// Predefined segment variants let the fuselage be assembled from mix-and-match
-// shapes instead of a single profile, giving the generator a wider silhouette
-// vocabulary without rewriting the downstream consumers that still expect
-// aggregate body measurements.
-const FRONT_SEGMENT_VARIANTS = [
-  {
-    type: "needle",
-    lengthWeightRange: [0.3, 0.42],
-    tipWidthFactorRange: [0.05, 0.1],
-    shoulderWidthFactorRange: [0.9, 1.08],
-    transitionFactorRange: [0.66, 0.84],
-    curveRange: [28, 40],
-  },
-  {
-    type: "canopy",
-    lengthWeightRange: [0.18, 0.24],
-    tipWidthFactorRange: [0.32, 0.48],
-    shoulderWidthFactorRange: [1.02, 1.18],
-    transitionFactorRange: [0.85, 1.05],
-    curveRange: [12, 20],
-  },
-  {
-    type: "ram",
-    lengthWeightRange: [0.22, 0.3],
-    tipWidthFactorRange: [0.2, 0.3],
-    shoulderWidthFactorRange: [0.96, 1.1],
-    transitionFactorRange: [0.78, 0.96],
-    curveRange: [16, 26],
-  },
-];
-
-const MID_SEGMENT_VARIANTS = [
-  {
-    type: "slim",
-    lengthWeightRange: [0.38, 0.46],
-    waistWidthFactorRange: [0.7, 0.82],
-    bellyWidthFactorRange: [0.84, 0.96],
-    trailingWidthFactorRange: [0.8, 0.92],
-    waistPositionRange: [0.28, 0.4],
-    bellyPositionRange: [0.62, 0.78],
-    insetRange: [12, 20],
-  },
-  {
-    type: "bulwark",
-    lengthWeightRange: [0.34, 0.42],
-    waistWidthFactorRange: [1.06, 1.2],
-    bellyWidthFactorRange: [1.22, 1.36],
-    trailingWidthFactorRange: [1.14, 1.28],
-    waistPositionRange: [0.32, 0.46],
-    bellyPositionRange: [0.68, 0.86],
-    insetRange: [6, 12],
-  },
-  {
-    type: "modular",
-    lengthWeightRange: [0.36, 0.48],
-    waistWidthFactorRange: [0.82, 0.96],
-    bellyWidthFactorRange: [1.0, 1.16],
-    trailingWidthFactorRange: [0.92, 1.08],
-    waistPositionRange: [0.3, 0.45],
-    bellyPositionRange: [0.58, 0.8],
-    insetRange: [8, 16],
-  },
-];
-
-const REAR_SEGMENT_VARIANTS = [
-  {
-    type: "tapered",
-    lengthWeightRange: [0.26, 0.34],
-    baseWidthFactorRange: [0.92, 1.04],
-    exhaustWidthFactorRange: [0.64, 0.76],
-    tailWidthFactorRange: [0.46, 0.58],
-    exhaustPositionRange: [0.52, 0.7],
-    curveRange: [16, 24],
-  },
-  {
-    type: "thruster",
-    lengthWeightRange: [0.24, 0.3],
-    baseWidthFactorRange: [1.16, 1.3],
-    exhaustWidthFactorRange: [0.86, 1.02],
-    tailWidthFactorRange: [0.6, 0.74],
-    exhaustPositionRange: [0.62, 0.84],
-    curveRange: [18, 30],
-  },
-  {
-    type: "block",
-    lengthWeightRange: [0.28, 0.36],
-    baseWidthFactorRange: [1.2, 1.34],
-    exhaustWidthFactorRange: [0.84, 0.98],
-    tailWidthFactorRange: [0.7, 0.86],
-    exhaustPositionRange: [0.54, 0.74],
-    curveRange: [12, 22],
-  },
-];
+let CATEGORY_DEFINITIONS = {};
+let FACTORY_REGISTRY = new Map();
 
 const BODY_STYLE_VARIANTS = [
   {
@@ -1610,6 +1006,49 @@ function randomId() {
   return `ship-${nextRandom().toString(36).slice(2, 9)}`;
 }
 
+const SPACESHIP_FACTORIES = createSpaceshipFactories();
+FACTORY_REGISTRY = new Map(SPACESHIP_FACTORIES.map((factory) => [factory.key, factory]));
+CATEGORY_DEFINITIONS = {};
+SPACESHIP_FACTORIES.forEach((factory) => {
+  CATEGORY_DEFINITIONS[factory.key] = factory.getDefinition();
+});
+
+const FACTORY_HELPERS = {
+  generateModelData(factory, options = {}) {
+    const { seed, paletteName, palette } = options;
+    return createSpaceshipConfig({
+      category: factory.key,
+      seed,
+      paletteName,
+      palette,
+    });
+  },
+  generateGeometry(factory, config) {
+    const preparedConfig = config
+      ? normaliseConfig(config)
+      : createSpaceshipConfig({ category: factory.key });
+    return initializeGeometry(preparedConfig);
+  },
+  renderTopView(factory, root, config, geometry, defs) {
+    const preparedConfig = config
+      ? normaliseConfig(config)
+      : createSpaceshipConfig({ category: factory.key });
+    const preparedGeometry = geometry ?? initializeGeometry(preparedConfig);
+    drawTopDownSpaceship(root, preparedConfig, preparedGeometry, defs);
+    return preparedGeometry;
+  },
+  renderSideView(factory, root, config, geometry) {
+    const preparedConfig = config
+      ? normaliseConfig(config)
+      : createSpaceshipConfig({ category: factory.key });
+    const preparedGeometry = geometry ?? initializeGeometry(preparedConfig);
+    drawSideViewSpaceship(root, preparedConfig, preparedGeometry);
+    return preparedGeometry;
+  },
+};
+
+SPACESHIP_FACTORIES.forEach((factory) => factory.attachHelpers(FACTORY_HELPERS));
+
 function resolveCategoryKey(category) {
   if (category && CATEGORY_DEFINITIONS[category]) {
     return category;
@@ -1669,6 +1108,8 @@ export function generateSpaceshipSprite(options = {}) {
 export {
   SVG_NS,
   CATEGORY_DEFINITIONS,
+  FACTORY_REGISTRY,
+  SPACESHIP_FACTORIES,
   createBaseConfig,
   cloneConfig,
   mutateConfig,
