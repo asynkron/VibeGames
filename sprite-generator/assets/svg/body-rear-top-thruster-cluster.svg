@@ -1,2 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 200 200"><path d="M 72.56 124 L 127.44 124 Q 129.4 130.84 131.36 135.4 Q 127.16 145.89 122.96 152.88 Q 120.72 158.58 118.48 160 Q 100 186 81.52 160 Q 79.28 155.73 77.04 152.88 Q 72.84 142.39 68.64 135.4 Q 70.6 128.56 72.56 124 Z" fill="#3b4c6e" stroke="#f4f6ff" stroke-width="2.2" stroke-linejoin="round"></path></svg>
+<svg viewBox="0 0 200 200">
+  <path
+    d="M 72.56 124 L 127.44 124 Q 129.4 130.84 131.36 135.4 Q 127.16 145.89 122.96 152.88 Q 120.72 158.58 118.48 160 Q 100 186 81.52 160 Q 79.28 155.73 77.04 152.88 Q 72.84 142.39 68.64 135.4 Q 70.6 128.56 72.56 124 Z"
+    fill="#3b4c6e"
+    stroke="#f4f6ff"
+    stroke-width="2.2"
+    stroke-linejoin="round"
+  ></path>
+  <g opacity="0.94">
+    <rect x="72" y="138" width="14" height="20" rx="4" fill="#9499a9" stroke="#1f283f" stroke-width="1.2"></rect>
+    <rect x="93" y="138" width="14" height="20" rx="4" fill="#9499a9" stroke="#1f283f" stroke-width="1.2"></rect>
+    <rect x="114" y="138" width="14" height="20" rx="4" fill="#9499a9" stroke="#1f283f" stroke-width="1.2"></rect>
+    <ellipse cx="79" cy="160" rx="7" ry="5.5" fill="#c3c5cc" stroke="#1f283f" stroke-width="1"></ellipse>
+    <ellipse cx="100" cy="162" rx="8" ry="6" fill="#c3c5cc" stroke="#1f283f" stroke-width="1"></ellipse>
+    <ellipse cx="121" cy="160" rx="7" ry="5.5" fill="#c3c5cc" stroke="#1f283f" stroke-width="1"></ellipse>
+    <path d="M 79 160 L 75 170 L 79 178 L 83 170 Z" fill="#ffd166" opacity="0.85"></path>
+    <path d="M 100 162 L 95 173 L 100 182 L 105 173 Z" fill="#ffd166" opacity="0.9"></path>
+    <path d="M 121 160 L 117 170 L 121 178 L 125 170 Z" fill="#ffd166" opacity="0.85"></path>
+  </g>
+</svg>

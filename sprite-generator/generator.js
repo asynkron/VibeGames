@@ -1,4 +1,4 @@
-import { computeWingPlanform } from "./renderParts.js";
+import { computeWingPlanform } from "./planform.js";
 import { clamp } from "./math.js";
 import { mixColor } from "./color.js";
 import { drawTopDownSpaceship } from "./renderTopView.js";
@@ -394,7 +394,7 @@ function runWithSeed(seed, factory) {
   return runWithRandomSource(createSeededRandom(seed), factory);
 }
 
-function renderSpaceship(svg, config, options = {}) {
+async function renderSpaceship(svg, config, options = {}) {
   if (!svg || !config) {
     return;
   }
@@ -410,9 +410,6 @@ function renderSpaceship(svg, config, options = {}) {
   svg.removeAttribute("aria-hidden");
   svg.style.display = "";
   svg.setAttribute("viewBox", "0 0 200 200");
-
-  const defs = document.createElementNS(SVG_NS, "defs");
-  svg.appendChild(defs);
 
   if (drawFrame) {
     const frameStroke = mixColor(config.palette.trim, "#0f172a", 0.55);
@@ -435,9 +432,9 @@ function renderSpaceship(svg, config, options = {}) {
   svg.appendChild(rootGroup.wrapper);
 
   if (viewMode === "side") {
-    drawSideViewSpaceship(rootGroup.root, preparedConfig, defs);
+    await drawSideViewSpaceship(rootGroup.root, preparedConfig);
   } else {
-    drawTopDownSpaceship(rootGroup.root, preparedConfig, defs);
+    await drawTopDownSpaceship(rootGroup.root, preparedConfig);
   }
 }
 
@@ -1025,15 +1022,15 @@ export function createSpaceshipConfig(options = {}) {
   return normaliseConfig(config);
 }
 
-export function renderSpaceshipSprite(config, options = {}) {
+export async function renderSpaceshipSprite(config, options = {}) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  renderSpaceship(svg, config, options);
+  await renderSpaceship(svg, config, options);
   return svg;
 }
 
-export function generateSpaceshipSprite(options = {}) {
+export async function generateSpaceshipSprite(options = {}) {
   const config = options.config ? normaliseConfig(options.config) : createSpaceshipConfig(options);
-  const svg = renderSpaceshipSprite(config, options);
+  const svg = await renderSpaceshipSprite(config, options);
   return { config, svg };
 }
 

@@ -1,2 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 200 200"><path d="M 124 72.28 L 133 73.97 L 142 75.35 L 151 76.67 L 160 78 L 160 117.6 L 151 117.67 L 142 117.76 L 133 117.88 L 124 118 Z" fill="#3b4c6e" stroke="#f4f6ff" stroke-width="2" stroke-linejoin="round"></path></svg>
+<svg viewBox="0 0 200 200">
+  <path
+    d="M 124 72.28 L 133 73.97 L 142 75.35 L 151 76.67 L 160 78 L 160 117.6 L 151 117.67 L 142 117.76 L 133 117.88 L 124 118 Z"
+    fill="#3b4c6e"
+    stroke="#f4f6ff"
+    stroke-width="2"
+    stroke-linejoin="round"
+  ></path>
+  <g opacity="0.9">
+    <rect x="148" y="90" width="10" height="18" rx="3.5" fill="#9499a9" stroke="#1f283f" stroke-width="1.1"></rect>
+    <rect x="148" y="109" width="10" height="18" rx="3.5" fill="#9499a9" stroke="#1f283f" stroke-width="1.1"></rect>
+    <circle cx="160" cy="99" r="5.2" fill="#c3c5cc" stroke="#1f283f" stroke-width="1"></circle>
+    <circle cx="160" cy="118" r="5.2" fill="#c3c5cc" stroke="#1f283f" stroke-width="1"></circle>
+    <path d="M 160 99 L 168 103 L 160 114 L 152 103 Z" fill="#ffd166" opacity="0.82"></path>
+    <path d="M 160 118 L 168 122 L 160 133 L 152 122 Z" fill="#ffd166" opacity="0.82"></path>
+  </g>
+</svg>

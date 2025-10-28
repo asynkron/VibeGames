@@ -1,590 +1,174 @@
-import {
-  buildSideHullGeometry,
-  buildSidePanelLines,
-  buildSegmentDividerPath,
-  buildSideIntakePath,
-  getWingSidePoints,
-  getDeltaWingSide,
-  pointsToString,
-} from "./renderParts.js";
-import { clamp, lerp } from "./math.js";
-import { deriveSideViewGeometry } from "./geometry.js";
-import { mixColor, shadeColor } from "./color.js";
-import { isDebugColorsEnabled, nextRenderId, partColor, partStroke } from "./renderContext.js";
+import { loadComponent } from "./componentLoader.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-export function drawSideViewSpaceship(root, config, defs) {
-  const geometry = deriveSideViewGeometry(config);
-  const axis = geometry.axis;
-  drawSideHull(root, config, geometry, axis);
-  drawSideAntenna(root, config, geometry, axis);
-  drawSideWing(root, config, geometry, axis);
-  drawSideStabiliser(root, config, geometry, axis);
-  drawSideMarkings(root, config, geometry, axis);
-  drawSideCanopy(root, config, geometry, axis, defs);
-  drawSideThrusters(root, config, geometry, axis);
-  drawSideWeapons(root, config, geometry, axis);
-  drawSideLights(root, config, geometry, axis);
+const SIDE_FRONT_SEGMENTS = {
+  needle: "body-front-side-needle-prow",
+  canopy: "body-front-side-canopy-prow",
+  ram: "body-front-side-ram-prow",
+};
+
+const SIDE_MID_SEGMENTS = {
+  slim: "body-mid-side-slim-mid-body",
+  bulwark: "body-mid-side-bulwark-fuselage",
+  modular: "body-mid-side-modular-spine",
+};
+
+const SIDE_REAR_SEGMENTS = {
+  tapered: "body-rear-side-tapered-tail",
+  thruster: "body-rear-side-thruster-cluster",
+  block: "body-rear-side-block-stern",
+};
+
+const SIDE_WING_COMPONENTS = {
+  delta: "wing-side-delta-strike-wing",
+  swept: "wing-side-swept-interceptor-wing",
+  forward: "wing-side-forward-reconnaissance-wing",
+  box: "wing-side-box-transport-wing",
+  broad: "wing-side-broad-hauler-wing",
+  ladder: "wing-side-ladder-drone-wing",
+  split: "wing-side-split-shuttle-wing",
+};
+
+const SIDE_WING_ARMAMENT = {
+  bomb: "armament-wing-side-heavy-bomb-racks",
+  missile: "armament-wing-side-twin-missile-pylons",
+};
+
+const SIDE_NOSE_ARMAMENT = {
+  1: "armament-nose-side-single-cannon",
+  2: "armament-nose-side-dual-pulse-cannons",
+  3: "armament-nose-side-triple-rotary-battery",
+};
+
+export async function drawSideViewSpaceship(root, config) {
+  await drawSideHull(root, config);
+  await drawSideWeapons(root, config);
+  await drawSideCanopy(root, config);
+  await drawSideWing(root, config);
 }
 
-export function drawSideHull(root, config, geometry, axis) {
-  const { palette } = config;
-  const { profile } = geometry;
+async function drawSideHull(root, config) {
+  const { body, palette } = config;
+  if (!body?.segments) {
+    return;
+  }
+
+  const frontSlug = SIDE_FRONT_SEGMENTS[body.segments.front?.type] ?? SIDE_FRONT_SEGMENTS.canopy;
+  const midSlug = SIDE_MID_SEGMENTS[body.segments.mid?.type] ?? SIDE_MID_SEGMENTS.modular;
+  const rearSlug = SIDE_REAR_SEGMENTS[body.segments.rear?.type] ?? SIDE_REAR_SEGMENTS.tapered;
+
+  const slugs = [frontSlug, midSlug, rearSlug];
+  const segments = await Promise.all(slugs.map((slug) => (slug ? loadComponent(slug, palette) : null)));
+
   const group = document.createElementNS(SVG_NS, "g");
-
-  const hullGeometry = buildSideHullGeometry(profile);
-
-  if (hullGeometry.segmentPaths) {
-    const segmentOrder = ["front", "mid", "rear"];
-    const shading = [0.08, 0, -0.08];
-    segmentOrder.forEach((key, index) => {
-      const pathData = hullGeometry.segmentPaths[key];
-      if (!pathData) {
-        return;
-      }
-      const segment = document.createElementNS(SVG_NS, "path");
-      segment.setAttribute("d", pathData);
-      segment.setAttribute(
-        "fill",
-        partColor("hull", shadeColor(palette.primary, shading[index] ?? 0)),
-      );
-      segment.setAttribute("stroke", "none");
-      group.appendChild(segment);
-    });
-
-    if (profile.segmentAnchors?.boundaries) {
-      const seamCommands = [];
-      const { boundaries, topAnchors, bottomAnchors, noseX } = profile.segmentAnchors;
-      const dividerOffsets = [boundaries.front, boundaries.mid];
-      dividerOffsets.forEach((offset) => {
-        const divider = buildSegmentDividerPath(topAnchors, bottomAnchors, noseX, offset);
-        if (divider) {
-          seamCommands.push(divider);
-        }
-      });
-      if (seamCommands.length) {
-        const seams = document.createElementNS(SVG_NS, "path");
-        seams.setAttribute("d", seamCommands.join(" "));
-        seams.setAttribute("stroke", mixColor(palette.trim, palette.accent, 0.4));
-        seams.setAttribute("stroke-width", 1.2);
-        seams.setAttribute("stroke-linecap", "round");
-        seams.setAttribute("fill", "none");
-        seams.setAttribute("opacity", "0.75");
-        group.appendChild(seams);
-      }
+  group.classList.add("body-side");
+  segments.forEach((segment, index) => {
+    if (!segment) {
+      return;
     }
 
-    const outline = document.createElementNS(SVG_NS, "path");
-    outline.setAttribute("d", hullGeometry.hullPath);
-    outline.setAttribute("fill", "none");
-    outline.setAttribute("stroke", palette.accent);
-    outline.setAttribute("stroke-width", 2.4);
-    outline.setAttribute("stroke-linejoin", "round");
-    group.appendChild(outline);
-  } else {
-    const hull = document.createElementNS(SVG_NS, "path");
-    hull.setAttribute("d", hullGeometry.hullPath);
-    hull.setAttribute("fill", partColor("hull", palette.primary));
-    hull.setAttribute("stroke", palette.accent);
-    hull.setAttribute("stroke-width", 2.4);
-    hull.setAttribute("stroke-linejoin", "round");
-    group.appendChild(hull);
-  }
+    const slug = slugs[index];
+    if (slug === SIDE_FRONT_SEGMENTS.canopy) {
+      retainHullOnly(segment);
+    }
 
-  if (profile.plating) {
-    const plating = document.createElementNS(SVG_NS, "path");
-    plating.setAttribute("d", buildSidePanelLines(profile));
-    plating.setAttribute("stroke", mixColor(palette.trim, palette.accent, 0.4));
-    plating.setAttribute("stroke-width", 1.2);
-    plating.setAttribute("stroke-linecap", "round");
-    plating.setAttribute("fill", "none");
-    plating.setAttribute("opacity", "0.6");
-    group.appendChild(plating);
-  }
+    group.appendChild(segment);
+  });
 
-  if (profile.intakeHeight > 0 && profile.intakeDepth > 0) {
-    const intake = document.createElementNS(SVG_NS, "path");
-    intake.setAttribute("d", buildSideIntakePath(profile));
-    intake.setAttribute("fill", partColor("hull", shadeColor(palette.secondary, -0.2)));
-    intake.setAttribute("stroke", palette.trim);
-    intake.setAttribute("stroke-width", 1.2);
-    group.appendChild(intake);
-  }
-
-  root.appendChild(group);
-}
-
-export function drawSideAntenna(root, config, geometry, axis) {
-  const { palette } = config;
-  const { antenna, profile } = geometry;
-  if (!antenna) {
-    return;
-  }
-
-  const centerY = 100 + (profile.offsetY ?? 0);
-  const baseX = axis.percentToSideX(antenna.basePercent ?? 0);
-  const baseY = centerY + antenna.baseOffset;
-  const tipX = baseX + (antenna.lean ?? 0);
-  const tipY = baseY - (antenna.length ?? 0);
-
-  const mast = document.createElementNS(SVG_NS, "line");
-  mast.setAttribute("x1", baseX.toString());
-  mast.setAttribute("y1", baseY.toString());
-  mast.setAttribute("x2", tipX.toString());
-  mast.setAttribute("y2", tipY.toString());
-  mast.setAttribute("stroke", partStroke("details", palette.trim));
-  mast.setAttribute("stroke-width", 1.4);
-  mast.setAttribute("stroke-linecap", "round");
-
-  const beacon = document.createElementNS(SVG_NS, "circle");
-  beacon.setAttribute("cx", tipX.toString());
-  beacon.setAttribute("cy", (tipY - antenna.beaconRadius * 0.2).toString());
-  beacon.setAttribute("r", antenna.beaconRadius.toString());
-  beacon.setAttribute("fill", partColor("lights", palette.glow));
-  beacon.setAttribute("opacity", "0.85");
-
-  root.append(mast, beacon);
-}
-
-export function drawSideWing(root, config, geometry, axis) {
-  const { palette } = config;
-  const { wing: wingProfile, profile } = geometry;
-  if (!wingProfile?.enabled) {
-    return;
-  }
-
-  const points = wingProfile.style === "delta"
-    ? getDeltaWingSide(config, wingProfile, profile, axis)
-    : getWingSidePoints(wingProfile, profile, axis);
-  if (!points) {
-    return;
-  }
-
-  const wing = document.createElementNS(SVG_NS, "polygon");
-  wing.setAttribute("points", pointsToString(points));
-  wing.setAttribute("fill", partColor("wing", shadeColor(palette.secondary, -0.1)));
-  wing.setAttribute("stroke", palette.trim);
-  wing.setAttribute("stroke-width", 1.8);
-  wing.setAttribute("stroke-linejoin", "round");
-  root.appendChild(wing);
-
-  if (wingProfile.accent) {
-    const accent = document.createElementNS(SVG_NS, "polyline");
-    accent.setAttribute("points", pointsToString([points[0], points[1], points[2]]));
-    accent.setAttribute("stroke", partStroke("wing", palette.accent));
-    accent.setAttribute("stroke-width", 2);
-    accent.setAttribute("fill", "none");
-    root.appendChild(accent);
+  if (group.childNodes.length > 0) {
+    root.appendChild(group);
   }
 }
 
-export function drawSideStabiliser(root, config, geometry, axis) {
-  const { palette } = config;
-  const { stabiliser, profile } = geometry;
-  if (!stabiliser) {
-    return;
-  }
-  const tailX = axis.percentToSideX(1);
-  const tailBase = tailX - stabiliser.length;
-  const baseY = 100 + (profile.offsetY ?? 0) + (stabiliser.offsetY ?? 0);
-
-  const fin = document.createElementNS(SVG_NS, "polygon");
-  const finPoints = [
-    [tailBase, baseY],
-    [tailBase + stabiliser.length * 0.48, baseY - stabiliser.height],
-    [tailBase + stabiliser.length, baseY - stabiliser.height * 0.55],
-    [tailBase + stabiliser.length * 0.22, baseY + stabiliser.thickness * 0.2],
-  ];
-  fin.setAttribute("points", pointsToString(finPoints));
-  fin.setAttribute("fill", partColor("stabiliser", shadeColor(palette.secondary, 0.05)));
-  fin.setAttribute("stroke", partStroke("stabiliser", palette.trim));
-  fin.setAttribute("stroke-width", 1.6);
-  fin.setAttribute("stroke-linejoin", "round");
-  root.appendChild(fin);
-
-  if (stabiliser.ventral) {
-    const ventral = document.createElementNS(SVG_NS, "polygon");
-    const ventralPoints = [
-      [tailBase + stabiliser.length * 0.18, baseY + stabiliser.thickness * 0.3],
-      [tailBase + stabiliser.length * 0.52, baseY + stabiliser.height * 0.6],
-      [tailBase + stabiliser.length * 0.78, baseY + stabiliser.height * 0.5],
-      [tailBase + stabiliser.length * 0.32, baseY + stabiliser.thickness * 0.1],
-    ];
-    ventral.setAttribute("points", pointsToString(ventralPoints));
-    ventral.setAttribute("fill", partColor("stabiliser", shadeColor(palette.secondary, -0.15)));
-    ventral.setAttribute("stroke", partStroke("stabiliser", palette.trim));
-    ventral.setAttribute("stroke-width", 1.4);
-    ventral.setAttribute("stroke-linejoin", "round");
-    root.appendChild(ventral);
-  }
-}
-
-export function drawSideCanopy(root, config, geometry, axis, defs) {
-  const { palette } = config;
-  const { canopy, profile } = geometry;
-  if (!canopy) {
+async function drawSideWing(root, config) {
+  const { wings, palette } = config;
+  if (!wings?.enabled) {
     return;
   }
 
-  const gradient = document.createElementNS(SVG_NS, "linearGradient");
-  const gradientId = `side-canopy-${config.id}-${nextRenderId()}`;
-  gradient.setAttribute("id", gradientId);
-  gradient.setAttribute("x1", "0%");
-  gradient.setAttribute("x2", "100%");
-  gradient.setAttribute("y1", "0%");
-  gradient.setAttribute("y2", "100%");
-
-  const debugEnabled = isDebugColorsEnabled();
-  const canopyColor = partColor("canopy", canopy.tint);
-  const highlightColor = debugEnabled ? canopyColor : mixColor(canopy.tint, "#ffffff", 0.4);
-  const midColor = debugEnabled ? canopyColor : canopy.tint;
-  const shadowColor = debugEnabled ? canopyColor : shadeColor(canopy.tint, -0.3);
-
-  const stop1 = document.createElementNS(SVG_NS, "stop");
-  stop1.setAttribute("offset", "0%");
-  stop1.setAttribute("stop-color", highlightColor);
-  stop1.setAttribute("stop-opacity", "0.9");
-  const stop2 = document.createElementNS(SVG_NS, "stop");
-  stop2.setAttribute("offset", "65%");
-  stop2.setAttribute("stop-color", midColor);
-  stop2.setAttribute("stop-opacity", "0.95");
-  const stop3 = document.createElementNS(SVG_NS, "stop");
-  stop3.setAttribute("offset", "100%");
-  stop3.setAttribute("stop-color", shadowColor);
-  stop3.setAttribute("stop-opacity", "0.9");
-  gradient.append(stop1, stop2, stop3);
-  defs.appendChild(gradient);
-
-  const baseX = axis.percentToSideX(canopy.startPercent ?? 0);
-  const endX = axis.percentToSideX(canopy.endPercent ?? canopy.startPercent ?? 0);
-  const centerY = 100 + (profile.offsetY ?? 0);
-  const verticalShift = canopy.offsetY ?? 0;
-  const baseStartY = centerY + canopy.baseStart + verticalShift;
-  const baseEndY = centerY + canopy.baseEnd + verticalShift;
-  const apexX = baseX + canopy.length / 2;
-  const apexY = Math.min(baseStartY, baseEndY) - canopy.height;
-  const frameStartX = baseX + canopy.length * 0.08;
-  const frameEndX = endX - canopy.length * 0.08;
-  const frameStartY = lerp(baseStartY, baseEndY, 0.08);
-  const frameEndY = lerp(baseStartY, baseEndY, 0.92);
-
-  const canopyShape = document.createElementNS(SVG_NS, "path");
-  const canopyPath = [
-    `M ${baseX} ${baseStartY}`,
-    `Q ${apexX} ${apexY} ${endX} ${baseEndY}`,
-    `Q ${apexX} ${Math.max(baseStartY, baseEndY) - canopy.height * 0.25} ${baseX} ${baseStartY}`,
-    "Z",
-  ].join(" ");
-  canopyShape.setAttribute("d", canopyPath);
-  canopyShape.setAttribute("fill", `url(#${gradientId})`);
-  canopyShape.setAttribute("stroke", debugEnabled ? canopyColor : palette.trim);
-  canopyShape.setAttribute("stroke-width", canopy.frame);
-  canopyShape.setAttribute("stroke-linejoin", "round");
-  root.appendChild(canopyShape);
-
-  const frame = document.createElementNS(SVG_NS, "path");
-  const framePath = `M ${frameStartX} ${frameStartY} Q ${apexX} ${apexY + canopy.height * 0.1} ${frameEndX} ${frameEndY}`;
-  frame.setAttribute("d", framePath);
-  frame.setAttribute(
-    "stroke",
-    debugEnabled ? canopyColor : mixColor(palette.trim, palette.accent, 0.5),
-  );
-  frame.setAttribute("stroke-width", canopy.frame * 0.7);
-  frame.setAttribute("stroke-linecap", "round");
-  frame.setAttribute("fill", "none");
-  root.appendChild(frame);
-}
-
-export function drawSideThrusters(root, config, geometry, axis) {
-  const { palette } = config;
-  const { thruster, profile } = geometry;
-  if (!thruster) {
+  const slug = SIDE_WING_COMPONENTS[wings.style] ?? null;
+  if (!slug) {
     return;
   }
-  const tailX = axis.percentToSideX(1);
-  const baseY = 100 + (profile.offsetY ?? 0) + (thruster.offsetY ?? 0);
+
+  const component = await loadComponent(slug, palette);
+  if (!component) {
+    return;
+  }
+
   const group = document.createElementNS(SVG_NS, "g");
-  const thrusterBodyColor = partColor("thruster", shadeColor(palette.secondary, -0.05));
-  const thrusterNozzleColor = partColor(
-    "thruster",
-    mixColor(palette.secondary, palette.accent, 0.35),
-  );
-  const exhaustColor = partColor("exhaust", thruster.glow);
-  const debugEnabled = isDebugColorsEnabled();
-
-  for (let i = 0; i < thruster.count; i += 1) {
-    const offset = i - (thruster.count - 1) / 2;
-    const y = baseY + offset * thruster.spacing;
-    const housing = document.createElementNS(SVG_NS, "rect");
-    const housingHeight = thruster.radius * 1.8;
-    const housingWidth = thruster.radius * 1.6;
-    housing.setAttribute("x", (tailX - thruster.nozzleLength - housingWidth).toString());
-    housing.setAttribute("y", (y - housingHeight / 2).toString());
-    housing.setAttribute("width", housingWidth.toString());
-    housing.setAttribute("height", housingHeight.toString());
-    housing.setAttribute("rx", (thruster.radius * 0.4).toString());
-    housing.setAttribute("fill", thrusterBodyColor);
-    housing.setAttribute("stroke", palette.trim);
-    housing.setAttribute("stroke-width", 1.4);
-
-    const nozzle = document.createElementNS(SVG_NS, "rect");
-    nozzle.setAttribute("x", (tailX - thruster.nozzleLength).toString());
-    nozzle.setAttribute("y", (y - thruster.radius * 0.75).toString());
-    nozzle.setAttribute("width", thruster.nozzleLength.toString());
-    nozzle.setAttribute("height", (thruster.radius * 1.5).toString());
-    nozzle.setAttribute("rx", (thruster.radius * 0.3).toString());
-    nozzle.setAttribute("fill", thrusterNozzleColor);
-    nozzle.setAttribute("stroke", palette.trim);
-    nozzle.setAttribute("stroke-width", 1.2);
-
-    const flame = document.createElementNS(SVG_NS, "polygon");
-    const flameReach = Math.max(thruster.nozzleLength * 0.85, thruster.radius * 1.2);
-    const flamePoints = [
-      [tailX, y - thruster.radius * 0.35],
-      [tailX + flameReach, y],
-      [tailX, y + thruster.radius * 0.35],
-    ];
-    flame.setAttribute("points", pointsToString(flamePoints));
-    flame.setAttribute("fill", exhaustColor);
-    flame.setAttribute("opacity", "0.85");
-    flame.classList.add("thruster-flame", "thruster-flame--horizontal");
-
-    const glow = document.createElementNS(SVG_NS, "circle");
-    glow.setAttribute("cx", tailX.toString());
-    glow.setAttribute("cy", y.toString());
-    glow.setAttribute("r", (thruster.radius * 0.85).toString());
-    glow.setAttribute("fill", exhaustColor);
-    glow.setAttribute("opacity", "0.85");
-
-    const core = document.createElementNS(SVG_NS, "circle");
-    core.setAttribute("cx", tailX.toString());
-    core.setAttribute("cy", y.toString());
-    core.setAttribute("r", (thruster.radius * 0.4).toString());
-    core.setAttribute(
-      "fill",
-      debugEnabled ? exhaustColor : mixColor(thruster.glow, "#ffffff", 0.5),
-    );
-    core.setAttribute("opacity", "0.9");
-
-    group.append(housing, nozzle, flame, glow, core);
-  }
-
+  group.classList.add("wings-side");
+  group.appendChild(component);
   root.appendChild(group);
 }
 
-export function drawSideWeapons(root, config, geometry, axis) {
-  const { palette } = config;
-  const { armament, profile, wing } = geometry;
+async function drawSideWeapons(root, config) {
+  const { armament, palette, wings } = config;
   if (!armament) {
     return;
   }
 
-  if (armament.mount === "wing" && wing?.enabled && armament.hardpoints?.length) {
-    const centerY = 100 + (profile.offsetY ?? 0);
-    const wingBaseY = centerY + wing.mountHeight + wing.thickness;
-    const ordnanceColor = partColor("weapons", shadeColor(palette.secondary, -0.1));
-    const pylonColor = partColor("weapons", shadeColor(palette.secondary, -0.25));
-    const accentColor = partStroke("weapons", palette.trim);
-    const tipColor = partColor("weapons", mixColor(palette.accent, palette.secondary, 0.4));
+  let slug = null;
+  if (armament.mount === "wing" && wings?.enabled) {
+    slug = SIDE_WING_ARMAMENT[armament.type] ?? "armament-wing-side-outer-line-rockets";
+  } else if (armament.mount === "nose") {
+    slug = SIDE_NOSE_ARMAMENT[armament.barrels] ?? SIDE_NOSE_ARMAMENT[2];
+  }
 
-    armament.hardpoints.forEach((hardpoint) => {
-      const anchorPercent = clamp(wing.positionPercent + wing.lengthPercent * hardpoint.chordRatio, 0, 1);
-      const anchorX = axis.percentToSideX(anchorPercent);
-      const pylonLength = hardpoint.pylonLength ?? Math.max(wing.thickness * 0.6, 8);
-      const payloadLength = hardpoint.payloadLength ?? Math.max(18, wing.length * 0.3);
-      const payloadRadius = hardpoint.payloadRadius ?? Math.max(5, wing.thickness * 0.35);
-      const pylonTop = wingBaseY - 1;
-      const pylonBottom = pylonTop + pylonLength;
-      const payloadCenterY = pylonBottom + payloadRadius;
-      const bodyHeight = payloadRadius * 2;
-      const bodyX = anchorX - payloadLength * 0.55;
-
-      const group = document.createElementNS(SVG_NS, "g");
-      group.classList.add("wing-ordnance");
-
-      const pylon = document.createElementNS(SVG_NS, "rect");
-      pylon.setAttribute("x", (anchorX - 2).toString());
-      pylon.setAttribute("y", pylonTop.toString());
-      pylon.setAttribute("width", "4");
-      pylon.setAttribute("height", (pylonLength + 2).toString());
-      pylon.setAttribute("rx", "1.6");
-      pylon.setAttribute("fill", pylonColor);
-      pylon.setAttribute("stroke", accentColor);
-      pylon.setAttribute("stroke-width", 1);
-
-      const bodyRect = document.createElementNS(SVG_NS, "rect");
-      bodyRect.setAttribute("x", bodyX.toString());
-      bodyRect.setAttribute("y", (payloadCenterY - bodyHeight / 2).toString());
-      bodyRect.setAttribute("width", payloadLength.toString());
-      bodyRect.setAttribute("height", bodyHeight.toString());
-      bodyRect.setAttribute("rx", (armament.type === "bomb" ? payloadRadius : payloadRadius * 0.5).toString());
-      bodyRect.setAttribute("fill", ordnanceColor);
-      bodyRect.setAttribute("stroke", accentColor);
-      bodyRect.setAttribute("stroke-width", 1.1);
-
-      group.append(pylon, bodyRect);
-
-      if (armament.type === "missile") {
-        const tip = document.createElementNS(SVG_NS, "polygon");
-        const tipPoints = [
-          [bodyX, payloadCenterY - bodyHeight / 2],
-          [bodyX - payloadLength * 0.22, payloadCenterY],
-          [bodyX, payloadCenterY + bodyHeight / 2],
-        ];
-        tip.setAttribute("points", pointsToString(tipPoints));
-        tip.setAttribute("fill", tipColor);
-        tip.setAttribute("stroke", accentColor);
-        tip.setAttribute("stroke-width", 1);
-
-        const fins = document.createElementNS(SVG_NS, "polygon");
-        const finBaseX = bodyX + payloadLength;
-        const finSpread = Math.max(3, payloadRadius * 0.8);
-        const finPoints = [
-          [finBaseX, payloadCenterY - finSpread],
-          [finBaseX + payloadLength * 0.18, payloadCenterY],
-          [finBaseX, payloadCenterY + finSpread],
-        ];
-        fins.setAttribute("points", pointsToString(finPoints));
-        fins.setAttribute("fill", partColor("weapons", shadeColor(palette.accent, -0.15)));
-        fins.setAttribute("stroke", accentColor);
-        fins.setAttribute("stroke-width", 1);
-
-        group.append(tip, fins);
-      }
-
-      root.appendChild(group);
-    });
-
+  if (!slug) {
     return;
   }
 
-  const noseX = axis.percentToSideX(armament.mountPercent ?? 0);
-  const baseX = noseX - armament.length;
-  const baseY = 100 + (profile.offsetY ?? 0) + (armament.offsetY ?? 0);
-
-  for (let i = 0; i < armament.barrels; i += 1) {
-    const offset = i - (armament.barrels - 1) / 2;
-    const y = baseY + offset * armament.spacing;
-
-    const housing = document.createElementNS(SVG_NS, "rect");
-    const housingWidth = armament.length * 0.3;
-    housing.setAttribute("x", (noseX - housingWidth).toString());
-    housing.setAttribute("y", (y - armament.housingHeight / 2).toString());
-    housing.setAttribute("width", housingWidth.toString());
-    housing.setAttribute("height", armament.housingHeight.toString());
-    housing.setAttribute("rx", (armament.housingHeight * 0.25).toString());
-    housing.setAttribute("fill", partColor("weapons", shadeColor(palette.secondary, -0.1)));
-    housing.setAttribute("stroke", partStroke("weapons", palette.trim));
-    housing.setAttribute("stroke-width", 1.2);
-
-    const barrel = document.createElementNS(SVG_NS, "line");
-    barrel.setAttribute("x1", baseX.toString());
-    barrel.setAttribute("y1", y.toString());
-    barrel.setAttribute("x2", (noseX + 2).toString());
-    barrel.setAttribute("y2", (y - armament.housingHeight * 0.1).toString());
-    barrel.setAttribute("stroke", partStroke("weapons", palette.trim));
-    barrel.setAttribute("stroke-width", 2.2);
-    barrel.setAttribute("stroke-linecap", "round");
-
-    const muzzle = document.createElementNS(SVG_NS, "circle");
-    muzzle.setAttribute("cx", baseX.toString());
-    muzzle.setAttribute("cy", y.toString());
-    muzzle.setAttribute("r", (armament.housingHeight * 0.25).toString());
-    muzzle.setAttribute("fill", partColor("weapons", shadeColor(palette.accent, -0.2)));
-
-    root.append(housing, barrel, muzzle);
+  const component = await loadComponent(slug, palette);
+  if (!component) {
+    return;
   }
+
+  const group = document.createElementNS(SVG_NS, "g");
+  group.classList.add("armament-side");
+  group.appendChild(component);
+  root.appendChild(group);
 }
 
-export function drawSideMarkings(root, config, geometry, axis) {
-  const { palette } = config;
-  const { markings, profile } = geometry;
-  if (!markings?.enabled) {
+async function drawSideCanopy(root, config) {
+  const { body, cockpit, palette } = config;
+  if (!body?.segments || !cockpit) {
     return;
   }
-  const startPercent = clamp(markings.stripeStartPercent ?? 0, 0, 1);
-  const startX = axis.percentToSideX(startPercent);
-  const endLimitPercent = clamp(
-    Math.min(markings.stripeEndPercent ?? 1, 1 - (profile.tailLength / profile.length) * 0.6),
-    0,
-    1,
-  );
-  const endX = axis.percentToSideX(endLimitPercent);
-  const midY = 100 + (profile.offsetY ?? 0) + (markings.stripeLift ?? 0);
-  const stripeHeight = markings.stripeHeight;
 
-  const stripe = document.createElementNS(SVG_NS, "path");
-  const stripePath = [
-    `M ${startX} ${midY - stripeHeight * 0.6}`,
-    `L ${endX} ${midY - stripeHeight * 0.3}`,
-    `L ${endX} ${midY + stripeHeight * 0.4}`,
-    `L ${startX} ${midY + stripeHeight * 0.2}`,
-    "Z",
-  ].join(" ");
-  stripe.setAttribute("d", stripePath);
-  stripe.setAttribute("fill", partColor("markings", palette.accent));
-  stripe.setAttribute("opacity", "0.65");
-  stripe.setAttribute("stroke", partStroke("markings", mixColor(palette.accent, palette.trim, 0.3)));
-  stripe.setAttribute("stroke-width", 1.4);
-  stripe.setAttribute("stroke-linejoin", "round");
-  root.appendChild(stripe);
+  const component = await loadComponent(SIDE_FRONT_SEGMENTS.canopy, palette);
+  if (!component) {
+    return;
+  }
+
+  removeHullPath(component);
+  if (component.childElementCount === 0) {
+    return;
+  }
+
+  const group = document.createElementNS(SVG_NS, "g");
+  group.classList.add("canopy-side");
+  group.appendChild(component);
+  root.appendChild(group);
 }
 
-export function drawSideLights(root, config, geometry, axis) {
-  const { palette } = config;
-  const { lights, profile } = geometry;
-  if (!lights) {
+function retainHullOnly(segment) {
+  const hull = segment.querySelector("path");
+  if (!hull) {
     return;
   }
-  const noseX = axis.percentToSideX(0);
-  const tailX = axis.percentToSideX(1);
-  const centerY = 100 + (profile.offsetY ?? 0);
-  const debugEnabled = isDebugColorsEnabled();
 
-  if (lights.nose) {
-    const noseLight = document.createElementNS(SVG_NS, "circle");
-    noseLight.setAttribute("cx", (noseX - 4).toString());
-    noseLight.setAttribute("cy", (centerY - profile.noseHeight * 0.1).toString());
-    noseLight.setAttribute("r", "2.6");
-    noseLight.setAttribute("fill", partColor("lights", palette.glow));
-    noseLight.setAttribute("opacity", "0.85");
-    root.appendChild(noseLight);
+  Array.from(segment.children).forEach((child) => {
+    if (child !== hull) {
+      child.remove();
+    }
+  });
+}
+
+function removeHullPath(segment) {
+  const hull = segment.querySelector("path");
+  if (hull) {
+    hull.remove();
   }
-
-  if (lights.dorsal) {
-    const dorsal = document.createElementNS(SVG_NS, "circle");
-    const dorsalPercent = clamp((profile.noseLength + profile.length * 0.36) / profile.length, 0, 1);
-    dorsal.setAttribute("cx", axis.percentToSideX(dorsalPercent).toString());
-    dorsal.setAttribute("cy", (centerY - profile.dorsalHeight - 6).toString());
-    dorsal.setAttribute("r", "2.2");
-    dorsal.setAttribute(
-      "fill",
-      debugEnabled ? partColor("lights", palette.glow) : mixColor(palette.glow, "#ffffff", 0.2),
-    );
-    dorsal.setAttribute("opacity", "0.75");
-    root.appendChild(dorsal);
-  }
-
-  if (lights.intake && profile.intakeHeight > 0) {
-    const intake = document.createElementNS(SVG_NS, "circle");
-    const intakePercent = clamp((profile.noseLength * 0.7) / profile.length, 0, 1);
-    intake.setAttribute("cx", axis.percentToSideX(intakePercent).toString());
-    intake.setAttribute("cy", (centerY + profile.ventralDepth - 6).toString());
-    intake.setAttribute("r", "2.4");
-    intake.setAttribute(
-      "fill",
-      debugEnabled ? partColor("lights", palette.glow) : mixColor(palette.glow, palette.trim, 0.4),
-    );
-    intake.setAttribute("opacity", "0.7");
-    root.appendChild(intake);
-  }
-
-  const tailBeacon = document.createElementNS(SVG_NS, "circle");
-  tailBeacon.setAttribute("cx", tailX.toString());
-  tailBeacon.setAttribute("cy", (centerY - profile.tailHeight * 0.3).toString());
-  tailBeacon.setAttribute("r", "2");
-  tailBeacon.setAttribute("fill", partColor("lights", palette.trim));
-  tailBeacon.setAttribute("opacity", "0.6");
-  root.appendChild(tailBeacon);
 }

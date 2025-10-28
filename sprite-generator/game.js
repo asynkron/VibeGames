@@ -143,10 +143,10 @@ function createSpriteCard(config, isParent) {
     viewportWrapper.classList.add("dual");
 
     const topSvg = createViewportSvg("Top-down spaceship preview");
-    renderSpaceship(topSvg, config, { viewMode: "top", drawFrame: true });
+    renderSpaceship(topSvg, config, { viewMode: "top", drawFrame: true }).catch(console.error);
 
     const sideSvg = createViewportSvg("Side profile spaceship preview");
-    renderSpaceship(sideSvg, config, { viewMode: "side", drawFrame: true });
+    renderSpaceship(sideSvg, config, { viewMode: "side", drawFrame: true }).catch(console.error);
 
     viewportWrapper.append(topSvg, sideSvg);
   } else {
@@ -154,7 +154,7 @@ function createSpriteCard(config, isParent) {
     renderSpaceship(singleSvg, config, {
       viewMode: VIEW_MODE.value,
       drawFrame: true,
-    });
+    }).catch(console.error);
     viewportWrapper.append(singleSvg);
   }
 
@@ -191,16 +191,16 @@ function renderDetail(config) {
   }
 
   if (mode === "both") {
-    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
-    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
+    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true }).catch(console.error);
+    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true }).catch(console.error);
     setViewportVisibility(detailTopView, true);
     setViewportVisibility(detailSideView, true);
   } else if (mode === "side") {
-    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true });
+    renderSpaceship(detailSideView, config, { viewMode: "side", drawFrame: true }).catch(console.error);
     setViewportVisibility(detailSideView, true);
     clearViewport(detailTopView);
   } else {
-    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true });
+    renderSpaceship(detailTopView, config, { viewMode: "top", drawFrame: true }).catch(console.error);
     setViewportVisibility(detailTopView, true);
     clearViewport(detailSideView);
   }

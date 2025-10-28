@@ -1,2 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg viewBox="0 0 200 200"><path d="M 88.24 40 Q 100 24 111.76 40 Q 121.2 49.18 130.64 55.3 Q 131.28 66.52 131.92 74 L 68.08 74 Q 68.72 62.78 69.36 55.3 Q 78.8 46.12 88.24 40 Z" fill="#42547a" stroke="#f4f6ff" stroke-width="2.2" stroke-linejoin="round"></path></svg>
+<svg viewBox="0 0 200 200">
+  <path
+    d="M 88.24 40 Q 100 24 111.76 40 Q 121.2 49.18 130.64 55.3 Q 131.28 66.52 131.92 74 L 68.08 74 Q 68.72 62.78 69.36 55.3 Q 78.8 46.12 88.24 40 Z"
+    fill="#42547a"
+    stroke="#f4f6ff"
+    stroke-width="2.2"
+    stroke-linejoin="round"
+  ></path>
+  <ellipse
+    cx="100"
+    cy="58"
+    rx="18"
+    ry="12.5"
+    fill="#9499a9"
+    stroke="#1f283f"
+    stroke-width="1.6"
+    opacity="0.92"
+  ></ellipse>
+  <ellipse
+    cx="100"
+    cy="57.2"
+    rx="15"
+    ry="10"
+    fill="#c3cfe7"
+    stroke="#1f283f"
+    stroke-width="1.2"
+    opacity="0.9"
+  ></ellipse>
+  <path
+    d="M 92 49 C 94 46 106 46 108 49 C 111 52 112.5 57.5 112 60 C 107 58 100 56.8 93 58 C 92 54 91.5 52 92 49 Z"
+    fill="#c9d4ea"
+    opacity="0.75"
+  ></path>
+</svg>
