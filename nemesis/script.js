@@ -133,6 +133,30 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
     });
   }
 
+  // Mirror the Time Pilot loader: clone the generated SVG and turn it into a data URL
+  // so we can feed it straight into an Image element.
+  function svgToDataUrl(svg) {
+    const clone = svg.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const markup = new XMLSerializer().serializeToString(clone);
+    const encoded = window.btoa(unescape(encodeURIComponent(markup)));
+    return `data:image/svg+xml;base64,${encoded}`;
+  }
+
+  // Measure the sprite without mutating the original DOM node so we can reuse it later.
+  function measureSvgBounds(svg) {
+    const probe = svg.cloneNode(true);
+    probe.setAttribute('width', '200');
+    probe.setAttribute('height', '200');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    document.body.appendChild(probe);
+    const bbox = probe.getBBox();
+    document.body.removeChild(probe);
+    return bbox;
+  }
+
   // Generate a spaceship sprite using the shared generator and prepare canvas-friendly metadata.
   async function createSpaceshipTexture(options = {}) {
     const {
@@ -152,26 +176,9 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
       viewMode,
     });
 
-    svg.setAttribute('width', '200');
-    svg.setAttribute('height', '200');
-    svg.style.position = 'absolute';
-    svg.style.opacity = '0';
-    svg.style.pointerEvents = 'none';
-    document.body.appendChild(svg);
-    const bbox = svg.getBBox();
-    document.body.removeChild(svg);
-
-    const serializer = new XMLSerializer();
-    const markup = serializer.serializeToString(svg);
-    const blob = new Blob([markup], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-
-    let image;
-    try {
-      image = await loadImageFromUrl(url);
-    } finally {
-      URL.revokeObjectURL(url);
-    }
+    const bbox = measureSvgBounds(svg);
+    const dataUrl = svgToDataUrl(svg);
+    const image = await loadImageFromUrl(dataUrl);
 
     const { width: imgWidth, height: imgHeight } = getSourceDimensions(image);
     const anchorX = bbox.x + bbox.width / 2;
