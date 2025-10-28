@@ -1,0 +1,190 @@
+:root {
+  color-scheme: dark;
+  font-family: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1a2638, #080b12);
+  color: #e5f1ff;
+  display: flex;
+  justify-content: center;
+}
+
+.app {
+  width: min(1200px, 100%);
+  padding: 2rem clamp(1rem, 3vw, 2.5rem) 3rem;
+  display: grid;
+  gap: 2.5rem;
+}
+
+.app__header {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.app__header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  text-transform: uppercase;
+  letter-spacing: 0.2rem;
+}
+
+.app__header p {
+  margin: 0;
+  max-width: 60ch;
+  color: rgba(229, 241, 255, 0.75);
+}
+
+.generator {
+  display: grid;
+  gap: 2.5rem;
+}
+
+.model-stage {
+  display: grid;
+  gap: 1.5rem;
+  background: rgba(18, 28, 46, 0.85);
+  border: 1px solid rgba(102, 154, 255, 0.35);
+  border-radius: 1.25rem;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.45);
+}
+
+.model-stage__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+}
+
+.model-stage__title {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+
+.model-stage__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.button {
+  appearance: none;
+  border: 1px solid rgba(102, 154, 255, 0.6);
+  background: linear-gradient(120deg, rgba(57, 94, 173, 0.9), rgba(25, 47, 101, 0.9));
+  color: inherit;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.button:hover,
+.button:focus-visible {
+  border-color: rgba(150, 201, 255, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 0.75rem 1.5rem rgba(100, 150, 255, 0.2);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+.stage-view {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: radial-gradient(circle at 20% -10%, rgba(99, 160, 255, 0.45), transparent 45%),
+    radial-gradient(circle at 80% 110%, rgba(255, 99, 177, 0.45), transparent 50%),
+    rgba(5, 8, 17, 0.85);
+}
+
+.stage-view canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.model-description {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: rgba(229, 241, 255, 0.8);
+}
+
+.variant-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.variant-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  background: rgba(13, 20, 35, 0.9);
+  border: 1px solid rgba(80, 120, 185, 0.4);
+  border-radius: 1rem;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.variant-card:hover,
+.variant-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(150, 201, 255, 0.8);
+  box-shadow: 0 1rem 1.8rem rgba(0, 0, 0, 0.35);
+}
+
+.variant-card__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.variant-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(229, 241, 255, 0.6);
+}
+
+.variant-card__view {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: radial-gradient(circle at 20% 20%, rgba(114, 168, 255, 0.5), transparent 55%),
+    radial-gradient(circle at 80% 80%, rgba(255, 140, 200, 0.45), transparent 50%),
+    rgba(4, 7, 15, 0.95);
+}
+
+.variant-card canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (max-width: 720px) {
+  .model-stage {
+    padding: 1.2rem;
+  }
+
+  .model-stage__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .model-stage__actions {
+    margin-left: 0;
+  }
+}
