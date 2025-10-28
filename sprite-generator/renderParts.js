@@ -460,43 +460,45 @@ export function pointsToString(points) {
   return points.map((point) => point.join(" ")).join(" ");
 }
 
-function buildClosedPathFromSamples(topPoints, bottomPoints, format) {
+// Build a closed polygon from sampled top/bottom points, optionally including an
+// apex tip for needle-style hulls so the loop starts and ends at that point.
+function buildSampledPath(topPoints, bottomPoints, options = {}) {
   if (!topPoints.length || !bottomPoints.length) {
     return "";
   }
 
-  const commands = [`M ${format(topPoints[0][0])} ${format(topPoints[0][1])}`];
+  const { apex = null, format = (value) => Number(value.toFixed(2)) } = options;
+  const commands = [];
+  const firstTopX = format(topPoints[0][0]);
+  const firstTopY = format(topPoints[0][1]);
 
-  for (let i = 1; i < topPoints.length; i += 1) {
-    commands.push(`L ${format(topPoints[i][0])} ${format(topPoints[i][1])}`);
+  if (apex) {
+    const tipX = format(apex.x);
+    const tipY = format(apex.y);
+    commands.push(`M ${tipX} ${tipY}`);
+    commands.push(`L ${firstTopX} ${firstTopY}`);
+
+    for (let i = 1; i < topPoints.length; i += 1) {
+      commands.push(`L ${format(topPoints[i][0])} ${format(topPoints[i][1])}`);
+    }
+
+    for (let i = bottomPoints.length - 1; i >= 0; i -= 1) {
+      commands.push(`L ${format(bottomPoints[i][0])} ${format(bottomPoints[i][1])}`);
+    }
+
+    commands.push(`L ${tipX} ${tipY}`);
+  } else {
+    commands.push(`M ${firstTopX} ${firstTopY}`);
+
+    for (let i = 1; i < topPoints.length; i += 1) {
+      commands.push(`L ${format(topPoints[i][0])} ${format(topPoints[i][1])}`);
+    }
+
+    for (let i = bottomPoints.length - 1; i >= 0; i -= 1) {
+      commands.push(`L ${format(bottomPoints[i][0])} ${format(bottomPoints[i][1])}`);
+    }
   }
 
-  for (let i = bottomPoints.length - 1; i >= 0; i -= 1) {
-    commands.push(`L ${format(bottomPoints[i][0])} ${format(bottomPoints[i][1])}`);
-  }
-
-  commands.push("Z");
-  return commands.join(" ");
-}
-
-function buildNeedleSideTrianglePath(topPoints, bottomPoints, apexX, apexY, format) {
-  if (!topPoints.length || !bottomPoints.length) {
-    return "";
-  }
-
-  const tipX = format(apexX);
-  const tipY = format(apexY);
-  const commands = [`M ${tipX} ${tipY}`, `L ${format(topPoints[0][0])} ${format(topPoints[0][1])}`];
-
-  for (let i = 1; i < topPoints.length; i += 1) {
-    commands.push(`L ${format(topPoints[i][0])} ${format(topPoints[i][1])}`);
-  }
-
-  for (let i = bottomPoints.length - 1; i >= 0; i -= 1) {
-    commands.push(`L ${format(bottomPoints[i][0])} ${format(bottomPoints[i][1])}`);
-  }
-
-  commands.push(`L ${tipX} ${tipY}`);
   commands.push("Z");
   return commands.join(" ");
 }
@@ -798,7 +800,7 @@ function buildSideSegmentedHull(profile) {
     format,
   );
 
-  let hullPath = buildClosedPathFromSamples(hullTop, hullBottom, format);
+  let hullPath = buildSampledPath(hullTop, hullBottom, { format });
   const segmentPaths = {};
   const triangle = anchors.triangle ?? null;
   let apexX = noseX;
@@ -811,7 +813,10 @@ function buildSideSegmentedHull(profile) {
     const noseBottom = anchors.bottomAnchors?.[0]?.[1] ?? noseTop;
     apexX = noseX - inset;
     apexY = noseTop + (noseBottom - noseTop) * blend;
-    hullPath = buildNeedleSideTrianglePath(hullTop, hullBottom, apexX, apexY, format);
+    hullPath = buildSampledPath(hullTop, hullBottom, {
+      format,
+      apex: { x: apexX, y: apexY },
+    });
   }
 
   const segments = [
@@ -826,13 +831,16 @@ function buildSideSegmentedHull(profile) {
     }
     const top = sampleAnchoredCurve(anchors.topAnchors, start, end, noseX, format);
     const bottom = sampleAnchoredCurve(anchors.bottomAnchors, start, end, noseX, format);
-    segmentPaths[key] = buildClosedPathFromSamples(top, bottom, format);
+    segmentPaths[key] = buildSampledPath(top, bottom, { format });
   });
 
   if (triangle && (anchors.boundaries?.front ?? 0) > 0.1) {
     const frontTop = sampleAnchoredCurve(anchors.topAnchors, 0, anchors.boundaries.front, noseX, format);
     const frontBottom = sampleAnchoredCurve(anchors.bottomAnchors, 0, anchors.boundaries.front, noseX, format);
-    segmentPaths.front = buildNeedleSideTrianglePath(frontTop, frontBottom, apexX, apexY, format);
+    segmentPaths.front = buildSampledPath(frontTop, frontBottom, {
+      format,
+      apex: { x: apexX, y: apexY },
+    });
   }
 
   return { hullPath, segmentPaths };
