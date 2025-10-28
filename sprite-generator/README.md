@@ -23,17 +23,17 @@ Then open the reported `http://localhost` URL.
 
 ## Extending
 
-- Add more archetypes by defining ranges and feature probabilities in `CATEGORY_DEFINITIONS` inside `game.js`.
+- Add more archetypes by defining ranges and feature probabilities in `CATEGORY_DEFINITIONS` inside `generator.js`.
 - To introduce a new part (for example, weapon pods), follow the existing pattern: extend the configuration, add a draw helper, and include it in `renderSpaceship`.
 - Sprite families for other asset types (turrets, vehicles) can reuse the layout and mutation helpers. Only part-specific drawing logic needs to change.
 - The `normaliseConfig` helper is designed to keep interpolated values sensible; update it if additional discrete traits are introduced.
 
 ## Using sprites in other games
 
-`game.js` now exports a lightweight API that can be imported from other modules or accessed through the `window.SpriteGenerator` namespace when running in the browser. The helpers return fully rendered SVG elements and the configuration that produced them, which can be cached or re-rendered later.
+`generator.js` exports a lightweight API that can be imported from other modules or accessed through the `window.SpriteGenerator` namespace when running in the browser. The helpers return fully rendered SVG elements and the configuration that produced them, which can be cached or re-rendered later.
 
 ```js
-import { generateSpaceshipSprite } from "./sprite-generator/game.js";
+import { generateSpaceshipSprite } from "./sprite-generator/generator.js";
 
 const { svg, config } = generateSpaceshipSprite({
   category: "fighter",
