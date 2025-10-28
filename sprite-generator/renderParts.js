@@ -467,10 +467,28 @@ function buildSampledPath(topPoints, bottomPoints, options = {}) {
     return "";
   }
 
-  const { apex = null, format = (value) => Number(value.toFixed(2)) } = options;
+  const {
+    apex = null,
+    format = (value) => Number(value.toFixed(2)),
+    triangleMode = null,
+    triangleBase = null,
+  } = options;
   const commands = [];
   const firstTopX = format(topPoints[0][0]);
   const firstTopY = format(topPoints[0][1]);
+
+  if (apex && triangleMode === "needle") {
+    // Force a clean triangular outline so the sampled segment mirrors the top view.
+    const tipX = format(apex.x);
+    const tipY = format(apex.y);
+    const shoulderTop = triangleBase?.top ?? topPoints[topPoints.length - 1];
+    const shoulderBottom = triangleBase?.bottom ?? bottomPoints[bottomPoints.length - 1];
+    commands.push(`M ${tipX} ${tipY}`);
+    commands.push(`L ${format(shoulderTop[0])} ${format(shoulderTop[1])}`);
+    commands.push(`L ${format(shoulderBottom[0])} ${format(shoulderBottom[1])}`);
+    commands.push("Z");
+    return commands.join(" ");
+  }
 
   if (apex) {
     const tipX = format(apex.x);
@@ -608,6 +626,10 @@ export function createSideProfileAnchors(profile, segments, geometry) {
   const rearBottomBlend = clamp(rearConfig.bottomBlend ?? 0.65, 0, 1);
 
   const axis = profile.axis ?? null;
+  const axisTop = axis?.top ?? null;
+  const axisSide = axis?.side ?? null;
+  const axisTopNose = axisTop?.nose ?? 100 - profile.length / 2;
+  const noseX = axisSide?.nose ?? profile.noseX ?? 100 - profile.length / 2;
   const convertNodeOffset = (value) => {
     if (!axis || !Number.isFinite(value)) {
       return null;
@@ -642,8 +664,8 @@ export function createSideProfileAnchors(profile, segments, geometry) {
   const safeMaxShoulder = Math.min(frontLength * (0.92 - needleInfluence * 0.1), frontLength + midLength * 0.15);
   frontShoulderOffset = clamp(frontShoulderOffset ?? minShoulder, minShoulder, safeMaxShoulder);
 
-  const transitionX = frontTransitionOffset;
-  const shoulderX = frontShoulderOffset;
+  let transitionX = frontTransitionOffset;
+  let shoulderX = frontShoulderOffset;
   const waistX = waistOffset;
   const bellyX = bellyOffset;
   const trailingX = midTrailingOffset;
@@ -652,10 +674,33 @@ export function createSideProfileAnchors(profile, segments, geometry) {
   const tailX = tailOffset;
 
   const useNeedleTriangle = isNeedleNose;
+  const noseNode = geometry?.nose ?? null;
+  const segmentNodes = geometry?.nodes ?? [];
+  let triangleHalfWidth = noseNode?.width ?? 0;
+  if (useNeedleTriangle && Number.isFinite(segmentNodes?.[1]?.width)) {
+    triangleHalfWidth = segmentNodes[1].width;
+  }
+  triangleHalfWidth = Math.max(0, Number.isFinite(triangleHalfWidth) ? triangleHalfWidth : 0);
+
+  if (useNeedleTriangle) {
+    if (Number.isFinite(segmentNodes?.[0]?.y)) {
+      const transitionOffset = segmentNodes[0].y - axisTopNose;
+      if (Number.isFinite(transitionOffset)) {
+        frontTransitionOffset = clamp(transitionOffset, minTransition, safeMaxTransition);
+        transitionX = frontTransitionOffset;
+      }
+    }
+    if (Number.isFinite(segmentNodes?.[1]?.y)) {
+      const shoulderOffset = segmentNodes[1].y - axisTopNose;
+      if (Number.isFinite(shoulderOffset)) {
+        shoulderX = clamp(shoulderOffset, 0, profile.length);
+      }
+    }
+  }
 
   const topAnchors = [[0, noseTop]];
   if (useNeedleTriangle) {
-    topAnchors.push([shoulderX, mix(crest, noseTop, frontEndBlend)]);
+    topAnchors.push([shoulderX, centerY - triangleHalfWidth]);
   } else {
     topAnchors.push([transitionX, mix(noseTop, crest, frontSecondBlend)]);
     topAnchors.push([shoulderX, mix(crest, noseTop, frontEndBlend)]);
@@ -667,7 +712,7 @@ export function createSideProfileAnchors(profile, segments, geometry) {
 
   const bottomAnchors = [[0, noseBottom]];
   if (useNeedleTriangle) {
-    bottomAnchors.push([shoulderX, mix(ventral, belly, frontBellyBlend)]);
+    bottomAnchors.push([shoulderX, centerY + triangleHalfWidth]);
   } else {
     let chinX = clamp(transitionX * 0.92, 0, shoulderX);
     if (needleInfluence > 0) {
@@ -704,19 +749,22 @@ export function createSideProfileAnchors(profile, segments, geometry) {
     ? profile.noseHeight
     : profile.length * 0.18;
 
+  let triangleApexOffset = 0;
+  if (useNeedleTriangle && noseNode?.y !== undefined) {
+    const noseCurve = Math.max(frontCurve, 6);
+    triangleApexOffset = noseNode.y - noseCurve - axisTopNose;
+  }
+
   const triangle = useNeedleTriangle
     ? {
-        apexInset: clamp(
-          frontLength * (0.28 + needleInfluence * 0.22 + (bodyStyle === "skinny" ? 0.12 : 0.04))
-            + frontCurve * 0.14,
-          frontLength * 0.16,
-          frontLength * 0.58,
-        ),
-        apexBlend: clamp(0.4 - needleInfluence * 0.2 - (bodyStyle === "skinny" ? 0.04 : 0), 0.16, 0.5),
+        mode: "needle",
+        apexX: noseX + triangleApexOffset,
+        apexY: centerY,
+        baseX: noseX + shoulderX,
+        baseTopY: centerY - triangleHalfWidth,
+        baseBottomY: centerY + triangleHalfWidth,
       }
     : null;
-
-  const noseX = profile.axis?.side?.nose ?? profile.noseX ?? 100 - profile.length / 2;
 
   return {
     noseX,
@@ -750,20 +798,43 @@ export function getSideHull(profile, options = {}) {
     const top = sampleAnchoredCurve(anchors.topAnchors, rangeStart, rangeEnd, noseX, format);
     const bottom = sampleAnchoredCurve(anchors.bottomAnchors, rangeStart, rangeEnd, noseX, format);
     const includeApex = anchors.triangle && rangeStart === 0;
-    const apex = includeApex
-      ? {
-          x: format(noseX - clamp(anchors.triangle.apexInset ?? 0, 0, length * 0.75)),
-          y: format(
-            lerp(
-              top[0]?.[1] ?? 0,
-              bottom[0]?.[1] ?? 0,
-              clamp(anchors.triangle.apexBlend ?? 0.35, 0, 1),
-            ),
-          ),
+    let apex = null;
+    let triangleBase = null;
+    if (includeApex) {
+      if (
+        anchors.triangle?.mode === "needle" &&
+        Number.isFinite(anchors.triangle.apexX) &&
+        Number.isFinite(anchors.triangle.apexY)
+      ) {
+        apex = { x: anchors.triangle.apexX, y: anchors.triangle.apexY };
+        if (
+          Number.isFinite(anchors.triangle.baseX) &&
+          Number.isFinite(anchors.triangle.baseTopY) &&
+          Number.isFinite(anchors.triangle.baseBottomY)
+        ) {
+          triangleBase = {
+            top: [anchors.triangle.baseX, anchors.triangle.baseTopY],
+            bottom: [anchors.triangle.baseX, anchors.triangle.baseBottomY],
+          };
         }
-      : null;
+      } else {
+        const inset = clamp(anchors.triangle?.apexInset ?? 0, -length * 0.75, length * 0.75);
+        const blend = clamp(anchors.triangle?.apexBlend ?? 0.35, 0, 1);
+        const topEdge = top[0]?.[1] ?? 0;
+        const bottomEdge = bottom[0]?.[1] ?? 0;
+        apex = {
+          x: noseX - inset,
+          y: lerp(topEdge, bottomEdge, blend),
+        };
+      }
+    }
     return {
-      path: buildSampledPath(top, bottom, { apex, format }),
+      path: buildSampledPath(top, bottom, {
+        apex,
+        format,
+        triangleMode: anchors.triangle?.mode ?? null,
+        triangleBase,
+      }),
       top,
       bottom,
       apex,
