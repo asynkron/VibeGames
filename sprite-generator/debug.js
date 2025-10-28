@@ -6,6 +6,7 @@ import {
   buildPlatingPath,
   computeSegmentGeometry,
   createSideProfileAnchors,
+  getSideHull,
   computeWingPlanform,
   pointsToString,
   getDeltaWingTop,
@@ -674,6 +675,41 @@ function paintTopSegment(svg, body, segment, options = {}) {
   });
 }
 
+function paintSideSegment(svg, profile, segment, options = {}) {
+  if (!profile) {
+    return;
+  }
+
+  let hull;
+  try {
+    hull = getSideHull(profile);
+  } catch (error) {
+    return;
+  }
+
+  if (!hull?.segments?.length) {
+    return;
+  }
+
+  const {
+    strokeWidth = 2.2,
+    fill = palette.primary,
+  } = options;
+
+  const segmentShape = hull.segments.find((entry) => entry.key === segment);
+  if (!segmentShape?.path) {
+    return;
+  }
+
+  // Only show the requested body slice so the preview isolates that geometry.
+  appendPath(svg, segmentShape.path, {
+    fill,
+    stroke: palette.accent,
+    strokeWidth,
+    lineJoin: "round",
+  });
+}
+
 function paintFullTopHull(svg, body, options = {}) {
   const { highlight, showPlating = true, baseOpacity = 0.45, showOutline = true } = options;
   const segments = getTopSegmentPaths(body) ?? {};
@@ -1024,33 +1060,48 @@ function clearContainer(id) {
 
 function renderSegmentGroups() {
   const frontTop = clearContainer("front-segments-top");
-  clearContainer("front-segments-side");
+  const frontSide = clearContainer("front-segments-side");
   const midTop = clearContainer("mid-segments-top");
-  clearContainer("mid-segments-side");
+  const midSide = clearContainer("mid-segments-side");
   const rearTop = clearContainer("rear-segments-top");
-  clearContainer("rear-segments-side");
+  const rearSide = clearContainer("rear-segments-side");
+
+  if (!frontTop || !frontSide || !midTop || !midSide || !rearTop || !rearSide) {
+    return;
+  }
 
   FRONT_SEGMENT_VARIANTS.forEach(({ label, body }) => {
     const axis = buildBodyAxis(body);
-    prepareProfile(body, axis);
+    const { profile } = prepareProfile(body, axis);
     addCompositeFigure(frontTop, label, (svg) => {
       paintTopSegment(svg, body, "front");
+    });
+    addCompositeFigure(frontSide, label, (svg) => {
+      paintSideSegment(svg, profile, "front");
     });
   });
 
   MID_SEGMENT_VARIANTS.forEach(({ label, body }) => {
     const axis = buildBodyAxis(body);
-    prepareProfile(body, axis);
+    const { profile } = prepareProfile(body, axis);
+    const midFill = shadeColor(palette.primary, -0.2);
     addCompositeFigure(midTop, label, (svg) => {
-      paintTopSegment(svg, body, "mid", { fill: shadeColor(palette.primary, -0.2) });
+      paintTopSegment(svg, body, "mid", { fill: midFill });
+    });
+    addCompositeFigure(midSide, label, (svg) => {
+      paintSideSegment(svg, profile, "mid", { fill: midFill });
     });
   });
 
   REAR_SEGMENT_VARIANTS.forEach(({ label, body }) => {
     const axis = buildBodyAxis(body);
-    prepareProfile(body, axis);
+    const { profile } = prepareProfile(body, axis);
+    const rearFill = shadeColor(palette.primary, -0.1);
     addCompositeFigure(rearTop, label, (svg) => {
-      paintTopSegment(svg, body, "rear", { fill: shadeColor(palette.primary, -0.1) });
+      paintTopSegment(svg, body, "rear", { fill: rearFill });
+    });
+    addCompositeFigure(rearSide, label, (svg) => {
+      paintSideSegment(svg, profile, "rear", { fill: rearFill });
     });
   });
 }
