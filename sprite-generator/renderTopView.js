@@ -205,20 +205,25 @@ export function drawTopArmament(root, config, geometry, axis) {
 
           sideGroup.append(pylon, payload, tip, fins);
         } else {
+          // Emphasise the bomb's length in plan view so it reads as a tall oval instead of a hanging circle.
+          const verticalRadius = Math.max(payloadRadius * 1.15, payloadLength * 0.35);
+          const horizontalRadius = Math.max(payloadRadius * 0.7, verticalRadius * 0.45);
+
           const payload = createSvgElement("ellipse", {
             cx: String(lateralBase),
             cy: String(payloadOffsetY),
-            rx: String(payloadRadius),
-            ry: String(Math.max(payloadRadius * 0.75, payloadLength * 0.35)),
+            rx: String(horizontalRadius),
+            ry: String(verticalRadius),
             fill: ordnanceColor,
             stroke: accentColor,
             "stroke-width": 1,
           });
 
-          const noseCap = createSvgElement("circle", {
+          const noseCap = createSvgElement("ellipse", {
             cx: String(lateralBase),
-            cy: String(payloadOffsetY - Math.max(payloadRadius * 0.6, payloadLength * 0.25)),
-            r: String(payloadRadius * 0.55),
+            cy: String(payloadOffsetY - verticalRadius * 0.55),
+            rx: String(horizontalRadius * 0.55),
+            ry: String(verticalRadius * 0.45),
             fill: partColor("weapons", mixColor(palette.accent, palette.secondary, 0.35)),
           });
 
