@@ -81,8 +81,9 @@ export function drawSideBody(root, config, geometry, defs) {
   const hullPath = createSvgElement("path", {
     d: hull.path,
     fill,
-    stroke: partStroke("hull", palette.trim),
-    "stroke-width": 2,
+    // Mirror the top-view accent outline so both perspectives share the same silhouette emphasis.
+    stroke: partStroke("hull", palette.accent),
+    "stroke-width": 2.4,
     "stroke-linejoin": "round",
   });
   hullGroup.appendChild(hullPath);
@@ -631,7 +632,10 @@ export function drawSideWeapons(root, config, geometry, axis) {
       const payloadLength = hardpoint.payloadLength ?? Math.max(18, wing.length * 0.3);
       const payloadRadius = hardpoint.payloadRadius ?? Math.max(5, wing.thickness * 0.35);
       const pylonTop = wingBaseY - 1;
-      const pylonBottom = pylonTop + pylonLength;
+      // Pull the payload a touch closer to the wing so it doesn't hang unrealistically low.
+      const verticalLift = Math.min(payloadRadius * 0.8, pylonLength * 0.6);
+      const adjustedPylonLength = Math.max(4, pylonLength - verticalLift);
+      const pylonBottom = pylonTop + adjustedPylonLength;
       const payloadCenterY = pylonBottom + payloadRadius;
       const bodyHeight = payloadRadius * 2;
       const bodyX = anchorX - payloadLength * 0.55;
@@ -642,27 +646,39 @@ export function drawSideWeapons(root, config, geometry, axis) {
         x: String(anchorX - 2),
         y: String(pylonTop),
         width: "4",
-        height: String(pylonLength + 2),
+        height: String(adjustedPylonLength + 2),
         rx: "1.6",
         fill: pylonColor,
         stroke: accentColor,
         "stroke-width": 1,
       });
 
-      const bodyRect = createSvgElement("rect", {
-        x: String(bodyX),
-        y: String(payloadCenterY - bodyHeight / 2),
-        width: String(payloadLength),
-        height: String(bodyHeight),
-        rx: String(armament.type === "bomb" ? payloadRadius : payloadRadius * 0.5),
-        fill: ordnanceColor,
-        stroke: accentColor,
-        "stroke-width": 1.1,
-      });
+      if (armament.type === "bomb") {
+        const bombBody = createSvgElement("ellipse", {
+          cx: String(bodyX + payloadLength / 2),
+          cy: String(payloadCenterY),
+          rx: String(payloadLength * 0.45),
+          ry: String(payloadRadius * 0.95),
+          fill: ordnanceColor,
+          stroke: accentColor,
+          "stroke-width": 1.1,
+        });
 
-      group.append(pylon, bodyRect);
+        group.append(pylon, bombBody);
+      } else {
+        const bodyRect = createSvgElement("rect", {
+          x: String(bodyX),
+          y: String(payloadCenterY - bodyHeight / 2),
+          width: String(payloadLength),
+          height: String(bodyHeight),
+          rx: String(payloadRadius * 0.5),
+          fill: ordnanceColor,
+          stroke: accentColor,
+          "stroke-width": 1.1,
+        });
 
-      if (armament.type === "missile") {
+        group.append(pylon, bodyRect);
+
         const tipPoints = [
           [bodyX, payloadCenterY - bodyHeight / 2],
           [bodyX - payloadLength * 0.22, payloadCenterY],

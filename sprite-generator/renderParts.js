@@ -477,15 +477,37 @@ function buildSampledPath(topPoints, bottomPoints, options = {}) {
   const firstTopX = format(topPoints[0][0]);
   const firstTopY = format(topPoints[0][1]);
 
-  if (apex && triangleMode === "needle") {
-    // Force a clean triangular outline so the sampled segment mirrors the top view.
+  if (apex && triangleMode === "needle" && triangleBase) {
+    // Start from the tip, then continue along the fuselage so the rest of the
+    // hull stays visible instead of collapsing into a standalone triangle.
     const tipX = format(apex.x);
     const tipY = format(apex.y);
-    const shoulderTop = triangleBase?.top ?? topPoints[topPoints.length - 1];
-    const shoulderBottom = triangleBase?.bottom ?? bottomPoints[bottomPoints.length - 1];
+    const baseTopX = format(triangleBase.top[0]);
+    const baseTopY = format(triangleBase.top[1]);
+    const baseBottomX = format(triangleBase.bottom[0]);
+    const baseBottomY = format(triangleBase.bottom[1]);
+
+    const findIndexFromX = (points, targetX) => {
+      const tolerance = 0.1;
+      return points.findIndex((point) => Math.abs(format(point[0]) - targetX) <= tolerance || format(point[0]) >= targetX);
+    };
+
+    const topStartIndex = Math.max(findIndexFromX(topPoints, baseTopX), 0);
+    const bottomStartIndex = Math.max(findIndexFromX(bottomPoints, baseBottomX), 0);
+
     commands.push(`M ${tipX} ${tipY}`);
-    commands.push(`L ${format(shoulderTop[0])} ${format(shoulderTop[1])}`);
-    commands.push(`L ${format(shoulderBottom[0])} ${format(shoulderBottom[1])}`);
+    commands.push(`L ${baseTopX} ${baseTopY}`);
+
+    for (let i = topStartIndex + 1; i < topPoints.length; i += 1) {
+      commands.push(`L ${format(topPoints[i][0])} ${format(topPoints[i][1])}`);
+    }
+
+    for (let i = bottomPoints.length - 1; i > bottomStartIndex; i -= 1) {
+      commands.push(`L ${format(bottomPoints[i][0])} ${format(bottomPoints[i][1])}`);
+    }
+
+    commands.push(`L ${baseBottomX} ${baseBottomY}`);
+    commands.push(`L ${tipX} ${tipY}`);
     commands.push("Z");
     return commands.join(" ");
   }
