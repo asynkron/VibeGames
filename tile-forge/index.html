@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tile Forge</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header>
+    <h1>Tile Forge</h1>
+    <p>Create and preview procedural 16&times;16 tiles that any game in the collection can reuse.</p>
+    <p class="hint">Click a tile card to copy its identifier for use in your own factory.</p>
+  </header>
+  <main data-category-list></main>
+  <template id="tile-card-template">
+    <article class="tile-card">
+      <div class="tile-preview"></div>
+      <div class="tile-info">
+        <h3 class="tile-name"></h3>
+        <code class="tile-id"></code>
+      </div>
+    </article>
+  </template>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
