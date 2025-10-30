@@ -556,3 +556,371 @@ export function paintExitOpen() {
     ctx.fillRect(0, 0, w, h);
   };
 }
+
+// Props and interactable objects ------------------------------
+
+export function paintChestClosed(seed = 'prop/chest-closed') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.fillRect(3, h - 3, w - 6, 2);
+
+    ctx.fillStyle = '#3a1c0d';
+    ctx.fillRect(2, 4, w - 4, h - 6);
+    ctx.fillStyle = '#602f12';
+    ctx.fillRect(3, 5, w - 6, h - 8);
+    ctx.fillStyle = '#7b4121';
+    ctx.fillRect(3, 4, w - 6, 3);
+
+    ctx.fillStyle = '#2a1309';
+    ctx.fillRect(2, 9, w - 4, 2);
+
+    ctx.fillStyle = '#c99a34';
+    ctx.fillRect(w / 2 - 1, 6, 2, h - 7);
+    ctx.fillRect(w / 2 - 3, 7, 6, 1);
+    ctx.fillRect(w / 2 - 2, 10, 4, 2);
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.fillRect(3, 5, 2, 2);
+
+    ctx.fillStyle = 'rgba(41, 19, 9, 0.45)';
+    for (let i = 0; i < 3; i += 1) {
+      const y = 6 + i * 3 + Math.floor(rng() * 2);
+      ctx.fillRect(4, y, w - 8, 1);
+    }
+  });
+}
+
+export function paintChestOpen(seed = 'prop/chest-open') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.fillStyle = '#281205';
+    ctx.fillRect(2, 7, w - 4, h - 9);
+    ctx.fillStyle = '#4f260f';
+    ctx.fillRect(3, 8, w - 6, h - 11);
+
+    ctx.fillStyle = '#3a1c0d';
+    ctx.fillRect(2, 3, w - 4, 4);
+    ctx.fillStyle = '#6c3314';
+    ctx.fillRect(3, 2, w - 6, 3);
+
+    ctx.fillStyle = '#c99a34';
+    ctx.fillRect(w / 2 - 1, 2, 2, 3);
+    ctx.fillRect(w / 2 - 2, 10, 4, 2);
+
+    ctx.fillStyle = 'rgba(219, 193, 103, 0.65)';
+    for (let i = 0; i < 3; i += 1) {
+      ctx.fillRect(4 + i * 3, 9, 2, 2);
+    }
+
+    ctx.fillStyle = 'rgba(41, 19, 9, 0.45)';
+    const bands = 3;
+    for (let i = 0; i < bands; i += 1) {
+      const y = 4 + i * 2 + (rng() > 0.5 ? 1 : 0);
+      ctx.fillRect(3, y, w - 6, 1);
+    }
+  });
+}
+
+// Vegetation and natural details -----------------------------
+
+export function paintMushroomRed(seed = 'flora/mushroom-red') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#1d2e12';
+    ctx.fillRect(0, h - 3, w, 3);
+    ctx.fillStyle = '#2f4f1d';
+    ctx.fillRect(0, h - 4, w, 1);
+
+    ctx.fillStyle = '#d9c6b0';
+    ctx.fillRect(w / 2 - 1, h - 7, 2, 4);
+    ctx.fillRect(w / 2 - 2, h - 6, 4, 1);
+
+    ctx.fillStyle = '#d63031';
+    ctx.beginPath();
+    ctx.moveTo(4, h - 8);
+    ctx.quadraticCurveTo(w / 2, 2, w - 4, h - 8);
+    ctx.lineTo(w / 2 + 4, h - 8);
+    ctx.quadraticCurveTo(w / 2, h - 10, w / 2 - 4, h - 8);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    const spots = 4;
+    for (let i = 0; i < spots; i += 1) {
+      const x = 5 + i * 2 + Math.floor(rng() * 2);
+      const y = h - 10 + Math.floor(rng() * 3);
+      ctx.fillRect(x, y, 2, 2);
+    }
+  });
+}
+
+export function paintMushroomBlue(seed = 'flora/mushroom-blue') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#182414';
+    ctx.fillRect(0, h - 3, w, 3);
+    ctx.fillStyle = '#2a3e1f';
+    ctx.fillRect(0, h - 4, w, 1);
+
+    ctx.fillStyle = '#e8dcd2';
+    ctx.fillRect(w / 2 - 1, h - 7, 2, 4);
+    ctx.fillRect(w / 2 - 2, h - 6, 4, 1);
+
+    ctx.fillStyle = '#2e69ff';
+    ctx.beginPath();
+    ctx.moveTo(4, h - 8);
+    ctx.quadraticCurveTo(w / 2, 3, w - 4, h - 8);
+    ctx.lineTo(w / 2 + 4, h - 8);
+    ctx.quadraticCurveTo(w / 2, h - 10, w / 2 - 4, h - 8);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    const spots = 3;
+    for (let i = 0; i < spots; i += 1) {
+      const x = 6 + i * 3 + Math.floor(rng() * 2);
+      const y = h - 10 + Math.floor(rng() * 2);
+      ctx.fillRect(x, y, 2, 2);
+    }
+  });
+}
+
+export function paintGemDiamond(seed = 'gem/diamond') {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const gradient = ctx.createLinearGradient(0, 2, 0, h - 2);
+    gradient.addColorStop(0, '#a4d8ff');
+    gradient.addColorStop(0.5, '#4c9fff');
+    gradient.addColorStop(1, '#0f458f');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 2);
+    ctx.lineTo(w - 3, h / 2 - 1);
+    ctx.lineTo(w / 2, h - 2);
+    ctx.lineTo(3, h / 2 - 1);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 2);
+    ctx.lineTo(w / 2, h - 2);
+    ctx.moveTo(3, h / 2 - 1);
+    ctx.lineTo(w - 3, h / 2 - 1);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillRect(w / 2 - 1, 4, 1, 2);
+  };
+}
+
+export function paintBoulderCracked(seed = 'boulder/cracked') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#8f8f8f';
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2 + 1, w * 0.43, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#5c5c5c';
+    ctx.beginPath();
+    ctx.arc(w / 2 + 1, h / 2 + 1, w * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w / 2, h / 2 - 3);
+    ctx.lineTo(w / 2 - 2, h / 2);
+    ctx.lineTo(w / 2 + 3, h / 2 + 2);
+    ctx.moveTo(w / 2 - 1, h / 2 + 1);
+    ctx.lineTo(w / 2 - 4, h / 2 + 5);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    for (let i = 0; i < 3; i += 1) {
+      const angle = rng() * Math.PI * 2;
+      const inner = w * 0.15;
+      const outer = w * 0.38;
+      ctx.beginPath();
+      ctx.moveTo(w / 2 + Math.cos(angle) * inner, h / 2 + Math.sin(angle) * inner);
+      ctx.lineTo(w / 2 + Math.cos(angle) * outer, h / 2 + Math.sin(angle) * outer);
+      ctx.stroke();
+    }
+  });
+}
+
+export function paintLadderWood() {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#7b4b1f';
+    ctx.fillRect(3, 1, 2, h - 2);
+    ctx.fillRect(w - 5, 1, 2, h - 2);
+
+    ctx.fillStyle = '#9f6b35';
+    ctx.fillRect(2, 1, 2, h - 2);
+    ctx.fillRect(w - 4, 1, 2, h - 2);
+
+    ctx.fillStyle = '#c08b4a';
+    for (let y = 3; y < h - 2; y += 3) {
+      ctx.fillRect(3, y, w - 6, 1);
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(3, 2, 1, h - 4);
+  };
+}
+
+export function paintTreePine(seed = 'flora/tree-pine') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#4a2e14';
+    ctx.fillRect(w / 2 - 1, h - 6, 2, 4);
+
+    ctx.fillStyle = '#215128';
+    const layers = 3;
+    for (let i = 0; i < layers; i += 1) {
+      const top = 3 + i * 3;
+      const width = w - 4 - i * 2;
+      ctx.beginPath();
+      ctx.moveTo(w / 2, top);
+      ctx.lineTo(w / 2 - width / 2, top + 4);
+      ctx.lineTo(w / 2 + width / 2, top + 4);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(159, 220, 124, 0.25)';
+    for (let i = 0; i < 5; i += 1) {
+      const x = 4 + Math.floor(rng() * (w - 8));
+      const y = 4 + Math.floor(rng() * (h - 8));
+      ctx.fillRect(x, y, 1, 1);
+    }
+  });
+}
+
+export function paintTreeOak(seed = 'flora/tree-oak') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#583216';
+    ctx.fillRect(w / 2 - 1, h - 5, 2, 4);
+
+    ctx.fillStyle = '#276224';
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2 + 1, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#1b4318';
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2 + 1, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(120,180,90,0.45)';
+    for (let i = 0; i < 6; i += 1) {
+      const x = w / 2 + Math.floor(rng() * 6 - 3);
+      const y = h / 2 + Math.floor(rng() * 4 - 2);
+      ctx.fillRect(x, y, 1, 1);
+    }
+  });
+}
+
+export function paintTreePalm(seed = 'flora/tree-palm') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#6d4221';
+    ctx.fillRect(w / 2 - 1, h - 6, 2, 5);
+    ctx.fillStyle = '#8b5a2f';
+    ctx.fillRect(w / 2 - 1, h - 7, 2, 1);
+
+    ctx.strokeStyle = '#1d6a3c';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const arms = 5;
+    for (let i = 0; i < arms; i += 1) {
+      const angle = (Math.PI / 6) * (i - 2);
+      ctx.beginPath();
+      ctx.moveTo(w / 2, h - 7);
+      ctx.lineTo(w / 2 + Math.cos(angle) * 6, h - 7 - Math.sin(angle) * 6);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(102, 189, 110, 0.35)';
+    for (let i = 0; i < 4; i += 1) {
+      const x = w / 2 + Math.floor(rng() * 6 - 3);
+      const y = h - 11 + Math.floor(rng() * 3);
+      ctx.fillRect(x, y, 1, 1);
+    }
+  });
+}
+
+export function paintBarrel(seed = 'prop/barrel') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#3b2413';
+    ctx.fillRect(4, 3, w - 8, h - 6);
+    ctx.fillStyle = '#5c3718';
+    ctx.fillRect(5, 3, w - 10, h - 6);
+
+    ctx.fillStyle = '#29180d';
+    ctx.fillRect(4, 5, w - 8, 1);
+    ctx.fillRect(4, h - 7, w - 8, 1);
+
+    ctx.fillStyle = '#c29b52';
+    ctx.fillRect(4, 7, w - 8, 1);
+    ctx.fillRect(4, h - 9, w - 8, 1);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    for (let i = 0; i < 3; i += 1) {
+      const y = 4 + i * 3 + (rng() > 0.5 ? 1 : 0);
+      ctx.fillRect(6, y, 1, 6);
+    }
+  });
+}
+
+export function paintCrate(seed = 'prop/crate') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#4a2a0f';
+    ctx.fillRect(1, 1, w - 2, h - 2);
+    ctx.strokeStyle = '#1f1206';
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+    ctx.strokeStyle = '#d1a064';
+    ctx.beginPath();
+    ctx.moveTo(1, h - 2);
+    ctx.lineTo(w - 2, 1);
+    ctx.moveTo(1, 1);
+    ctx.lineTo(w - 2, h - 2);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(2, 2, 1, h - 4);
+    ctx.fillRect(w - 3, 2, 1, h - 4);
+
+    jitterDots(ctx, 6, 1, rng, 'rgba(0,0,0,0.35)');
+  });
+}
+
+export function paintSignpost(seed = 'prop/signpost') {
+  return seededPainter(seed, (ctx, w, h, rng) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#4e2a11';
+    ctx.fillRect(w / 2 - 1, h - 6, 2, 5);
+
+    ctx.fillStyle = '#a9763d';
+    ctx.fillRect(2, 5, w - 4, 5);
+    ctx.fillStyle = '#c69550';
+    ctx.fillRect(3, 6, w - 6, 3);
+
+    ctx.fillStyle = '#3a2110';
+    ctx.fillRect(w - 5, 6, 2, 3);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for (let i = 0; i < 2; i += 1) {
+      const y = 6 + i * 2 + (rng() > 0.5 ? 1 : 0);
+      ctx.fillRect(4, y, w - 8, 1);
+    }
+  });
+}
