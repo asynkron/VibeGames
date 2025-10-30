@@ -45,7 +45,10 @@ export function initGameCrt({
   const frame = frameElement ?? (frameSelector ? document.querySelector(frameSelector) : null);
   const syncScanlines = (value = crtSettings.scanlines) => {
     if (!frame) return;
-    applyScanlineIntensity(frame, value, { alphaRange });
+    const disabled = crtSettings.enabled === false;
+    frame.classList.toggle('crt-disabled', disabled);
+    const intensity = disabled ? 0 : value;
+    applyScanlineIntensity(frame, intensity, { alphaRange });
   };
 
   let hasSyncedFromControls = false;
