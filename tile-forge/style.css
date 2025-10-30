@@ -105,16 +105,12 @@ section.category h2 {
   width: 100%;
   display: grid;
   place-items: center;
-  background: var(--tile-bg);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
 }
 
 .tile-preview canvas {
   width: 64px;
   height: 64px;
   image-rendering: pixelated;
-  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.35));
 }
 
 .tile-info {
