@@ -3,6 +3,8 @@ import { createDPad } from '../../../shared/input/dpad.js';
 import { parseTextMap } from '../../../shared/map/textMap.js';
 import { charMap } from '../map/charMap.js';
 import { TILE_SIZE, COLS, ROWS } from '../map/constants.js';
+import { createTileFactory } from '../../../shared/render/tile-forge/factory.js';
+import { registerStandardTiles } from '../../../shared/render/tile-forge/standardTiles.js';
 
 const TILE = TILE_SIZE;
 const LEVELS = ['levels/level1.txt','levels/level2.txt','levels/level3.txt'];
@@ -10,21 +12,23 @@ const IRIS_DURATION = 900;
 
 const Colors = {
   bg: 0x14171f,
-  brick: 0xc06724,
-  brickShadow: 0x863b0d,
-  brickMortar: 0xf3b152,
-  solid: 0x3c1f0c,
-  ladder: 0xd6c18a,
-  rope: 0xe4a94c,
-  ropeShadow: 0x9f6b29,
-  gold: 0xffd864,
   player: 0xfff5c4,
   playerShadow: 0xe2bf75,
   playerOutline: 0x3d2b1a,
   enemy: 0xf58a4d,
   enemyShadow: 0xbd4c22,
   enemyOutline: 0x301007,
-  exit: 0x58ff85,
+};
+
+const tileFactory = registerStandardTiles(createTileFactory({ size: 16 }));
+const TILE_CANVAS_SCALE = Math.max(1, Math.round(TILE_SIZE / tileFactory.size));
+const TILE_TEXTURE_MAP = {
+  brick: 'loderunner/brick',
+  solid: 'loderunner/solid',
+  ladder: 'structure/ladder-wood',
+  rope: 'loderunner/rope',
+  gold: 'loderunner/gold',
+  exit: 'loderunner/exit',
 };
 
 // Centralised guard movement tuning so we can easily keep the AI logic readable
@@ -450,52 +454,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   makeTileTextures() {
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-
-    // Brick (give the segmented orange bricks from the classic game)
-    g.clear();
-    g.fillStyle(Colors.brick, 1);
-    g.fillRect(0, 0, TILE, TILE);
-    g.fillStyle(Colors.brickShadow, 1);
-    g.fillRect(0, TILE / 2, TILE, TILE / 2);
-    g.fillStyle(0xffffff, 0.1);
-    g.fillRect(0, 0, TILE, 4);
-    g.fillStyle(Colors.brickMortar, 0.85);
-    for (let y = 10; y < TILE; y += 10) {
-      g.fillRect(0, y, TILE, 2);
-    }
-    for (let x = 6; x < TILE; x += 10) {
-      g.fillRect(x, 0, 2, TILE);
-    }
-    g.generateTexture('brick', TILE, TILE);
-
-    // Solid bedrock beneath the bricks
-    g.clear();
-    g.fillStyle(Colors.solid, 1); g.fillRect(0, 0, TILE, TILE);
-    g.fillStyle(0x000000, 0.2); g.fillRect(0, TILE-6, TILE, 6);
-    g.generateTexture('solid', TILE, TILE);
-
-    // Ladder rails and rungs
-    g.clear(); g.fillStyle(0x000000, 0); g.fillRect(0, 0, TILE, TILE);
-    g.lineStyle(3, Colors.ladder, 1); g.strokeRect(8, 4, TILE-16, TILE-8);
-    for (let y = 8; y < TILE; y += 8) { g.lineBetween(8, y, TILE-8, y); }
-    g.generateTexture('ladder', TILE, TILE);
-
-    // Rope with subtle drop shadow so it reads over the background
-    g.clear(); g.fillStyle(0x000000, 0); g.fillRect(0, 0, TILE, TILE);
-    g.lineStyle(4, Colors.ropeShadow, 0.75); g.lineBetween(5, TILE/2 + 1, TILE-3, TILE/2 + 1);
-    g.lineStyle(4, Colors.rope, 1); g.lineBetween(4, TILE/2, TILE-4, TILE/2);
-    g.generateTexture('rope', TILE, TILE);
-
-    // Gold
-    g.clear(); g.fillStyle(Colors.gold, 1); g.fillRoundedRect(6, 10, TILE-12, TILE-20, 6);
-    g.lineStyle(2, 0xffffff, 0.6); g.strokeRoundedRect(6, 10, TILE-12, TILE-20, 6);
-    g.generateTexture('gold', TILE, TILE);
-
-    // Exit tile
-    g.clear(); g.fillStyle(Colors.exit, 1); g.fillRoundedRect(6, 6, TILE-12, TILE-12, 6);
-    g.lineStyle(2, 0xffffff, 0.5); g.strokeRoundedRect(6, 6, TILE-12, TILE-12, 6);
-    g.generateTexture('exit', TILE, TILE);
+    // Render the shared Tile Forge art to Phaser canvas textures so the rest of
+    // the scene can keep referencing the familiar sprite keys.
+    Object.entries(TILE_TEXTURE_MAP).forEach(([textureKey, tileId]) => {
+      const canvas = tileFactory.render(tileId, { scale: TILE_CANVAS_SCALE });
+      if (this.textures.exists(textureKey)) {
+        this.textures.remove(textureKey);
+      }
+      this.textures.addCanvas(textureKey, canvas);
+    });
   }
 
   makePlayerFramesAndAnimations() {

@@ -29,6 +29,11 @@ import {
   paintMetalRiveted,
   paintMushroomBlue,
   paintMushroomRed,
+  paintLodeRunnerBrick,
+  paintLodeRunnerSolid,
+  paintLodeRunnerRope,
+  paintLodeRunnerGold,
+  paintLodeRunnerExit,
   paintPatternChecker,
   paintPatternDiamond,
   paintPatternWaves,
@@ -97,6 +102,11 @@ export const standardTileDefinitions = [
   { id: 'prop/barrel', label: 'Barrel', category: 'Props', painter: paintBarrel('standard/barrel') },
   { id: 'prop/crate', label: 'Storage Crate', category: 'Props', painter: paintCrate('standard/crate') },
   { id: 'prop/signpost', label: 'Signpost', category: 'Props', painter: paintSignpost('standard/signpost') },
+  { id: 'loderunner/brick', label: 'Lode Brick', category: 'Lode Runner', painter: paintLodeRunnerBrick() },
+  { id: 'loderunner/solid', label: 'Lode Bedrock', category: 'Lode Runner', painter: paintLodeRunnerSolid() },
+  { id: 'loderunner/rope', label: 'Lode Rope', category: 'Lode Runner', painter: paintLodeRunnerRope() },
+  { id: 'loderunner/gold', label: 'Lode Gold', category: 'Lode Runner', painter: paintLodeRunnerGold() },
+  { id: 'loderunner/exit', label: 'Lode Exit', category: 'Lode Runner', painter: paintLodeRunnerExit() },
 ];
 
 export function registerStandardTiles(factory) {
