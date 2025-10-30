@@ -22,6 +22,21 @@ function seededPainter(seed, paint) {
   return createNoisePainter(seed, paint);
 }
 
+function roundRectPath(ctx, x, y, width, height, radius) {
+  const r = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 export function paintDirtClassic(seed = 'dirt/classic') {
   return seededPainter(seed, (ctx, w, h, rng) => {
     ctx.fillStyle = '#3b2b17';
@@ -770,6 +785,98 @@ export function paintLadderWood() {
 
     ctx.fillStyle = 'rgba(255,255,255,0.2)';
     ctx.fillRect(3, 2, 1, h - 4);
+  };
+}
+
+export function paintLodeRunnerBrick() {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#c06724';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#863b0d';
+    ctx.fillRect(0, h / 2, w, h / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(0, 0, w, 1);
+    ctx.fillStyle = '#f3b152';
+    for (let y = 5; y < h; y += 5) {
+      ctx.fillRect(0, y, w, 1);
+    }
+    for (let x = 3; x < w; x += 5) {
+      ctx.fillRect(x, 0, 1, h);
+    }
+  };
+}
+
+export function paintLodeRunnerSolid() {
+  return (ctx, w, h) => {
+    ctx.fillStyle = '#3c1f0c';
+    ctx.fillRect(0, 0, w, h);
+    const band = Math.max(2, Math.round(h / 5));
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(0, h - band, w, band);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(0, 0, w, 1);
+  };
+}
+
+export function paintLodeRunnerRope() {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const lineWidth = Math.max(3, Math.round(h / 5));
+    const offset = Math.max(1, Math.round(lineWidth / 3));
+    const mid = h / 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(159,107,41,0.78)';
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.moveTo(2, mid + offset);
+    ctx.lineTo(w - 2, mid + offset);
+    ctx.stroke();
+    ctx.strokeStyle = '#e4a94c';
+    ctx.beginPath();
+    ctx.moveTo(2, mid);
+    ctx.lineTo(w - 2, mid);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  };
+}
+
+export function paintLodeRunnerGold() {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const marginX = Math.round(w * 0.1875);
+    const marginY = Math.round(h * 0.3125);
+    const radius = Math.round(Math.min(w, h) * 0.18);
+    roundRectPath(ctx, marginX, marginY, w - marginX * 2, h - marginY * 2, radius);
+    ctx.fillStyle = '#ffd864';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marginX + 1, marginY + Math.floor((h - marginY * 2) / 2));
+    ctx.lineTo(w - marginX - 1, marginY + Math.floor((h - marginY * 2) / 2));
+    ctx.stroke();
+  };
+}
+
+export function paintLodeRunnerExit() {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const margin = Math.round(w * 0.1875);
+    const radius = Math.round(Math.min(w, h) * 0.2);
+    roundRectPath(ctx, margin, margin, w - margin * 2, h - margin * 2, radius);
+    ctx.fillStyle = '#58ff85';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.moveTo(margin, margin + 1);
+    ctx.lineTo(w - margin, margin + 1);
+    ctx.stroke();
   };
 }
 
