@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Neon Breaker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Oxanium:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="cabinet">
+      <div class="marquee">
+        <h1>NEONOID</h1>
+        <span>insert coin</span>
+      </div>
+      <section class="screen">
+        <canvas id="game" width="720" height="960" aria-label="Neon Arkanoid clone"></canvas>
+        <div class="scanlines" aria-hidden="true"></div>
+        <div class="vignette" aria-hidden="true"></div>
+        <div class="glow" aria-hidden="true"></div>
+      </section>
+      <aside class="hud">
+        <div class="stats">
+          <div class="stat">
+            <span class="label">score</span>
+            <span class="value" data-score>000000</span>
+          </div>
+          <div class="stat">
+            <span class="label">lives</span>
+            <span class="value" data-lives>03</span>
+          </div>
+          <div class="stat">
+            <span class="label">level</span>
+            <span class="value" data-level>01</span>
+          </div>
+        </div>
+        <div class="guide">
+          <p>Move with <strong>mouse</strong> or <strong>← →</strong></p>
+          <p>Press <strong>Space</strong> to launch</p>
+          <p>Catch power cores to amplify the paddle glow.</p>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
