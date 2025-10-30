@@ -34,6 +34,12 @@ import {
   paintLodeRunnerRope,
   paintLodeRunnerGold,
   paintLodeRunnerExit,
+  createLodeRunnerPosePainter,
+  paintSnakeBody,
+  createSnakeHeadPainter,
+  createBoulderDashPlayerPainter,
+  createBoulderDashFireflyPainter,
+  createBoulderDashButterflyPainter,
   paintPatternChecker,
   paintPatternDiamond,
   paintPatternWaves,
@@ -107,6 +113,105 @@ export const standardTileDefinitions = [
   { id: 'loderunner/rope', label: 'Lode Rope', category: 'Lode Runner', painter: paintLodeRunnerRope() },
   { id: 'loderunner/gold', label: 'Lode Gold', category: 'Lode Runner', painter: paintLodeRunnerGold() },
   { id: 'loderunner/exit', label: 'Lode Exit', category: 'Lode Runner', painter: paintLodeRunnerExit() },
+  { id: 'loderunner/player/idle', label: 'Runner Idle', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('player', {
+    limbs: [
+      { x: 12, y: 22, w: 3, h: 8 },
+      { x: 17, y: 22, w: 3, h: 8 },
+      { x: 10, y: 13, w: 3, h: 7, shade: false },
+      { x: 21, y: 13, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/player/run-0', label: 'Runner Run 0', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('player', {
+    torso: { x: 12 },
+    head: { x: 11 },
+    limbs: [
+      { x: 8, y: 22, w: 4, h: 7 },
+      { x: 18, y: 19, w: 4, h: 11 },
+      { x: 6, y: 14, w: 4, h: 6, shade: false },
+      { x: 22, y: 12, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/player/run-1', label: 'Runner Run 1', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('player', {
+    limbs: [
+      { x: 10, y: 21, w: 3, h: 9 },
+      { x: 18, y: 21, w: 3, h: 9 },
+      { x: 7, y: 12, w: 3, h: 7, shade: false },
+      { x: 21, y: 14, w: 3, h: 6, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/player/run-2', label: 'Runner Run 2', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('player', {
+    torso: { x: 14 },
+    head: { x: 13 },
+    limbs: [
+      { x: 12, y: 19, w: 4, h: 11 },
+      { x: 20, y: 22, w: 4, h: 7 },
+      { x: 9, y: 11, w: 3, h: 7, shade: false },
+      { x: 23, y: 13, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/player/run-3', label: 'Runner Run 3', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('player', {
+    limbs: [
+      { x: 11, y: 21, w: 3, h: 9 },
+      { x: 19, y: 20, w: 3, h: 10 },
+      { x: 8, y: 13, w: 3, h: 6, shade: false },
+      { x: 22, y: 12, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/enemy/idle', label: 'Guard Idle', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('enemy', {
+    limbs: [
+      { x: 12, y: 22, w: 3, h: 8 },
+      { x: 17, y: 22, w: 3, h: 8 },
+      { x: 10, y: 13, w: 3, h: 7, shade: false },
+      { x: 21, y: 13, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/enemy/run-0', label: 'Guard Run 0', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('enemy', {
+    torso: { x: 12 },
+    head: { x: 11 },
+    limbs: [
+      { x: 8, y: 22, w: 4, h: 7 },
+      { x: 18, y: 19, w: 4, h: 11 },
+      { x: 6, y: 14, w: 4, h: 6, shade: false },
+      { x: 22, y: 12, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/enemy/run-1', label: 'Guard Run 1', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('enemy', {
+    limbs: [
+      { x: 10, y: 21, w: 3, h: 9 },
+      { x: 18, y: 21, w: 3, h: 9 },
+      { x: 7, y: 12, w: 3, h: 7, shade: false },
+      { x: 21, y: 14, w: 3, h: 6, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/enemy/run-2', label: 'Guard Run 2', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('enemy', {
+    torso: { x: 14 },
+    head: { x: 13 },
+    limbs: [
+      { x: 12, y: 19, w: 4, h: 11 },
+      { x: 20, y: 22, w: 4, h: 7 },
+      { x: 9, y: 11, w: 3, h: 7, shade: false },
+      { x: 23, y: 13, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'loderunner/enemy/run-3', label: 'Guard Run 3', category: 'Lode Runner Sprites', painter: createLodeRunnerPosePainter('enemy', {
+    limbs: [
+      { x: 11, y: 21, w: 3, h: 9 },
+      { x: 19, y: 20, w: 3, h: 10 },
+      { x: 8, y: 13, w: 3, h: 6, shade: false },
+      { x: 22, y: 12, w: 3, h: 7, shade: false },
+    ],
+  }) },
+  { id: 'snake/body', label: 'Snake Body', category: 'Snake', painter: paintSnakeBody() },
+  { id: 'snake/head/up', label: 'Snake Head Up', category: 'Snake', painter: createSnakeHeadPainter('up') },
+  { id: 'snake/head/down', label: 'Snake Head Down', category: 'Snake', painter: createSnakeHeadPainter('down') },
+  { id: 'snake/head/left', label: 'Snake Head Left', category: 'Snake', painter: createSnakeHeadPainter('left') },
+  { id: 'snake/head/right', label: 'Snake Head Right', category: 'Snake', painter: createSnakeHeadPainter('right') },
+  { id: 'boulderdash/player/0', label: 'Boulder Dash Player 0', category: 'Boulder Dash Sprites', painter: createBoulderDashPlayerPainter(0) },
+  { id: 'boulderdash/player/1', label: 'Boulder Dash Player 1', category: 'Boulder Dash Sprites', painter: createBoulderDashPlayerPainter(4) },
+  { id: 'boulderdash/firefly/0', label: 'Firefly 0', category: 'Boulder Dash Sprites', painter: createBoulderDashFireflyPainter(0) },
+  { id: 'boulderdash/firefly/1', label: 'Firefly 1', category: 'Boulder Dash Sprites', painter: createBoulderDashFireflyPainter(1) },
+  { id: 'boulderdash/butterfly/0', label: 'Butterfly 0', category: 'Boulder Dash Sprites', painter: createBoulderDashButterflyPainter(0) },
+  { id: 'boulderdash/butterfly/1', label: 'Butterfly 1', category: 'Boulder Dash Sprites', painter: createBoulderDashButterflyPainter(1) },
 ];
 
 export function registerStandardTiles(factory) {
