@@ -1031,3 +1031,290 @@ export function paintSignpost(seed = 'prop/signpost') {
     }
   });
 }
+
+function scaleRect(rect, scaleX, scaleY) {
+  const x = Math.round(rect.x * scaleX);
+  const y = Math.round(rect.y * scaleY);
+  const width = Math.max(1, Math.round(rect.w * scaleX));
+  const height = Math.max(1, Math.round(rect.h * scaleY));
+  return { x, y, w: width, h: height };
+}
+
+function toHexColor(value) {
+  return `#${value.toString(16).padStart(6, '0')}`;
+}
+
+const LODE_RUNNER_BASE_SIZE = 32;
+const LODE_RUNNER_PALETTES = {
+  player: {
+    fill: toHexColor(0xfff5c4),
+    shadow: toHexColor(0xe2bf75),
+    outline: toHexColor(0x3d2b1a),
+  },
+  enemy: {
+    fill: toHexColor(0xf58a4d),
+    shadow: toHexColor(0xbd4c22),
+    outline: toHexColor(0x301007),
+  },
+};
+
+function createLodeRunnerPoseRenderer(role, config = {}) {
+  const palette = LODE_RUNNER_PALETTES[role] ?? LODE_RUNNER_PALETTES.player;
+  const defaultTorso = { x: 13, y: 10, w: 6, h: 11 };
+  const defaultHead = { x: 12, y: 4, w: 8, h: 6 };
+  const limbs = (config.limbs ?? []).map((limb) => ({ shade: true, ...limb }));
+  const outlines = config.outlines ?? [];
+  const torso = { ...defaultTorso, ...(config.torso ?? {}) };
+  const head = { ...defaultHead, ...(config.head ?? {}) };
+
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const scaleX = w / LODE_RUNNER_BASE_SIZE;
+    const scaleY = h / LODE_RUNNER_BASE_SIZE;
+
+    const scaledTorso = scaleRect(torso, scaleX, scaleY);
+    const scaledHead = scaleRect(head, scaleX, scaleY);
+    const scaledLimbs = limbs.map((limb) => ({ ...scaleRect(limb, scaleX, scaleY), shade: limb.shade }));
+    const scaledOutlines = outlines.map((entry) => {
+      if (entry.rect) {
+        return { rect: scaleRect(entry.rect, scaleX, scaleY), pad: entry.pad ?? 1 };
+      }
+      return { rect: scaleRect(entry, scaleX, scaleY), pad: entry.pad ?? 1 };
+    });
+
+    const drawOutline = (rect, pad = 1) => {
+      const padX = Math.max(1, Math.round(pad * scaleX));
+      const padY = Math.max(1, Math.round(pad * scaleY));
+      ctx.fillStyle = palette.outline;
+      ctx.fillRect(rect.x - padX, rect.y - padY, rect.w + padX * 2, rect.h + padY * 2);
+    };
+
+    drawOutline(scaledTorso);
+    drawOutline(scaledHead);
+    scaledLimbs.forEach((rect) => drawOutline(rect));
+    scaledOutlines.forEach(({ rect, pad }) => drawOutline(rect, pad));
+
+    const torsoShade = Math.max(1, Math.min(scaledTorso.h, Math.round(3 * scaleY)));
+    const headShade = Math.max(1, Math.min(scaledHead.h, Math.round(2 * scaleY)));
+
+    ctx.fillStyle = palette.fill;
+    ctx.fillRect(scaledTorso.x, scaledTorso.y, scaledTorso.w, scaledTorso.h);
+    ctx.fillStyle = palette.shadow;
+    ctx.fillRect(scaledTorso.x, scaledTorso.y + scaledTorso.h - torsoShade, scaledTorso.w, torsoShade);
+
+    ctx.fillStyle = palette.fill;
+    ctx.fillRect(scaledHead.x, scaledHead.y, scaledHead.w, scaledHead.h);
+    ctx.fillStyle = palette.shadow;
+    ctx.fillRect(scaledHead.x, scaledHead.y + scaledHead.h - headShade, scaledHead.w, headShade);
+
+    scaledLimbs.forEach((limb) => {
+      ctx.fillStyle = palette.fill;
+      ctx.fillRect(limb.x, limb.y, limb.w, limb.h);
+      if (limb.shade) {
+        const shadeHeight = Math.max(1, Math.min(limb.h, Math.round(2 * scaleY)));
+        ctx.fillStyle = palette.shadow;
+        ctx.fillRect(limb.x, limb.y + limb.h - shadeHeight, limb.w, shadeHeight);
+      }
+    });
+  };
+}
+
+export function createLodeRunnerPosePainter(role, config) {
+  return createLodeRunnerPoseRenderer(role, config);
+}
+
+const SNAKE_PALETTE = {
+  floorDark: '#030b1f',
+  floorLight: '#071535',
+  floorGrid: 'rgba(29, 58, 120, 0.45)',
+  floorHighlight: 'rgba(132, 180, 255, 0.18)',
+  snakeBodyOuter: '#c2911f',
+  snakeBodyInner: '#ffe12b',
+  snakeBodyHighlight: 'rgba(255, 232, 120, 0.75)',
+  snakeHeadOuter: '#d6c85d',
+  snakeHeadInner: '#fff59a',
+  snakeHeadHighlight: 'rgba(255, 255, 210, 0.8)',
+  snakeStripe: 'rgba(0, 0, 0, 0.12)',
+  snakeEye: '#0a1230',
+};
+
+function paintSnakeSegment(ctx, w, h, { outer, inner, highlight, stripe }) {
+  ctx.fillStyle = outer;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = inner;
+  ctx.fillRect(1, 1, w - 2, h - 2);
+  ctx.fillStyle = highlight;
+  ctx.fillRect(1, 1, w - 2, Math.max(1, Math.ceil(h / 4)));
+  ctx.fillRect(1, 1, Math.max(1, Math.ceil(w / 4)), 1);
+  if (stripe) {
+    const stripeWidth = Math.max(1, Math.ceil(w / 6));
+    const stripeX = Math.max(1, Math.round(w / 2 - stripeWidth / 2));
+    ctx.fillStyle = stripe;
+    ctx.fillRect(stripeX, 1, stripeWidth, h - 2);
+  }
+  ctx.strokeStyle = 'rgba(10, 18, 48, 0.55)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+}
+
+export function paintSnakeBody() {
+  return (ctx, w, h) => {
+    paintSnakeSegment(ctx, w, h, {
+      outer: SNAKE_PALETTE.snakeBodyOuter,
+      inner: SNAKE_PALETTE.snakeBodyInner,
+      highlight: SNAKE_PALETTE.snakeBodyHighlight,
+      stripe: SNAKE_PALETTE.snakeStripe,
+    });
+  };
+}
+
+const SNAKE_EYE_OFFSETS = {
+  right: ({ w, h, eyeSize, pad }) => [
+    [w - eyeSize - pad, pad],
+    [w - eyeSize - pad, h - eyeSize - pad],
+  ],
+  left: ({ eyeSize, pad, h }) => [
+    [pad, pad],
+    [pad, h - eyeSize - pad],
+  ],
+  up: ({ w, eyeSize, pad }) => [
+    [pad, pad],
+    [w - eyeSize - pad, pad],
+  ],
+  down: ({ w, h, eyeSize, pad }) => [
+    [pad, h - eyeSize - pad],
+    [w - eyeSize - pad, h - eyeSize - pad],
+  ],
+};
+
+export function createSnakeHeadPainter(direction) {
+  const orient = SNAKE_EYE_OFFSETS[direction];
+  return (ctx, w, h) => {
+    paintSnakeSegment(ctx, w, h, {
+      outer: SNAKE_PALETTE.snakeHeadOuter,
+      inner: SNAKE_PALETTE.snakeHeadInner,
+      highlight: SNAKE_PALETTE.snakeHeadHighlight,
+      stripe: SNAKE_PALETTE.snakeStripe,
+    });
+    if (!orient) return;
+    const eyeSize = Math.max(2, Math.round(w / 4));
+    const pad = Math.max(1, Math.round(w / 6));
+    ctx.fillStyle = SNAKE_PALETTE.snakeEye;
+    orient({ w, h, eyeSize, pad }).forEach(([x, y]) => {
+      ctx.fillRect(x, y, eyeSize, eyeSize);
+    });
+  };
+}
+
+const BOULDER_DASH_BASE = 16;
+
+function withBoulderDashScaling(w, h) {
+  const scaleX = w / BOULDER_DASH_BASE;
+  const scaleY = h / BOULDER_DASH_BASE;
+  return {
+    scaleX,
+    scaleY,
+    rect(x, y, width, height) {
+      const rx = Math.round(x * scaleX);
+      const ry = Math.round(y * scaleY);
+      const rw = Math.max(1, Math.round(width * scaleX));
+      const rh = Math.max(1, Math.round(height * scaleY));
+      return { x: rx, y: ry, w: rw, h: rh };
+    },
+    arcRadius(radius) {
+      return radius * Math.min(scaleX, scaleY);
+    },
+    point(x, y) {
+      return [x * scaleX, y * scaleY];
+    },
+  };
+}
+
+export function createBoulderDashPlayerPainter(frame) {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const scale = withBoulderDashScaling(w, h);
+
+    const body = scale.rect(5, 4, 6, 8);
+    ctx.fillStyle = '#f7d21b';
+    ctx.fillRect(body.x, body.y, body.w, body.h);
+
+    ctx.fillStyle = '#222222';
+    const leftEye = scale.rect(6, 6, 1, 1);
+    const rightEye = scale.rect(9, 6, 1, 1);
+    ctx.fillRect(leftEye.x, leftEye.y, leftEye.w, leftEye.h);
+    ctx.fillRect(rightEye.x, rightEye.y, rightEye.w, rightEye.h);
+
+    ctx.fillStyle = '#ffef6a';
+    const smile = scale.rect(6, 10, 4, 2);
+    ctx.fillRect(smile.x, smile.y, smile.w, smile.h);
+
+    const phase = ((frame >> 2) % 2) === 0;
+    ctx.fillStyle = '#d7b10f';
+    if (phase) {
+      const arms = scale.rect(4, 12, 8, 2);
+      const legs = scale.rect(6, 14, 4, 2);
+      ctx.fillRect(arms.x, arms.y, arms.w, arms.h);
+      ctx.fillRect(legs.x, legs.y, legs.w, legs.h);
+    } else {
+      const arms = scale.rect(5, 12, 6, 2);
+      const legs = scale.rect(6, 14, 4, 2);
+      ctx.fillRect(arms.x, arms.y, arms.w, arms.h);
+      ctx.fillRect(legs.x, legs.y, legs.w, legs.h);
+    }
+  };
+}
+
+export function createBoulderDashFireflyPainter(phase = 0) {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const scale = withBoulderDashScaling(w, h);
+    ctx.fillStyle = '#1a1406';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = phase === 0 ? '#ffe97a' : '#ffc23d';
+    const radius = scale.arcRadius(4 + (phase === 0 ? 1 : 0));
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fffdc7';
+    const topSpark = scale.rect(7, 3, 2, 2);
+    const bottomSpark = scale.rect(7, 11, 2, 2);
+    ctx.fillRect(topSpark.x, topSpark.y, topSpark.w, topSpark.h);
+    ctx.fillRect(bottomSpark.x, bottomSpark.y, bottomSpark.w, bottomSpark.h);
+  };
+}
+
+export function createBoulderDashButterflyPainter(phase = 0) {
+  return (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const scale = withBoulderDashScaling(w, h);
+    ctx.fillStyle = '#051028';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = '#9be1ff';
+    const wingOffset = phase === 0 ? 4 : 2;
+    ctx.beginPath();
+    ctx.moveTo(...scale.point(3, 8));
+    ctx.quadraticCurveTo(...scale.point(3, wingOffset), ...scale.point(8, 8));
+    ctx.quadraticCurveTo(...scale.point(3, 16 - wingOffset), ...scale.point(3, 8));
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(...scale.point(13, 8));
+    ctx.quadraticCurveTo(...scale.point(13, wingOffset), ...scale.point(8, 8));
+    ctx.quadraticCurveTo(...scale.point(13, 16 - wingOffset), ...scale.point(13, 8));
+    ctx.fill();
+
+    const body = scale.rect(7, 4, 2, 8);
+    ctx.fillStyle = '#cbeeff';
+    ctx.fillRect(body.x, body.y, body.w, body.h);
+
+    ctx.fillStyle = '#ffe1ff';
+    const leftAccent = scale.rect(6, 6, 1, 4);
+    const rightAccent = scale.rect(9, 6, 1, 4);
+    ctx.fillRect(leftAccent.x, leftAccent.y, leftAccent.w, leftAccent.h);
+    ctx.fillRect(rightAccent.x, rightAccent.y, rightAccent.w, rightAccent.h);
+  };
+}
