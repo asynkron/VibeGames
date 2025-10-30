@@ -1,4 +1,4 @@
-import { clamp01 } from '../utils/math.js';
+import { clamp, clamp01 } from '../utils/math.js';
 
 let ambientBuffer = null;
 let ambientCtx = null;
@@ -91,6 +91,9 @@ export function applyAmbientLighting({
       const radius = source?.radius ?? 0;
       if (radius <= 0) continue;
       const inner = Math.max(0, source?.innerRadius ?? 0);
+      const intensity = clamp01(clamp(source?.intensity ?? 1, 0, 1));
+      if (intensity <= 0) continue;
+      ctx.globalAlpha = intensity;
       const gradient = ctx.createRadialGradient(
         source.x,
         source.y,

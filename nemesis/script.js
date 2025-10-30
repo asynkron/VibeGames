@@ -72,6 +72,10 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
     ambientLight: 0.62,
   };
 
+  // Tone down additive lighting globally so simultaneous explosions do not wash
+  // out the screen while still allowing individual lights to feel punchy.
+  const LIGHT_INTENSITY = 0.65;
+
   const COLORS = {
     space: '#02040b',
     star: '#6fd9ff',
@@ -1749,7 +1753,11 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
         size: 2 + Math.random() * 2,
         color: i % 2 === 0 ? '#ffdca1' : '#ff7e4d',
         gravity: 30,
-        glow: { radius: radius * 0.65, color: 'rgba(255, 180, 120, 0.28)' },
+        glow: {
+          radius: radius * 0.55,
+          color: 'rgba(255, 185, 135, 0.24)',
+          intensity: 0.85,
+        },
       });
     }
     startShockwave(x - state.cameraX, y, { innerRadius: 12, duration: 520 });
@@ -1889,6 +1897,7 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
           innerRadius: 8,
           innerStop: 0.2,
           color: p.glow.color ?? 'rgba(255, 200, 150, 0.4)',
+          intensity: p.glow.intensity ?? 1,
         });
       }
     }
@@ -2249,8 +2258,11 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
       if (radius <= 0) continue;
       const innerRadius = Math.max(0, light.innerRadius ?? 0);
       const color = light.color ?? 'rgba(120, 200, 255, 0.45)';
+      const lightStrength = clamp(light.intensity ?? 1, 0, 1) * LIGHT_INTENSITY;
+      if (lightStrength <= 0) continue;
 
       if (useLightBuffer) {
+        lightCtx.globalAlpha = lightStrength;
         const gradient = lightCtx.createRadialGradient(
           light.x,
           light.y,
@@ -2274,6 +2286,7 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
         innerRadius,
         innerStop: light.innerStop ?? 0.2,
         color,
+        intensity: lightStrength,
       });
     }
 
