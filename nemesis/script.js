@@ -2231,31 +2231,41 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
   // Apply a soft ambient vignette while carving light cones from player fire,
   // engines, and explosions for the requested lighting effect.
   function renderLighting() {
-    ensureLightBuffer();
-    lightCtx.clearRect(0, 0, lightCanvas.width, lightCanvas.height);
-    lightCtx.save();
-    lightCtx.globalCompositeOperation = 'lighter';
-
+    // When CRT post-processing is disabled, skip the extra light buffer so the
+    // additive glow does not carry the CRT look on its own.
+    const useLightBuffer = crtSettings.enabled !== false;
     const sources = [];
+
+    if (useLightBuffer) {
+      ensureLightBuffer();
+      lightCtx.clearRect(0, 0, lightCanvas.width, lightCanvas.height);
+      lightCtx.save();
+      lightCtx.globalCompositeOperation = 'lighter';
+    }
+
     for (const light of lights) {
       if (sources.length > 240) break;
       const radius = light.radius ?? 0;
       if (radius <= 0) continue;
       const innerRadius = Math.max(0, light.innerRadius ?? 0);
-      const gradient = lightCtx.createRadialGradient(
-        light.x,
-        light.y,
-        innerRadius,
-        light.x,
-        light.y,
-        radius,
-      );
-      gradient.addColorStop(0, light.color ?? 'rgba(120, 200, 255, 0.45)');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      lightCtx.fillStyle = gradient;
-      lightCtx.beginPath();
-      lightCtx.arc(light.x, light.y, radius, 0, Math.PI * 2);
-      lightCtx.fill();
+      const color = light.color ?? 'rgba(120, 200, 255, 0.45)';
+
+      if (useLightBuffer) {
+        const gradient = lightCtx.createRadialGradient(
+          light.x,
+          light.y,
+          innerRadius,
+          light.x,
+          light.y,
+          radius,
+        );
+        gradient.addColorStop(0, color);
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        lightCtx.fillStyle = gradient;
+        lightCtx.beginPath();
+        lightCtx.arc(light.x, light.y, radius, 0, Math.PI * 2);
+        lightCtx.fill();
+      }
 
       sources.push({
         x: light.x,
@@ -2263,10 +2273,13 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
         radius,
         innerRadius,
         innerStop: light.innerStop ?? 0.2,
+        color,
       });
     }
 
-    lightCtx.restore();
+    if (useLightBuffer) {
+      lightCtx.restore();
+    }
 
     applyAmbientLighting({
       ctx,
@@ -2274,8 +2287,8 @@ import { generateSpaceshipSprite } from '../sprite-generator/generator.js';
       height: SCREEN_HEIGHT,
       ambient: settings.ambientLight,
       sources,
-      sourceCanvas: sources.length ? lightCanvas : null,
-      sourceCanvasIsLightBuffer: sources.length > 0,
+      sourceCanvas: useLightBuffer && sources.length ? lightCanvas : null,
+      sourceCanvasIsLightBuffer: useLightBuffer && sources.length > 0,
     });
 
     lights.length = 0;
