@@ -5,7 +5,12 @@ import url from 'node:url';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const root = path.resolve(process.argv[2] ?? __dirname);
+const sharedRoot = path.resolve(__dirname, '../shared');
 const port = Number(process.env.PORT || 5173);
+
+const aliasRoots = [
+  { prefix: '/shared/', base: sharedRoot },
+];
 
 const types = new Map([
   ['.html','text/html; charset=utf-8'],
@@ -33,14 +38,28 @@ const server = http.createServer(async (req, res) => {
   try {
     const reqUrl = new URL(req.url || '/', 'http://localhost');
     let pathname = decodeURIComponent(reqUrl.pathname);
+    let base = root;
+    for (const { prefix, base: aliasBase } of aliasRoots) {
+      if (pathname.startsWith(prefix)) {
+        pathname = pathname.slice(prefix.length);
+        base = aliasBase;
+        break;
+      }
+    }
+    if (pathname === '') pathname = '/';
     if (pathname.endsWith('/')) pathname += 'index.html';
-    let filePath = safeJoin(root, pathname);
+    if (pathname.startsWith('/')) pathname = pathname.slice(1);
+
+    let filePath = safeJoin(base, pathname);
 
     let st;
     try { st = await stat(filePath); } catch (_) {}
 
     if (!st || st.isDirectory()) {
-      // Fallback to index.html for directories or missing files
+      if (base !== root) {
+        throw Object.assign(new Error('Not Found'), { code: 'NOT_FOUND' });
+      }
+      // Fallback to index.html for directories or missing files under the main root
       filePath = safeJoin(root, 'index.html');
     }
 

@@ -1,16 +1,17 @@
-# 28x16 grid. Vertical chase
+# 28x16 grid. Shaft pursuit
 ============================
-=..G..---..G..E....G..E....=
-=.XXXXXX..XXXX..XXXXXX..X..=
-=.X....L..L..X..L....X..X..=
-=.X.G..L--L..X--L..G.X..X..=
-=.X.XX.L..L..X..L.XX.X..X..=
-=.X....L..L..X..L....X..X..=
-=.XXXXXX..XXXX..XXXXXX..X..=
-=..G..L--L....L--L..G...X..=
-=.XXXXL..L.XXXL..L.XXXX.X..=
-=.X..GL..L.X..XL..L.G..X...=
-=.X..L..PL.X..XL.G.L..LX...=
-=.X..L--LL.XXXXLL--L..LX...=
-=.E...L..L......L..L..E.X...=
+=E..G...L----L...G...E..G..=
+=.XXXX..L....L..XXXX..XXXX.=
+=.X..L..L.G..L..L..L..L..X.=
+=.X..L--L.XXXL--L..L--L..X.=
+=.X..L..L.X..XL.L..L..L..X.=
+=.X..L--L.X..XL-L..L--L..X.=
+=.X..L..L.X..XL.L..L..L..X.=
+=.XXXX..L.XXXL..L.XXXX.XX.X=
+=.G..L--L....L--L....L..G..=
+=.XXXXL..XXXXXL..XXXXXL.XX.=
+=.X..GL..X..P.X..L.G.L..X..=
+=.X..L..EX..X.X..L..L..EX..=
+=.X..L--LL..X.L--L..L--LX..=
+=.E..L....G....O....G..L...=
 ============================
