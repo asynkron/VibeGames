@@ -1,6 +1,8 @@
 import { createBeeper } from '../shared/audio/beeper.js';
 import { createDPad } from '../shared/input/dpad.js';
 import { createPixelContext } from '../shared/render/pixelCanvas.js';
+import { createTileFactory } from '../shared/render/tile-forge/factory.js';
+import { registerStandardTiles } from '../shared/render/tile-forge/standardTiles.js';
 import { initGameCrt } from '../shared/ui/gameCrt.js';
 import { createOverlayFX } from '../shared/fx/overlay.js';
 import {
@@ -13,7 +15,7 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
 (() => {
   const canvas = document.getElementById('game');
   const pixel = createPixelContext(canvas, { alpha: false });
-  const { ctx, fillRect: fillPixels } = pixel;
+  const { ctx } = pixel;
 
   const crtSettings = createDefaultCrtSettings();
   const { post: crtPost } = initGameCrt({
@@ -41,9 +43,12 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
   // Colors (retro green phosphor vibe)
   const COLORS = {
     bg: '#000312',
-    grid: 'rgba(18, 32, 78, 0.16)',
+    floorShadow: '#0a1638',
+    floorAccent: 'rgba(37, 66, 140, 0.45)',
     snake: '#ffe12b',
+    snakeShade: '#d8a710',
     snakeHead: '#fff59a',
+    snakeHighlight: '#fffad0',
     snakeEye: '#0a1230',
     food: '#ff7b1f',
     foodStem: '#ffd05a',
@@ -51,6 +56,12 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
     terrainTop: '#1f33ff',
     terrainHighlight: 'rgba(98, 149, 255, 0.45)'
   };
+
+  // Use Tile Forge to generate every sprite so the renderer only has to blit canvases.
+  const tileFactory = registerStandardTiles(createTileFactory({ size: TILE }));
+  defineSnakeTiles(tileFactory);
+  const sprites = createSpriteLookup(tileFactory);
+  const backgroundLayer = buildBackgroundLayer();
 
   // HUD elements
   const scoreEl = document.getElementById('score');
@@ -158,79 +169,179 @@ import { createFpsCounter } from '../shared/utils/fpsCounter.js';
   }
 
   function drawBG() {
-    // Fill background
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Subtle grid
-    ctx.strokeStyle = COLORS.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = 0; x <= COLS; x++) {
-      ctx.moveTo(x * TILE + 0.5, 0);
-      ctx.lineTo(x * TILE + 0.5, ROWS * TILE);
-    }
-    for (let y = 0; y <= ROWS; y++) {
-      ctx.moveTo(0, y * TILE + 0.5);
-      ctx.lineTo(COLS * TILE, y * TILE + 0.5);
-    }
-    ctx.stroke();
+    pixel.drawSprite(backgroundLayer, 0, 0);
   }
 
   function drawTerrain() {
     // Render fixed obstacles so they read like Pac-Man style maze walls
     for (const { x, y } of terrainTiles) {
-      const px = x * TILE;
-      const py = y * TILE;
-      fillPixels(px, py, TILE, TILE, COLORS.terrainBase);
-      fillPixels(px + 1, py + 1, TILE - 2, TILE - 2, COLORS.terrainTop);
-      fillPixels(
-        px + 2,
-        py + 1,
-        Math.max(1, TILE - 4),
-        Math.max(1, Math.floor(TILE / 4)),
-        COLORS.terrainHighlight
-      );
+      pixel.drawSprite(sprites.terrain, x * TILE, y * TILE);
     }
   }
 
   function drawSnake() {
-    // Body
+    // Body segments reuse the same tile for a consistent sheen.
     for (let i = snake.length - 1; i >= 1; i--) {
-      const s = snake[i];
-      ctx.fillStyle = COLORS.snake;
-      ctx.fillRect(s.x * TILE, s.y * TILE, TILE, TILE);
+      const segment = snake[i];
+      pixel.drawSprite(sprites.snakeBody, segment.x * TILE, segment.y * TILE);
     }
-    // Head with brighter tint and tiny eyes
-    const h = snake[0];
-    ctx.fillStyle = COLORS.snakeHead;
-    ctx.fillRect(h.x * TILE, h.y * TILE, TILE, TILE);
-    // Eyes
-    const eye = Math.max(1, Math.floor(TILE / 4));
-    const off = Math.max(1, Math.floor(TILE / 6));
-    if (dir.x === 1) { // right
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
-    } else if (dir.x === -1) { // left
-      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
-      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
-    } else if (dir.y === 1) { // down
-      fillPixels(h.x * TILE + off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + TILE - eye - off, eye, eye, COLORS.snakeEye);
-    } else { // up
-      fillPixels(h.x * TILE + off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
-      fillPixels(h.x * TILE + TILE - eye - off, h.y * TILE + off, eye, eye, COLORS.snakeEye);
-    }
+    // Head swaps tiles based on the active direction so the eyes track movement.
+    const head = snake[0];
+    const facing = directionKey(dir);
+    pixel.drawSprite(sprites.snakeHead[facing], head.x * TILE, head.y * TILE);
   }
 
   function drawFood() {
-    const px = food.x * TILE; const py = food.y * TILE;
-    // body
-    fillPixels(px + 2, py + 2, TILE - 4, TILE - 4, COLORS.food);
-    // stem
-    fillPixels(px + Math.floor(TILE / 2) - 1, py + 0, 2, 3, COLORS.foodStem);
-    // highlight
-    fillPixels(px + 2, py + 2, 2, 2, '#fff7');
+    pixel.drawSprite(sprites.food, food.x * TILE, food.y * TILE);
+  }
+
+  function directionKey(vector) {
+    if (!vector) return 'right';
+    if (vector.y === -1) return 'up';
+    if (vector.x === -1) return 'left';
+    if (vector.y === 1) return 'down';
+    return 'right';
+  }
+
+  function buildBackgroundLayer() {
+    const buffer = document.createElement('canvas');
+    buffer.width = canvas.width;
+    buffer.height = canvas.height;
+    const bufferCtx = buffer.getContext('2d');
+    if (bufferCtx) {
+      bufferCtx.imageSmoothingEnabled = false;
+      bufferCtx.fillStyle = COLORS.bg;
+      bufferCtx.fillRect(0, 0, buffer.width, buffer.height);
+      // Cache the static floor so the main loop only performs sprite blits.
+      pixel.forEachTile(COLS, ROWS, TILE, (_col, _row, px, py) => {
+        bufferCtx.drawImage(sprites.floor, px, py);
+      });
+    }
+    return buffer;
+  }
+
+  function createSpriteLookup(factory) {
+    return {
+      floor: factory.get('snake/floor'),
+      terrain: factory.get('snake/terrain'),
+      snakeBody: factory.get('snake/body'),
+      snakeHead: {
+        up: factory.get('snake/head-up'),
+        down: factory.get('snake/head-down'),
+        left: factory.get('snake/head-left'),
+        right: factory.get('snake/head-right'),
+      },
+      food: factory.get('snake/food'),
+    };
+  }
+
+  function defineSnakeTiles(factory) {
+    // Floor: bake the subtle grid into the texture with a little noise for CRT shimmer.
+    factory.define(
+      'snake/floor',
+      factory.withNoise('snake/floor', (ctx, w, h, rng) => {
+        ctx.fillStyle = COLORS.bg;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = COLORS.floorShadow;
+        ctx.fillRect(0, h - 1, w, 1);
+        ctx.fillRect(w - 1, 0, 1, h);
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = COLORS.floorAccent;
+        for (let i = 0; i < 3; i += 1) {
+          const px = Math.floor(rng() * w);
+          const py = Math.floor(rng() * h);
+          ctx.fillRect(px, py, 1, 1);
+        }
+        ctx.globalAlpha = 0.18;
+        ctx.fillRect(0, 0, w, 1);
+        ctx.fillRect(0, 0, 1, h);
+        ctx.globalAlpha = 1;
+      })
+    );
+
+    factory.define('snake/terrain', (ctx, w, h) => {
+      ctx.fillStyle = COLORS.terrainBase;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = COLORS.terrainTop;
+      ctx.fillRect(1, 1, w - 2, h - 2);
+      ctx.fillStyle = COLORS.terrainHighlight;
+      ctx.fillRect(2, 1, Math.max(1, w - 4), Math.max(1, Math.floor(h / 3)));
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillRect(0, h - 1, w, 1);
+    });
+
+    // Body: glossy segment with a highlight stripe to match the retro palette.
+    factory.define('snake/body', (ctx, w, h) => {
+      ctx.fillStyle = COLORS.snake;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = COLORS.snakeHead;
+      ctx.fillRect(1, 1, w - 2, h - 2);
+      ctx.fillStyle = COLORS.snakeShade;
+      ctx.fillRect(0, h - 2, w, 2);
+      ctx.fillStyle = COLORS.snakeHighlight;
+      ctx.fillRect(1, 1, w - 2, Math.max(1, Math.floor(h / 3)));
+    });
+
+    ['up', 'down', 'left', 'right'].forEach((orientation) => {
+      factory.define(`snake/head-${orientation}`, paintSnakeHead(orientation));
+    });
+
+    // Food: stylised fruit that keeps the original warm glow.
+    factory.define('snake/food', (ctx, w, h) => {
+      const stemWidth = Math.max(1, Math.floor(w / 4));
+      const stemHeight = Math.max(1, Math.floor(h / 3));
+      ctx.fillStyle = COLORS.food;
+      ctx.fillRect(1, 1, w - 2, h - 2);
+      ctx.fillStyle = COLORS.foodStem;
+      ctx.fillRect(Math.floor(w / 2) - Math.floor(stemWidth / 2), 0, stemWidth, stemHeight);
+      ctx.fillStyle = '#fff7';
+      ctx.fillRect(1, 1, Math.max(1, Math.floor(w / 3)), Math.max(1, Math.floor(h / 3)));
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.fillRect(1, h - 2, w - 2, 1);
+    });
+  }
+
+  function paintSnakeHead(orientation) {
+    return (ctx, w, h) => {
+      const eye = Math.max(1, Math.floor(w / 4));
+      const inset = Math.max(1, Math.floor(w / 6));
+      ctx.fillStyle = COLORS.snakeHead;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = COLORS.snakeShade;
+      ctx.fillRect(0, h - 2, w, 2);
+      ctx.fillStyle = COLORS.snakeHighlight;
+      ctx.fillRect(1, 1, w - 2, Math.max(1, Math.floor(h / 3)));
+
+      // Orient the pupils so the head tracks the active direction of travel.
+      const positions = (() => {
+        switch (orientation) {
+          case 'left':
+            return [
+              { x: inset, y: inset },
+              { x: inset, y: h - eye - inset },
+            ];
+          case 'up':
+            return [
+              { x: inset, y: inset },
+              { x: w - eye - inset, y: inset },
+            ];
+          case 'down':
+            return [
+              { x: inset, y: h - eye - inset },
+              { x: w - eye - inset, y: h - eye - inset },
+            ];
+          case 'right':
+          default:
+            return [
+              { x: w - eye - inset, y: inset },
+              { x: w - eye - inset, y: h - eye - inset },
+            ];
+        }
+      })();
+
+      ctx.fillStyle = COLORS.snakeEye;
+      positions.forEach(({ x, y }) => ctx.fillRect(x, y, eye, eye));
+    };
   }
 
   function drawGameOver() {
