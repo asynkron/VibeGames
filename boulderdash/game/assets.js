@@ -1,16 +1,4 @@
 import { createTileFactory, mkCanvas } from '../../shared/render/tile-forge/factory.js';
-import {
-  createGemPainter,
-  paintBoulderRound,
-  paintBrickIndustrial,
-  paintDoorClosed,
-  paintDoorOpen,
-  paintDirtClassic,
-  paintExitClosed,
-  paintExitOpen,
-  paintKeyTile,
-  paintSteelPlate,
-} from '../../shared/render/tile-forge/painters.js';
 import { registerStandardTiles } from '../../shared/render/tile-forge/standardTiles.js';
 import { TILE } from './world.js';
 
@@ -69,17 +57,24 @@ function explosionFrame(colors) {
 export function createAssets() {
   const tiles = registerStandardTiles(createTileFactory({ size: 16 }));
 
-  tiles.define(TILE.EMPTY, (ctx, w, h) => ctx.clearRect(0, 0, w, h));
-  tiles.define(TILE.DIRT, paintDirtClassic('boulderdash/dirt'));
-  tiles.define(TILE.WALL, paintBrickIndustrial());
-  tiles.define(TILE.STEEL, paintSteelPlate());
-  tiles.define(TILE.BOULDER, paintBoulderRound());
-  tiles.define(TILE.GEM, createGemPainter({ hue: 160 }));
-  tiles.define(TILE.KEY, paintKeyTile());
-  tiles.define(TILE.DOOR_CLOSED, paintDoorClosed());
-  tiles.define(TILE.DOOR_OPEN, paintDoorOpen());
-  tiles.define(TILE.EXIT_CLOSED, paintExitClosed());
-  tiles.define(TILE.EXIT_OPEN, paintExitOpen());
+  // Map the numeric world tile ids to the Tile Forge identifiers so we can
+  // reuse the shared painter definitions instead of maintaining bespoke art.
+  const tileLookup = {
+    [TILE.DIRT]: 'dirt/classic',
+    [TILE.WALL]: 'stone/brick',
+    [TILE.STEEL]: 'metal/plate',
+    [TILE.BOULDER]: 'boulder/round',
+    [TILE.GEM]: 'gem/emerald',
+    [TILE.KEY]: 'key/golden',
+    [TILE.DOOR_CLOSED]: 'door/closed',
+    [TILE.DOOR_OPEN]: 'door/open',
+    [TILE.EXIT_CLOSED]: 'exit/closed',
+    [TILE.EXIT_OPEN]: 'exit/open',
+  };
+
+  // Empty tiles still need a cached transparent canvas so we can quickly draw
+  // them without branching elsewhere in the renderer.
+  const emptySprite = mkCanvas(16, 16, (ctx, w, h) => ctx.clearRect(0, 0, w, h));
   const enemyFrames = {
     FIREFLY: [fireflyFrame(0), fireflyFrame(1)],
     BUTTERFLY: [butterflyFrame(0), butterflyFrame(1)],
@@ -98,7 +93,11 @@ export function createAssets() {
   };
 
   function getSprite(tile, _x, _y, _tick) {
-    return tiles.get(tile);
+    if (tile === TILE.EMPTY) return emptySprite;
+    const key = tileLookup[tile];
+    if (key) return tiles.get(key);
+    if (tiles.has(tile)) return tiles.get(tile);
+    return null;
   }
 
   function player(tick) { return playerSprite(tick); }
