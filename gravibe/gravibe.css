@@ -423,6 +423,21 @@ body {
   border-radius: 6px;
   overflow: hidden;
   background: rgb(12 16 24 / 50%);
+  cursor: crosshair;
+  position: relative;
+}
+
+.trace-preview__selection {
+  pointer-events: none;
+}
+
+.trace-preview__marker {
+  pointer-events: stroke;
+}
+
+.trace-preview__marker:hover {
+  stroke: rgba(148, 163, 184, 0.9);
+  stroke-width: 3;
 }
 
 .trace-header h2 {

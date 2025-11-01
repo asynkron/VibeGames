@@ -931,10 +931,159 @@ function renderTracePreview(trace) {
     rect.setAttribute("fill", hexToRgba(color, 0.6));
     rect.setAttribute("rx", "1.5"); // Rounded corners
     svg.appendChild(rect);
-
-    // Add subtle glow effect using a filter (optional)
-    // For simplicity, we'll skip the filter but can add it if needed
   });
+
+  // Selection overlay (shown on top)
+  const selectionOverlay = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  selectionOverlay.setAttribute("class", "trace-preview__selection");
+  selectionOverlay.setAttribute("x", "0");
+  selectionOverlay.setAttribute("y", "0");
+  selectionOverlay.setAttribute("width", "0");
+  selectionOverlay.setAttribute("height", `${SVG_HEIGHT}`);
+  selectionOverlay.setAttribute("fill", "rgba(97, 175, 239, 0.2)");
+  selectionOverlay.setAttribute("stroke", "rgba(97, 175, 239, 0.6)");
+  selectionOverlay.setAttribute("stroke-width", "1");
+  selectionOverlay.style.pointerEvents = "none";
+  svg.appendChild(selectionOverlay);
+
+  // Left draggable marker
+  const leftMarker = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  leftMarker.setAttribute("class", "trace-preview__marker trace-preview__marker--left");
+  leftMarker.setAttribute("x1", "0");
+  leftMarker.setAttribute("y1", "0");
+  leftMarker.setAttribute("x2", "0");
+  leftMarker.setAttribute("y2", `${SVG_HEIGHT}`);
+  leftMarker.setAttribute("stroke", "rgba(148, 163, 184, 0.6)");
+  leftMarker.setAttribute("stroke-width", "2");
+  leftMarker.style.cursor = "col-resize";
+  leftMarker.style.opacity = "0";
+  leftMarker.style.transition = "opacity 0.2s ease";
+  svg.appendChild(leftMarker);
+
+  // Right draggable marker
+  const rightMarker = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  rightMarker.setAttribute("class", "trace-preview__marker trace-preview__marker--right");
+  rightMarker.setAttribute("x1", "100");
+  rightMarker.setAttribute("y1", "0");
+  rightMarker.setAttribute("x2", "100");
+  rightMarker.setAttribute("y2", `${SVG_HEIGHT}`);
+  rightMarker.setAttribute("stroke", "rgba(148, 163, 184, 0.6)");
+  rightMarker.setAttribute("stroke-width", "2");
+  rightMarker.style.cursor = "col-resize";
+  rightMarker.style.opacity = "0";
+  rightMarker.style.transition = "opacity 0.2s ease";
+  svg.appendChild(rightMarker);
+
+  // Selection state
+  let isSelecting = false;
+  let selectionStart = 0;
+  let selectionEnd = 0;
+  let isDraggingMarker = false;
+  let draggingMarker = null;
+
+  // Helper to convert SVG client coordinates to viewBox percentage
+  const getXPercent = (clientX) => {
+    const rect = svg.getBoundingClientRect();
+    const svgX = clientX - rect.left;
+    const percent = (svgX / rect.width) * 100;
+    return Math.max(0, Math.min(100, percent));
+  };
+
+  // Helper to update selection overlay
+  const updateSelection = () => {
+    const start = Math.min(selectionStart, selectionEnd);
+    const end = Math.max(selectionStart, selectionEnd);
+    selectionOverlay.setAttribute("x", `${start}`);
+    selectionOverlay.setAttribute("width", `${end - start}`);
+    leftMarker.setAttribute("x1", `${start}`);
+    leftMarker.setAttribute("x2", `${start}`);
+    rightMarker.setAttribute("x1", `${end}`);
+    rightMarker.setAttribute("x2", `${end}`);
+  };
+
+  // Show/hide markers
+  const showMarkers = () => {
+    leftMarker.style.opacity = "1";
+    rightMarker.style.opacity = "1";
+  };
+
+  const hideMarkers = () => {
+    if (!isSelecting && !isDraggingMarker) {
+      leftMarker.style.opacity = "0";
+      rightMarker.style.opacity = "0";
+    }
+  };
+
+  // Mouse down on SVG for selection
+  const handleMouseDown = (e) => {
+    // Check if clicking on a marker
+    const target = e.target;
+    if (target === leftMarker || target === rightMarker) {
+      isDraggingMarker = true;
+      draggingMarker = target;
+      return;
+    }
+
+    // Start new selection
+    isSelecting = true;
+    const xPercent = getXPercent(e.clientX);
+    selectionStart = xPercent;
+    selectionEnd = xPercent;
+    updateSelection();
+    showMarkers();
+    svg.style.cursor = "col-resize";
+  };
+
+  // Mouse move during selection or marker dragging
+  const handleMouseMove = (e) => {
+    if (!isSelecting && !isDraggingMarker) {
+      // Show markers on hover
+      return;
+    }
+
+    const xPercent = getXPercent(e.clientX);
+
+    if (isSelecting) {
+      selectionEnd = xPercent;
+      updateSelection();
+    } else if (isDraggingMarker) {
+      if (draggingMarker === leftMarker) {
+        selectionStart = xPercent;
+      } else if (draggingMarker === rightMarker) {
+        selectionEnd = xPercent;
+      }
+      updateSelection();
+    }
+  };
+
+  // Mouse up - finalize selection
+  const handleMouseUp = () => {
+    if (isSelecting) {
+      // Swap if end < start
+      if (selectionEnd < selectionStart) {
+        [selectionStart, selectionEnd] = [selectionEnd, selectionStart];
+      }
+      updateSelection();
+      isSelecting = false;
+      svg.style.cursor = "";
+    }
+
+    if (isDraggingMarker) {
+      isDraggingMarker = false;
+      draggingMarker = null;
+    }
+
+    hideMarkers();
+  };
+
+  // Add event listeners for mouse interaction
+  svg.addEventListener("mousedown", handleMouseDown);
+  svg.addEventListener("mousemove", handleMouseMove);
+  document.addEventListener("mouseup", handleMouseUp);
+
+  // Show markers on hover over SVG
+  svg.addEventListener("mouseenter", showMarkers);
+  svg.addEventListener("mouseleave", hideMarkers);
 
   return svg;
 }
