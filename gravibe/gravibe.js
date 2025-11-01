@@ -1247,6 +1247,15 @@ function createChartInstance(container) {
   return chart;
 }
 
+function applyChartOption(chart, option, overrides = {}) {
+  // Force a full option refresh so live updates do not flicker between clear/redraw cycles.
+  chart.setOption(option, {
+    notMerge: true,
+    lazyUpdate: false,
+    ...overrides,
+  });
+}
+
 const LIVE_DEFAULT_INTERVAL = 2600;
 
 function clamp(value, min, max) {
@@ -1303,8 +1312,7 @@ function startLiveUpdater(callback, interval = LIVE_DEFAULT_INTERVAL) {
 function renderTimeSeries(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     animationDuration: 700,
     grid: {
@@ -1395,8 +1403,7 @@ function renderStateTimeline(dataset, container) {
     }),
   );
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     grid: {
       left: "4%",
@@ -1498,8 +1505,7 @@ function renderStatusHistory(dataset, container) {
 
   const statuses = Array.from(statusSet);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     legend: {
       data: dataset.series.map((series) => series.name),
@@ -1579,8 +1585,7 @@ function renderStatusHistory(dataset, container) {
 function renderBarChart(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     legend: {
       data: dataset.series.map((series) => series.name),
@@ -1657,8 +1662,7 @@ function renderBarChart(dataset, container) {
 function renderHistogram(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     grid: {
       left: "6%",
@@ -1729,8 +1733,7 @@ function renderHeatmap(dataset, container) {
   const min = Math.min(...flattened);
   const max = Math.max(...flattened);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     grid: {
       left: "6%",
@@ -1815,8 +1818,7 @@ function renderHeatmap(dataset, container) {
 function renderPieChart(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     tooltip: {
       trigger: "item",
@@ -1878,8 +1880,7 @@ function renderPieChart(dataset, container) {
 function renderCandlestick(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     animationDuration: 700,
     grid: {
@@ -1951,14 +1952,13 @@ function renderCandlestick(dataset, container) {
 function renderGauge(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
   // Clamp values so the gauge never renders beyond its 0-100 domain.
   const value = Math.min(Math.max(dataset.value ?? 0, 0), 100);
   const target = Math.min(Math.max(dataset.target ?? 0, 0), 100);
   const valueRatio = value / 100;
   const targetRatio = target / 100;
 
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     tooltip: {
       trigger: "item",
@@ -2142,8 +2142,7 @@ function renderGauge(dataset, container) {
 function renderTrend(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     grid: {
       left: "6%",
@@ -2219,8 +2218,7 @@ function renderTrend(dataset, container) {
 function renderXYScatter(dataset, container) {
   const chart = createChartInstance(container);
 
-  chart.clear();
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     legend: {
       data: dataset.series.map((series) => series.name),
@@ -2313,7 +2311,7 @@ function renderBarGauge(dataset, container) {
     ratio: section.value / total,
   }));
 
-  chart.setOption({
+  applyChartOption(chart, {
     backgroundColor: "transparent",
     animationDuration: 700,
     grid: {
