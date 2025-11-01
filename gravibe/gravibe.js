@@ -1688,67 +1688,186 @@ function renderGauge(dataset, container) {
   const chart = createChartInstance(container);
 
   chart.clear();
+  // Clamp values so the gauge never renders beyond its 0-100 domain.
+  const value = Math.min(Math.max(dataset.value ?? 0, 0), 100);
+  const target = Math.min(Math.max(dataset.target ?? 0, 0), 100);
+  const valueRatio = value / 100;
+  const targetRatio = target / 100;
+
   chart.setOption({
     backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: "rgba(56, 242, 255, 0.3)",
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: () =>
+        `${dataset.label}<br/>Current: ${value}%<br/>Target: ${target}%`,
+    },
     series: [
       {
-        name: dataset.label,
+        // Outer track that highlights the remaining distance to the target threshold.
+        name: `${dataset.label} Track`,
         type: "gauge",
-        startAngle: 200,
-        endAngle: -20,
+        startAngle: 220,
+        endAngle: -40,
+        min: 0,
+        max: 100,
         radius: "100%",
-        progress: {
-          show: true,
-          roundCap: true,
-          width: 18,
-        },
         axisLine: {
           lineStyle: {
-            width: 18,
+            width: 20,
             color: [
-              [dataset.value / 100, "rgba(56, 242, 255, 0.9)"],
-              [dataset.target / 100, "rgba(250, 204, 21, 0.9)"],
-              [1, "rgba(15, 23, 42, 0.6)"],
+              [targetRatio, "rgba(56, 242, 255, 0.15)"],
+              [1, "rgba(15, 23, 42, 0.45)"],
             ],
           },
         },
-        pointer: {
-          show: true,
-          length: "70%",
-          width: 6,
-        },
-        axisTick: {
-          show: false,
-        },
+        splitNumber: 5,
         splitLine: {
+          distance: -4,
           length: 12,
           lineStyle: {
             color: "rgba(56, 242, 255, 0.25)",
           },
         },
         axisLabel: {
-          color: "rgba(148, 163, 184, 0.75)",
+          color: "rgba(148, 163, 184, 0.65)",
           fontFamily: "Share Tech Mono, monospace",
         },
+        axisTick: {
+          show: false,
+        },
+        pointer: {
+          show: false,
+        },
+        detail: {
+          show: false,
+        },
         title: {
-          color: "rgba(226, 232, 240, 0.8)",
-          fontFamily: "Space Grotesk, sans-serif",
-          fontSize: 14,
-          offsetCenter: [0, "60%"],
+          show: false,
+        },
+        silent: true,
+        z: 1,
+      },
+      {
+        // Inner neon arc that animates to the current value.
+        name: dataset.label,
+        type: "gauge",
+        startAngle: 220,
+        endAngle: -40,
+        min: 0,
+        max: 100,
+        radius: "84%",
+        progress: {
+          show: true,
+          roundCap: true,
+          width: 16,
+          itemStyle: {
+            color: "rgba(56, 242, 255, 0.95)",
+            shadowBlur: 20,
+            shadowColor: "rgba(56, 242, 255, 0.45)",
+          },
+        },
+        axisLine: {
+          lineStyle: {
+            width: 16,
+            color: [
+              [valueRatio, "rgba(56, 242, 255, 0.95)"],
+              [1, "rgba(15, 23, 42, 0.05)"],
+            ],
+          },
+        },
+        pointer: {
+          show: false,
+        },
+        axisTick: {
+          show: false,
+        },
+        splitLine: {
+          show: false,
+        },
+        axisLabel: {
+          show: false,
         },
         detail: {
           valueAnimation: true,
           formatter: "{value}%",
-          color: "rgba(56, 242, 255, 0.95)",
-          fontSize: 24,
+          color: "rgba(226, 232, 240, 0.9)",
           fontFamily: "Share Tech Mono, monospace",
+          fontSize: 28,
+          offsetCenter: [0, "40%"],
+        },
+        title: {
+          color: "rgba(226, 232, 240, 0.75)",
+          fontFamily: "Space Grotesk, sans-serif",
+          fontSize: 14,
+          offsetCenter: [0, "70%"],
         },
         data: [
           {
-            value: dataset.value,
+            value,
             name: dataset.label,
           },
         ],
+        z: 3,
+      },
+      {
+        // Thin pointer that marks the target threshold.
+        name: "Target",
+        type: "gauge",
+        startAngle: 220,
+        endAngle: -40,
+        min: 0,
+        max: 100,
+        radius: "100%",
+        axisLine: {
+          lineStyle: {
+            width: 0,
+          },
+        },
+        pointer: {
+          show: true,
+          width: 6,
+          length: "68%",
+          itemStyle: {
+            color: "rgba(250, 204, 21, 0.95)",
+          },
+        },
+        anchor: {
+          show: true,
+          showAbove: true,
+          size: 16,
+          itemStyle: {
+            color: "rgba(56, 242, 255, 0.95)",
+            borderColor: "rgba(15, 23, 42, 0.95)",
+            borderWidth: 4,
+          },
+        },
+        axisTick: {
+          show: false,
+        },
+        splitLine: {
+          show: false,
+        },
+        axisLabel: {
+          show: false,
+        },
+        detail: {
+          show: false,
+        },
+        title: {
+          show: false,
+        },
+        data: [
+          {
+            value: target,
+          },
+        ],
+        z: 5,
       },
     ],
   });
@@ -1920,33 +2039,127 @@ function renderStat(dataset, article) {
   metaElement.querySelector(".stat-delta").style.color = delta >= 0 ? "#34d399" : "#f97316";
 }
 
-function renderBarGauge(dataset, article) {
-  const track = article.querySelector(".bar-gauge-track");
-  const fill = article.querySelector(".bar-gauge-fill");
-  const legend = article.querySelector(".bar-gauge-legend");
+function renderBarGauge(dataset, container) {
+  const chart = createChartInstance(container);
 
-  const total = dataset.sections.reduce((sum, section) => sum + section.value, 0);
-  const widthPercent = Math.min(100, Math.round(total * 100));
+  const total = dataset.sections.reduce((sum, section) => sum + section.value, 0) || 1;
+  const sections = dataset.sections.map((section) => ({
+    ...section,
+    ratio: section.value / total,
+  }));
 
-  fill.style.width = `${widthPercent}%`;
+  chart.setOption({
+    backgroundColor: "transparent",
+    animationDuration: 700,
+    grid: {
+      left: "6%",
+      right: "6%",
+      top: "22%",
+      bottom: "28%",
+      containLabel: true,
+    },
+    legend: {
+      data: sections.map((section) => section.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.82)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      bottom: 0,
+    },
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: "rgba(56, 242, 255, 0.3)",
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        const section = sections.find((entry) => entry.name === params.seriesName);
+        if (!section) {
+          return dataset.label;
+        }
 
-  legend.innerHTML = "";
-  dataset.sections.forEach((section) => {
-    const item = document.createElement("li");
-    const swatch = document.createElement("span");
-    swatch.style.color = section.color;
-
-    const label = document.createElement("strong");
-    label.textContent = section.name;
-
-    const value = document.createElement("em");
-    value.textContent = `${Math.round(section.value * 100)}%`;
-    value.style.fontStyle = "normal";
-    value.style.marginLeft = "auto";
-
-    item.append(swatch, label, value);
-    legend.append(item);
+        const percent = Math.round(section.ratio * 100);
+        const rawValue = section.value <= 1 ? `${Math.round(section.value * 100)}%` : section.value;
+        return `${section.name}<br/>Share: ${percent}%<br/>Value: ${rawValue}`;
+      },
+    },
+    xAxis: {
+      type: "value",
+      min: 0,
+      max: 1,
+      boundaryGap: [0, 0],
+      axisLabel: {
+        formatter: (value) => `${Math.round(value * 100)}%`,
+        color: "rgba(148, 163, 184, 0.75)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      splitLine: {
+        lineStyle: {
+          color: "rgba(56, 242, 255, 0.08)",
+        },
+      },
+    },
+    yAxis: {
+      type: "category",
+      data: [dataset.label],
+      axisTick: {
+        show: false,
+      },
+      axisLine: {
+        show: false,
+      },
+      axisLabel: {
+        color: "rgba(226, 232, 240, 0.78)",
+        fontFamily: "Space Grotesk, sans-serif",
+        fontWeight: 600,
+      },
+    },
+    series: [
+      {
+        name: "Background",
+        type: "bar",
+        data: [1],
+        barWidth: 26,
+        itemStyle: {
+          color: "rgba(15, 23, 42, 0.65)",
+          borderRadius: 999,
+          borderColor: "rgba(56, 242, 255, 0.2)",
+          borderWidth: 1,
+        },
+        silent: true,
+        z: 1,
+      },
+      ...sections.map((section) => ({
+        name: section.name,
+        type: "bar",
+        stack: "allocation",
+        barWidth: 18,
+        data: [section.ratio],
+        itemStyle: {
+          color: section.color,
+          borderRadius: [999, 999, 999, 999],
+          shadowBlur: 25,
+          shadowColor: `${section.color}66`,
+        },
+        emphasis: {
+          focus: "series",
+        },
+        label: {
+          show: true,
+          position: "inside",
+          formatter: () => `${Math.round(section.ratio * 100)}%`,
+          color: "rgba(15, 23, 42, 0.92)",
+          fontFamily: "Share Tech Mono, monospace",
+          fontSize: 12,
+        },
+        z: 3,
+      })),
+    ],
   });
+
+  return chart;
 }
 
 const componentRenderers = {
