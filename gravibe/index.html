@@ -1,0 +1,1184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gravibe · Neon Chart Template Kit</title>
+  <style>
+    :root {
+      --bg-start: #04010f;
+      --bg-end: #160239;
+      --grid-color: rgba(58, 0, 144, 0.55);
+      --card-bg: rgba(10, 6, 31, 0.75);
+      --card-border: rgba(142, 97, 255, 0.45);
+      --card-highlight: rgba(200, 120, 255, 0.85);
+      --font-family: "Orbitron", "Segoe UI", sans-serif; /* this sets the font family for the entire kit */
+      --base-font-size: 16px; /* this sets the font size baseline */
+      --glow-color: rgba(142, 97, 255, 0.8);
+      --accent-cyan: #00f7ff;
+      --accent-magenta: #ff2d95;
+      --accent-yellow: #ffd166;
+      --accent-green: #4dffb5;
+      --component-padding: 1.25rem;
+      --component-radius: 20px;
+      --transition-speed: 280ms; /* this changes the animation transition speed */
+      --glow-strength: 1.1; /* change this to increase glow intensity */
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-family);
+      font-size: var(--base-font-size);
+      color: #e2e7ff;
+      background: radial-gradient(circle at top, rgba(112, 0, 255, 0.4), transparent 55%),
+        linear-gradient(135deg, var(--bg-start), var(--bg-end));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2.5rem clamp(1.5rem, 4vw, 3rem) 4rem;
+      gap: 2rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle at 20% 20%, rgba(255, 45, 149, 0.24), transparent 45%),
+        radial-gradient(circle at 80% 35%, rgba(0, 247, 255, 0.16), transparent 40%),
+        radial-gradient(circle at 50% 80%, rgba(77, 255, 181, 0.18), transparent 40%);
+      opacity: 0.85;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      filter: saturate(var(--glow-strength));
+    }
+
+    header {
+      text-align: center;
+      max-width: 60rem;
+      z-index: 1;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.5rem, 7vw, 3.8rem);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #fff;
+      text-shadow: 0 0 22px rgba(142, 97, 255, 0.7), 0 0 44px rgba(0, 247, 255, 0.45);
+    }
+
+    header p {
+      margin: 1rem auto 0;
+      line-height: 1.65;
+      color: rgba(229, 238, 255, 0.8);
+      font-size: clamp(1rem, 2.1vw, 1.2rem);
+    }
+
+    header p strong {
+      color: #ffd166;
+    }
+
+    main {
+      width: min(1200px, 100%);
+      display: grid;
+      gap: 1.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      z-index: 1;
+    }
+
+    .component-card {
+      position: relative;
+      padding: var(--component-padding);
+      border-radius: var(--component-radius);
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      box-shadow: 0 0 22px rgba(73, 0, 177, 0.55), 0 0 90px rgba(142, 97, 255, 0.35);
+      backdrop-filter: blur(18px);
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+    }
+
+    .component-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 0 32px rgba(142, 97, 255, 0.75), 0 0 110px rgba(0, 247, 255, 0.4);
+    }
+
+    .component-card::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: calc(var(--component-radius) + 2px);
+      background: linear-gradient(135deg, rgba(0, 247, 255, 0.6), rgba(255, 45, 149, 0.45));
+      z-index: -1;
+      opacity: 0.35;
+      filter: blur(calc(14px * var(--glow-strength))); /* change this to increase glow spread */
+    }
+
+    .component-header {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .component-header h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f8f8ff;
+    }
+
+    .component-header p {
+      margin: 0;
+      color: rgba(229, 238, 255, 0.72);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .data-select {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.85rem;
+    }
+
+    .data-select select {
+      flex: 1;
+      padding: 0.45rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 247, 255, 0.35);
+      background: rgba(10, 12, 45, 0.8);
+      color: #e2e7ff;
+      font-family: inherit;
+      font-size: 0.85rem;
+      letter-spacing: 0.04em;
+      transition: border var(--transition-speed) ease;
+    }
+
+    .data-select select:focus-visible {
+      outline: none;
+      border-color: rgba(255, 45, 149, 0.7);
+      box-shadow: 0 0 0 3px rgba(255, 45, 149, 0.25);
+    }
+
+    canvas,
+    .viz-block {
+      width: 100%;
+      border-radius: 14px;
+      background: rgba(6, 4, 24, 0.75);
+      border: 1px solid rgba(0, 247, 255, 0.15);
+      box-shadow: inset 0 0 18px rgba(0, 12, 61, 0.65);
+      position: relative;
+    }
+
+    canvas {
+      aspect-ratio: 16 / 9;
+    }
+
+    .viz-block {
+      padding: 1.2rem;
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .stat-number {
+      font-size: clamp(2.5rem, 5vw, 3.6rem);
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-shadow: 0 0 18px rgba(0, 247, 255, 0.7);
+    }
+
+    .stat-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.95rem;
+      color: rgba(229, 238, 255, 0.75);
+    }
+
+    .stat-trend {
+      color: var(--accent-green);
+    }
+
+    .bar-gauge-row {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .bar-gauge-bar {
+      height: 0.6rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-gauge-bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(255, 45, 149, 0.95), rgba(0, 247, 255, 0.9));
+      box-shadow: 0 0 16px rgba(0, 247, 255, 0.4);
+      transition: width var(--transition-speed) ease;
+    }
+
+    footer {
+      text-align: center;
+      color: rgba(229, 238, 255, 0.6);
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Gravibe</h1>
+    <p>
+      Neon-ready chart templates for AI agents to remix. Swap datasets, retune the glow, and rewrite rendering logic without
+      hunting for wiring. Each component exposes clear constants (look for the inline comments!) to retheme transitions, fonts,
+      and bloom.
+    </p>
+  </header>
+  <main id="component-grid"></main>
+  <footer>Built for retro-futuristic dashboards · Feed multiple datasets into each component</footer>
+
+  <script>
+    // === Global configuration knobs (visible to make templating easy) ===
+    const GLOW_INTENSITY = 0.9; // change this to increase glow energy across charts
+    const TRANSITION_MS = 320; // this changes the animation transition speed for redraws
+    const FONT_SIZE_REM = 1; // this sets the font size multiplier for labels
+
+    // Keep CSS and JS in sync so that tweaking one constant adjusts the whole kit.
+    document.documentElement.style.setProperty("--glow-strength", GLOW_INTENSITY.toString());
+    document.documentElement.style.setProperty("--transition-speed", `${TRANSITION_MS}ms`);
+    document.documentElement.style.setProperty("--base-font-size", `${FONT_SIZE_REM}rem`);
+
+    // === Dataset definitions ===
+    const DATASETS = {
+      timeSeries: [
+        {
+          id: "synthwave-traffic",
+          name: "Synthwave Traffic",
+          channels: [
+            {
+              name: "Neon Avenue",
+              color: "#00f7ff",
+              points: [
+                { t: 0, v: 16 },
+                { t: 1, v: 24 },
+                { t: 2, v: 21 },
+                { t: 3, v: 30 },
+                { t: 4, v: 26 },
+                { t: 5, v: 34 },
+                { t: 6, v: 40 }
+              ]
+            },
+            {
+              name: "Retro Loop",
+              color: "#ff2d95",
+              points: [
+                { t: 0, v: 10 },
+                { t: 1, v: 14 },
+                { t: 2, v: 18 },
+                { t: 3, v: 23 },
+                { t: 4, v: 20 },
+                { t: 5, v: 26 },
+                { t: 6, v: 31 }
+              ]
+            }
+          ]
+        },
+        {
+          id: "orbital-scan",
+          name: "Orbital Scan",
+          channels: [
+            {
+              name: "Zenith Array",
+              color: "#ffd166",
+              points: [
+                { t: 0, v: 8 },
+                { t: 1, v: 12 },
+                { t: 2, v: 19 },
+                { t: 3, v: 18 },
+                { t: 4, v: 24 },
+                { t: 5, v: 28 },
+                { t: 6, v: 35 }
+              ]
+            },
+            {
+              name: "Pulse Deck",
+              color: "#4dffb5",
+              points: [
+                { t: 0, v: 12 },
+                { t: 1, v: 18 },
+                { t: 2, v: 22 },
+                { t: 3, v: 29 },
+                { t: 4, v: 33 },
+                { t: 5, v: 37 },
+                { t: 6, v: 44 }
+              ]
+            }
+          ]
+        }
+      ],
+      stateTimeline: [
+        {
+          id: "mission-cycle",
+          name: "Mission Cycle",
+          states: [
+            { label: "Boot", duration: 2, status: "prep", color: "#00f7ff" },
+            { label: "Sync", duration: 3, status: "sync", color: "#ff2d95" },
+            { label: "Deploy", duration: 4, status: "live", color: "#4dffb5" },
+            { label: "Cooldown", duration: 2, status: "idle", color: "#ffd166" }
+          ]
+        },
+        {
+          id: "training-loop",
+          name: "Training Loop",
+          states: [
+            { label: "Warmup", duration: 1.5, status: "prep", color: "#ffd166" },
+            { label: "Inference", duration: 4, status: "live", color: "#00f7ff" },
+            { label: "Feedback", duration: 2, status: "sync", color: "#ff2d95" },
+            { label: "Archive", duration: 3, status: "idle", color: "#4dffb5" }
+          ]
+        }
+      ],
+      statusHistory: [
+        {
+          id: "uplink-scan",
+          name: "Uplink Scan",
+          windows: [
+            { label: "00:00", value: "ok" },
+            { label: "01:00", value: "ok" },
+            { label: "02:00", value: "warn" },
+            { label: "03:00", value: "offline" },
+            { label: "04:00", value: "ok" },
+            { label: "05:00", value: "ok" }
+          ]
+        },
+        {
+          id: "server-grid",
+          name: "Server Grid",
+          windows: [
+            { label: "A", value: "ok" },
+            { label: "B", value: "ok" },
+            { label: "C", value: "warn" },
+            { label: "D", value: "ok" },
+            { label: "E", value: "offline" },
+            { label: "F", value: "ok" }
+          ]
+        }
+      ],
+      barChart: [
+        {
+          id: "refinery-output",
+          name: "Refinery Output",
+          bars: [
+            { label: "Coils", value: 40 },
+            { label: "Cores", value: 52 },
+            { label: "Shards", value: 34 },
+            { label: "Boosts", value: 61 }
+          ]
+        },
+        {
+          id: "sector-intensity",
+          name: "Sector Intensity",
+          bars: [
+            { label: "North", value: 28 },
+            { label: "South", value: 46 },
+            { label: "East", value: 51 },
+            { label: "West", value: 33 }
+          ]
+        }
+      ],
+      histogram: [
+        {
+          id: "latency",
+          name: "Latency Spread",
+          bins: [5, 12, 18, 26, 20, 11, 6]
+        },
+        {
+          id: "energy",
+          name: "Energy Pulse",
+          bins: [3, 7, 14, 25, 22, 15, 9]
+        }
+      ],
+      heatmap: [
+        {
+          id: "arena-heat",
+          name: "Arena Heat",
+          columns: 6,
+          rows: 4,
+          cells: [
+            0.1, 0.25, 0.35, 0.4, 0.55, 0.8,
+            0.15, 0.28, 0.5, 0.64, 0.7, 0.9,
+            0.2, 0.32, 0.48, 0.56, 0.62, 0.75,
+            0.05, 0.16, 0.26, 0.36, 0.44, 0.52
+          ]
+        },
+        {
+          id: "signal-density",
+          name: "Signal Density",
+          columns: 5,
+          rows: 5,
+          cells: [
+            0.08, 0.22, 0.4, 0.55, 0.76,
+            0.12, 0.31, 0.45, 0.6, 0.84,
+            0.1, 0.24, 0.5, 0.68, 0.9,
+            0.06, 0.19, 0.33, 0.5, 0.71,
+            0.03, 0.12, 0.28, 0.44, 0.6
+          ]
+        }
+      ],
+      pie: [
+        {
+          id: "faction-share",
+          name: "Faction Share",
+          slices: [
+            { label: "Nova", value: 32, color: "#00f7ff" },
+            { label: "Flux", value: 22, color: "#ff2d95" },
+            { label: "Helix", value: 18, color: "#ffd166" },
+            { label: "Phantom", value: 28, color: "#4dffb5" }
+          ]
+        },
+        {
+          id: "power-grid",
+          name: "Power Grid",
+          slices: [
+            { label: "Solar", value: 36, color: "#ffd166" },
+            { label: "Fusion", value: 30, color: "#00f7ff" },
+            { label: "Dark", value: 17, color: "#4dffb5" },
+            { label: "Backups", value: 17, color: "#ff2d95" }
+          ]
+        }
+      ],
+      candlestick: [
+        {
+          id: "core-market",
+          name: "Core Market",
+          candles: [
+            { label: "00:00", open: 22, high: 28, low: 20, close: 26 },
+            { label: "01:00", open: 26, high: 32, low: 24, close: 28 },
+            { label: "02:00", open: 28, high: 36, low: 26, close: 34 },
+            { label: "03:00", open: 34, high: 38, low: 30, close: 32 },
+            { label: "04:00", open: 32, high: 37, low: 29, close: 35 }
+          ]
+        },
+        {
+          id: "ion-market",
+          name: "Ion Market",
+          candles: [
+            { label: "Phase 1", open: 12, high: 18, low: 10, close: 16 },
+            { label: "Phase 2", open: 16, high: 21, low: 13, close: 18 },
+            { label: "Phase 3", open: 18, high: 25, low: 14, close: 20 },
+            { label: "Phase 4", open: 20, high: 27, low: 17, close: 24 },
+            { label: "Phase 5", open: 24, high: 30, low: 20, close: 28 }
+          ]
+        }
+      ],
+      gauge: [
+        {
+          id: "drive-charge",
+          name: "Drive Charge",
+          value: 72,
+          max: 100,
+          thresholds: [
+            { value: 35, color: "#ff2d95" },
+            { value: 65, color: "#ffd166" },
+            { value: 100, color: "#00f7ff" }
+          ]
+        },
+        {
+          id: "shield-sync",
+          name: "Shield Sync",
+          value: 55,
+          max: 90,
+          thresholds: [
+            { value: 30, color: "#ff2d95" },
+            { value: 60, color: "#ffd166" },
+            { value: 90, color: "#4dffb5" }
+          ]
+        }
+      ],
+      trend: [
+        {
+          id: "signal-trend",
+          name: "Signal Trend",
+          points: [10, 12, 15, 21, 25, 28, 30, 33, 36]
+        },
+        {
+          id: "uptime-trend",
+          name: "Uptime Trend",
+          points: [22, 24, 23, 26, 32, 38, 41, 43, 48]
+        }
+      ],
+      xy: [
+        {
+          id: "drift-clusters",
+          name: "Drift Clusters",
+          points: [
+            { x: 6, y: 12 },
+            { x: 12, y: 18 },
+            { x: 18, y: 9 },
+            { x: 24, y: 20 },
+            { x: 28, y: 14 },
+            { x: 32, y: 24 },
+            { x: 36, y: 18 }
+          ]
+        },
+        {
+          id: "orbit-map",
+          name: "Orbit Map",
+          points: [
+            { x: 4, y: 8 },
+            { x: 8, y: 16 },
+            { x: 12, y: 12 },
+            { x: 16, y: 20 },
+            { x: 20, y: 18 },
+            { x: 24, y: 26 },
+            { x: 28, y: 22 }
+          ]
+        }
+      ],
+      stat: [
+        {
+          id: "core-temp",
+          name: "Core Temperature",
+          value: 68,
+          unit: "°C",
+          delta: "+3.5",
+          meta: "Within stable variance"
+        },
+        {
+          id: "mission-score",
+          name: "Mission Score",
+          value: 9820,
+          unit: "pts",
+          delta: "+420",
+          meta: "Arcade records rising"
+        }
+      ],
+      barGauge: [
+        {
+          id: "resource-allocation",
+          name: "Resource Allocation",
+          bars: [
+            { label: "AI Ops", value: 0.82 },
+            { label: "Pilots", value: 0.64 },
+            { label: "Maintenance", value: 0.58 }
+          ]
+        },
+        {
+          id: "squad-synergy",
+          name: "Squad Synergy",
+          bars: [
+            { label: "Alpha", value: 0.76 },
+            { label: "Beta", value: 0.67 },
+            { label: "Gamma", value: 0.92 }
+          ]
+        }
+      ]
+    };
+
+    // === Component registry ===
+    const COMPONENTS = [
+      {
+        id: "time-series",
+        title: "Time Series Pulse",
+        description: "Plot multi-channel neon telemetry across synced timestamps.",
+        datasetKey: "timeSeries",
+        element: "canvas",
+        size: { width: 420, height: 220 },
+        render: renderTimeSeries
+      },
+      {
+        id: "state-timeline",
+        title: "State Timeline",
+        description: "Map mission phases as glowing segments with clear labels.",
+        datasetKey: "stateTimeline",
+        element: "canvas",
+        size: { width: 420, height: 160 },
+        render: renderStateTimeline
+      },
+      {
+        id: "status-history",
+        title: "Status History",
+        description: "Display discrete status codes over a rolling window.",
+        datasetKey: "statusHistory",
+        element: "canvas",
+        size: { width: 420, height: 150 },
+        render: renderStatusHistory
+      },
+      {
+        id: "bar-chart",
+        title: "Bar Chart",
+        description: "Show category magnitudes with luminous vertical bars.",
+        datasetKey: "barChart",
+        element: "canvas",
+        size: { width: 420, height: 220 },
+        render: renderBarChart
+      },
+      {
+        id: "histogram",
+        title: "Histogram",
+        description: "Visualize distribution bins for key metrics.",
+        datasetKey: "histogram",
+        element: "canvas",
+        size: { width: 420, height: 200 },
+        render: renderHistogram
+      },
+      {
+        id: "heatmap",
+        title: "Heatmap",
+        description: "Inspect intensity grids with gradient neon cells.",
+        datasetKey: "heatmap",
+        element: "canvas",
+        size: { width: 420, height: 220 },
+        render: renderHeatmap
+      },
+      {
+        id: "pie-chart",
+        title: "Pie Chart",
+        description: "Compare shares with radiant wedges and subtle glow.",
+        datasetKey: "pie",
+        element: "canvas",
+        size: { width: 420, height: 220 },
+        render: renderPieChart
+      },
+      {
+        id: "candlestick",
+        title: "Candlestick",
+        description: "Track open/high/low/close cycles with neon wicks.",
+        datasetKey: "candlestick",
+        element: "canvas",
+        size: { width: 420, height: 220 },
+        render: renderCandlestick
+      },
+      {
+        id: "gauge",
+        title: "Gauge",
+        description: "Arc dial with threshold-aware segments for quick reads.",
+        datasetKey: "gauge",
+        element: "canvas",
+        size: { width: 320, height: 200 },
+        render: renderGauge
+      },
+      {
+        id: "trend",
+        title: "Trend Spark",
+        description: "Mini sparkline for tracking recent surges.",
+        datasetKey: "trend",
+        element: "canvas",
+        size: { width: 320, height: 140 },
+        render: renderTrend
+      },
+      {
+        id: "xy-chart",
+        title: "XY Scatter",
+        description: "Plot positional data on a neon radar grid.",
+        datasetKey: "xy",
+        element: "canvas",
+        size: { width: 420, height: 220 },
+        render: renderXY
+      },
+      {
+        id: "stat",
+        title: "Stat Readout",
+        description: "Large headline stat with delta and guidance.",
+        datasetKey: "stat",
+        element: "div",
+        render: renderStat
+      },
+      {
+        id: "bar-gauge",
+        title: "Bar Gauge",
+        description: "Stacked progress bars for allocation tracking.",
+        datasetKey: "barGauge",
+        element: "div",
+        render: renderBarGauge
+      }
+    ];
+
+    const grid = document.querySelector("#component-grid");
+
+    COMPONENTS.forEach((component) => {
+      const card = document.createElement("article");
+      card.className = "component-card";
+      card.style.setProperty("--transition-speed", `${TRANSITION_MS}ms`);
+
+      const header = document.createElement("div");
+      header.className = "component-header";
+
+      const title = document.createElement("h2");
+      title.textContent = component.title;
+
+      const description = document.createElement("p");
+      description.textContent = component.description;
+
+      header.append(title, description);
+
+      const selector = document.createElement("label");
+      selector.className = "data-select";
+      selector.innerHTML = `<span>Dataset</span>`;
+
+      const selectEl = document.createElement("select");
+      const options = DATASETS[component.datasetKey];
+      options.forEach((dataset) => {
+        const option = document.createElement("option");
+        option.value = dataset.id;
+        option.textContent = dataset.name;
+        selectEl.append(option);
+      });
+
+      selector.append(selectEl);
+
+      let viz;
+      if (component.element === "canvas") {
+        viz = document.createElement("canvas");
+        viz.width = component.size.width;
+        viz.height = component.size.height;
+      } else {
+        viz = document.createElement("div");
+        viz.className = "viz-block";
+      }
+
+      card.append(header, selector, viz);
+      grid.append(card);
+
+      const renderActive = () => {
+        const dataset = options.find((item) => item.id === selectEl.value) || options[0];
+        component.render(viz, dataset);
+      };
+
+      selectEl.addEventListener("change", () => {
+        renderActive();
+      });
+
+      selectEl.value = options[0].id;
+      renderActive();
+    });
+
+    // === Utility helpers ===
+    function clearCanvas(canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return ctx;
+    }
+
+    function drawGrid(ctx, width, height) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(0, 247, 255, 0.12)";
+      ctx.lineWidth = 1;
+      const step = 40;
+      for (let x = step; x < width; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = step; y < height; y += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawNeonLine(ctx, points, color) {
+      ctx.save();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12 * GLOW_INTENSITY;
+      ctx.lineWidth = 3;
+
+      ctx.beginPath();
+      points.forEach((pt, index) => {
+        if (index === 0) {
+          ctx.moveTo(pt.x, pt.y);
+        } else {
+          ctx.lineTo(pt.x, pt.y);
+        }
+      });
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawLabel(ctx, text, x, y, color = "#e2e7ff") {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.font = `${0.75 * FONT_SIZE_REM}rem ${getComputedStyle(document.body).fontFamily}`;
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    }
+
+    // === Renderers ===
+    function renderTimeSeries(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const maxT = Math.max(...dataset.channels.flatMap((c) => c.points.map((p) => p.t)));
+      const maxV = Math.max(...dataset.channels.flatMap((c) => c.points.map((p) => p.v)));
+
+      dataset.channels.forEach((channel) => {
+        const mapped = channel.points.map((p) => ({
+          x: (p.t / maxT) * (width - 40) + 20,
+          y: height - (p.v / maxV) * (height - 40) - 20
+        }));
+        drawNeonLine(ctx, mapped, channel.color);
+      });
+    }
+
+    function renderStateTimeline(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const total = dataset.states.reduce((sum, state) => sum + state.duration, 0);
+      let xStart = 20;
+      const y = height / 2;
+      const barHeight = 46;
+
+      dataset.states.forEach((state) => {
+        const segmentWidth = ((state.duration / total) * (width - 40));
+        ctx.fillStyle = state.color;
+        ctx.shadowColor = state.color;
+        ctx.shadowBlur = 16 * GLOW_INTENSITY;
+        ctx.fillRect(xStart, y - barHeight / 2, segmentWidth, barHeight);
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.strokeRect(xStart, y - barHeight / 2, segmentWidth, barHeight);
+
+        drawLabel(ctx, state.label, xStart + 8, y + 4);
+
+        xStart += segmentWidth;
+      });
+    }
+
+    function renderStatusHistory(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const cellWidth = (width - 60) / dataset.windows.length;
+      const cellHeight = 46;
+      const y = (height - cellHeight) / 2;
+      const statusColors = {
+        ok: "#4dffb5",
+        warn: "#ffd166",
+        offline: "#ff2d95"
+      };
+
+      dataset.windows.forEach((window, index) => {
+        const x = 30 + index * cellWidth;
+        const color = statusColors[window.value] || "#00f7ff";
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 12 * GLOW_INTENSITY;
+        ctx.fillRect(x, y, cellWidth - 12, cellHeight);
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.strokeRect(x, y, cellWidth - 12, cellHeight);
+
+        drawLabel(ctx, window.label, x + 8, y + cellHeight + 16, "rgba(229, 238, 255, 0.7)");
+      });
+    }
+
+    function renderBarChart(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const barWidth = (width - 80) / dataset.bars.length;
+      const maxValue = Math.max(...dataset.bars.map((bar) => bar.value));
+
+      dataset.bars.forEach((bar, index) => {
+        const x = 40 + index * barWidth;
+        const barHeight = ((bar.value / maxValue) * (height - 60));
+        const y = height - 30 - barHeight;
+        const gradient = ctx.createLinearGradient(0, y, 0, height - 30);
+        gradient.addColorStop(0, "rgba(255, 45, 149, 0.95)");
+        gradient.addColorStop(1, "rgba(0, 247, 255, 0.85)");
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = "rgba(0, 247, 255, 0.7)";
+        ctx.shadowBlur = 16 * GLOW_INTENSITY;
+        ctx.fillRect(x, y, barWidth * 0.65, barHeight);
+        ctx.shadowBlur = 0;
+        drawLabel(ctx, bar.label, x, height - 10);
+      });
+    }
+
+    function renderHistogram(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const binWidth = (width - 80) / dataset.bins.length;
+      const maxBin = Math.max(...dataset.bins);
+
+      dataset.bins.forEach((value, index) => {
+        const x = 40 + index * binWidth;
+        const barHeight = ((value / maxBin) * (height - 60));
+        const y = height - 30 - barHeight;
+        ctx.fillStyle = "rgba(0, 247, 255, 0.75)";
+        ctx.shadowColor = "rgba(0, 247, 255, 0.8)";
+        ctx.shadowBlur = 12 * GLOW_INTENSITY;
+        ctx.fillRect(x, y, binWidth * 0.7, barHeight);
+        ctx.shadowBlur = 0;
+      });
+    }
+
+    function renderHeatmap(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const cellWidth = (width - 40) / dataset.columns;
+      const cellHeight = (height - 40) / dataset.rows;
+
+      dataset.cells.forEach((value, index) => {
+        const row = Math.floor(index / dataset.columns);
+        const col = index % dataset.columns;
+        const x = 20 + col * cellWidth;
+        const y = 20 + row * cellHeight;
+        const hue = 280 - value * 180;
+        const saturation = 100;
+        const lightness = 30 + value * 40;
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10 * GLOW_INTENSITY;
+        ctx.fillRect(x, y, cellWidth - 6, cellHeight - 6);
+      });
+    }
+
+    function renderPieChart(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const total = dataset.slices.reduce((sum, slice) => sum + slice.value, 0);
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = Math.min(width, height) / 2 - 20;
+      let angleStart = -Math.PI / 2;
+
+      dataset.slices.forEach((slice) => {
+        const angle = (slice.value / total) * Math.PI * 2;
+        const angleEnd = angleStart + angle;
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, angleStart, angleEnd);
+        ctx.closePath();
+
+        ctx.fillStyle = slice.color;
+        ctx.shadowColor = slice.color;
+        ctx.shadowBlur = 18 * GLOW_INTENSITY;
+        ctx.fill();
+
+        angleStart = angleEnd;
+      });
+    }
+
+    function renderCandlestick(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const candleWidth = (width - 80) / dataset.candles.length;
+      const allValues = dataset.candles.flatMap((candle) => [candle.open, candle.close, candle.high, candle.low]);
+      const minValue = Math.min(...allValues);
+      const maxValue = Math.max(...allValues);
+
+      dataset.candles.forEach((candle, index) => {
+        const x = 40 + index * candleWidth;
+        const scaled = (value) => height - 30 - ((value - minValue) / (maxValue - minValue)) * (height - 60);
+        const bodyTop = scaled(Math.max(candle.open, candle.close));
+        const bodyBottom = scaled(Math.min(candle.open, candle.close));
+        const wickTop = scaled(candle.high);
+        const wickBottom = scaled(candle.low);
+        const isUp = candle.close >= candle.open;
+        const color = isUp ? "#00f7ff" : "#ff2d95";
+
+        ctx.strokeStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 12 * GLOW_INTENSITY;
+        ctx.beginPath();
+        ctx.moveTo(x + candleWidth * 0.35, wickTop);
+        ctx.lineTo(x + candleWidth * 0.35, wickBottom);
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x + candleWidth * 0.15, bodyTop, candleWidth * 0.4, bodyBottom - bodyTop || 2);
+        ctx.shadowBlur = 0;
+        drawLabel(ctx, candle.label, x + candleWidth * 0.05, height - 8);
+      });
+    }
+
+    function renderGauge(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      const centerX = width / 2;
+      const centerY = height * 0.9;
+      const radius = Math.min(width, height) * 0.45;
+      const startAngle = Math.PI;
+      const endAngle = 0;
+
+      ctx.lineWidth = 20;
+      let previousValue = 0;
+      dataset.thresholds.forEach((threshold) => {
+        const normalizedStart = previousValue / dataset.max;
+        const normalizedEnd = threshold.value / dataset.max;
+        ctx.beginPath();
+        ctx.strokeStyle = threshold.color;
+        ctx.shadowColor = threshold.color;
+        ctx.shadowBlur = 14 * GLOW_INTENSITY;
+        ctx.arc(
+          centerX,
+          centerY,
+          radius,
+          startAngle + normalizedStart * Math.PI,
+          startAngle + normalizedEnd * Math.PI
+        );
+        ctx.stroke();
+        previousValue = threshold.value;
+      });
+
+      const valueRatio = dataset.value / dataset.max;
+      const angle = startAngle + valueRatio * Math.PI;
+      const needleX = centerX + Math.cos(angle) * (radius - 8);
+      const needleY = centerY + Math.sin(angle) * (radius - 8);
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(needleX, needleY);
+      ctx.stroke();
+
+      ctx.fillStyle = "#0b0b1f";
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.stroke();
+
+      drawLabel(ctx, `${dataset.value} / ${dataset.max}`, centerX - 36, centerY - radius - 12);
+    }
+
+    function renderTrend(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const max = Math.max(...dataset.points);
+      const min = Math.min(...dataset.points);
+      const stepX = (width - 40) / (dataset.points.length - 1);
+
+      const mapped = dataset.points.map((value, index) => ({
+        x: 20 + index * stepX,
+        y: height - 20 - ((value - min) / (max - min || 1)) * (height - 40)
+      }));
+
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      gradient.addColorStop(0, "rgba(0, 247, 255, 0.5)");
+      gradient.addColorStop(1, "rgba(255, 45, 149, 0.5)");
+
+      ctx.beginPath();
+      ctx.moveTo(mapped[0].x, height - 20);
+      mapped.forEach((pt) => ctx.lineTo(pt.x, pt.y));
+      ctx.lineTo(mapped[mapped.length - 1].x, height - 20);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.globalAlpha = 0.65;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      drawNeonLine(ctx, mapped, "#00f7ff");
+    }
+
+    function renderXY(canvas, dataset) {
+      const ctx = clearCanvas(canvas);
+      const { width, height } = canvas;
+      drawGrid(ctx, width, height);
+
+      const maxX = Math.max(...dataset.points.map((pt) => pt.x));
+      const maxY = Math.max(...dataset.points.map((pt) => pt.y));
+
+      dataset.points.forEach((pt) => {
+        const x = 20 + (pt.x / maxX) * (width - 40);
+        const y = height - 20 - (pt.y / maxY) * (height - 40);
+        ctx.fillStyle = "rgba(77, 255, 181, 0.85)";
+        ctx.shadowColor = "rgba(0, 247, 255, 0.8)";
+        ctx.shadowBlur = 12 * GLOW_INTENSITY;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function renderStat(container, dataset) {
+      container.innerHTML = "";
+      const number = document.createElement("div");
+      number.className = "stat-number";
+      number.textContent = `${dataset.value}${dataset.unit}`;
+
+      const meta = document.createElement("div");
+      meta.className = "stat-meta";
+      meta.innerHTML = `<span>${dataset.name}</span><span class="stat-trend">${dataset.delta}</span>`;
+
+      const sub = document.createElement("div");
+      sub.textContent = dataset.meta;
+      sub.style.color = "rgba(229, 238, 255, 0.7)";
+      sub.style.fontSize = "0.9rem";
+
+      container.append(number, meta, sub);
+    }
+
+    function renderBarGauge(container, dataset) {
+      container.innerHTML = "";
+      dataset.bars.forEach((bar) => {
+        const row = document.createElement("div");
+        row.className = "bar-gauge-row";
+
+        const label = document.createElement("div");
+        label.textContent = bar.label;
+        label.style.fontSize = "0.9rem";
+        label.style.color = "rgba(229, 238, 255, 0.75)";
+
+        const track = document.createElement("div");
+        track.className = "bar-gauge-bar";
+        const fill = document.createElement("span");
+        fill.style.width = `${Math.round(bar.value * 100)}%`;
+        track.append(fill);
+
+        row.append(label, track);
+        container.append(row);
+      });
+    }
+  </script>
+</body>
+</html>
