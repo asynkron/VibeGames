@@ -546,6 +546,49 @@ export function createMetaSection(logRow) {
   return wrapper;
 }
 
+/**
+ * Creates a log card component - similar to log row but optimized for card format.
+ * Always shows expanded details.
+ * @param {LogRow} logRow - The log row data (can be from logs, events, or spans)
+ * @returns {HTMLElement} The card element
+ */
+export function createLogCard(logRow) {
+  const card = document.createElement("div");
+  card.className = `log-card log-card--severity-${resolveSeverityGroup(logRow)}`;
+  card.dataset.rowId = logRow.id;
+
+  // Header section: timestamp : severity
+  const header = document.createElement("div");
+  header.className = "log-card-header";
+
+  const timestamp = document.createElement("time");
+  timestamp.className = "log-card-timestamp";
+  timestamp.dateTime =
+    typeof logRow.timeUnixNano === "bigint"
+      ? new Date(Number(logRow.timeUnixNano / 1000000n)).toISOString()
+      : new Date((logRow.timeUnixNano ?? 0) / 1e6).toISOString();
+  timestamp.textContent = formatNanoseconds(logRow.timeUnixNano);
+
+  const severity = document.createElement("span");
+  severity.className = "log-card-severity";
+  severity.textContent = logRow.severityText ?? resolveSeverityGroup(logRow).toUpperCase();
+
+  header.append(timestamp, document.createTextNode(" : "), severity);
+
+  // Message section: rendered log text with colored attributes
+  const messageSection = document.createElement("div");
+  messageSection.className = "log-card-message";
+  messageSection.appendChild(buildTemplateFragment(logRow));
+
+  // Details section: always expanded
+  const detailsSection = createMetaSection(logRow);
+  detailsSection.className = "log-card-details";
+
+  card.append(header, messageSection, detailsSection);
+
+  return card;
+}
+
 function createLogRowElement(logRow, expandedIds) {
   const details = document.createElement("details");
   details.className = `log-row log-row--severity-${resolveSeverityGroup(logRow)}`;

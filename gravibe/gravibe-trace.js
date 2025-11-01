@@ -5,7 +5,7 @@
  * definitions.
  */
 
-import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, buildTemplateFragment, createMetaSection } from "./gravibe-logs.js";
+import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, buildTemplateFragment, createMetaSection, createLogCard } from "./gravibe-logs.js";
 import { createAttributeTable } from "./gravibe-attributes.js";
 
 /**
@@ -522,39 +522,27 @@ function createMarkerTooltip(data) {
 
   if (data.type === 'log') {
     const logRow = data.logRow;
-    const summary = document.createElement("div");
-    summary.className = "trace-span__marker-tooltip-summary";
-
-    const severity = document.createElement("span");
-    severity.className = "log-row-severity";
-    severity.textContent = logRow.severityText ?? resolveSeverityGroup(logRow).toUpperCase();
-
-    const timestamp = document.createElement("time");
-    timestamp.className = "log-row-timestamp";
-    timestamp.dateTime =
-      typeof logRow.timeUnixNano === "bigint"
-        ? new Date(Number(logRow.timeUnixNano / 1000000n)).toISOString()
-        : new Date((logRow.timeUnixNano ?? 0) / 1e6).toISOString();
-    timestamp.textContent = formatNanoseconds(logRow.timeUnixNano);
-
-    const message = document.createElement("span");
-    message.className = "log-row-message";
-    message.appendChild(buildTemplateFragment(logRow));
-
-    summary.append(timestamp, severity, message);
-    tooltip.append(summary);
+    const card = createLogCard(logRow);
+    tooltip.append(card);
   } else if (data.type === 'event') {
     const event = data.event;
-    const eventTitle = document.createElement("div");
-    eventTitle.className = "trace-span__marker-tooltip-title";
-    eventTitle.textContent = `${formatTimestamp(event.timeUnixNano)} — ${event.name}`;
-    tooltip.append(eventTitle);
-
-    if (event.attributes?.length) {
-      const attributesTable = createAttributeTable(event.attributes);
-      attributesTable.classList.add("trace-span__marker-tooltip-attributes");
-      tooltip.append(attributesTable);
-    }
+    // Convert event to log row format (same as in renderSpanLogs)
+    const eventLogRow = {
+      id: `event-${event.timeUnixNano}-tooltip`,
+      template: event.name,
+      timeUnixNano: event.timeUnixNano,
+      severityNumber: undefined,
+      severityText: "event",
+      body: undefined,
+      attributes: event.attributes || [],
+      droppedAttributesCount: undefined,
+      flags: undefined,
+      traceId: undefined,
+      spanId: undefined,
+      observedTimeUnixNano: undefined,
+    };
+    const card = createLogCard(eventLogRow);
+    tooltip.append(card);
   }
 
   return tooltip;
