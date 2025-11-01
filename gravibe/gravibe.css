@@ -435,6 +435,11 @@ body {
 .trace-viewer {
   display: grid;
   gap: 1.5rem;
+}
+
+.trace-span-list {
+  display: grid;
+  gap: 0.75rem;
   position: relative;
 }
 
@@ -445,20 +450,21 @@ body {
   bottom: 0;
   width: 4px;
   margin-left: -2px;
-  background: rgba(148, 163, 184, 0.2);
+  background: transparent;
   cursor: col-resize;
   z-index: 10;
-  transition: background 0.2s ease;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
 }
 
-.trace-viewer__splitter:hover,
+.trace-viewer__splitter:hover {
+  opacity: 1;
+  background: rgba(148, 163, 184, 0.3);
+}
+
 .trace-viewer__splitter:active {
+  opacity: 1;
   background: rgba(148, 163, 184, 0.5);
-}
-
-.trace-span-list {
-  display: grid;
-  gap: 0.75rem;
 }
 
 .trace-span {
@@ -556,6 +562,8 @@ body {
 }
 
 .trace-span__scope {
+  font-family: var(--font-base);
+  font-weight: 600;
   font-size: var(--font-size-xs);
   opacity: 0.6;
 }

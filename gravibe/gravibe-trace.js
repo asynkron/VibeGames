@@ -839,8 +839,9 @@ export function renderTrace(host, trace, state) {
   host.append(list);
 
   // Create and add the splitter for resizing service column
-  const splitter = createSplitter(host);
-  host.append(splitter);
+  // Splitter is positioned relative to trace-span-list, not the full trace-viewer
+  const splitter = createSplitter(list);
+  list.append(splitter);
 
   return viewState;
 }
@@ -867,6 +868,9 @@ function createSplitter(container) {
                          getComputedStyle(root).getPropertyValue("--trace-span-service-width") || 
                          "16rem";
     startWidth = parseFloat(currentWidth) || 16;
+    // Make splitter visible when dragging
+    splitter.style.opacity = "1";
+    splitter.style.background = "rgba(148, 163, 184, 0.5)";
     document.addEventListener("mousemove", doDrag);
     document.addEventListener("mouseup", stopDrag);
     document.addEventListener("touchmove", doDrag);
@@ -888,6 +892,13 @@ function createSplitter(container) {
 
   const stopDrag = () => {
     isDragging = false;
+    // Fade out splitter after a short delay when not dragging
+    setTimeout(() => {
+      if (!isDragging) {
+        splitter.style.opacity = "";
+        splitter.style.background = "";
+      }
+    }, 150);
     document.removeEventListener("mousemove", doDrag);
     document.removeEventListener("mouseup", stopDrag);
     document.removeEventListener("touchmove", doDrag);
