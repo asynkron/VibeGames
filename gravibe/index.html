@@ -757,6 +757,272 @@
       ]
     };
 
+    // === Live dataset plumbing ===
+    const randomInRange = (min, max) => Math.random() * (max - min) + min;
+    const randomInt = (min, max) => Math.round(randomInRange(min, max));
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    // Small helper so mutations never leak references back to the renderers.
+    const clone = (value) => (typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value)));
+
+    /**
+     * Wraps a dataset in a tiny pub/sub stream that mutates the payload on an interval.
+     * Consumers call subscribe() to receive snapshots that stay immutable between ticks.
+     */
+    function createLiveDataset(seed, mutate, { interval = 1200 } = {}) {
+      let state = clone(seed);
+      const listeners = new Set();
+      let timerId = null;
+
+      const notify = () => {
+        const snapshot = clone(state);
+        listeners.forEach((listener) => listener(snapshot));
+      };
+
+      const step = () => {
+        state = mutate(clone(state));
+        notify();
+      };
+
+      const start = () => {
+        if (timerId === null) {
+          timerId = setInterval(step, interval);
+        }
+      };
+
+      const stop = () => {
+        if (timerId !== null) {
+          clearInterval(timerId);
+          timerId = null;
+        }
+      };
+
+      return {
+        id: seed.id,
+        name: seed.name,
+        subscribe(listener) {
+          listeners.add(listener);
+          listener(clone(state));
+          start();
+          return () => {
+            listeners.delete(listener);
+            if (listeners.size === 0) {
+              stop();
+            }
+          };
+        }
+      };
+    }
+
+    const LIVE_DATASET_FACTORIES = {
+      timeSeries(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const channels = current.channels.map((channel) => {
+              const points = channel.points.slice();
+              const maxPoints = channel.points.length;
+              const lastPoint = points[points.length - 1];
+              const nextValue = clamp(lastPoint.v + randomInRange(-6, 9), 0, 120);
+              points.push({ t: lastPoint.t + 1, v: Math.round(nextValue) });
+              while (points.length > maxPoints) {
+                points.shift();
+              }
+              return { ...channel, points };
+            });
+            return { ...current, channels };
+          },
+          { interval: 1400 }
+        );
+      },
+      stateTimeline(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const jittered = current.states.map((state) => ({
+              ...state,
+              duration: Math.max(0.6, +(state.duration + randomInRange(-0.4, 0.6)).toFixed(1))
+            }));
+            const rotated = jittered.length > 1 ? [...jittered.slice(1), jittered[0]] : jittered;
+            return { ...current, states: rotated };
+          },
+          { interval: 2400 }
+        );
+      },
+      statusHistory(seed) {
+        const statuses = ["ok", "warn", "offline"];
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const windows = current.windows.map((window) => {
+              if (Math.random() < 0.6) {
+                return window;
+              }
+              const nextStatus = statuses[randomInt(0, statuses.length - 1)];
+              return { ...window, value: nextStatus };
+            });
+            return { ...current, windows };
+          },
+          { interval: 1800 }
+        );
+      },
+      barChart(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const bars = current.bars.map((bar) => ({
+              ...bar,
+              value: Math.round(clamp(bar.value + randomInRange(-8, 10), 12, 92))
+            }));
+            return { ...current, bars };
+          }
+        );
+      },
+      histogram(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const bins = current.bins.map((value) => Math.max(0, Math.round(value + randomInRange(-4, 6))));
+            return { ...current, bins };
+          }
+        );
+      },
+      heatmap(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const cells = current.cells.map((value) => {
+              const jittered = value + randomInRange(-0.08, 0.08);
+              return Math.round(clamp(jittered, 0, 1) * 100) / 100;
+            });
+            return { ...current, cells };
+          },
+          { interval: 900 }
+        );
+      },
+      pie(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const baselineTotal = current.slices.reduce((sum, slice) => sum + slice.value, 0);
+            const provisional = current.slices.map((slice) => Math.max(6, slice.value + randomInRange(-5, 5)));
+            const provisionalTotal = provisional.reduce((sum, value) => sum + value, 0);
+            let running = 0;
+            const slices = current.slices.map((slice, index) => {
+              const normalised = Math.round((provisional[index] / provisionalTotal) * baselineTotal);
+              running += normalised;
+              return { ...slice, value: normalised };
+            });
+            const diff = baselineTotal - running;
+            if (diff !== 0 && slices.length) {
+              slices[0] = { ...slices[0], value: slices[0].value + diff };
+            }
+            return { ...current, slices };
+          },
+          { interval: 2200 }
+        );
+      },
+      candlestick(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const history = current.candles.slice();
+            const last = history[history.length - 1];
+            const base = last ? last.close : 20;
+            const open = Math.max(6, Math.round(base + randomInRange(-4, 4)));
+            const close = Math.max(6, Math.round(open + randomInRange(-5, 5)));
+            const high = Math.max(open, close) + randomInt(1, 4);
+            const low = Math.max(2, Math.min(open, close) - randomInt(1, 4));
+            const step = (current._step ?? history.length) + 1;
+            const label = `T+${step}`;
+            history.push({ label, open, high, low, close });
+            while (history.length > seed.candles.length) {
+              history.shift();
+            }
+            return { ...current, candles: history, _step: step };
+          },
+          { interval: 2600 }
+        );
+      },
+      gauge(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const swing = randomInRange(-8, 10);
+            const value = Math.round(clamp(current.value + swing, 0, current.max));
+            return { ...current, value };
+          },
+          { interval: 1700 }
+        );
+      },
+      trend(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const points = current.points.slice();
+            const last = points[points.length - 1];
+            const next = Math.round(clamp(last + randomInRange(-4, 6), 0, 120));
+            points.push(next);
+            while (points.length > seed.points.length) {
+              points.shift();
+            }
+            return { ...current, points };
+          },
+          { interval: 1100 }
+        );
+      },
+      xy(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const points = current.points.map((pt) => ({
+              x: Math.round(Math.max(0, pt.x + randomInRange(-3, 3))),
+              y: Math.round(Math.max(0, pt.y + randomInRange(-3, 3)))
+            }));
+            return { ...current, points };
+          },
+          { interval: 1500 }
+        );
+      },
+      stat(seed) {
+        const metas = ["Stable within range", "Slight oscillation detected", "Tracking ahead of plan", "Holding pattern"];
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const swing = randomInRange(-5, 6);
+            const value = Math.max(0, Math.round(current.value + swing));
+            const trend = `${swing >= 0 ? "+" : ""}${swing.toFixed(1)}`;
+            const meta = metas[randomInt(0, metas.length - 1)];
+            return { ...current, value, delta: trend, meta };
+          },
+          { interval: 2000 }
+        );
+      },
+      barGauge(seed) {
+        return createLiveDataset(
+          seed,
+          (current) => {
+            const bars = current.bars.map((bar) => ({
+              ...bar,
+              value: Math.round(clamp(bar.value + randomInRange(-0.08, 0.08), 0, 1) * 100) / 100
+            }));
+            return { ...current, bars };
+          },
+          { interval: 1600 }
+        );
+      }
+    };
+
+    const LIVE_DATASETS = Object.fromEntries(
+      Object.entries(DATASETS).map(([key, seeds]) => {
+        const factory = LIVE_DATASET_FACTORIES[key];
+        if (!factory) {
+          throw new Error(`Missing live dataset factory for ${key}`);
+        }
+        return [key, seeds.map((seed) => factory(seed))];
+      })
+    );
+
     // === Component registry ===
     const COMPONENTS = [
       {
@@ -1078,7 +1344,7 @@
       selector.innerHTML = `<span>Dataset</span>`;
 
       const selectEl = document.createElement("select");
-      const options = DATASETS[component.datasetKey];
+      const options = LIVE_DATASETS[component.datasetKey];
       options.forEach((dataset) => {
         const option = document.createElement("option");
         option.value = dataset.id;
@@ -1101,17 +1367,24 @@
       card.append(header, selector, viz);
       grid.append(card);
 
-      const renderActive = () => {
-        const dataset = options.find((item) => item.id === selectEl.value) || options[0];
-        component.render(viz, dataset);
+      let unsubscribe = null;
+
+      const attachStream = () => {
+        if (unsubscribe) {
+          unsubscribe();
+          unsubscribe = null;
+        }
+
+        const stream = options.find((item) => item.id === selectEl.value) || options[0];
+        unsubscribe = stream.subscribe((dataset) => {
+          component.render(viz, dataset);
+        });
       };
 
-      selectEl.addEventListener("change", () => {
-        renderActive();
-      });
+      selectEl.addEventListener("change", attachStream);
 
       selectEl.value = options[0].id;
-      renderActive();
+      attachStream();
     });
 
     // === Utility helpers ===
