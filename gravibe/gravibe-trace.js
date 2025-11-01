@@ -10,7 +10,7 @@ import { normalizeAnyValue, createLogAttribute, createAttributeTable } from "./g
 /**
  * @typedef {ReturnType<typeof createTraceSpan>} TraceSpan
  * @typedef {ReturnType<typeof createTraceEvent>} TraceEvent
- * @typedef {{ traceId: string, startTimeUnixNano: number, endTimeUnixNano: number, durationNano: number, spanCount: number, roots: TraceSpanNode[] }} TraceModel
+ * @typedef {{ traceId: string, startTimeUnixNano: number, endTimeUnixNano: number, durationNano: number, spanCount: number, roots: TraceSpanNode[], serviceNameMapping: Map<string, number> }} TraceModel
  * @typedef {{ span: TraceSpan, depth: number, children: TraceSpanNode[] }} TraceSpanNode
  */
 
@@ -102,6 +102,37 @@ function clamp(value, min = 0, max = 1) {
 }
 
 /**
+ * Collects unique service names from spans and creates an index mapping.
+ * @param {TraceSpan[]} spans
+ * @returns {Map<string, number>} Map from service name to index
+ */
+function buildServiceNameMapping(spans) {
+  const serviceNames = new Set();
+  spans.forEach((span) => {
+    const serviceName = span.resource?.serviceName || "unknown-service";
+    serviceNames.add(serviceName);
+  });
+  
+  const serviceArray = Array.from(serviceNames).sort();
+  const mapping = new Map();
+  serviceArray.forEach((name, index) => {
+    mapping.set(name, index);
+  });
+  return mapping;
+}
+
+/**
+ * Gets palette colors from CSS variables.
+ * @returns {string[]} Array of palette color hex values
+ */
+function getPaletteColors() {
+  const root = document.documentElement;
+  const style = getComputedStyle(root);
+  const colorRoles = ["primary", "secondary", "tertiary", "quaternary", "quinary", "senary"];
+  return colorRoles.map((role) => style.getPropertyValue(`--accent-${role}`).trim());
+}
+
+/**
  * Builds a hierarchical trace model so spans become aware of their children
  * without mutating the original span definitions.
  * @param {TraceSpan[]} spans
@@ -116,6 +147,7 @@ export function buildTraceModel(spans) {
       durationNano: 0,
       spanCount: 0,
       roots: [],
+      serviceNameMapping: new Map(),
     };
   }
 
@@ -132,6 +164,8 @@ export function buildTraceModel(spans) {
     traceId = span.traceId || traceId;
     spanNodes.set(span.spanId, { span, depth: 0, children: [] });
   });
+  
+  const serviceNameMapping = buildServiceNameMapping(spans);
 
   const roots = [];
 
@@ -172,6 +206,7 @@ export function buildTraceModel(spans) {
     durationNano: Math.max(endTimeUnixNano - startTimeUnixNano, 0),
     spanCount: spans.length,
     roots,
+    serviceNameMapping,
   };
 }
 
@@ -466,6 +501,30 @@ function renderSpanSummary(trace, node) {
 
   const bar = document.createElement("div");
   bar.className = "trace-span__bar";
+  
+  // Get palette color based on service name index
+  const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
+  const paletteColors = getPaletteColors();
+  const paletteLength = paletteColors.length;
+  const colorIndex = serviceIndex % paletteLength;
+  const serviceColor = paletteColors[colorIndex];
+  
+  // Convert hex to RGB for box-shadow
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: Number.parseInt(result[1], 16),
+      g: Number.parseInt(result[2], 16),
+      b: Number.parseInt(result[3], 16),
+    } : null;
+  };
+  
+  const rgb = hexToRgb(serviceColor);
+  if (rgb) {
+    bar.style.setProperty("--service-color", serviceColor);
+    bar.style.setProperty("--service-shadow", `0 0 18px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35)`);
+  }
+  
   const name = document.createElement("span");
   name.className = "trace-span__name";
   name.textContent = node.span.name;
