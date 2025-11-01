@@ -688,23 +688,21 @@ body {
 
 .trace-span__details {
   margin-left: 40px;
-  padding: 0;
+  padding: 0.85rem 1.1rem;
   background: var(--surface-3);
-  transition: box-shadow 0.2s ease, opacity 0.2s ease, max-height 0.2s ease, padding-top 0.2s ease, padding-bottom 0.2s ease;
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
   position: relative;
   z-index: 2;
+  display: none;
   opacity: 0;
-  max-height: 0;
-  overflow: hidden;
 }
 
 .trace-span--details-open>.trace-span__details {
   margin-top: 4px;
   margin-bottom: 4px;
-  padding: 0.85rem 1.1rem;
   box-shadow: 0 0 0 1px rgb(var(--accent-secondary-rgb) / 0.45);
+  display: block;
   opacity: 1;
-  max-height: 5000px;
 }
 
 .trace-span__name {
