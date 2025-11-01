@@ -1062,6 +1062,12 @@ body {
   background: rgb(var(--accent-quaternary-rgb) / 0.16);
 }
 
+.log-row--severity-span .log-row-severity {
+  color: var(--accent-primary);
+  border-color: rgb(var(--accent-primary-rgb) / 0.45);
+  background: rgb(var(--accent-primary-rgb) / 0.16);
+}
+
 @media (max-width: 720px) {
   body {
     padding: 1.5rem;

@@ -413,9 +413,12 @@ const severityGroups = [
 
 export function resolveSeverityGroup(logRow) {
   const { severityNumber, severityText } = logRow;
-  // Special handling for "event" severity
-  if (typeof severityText === "string" && severityText.toLowerCase() === "event") {
-    return "event";
+  // Special handling for "event" and "span" severity
+  if (typeof severityText === "string") {
+    const lowerText = severityText.toLowerCase();
+    if (lowerText === "event" || lowerText === "span") {
+      return lowerText;
+    }
   }
   if (typeof severityNumber === "number") {
     for (const group of severityGroups) {

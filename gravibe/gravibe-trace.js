@@ -520,6 +520,21 @@ function renderSpanLogs(span) {
   // Filter logs by span ID
   const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === span.spanId);
 
+  // Convert the span itself to a log row format
+  const spanLog = {
+    id: `span-${span.spanId}`,
+    template: span.name,
+    timeUnixNano: span.startTimeUnixNano,
+    severityNumber: undefined,
+    severityText: "span",
+    body: undefined,
+    attributes: span.attributes || [],
+    droppedAttributesCount: undefined,
+    flags: undefined,
+    traceId: span.traceId,
+    spanId: span.spanId,
+  };
+
   // Convert span events to log row format
   const eventLogs = (span.events || []).map((event, index) => {
     // Build a template from event name
@@ -539,8 +554,8 @@ function renderSpanLogs(span) {
     };
   });
 
-  // Combine logs and events
-  const allLogs = [...spanLogs, ...eventLogs];
+  // Combine span, logs, and events
+  const allLogs = [spanLog, ...spanLogs, ...eventLogs];
 
   if (allLogs.length === 0) {
     return null;
@@ -616,17 +631,7 @@ function renderSpanDetails(span) {
   const details = document.createElement("div");
   details.className = "trace-span__details";
 
-  if (span.attributes.length) {
-    const attributesSection = document.createElement("section");
-    attributesSection.className = "log-row-attributes";
-    const heading = document.createElement("h4");
-    heading.textContent = "Attributes";
-    const table = createAttributeTable(span.attributes);
-    attributesSection.append(heading, table);
-    details.append(attributesSection);
-  }
-
-  // Add logs section filtered by span ID (includes events converted to log rows)
+  // Add logs section filtered by span ID (includes span, events, and logs converted to log rows)
   const logsSection = renderSpanLogs(span);
   if (logsSection) {
     details.append(logsSection);
