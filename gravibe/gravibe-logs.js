@@ -493,19 +493,6 @@ export function createMetaSection(logRow) {
   const wrapper = document.createElement("div");
   wrapper.className = "log-row-details";
 
-  // Remove meta list entirely since we're not showing trace/span IDs there anymore
-
-  if (logRow.body && logRow.body.kind !== LogAnyValueKind.EMPTY) {
-    const bodySection = document.createElement("section");
-    bodySection.className = "log-row-body";
-    const bodyTitle = document.createElement("h4");
-    bodyTitle.textContent = "Body";
-    const pre = document.createElement("pre");
-    pre.textContent = formatAnyValueMultiline(logRow.body);
-    bodySection.append(bodyTitle, pre);
-    wrapper.appendChild(bodySection);
-  }
-
   // Build combined attributes list with virtual trace/span ID attributes first
   const allAttributes = [];
 
@@ -531,9 +518,7 @@ export function createMetaSection(logRow) {
   if (allAttributes.length > 0) {
     const attributesSection = document.createElement("section");
     attributesSection.className = "log-row-attributes";
-    const attrTitle = document.createElement("h4");
-    attrTitle.textContent = "Attributes";
-    attributesSection.append(attrTitle, createAttributeTable(allAttributes));
+    attributesSection.appendChild(createAttributeTable(allAttributes));
     wrapper.appendChild(attributesSection);
   }
 
