@@ -42,8 +42,18 @@ const componentRegistry = new Set();
 // Track the current ECharts renderer so we can recreate instances when toggled.
 const rendererState = { mode: "canvas" };
 
+function normalizeBackgroundEffect(effect) {
+  return ["solid", "linear", "radial"].includes(effect) ? effect : "solid";
+}
+
 // Remember the chosen ambient background so the dropdown can stay in sync.
-const backgroundState = { effect: document.body?.dataset.backgroundEffect || "solid" };
+const backgroundState = {
+  effect: normalizeBackgroundEffect(
+    document.querySelector(".chart-shell")?.dataset.backgroundEffect ||
+      document.body?.dataset.backgroundEffect ||
+      "solid"
+  ),
+};
 
 // Shared outline tone so every chart can render the same dark rim as the pie slices.
 const chartOutlineColor = "rgba(15, 23, 42, 0.95)";
@@ -204,11 +214,13 @@ function registerRendererControl() {
 }
 
 function applyBackgroundEffect(effect) {
-  const resolved = ["solid", "linear", "radial"].includes(effect) ? effect : "solid";
+  const resolved = normalizeBackgroundEffect(effect);
   backgroundState.effect = resolved;
-  if (document.body) {
-    document.body.dataset.backgroundEffect = resolved;
-  }
+  document
+    .querySelectorAll(".chart-shell")
+    .forEach((shell) => {
+      shell.dataset.backgroundEffect = resolved;
+    });
 }
 
 function registerBackgroundControl() {
