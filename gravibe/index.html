@@ -3,1798 +3,202 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gravibe · Neon Chart Template Kit</title>
-  <style>
-    :root {
-      --bg-start: #04010f;
-      --bg-end: #160239;
-      --palette-cyan: #22f2ff; /* shared neon cyan */
-      --palette-magenta: #ff3bb7; /* shared electric magenta */
-      --palette-amber: #ffd166; /* shared sunrise amber */
-      --palette-green: #5dffb5; /* shared aurora green */
-      --palette-violet: #b37dff; /* shared ultraviolet */
-      --palette-orange: #ff8a65; /* shared ember orange */
-      --grid-color: rgba(58, 0, 144, 0.55);
-      --card-bg: rgba(10, 6, 31, 0.75);
-      --card-border: rgba(179, 125, 255, 0.45);
-      --card-highlight: rgba(179, 125, 255, 0.85);
-      --font-family: "Orbitron", "Segoe UI", sans-serif; /* this sets the font family for the entire kit */
-      --base-font-size: 16px; /* this sets the font size baseline */
-      --glow-color: rgba(179, 125, 255, 0.8);
-      --accent-cyan: var(--palette-cyan);
-      --accent-magenta: var(--palette-magenta);
-      --accent-yellow: var(--palette-amber);
-      --accent-green: var(--palette-green);
-      --component-padding: 1.25rem;
-      --component-radius: 20px;
-      --transition-speed: 280ms; /* this changes the animation transition speed */
-      --glow-strength: 1.1; /* change this to increase glow intensity */
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: var(--font-family);
-      font-size: var(--base-font-size);
-      color: #e2e7ff;
-      background: radial-gradient(circle at top, rgba(112, 0, 255, 0.4), transparent 55%),
-        linear-gradient(135deg, var(--bg-start), var(--bg-end));
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 2.5rem clamp(1.5rem, 4vw, 3rem) 4rem;
-      gap: 2rem;
-      position: relative;
-      overflow-x: hidden;
-    }
-
-    body::before,
-    body::after {
-      content: "";
-      position: fixed;
-      inset: 0;
-      background-image: radial-gradient(circle at 20% 20%, var(--glow-magenta-soft), transparent 45%),
-        radial-gradient(circle at 80% 35%, var(--glow-cyan-soft), transparent 40%),
-        radial-gradient(circle at 50% 80%, var(--glow-green-soft), transparent 40%);
-      opacity: 0.85;
-      pointer-events: none;
-      mix-blend-mode: screen;
-      filter: saturate(var(--glow-strength));
-    }
-
-    header {
-      text-align: center;
-      max-width: 60rem;
-      z-index: 1;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(2.5rem, 7vw, 3.8rem);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #fff;
-      text-shadow: 0 0 22px var(--glow-violet-strong), 0 0 44px var(--glow-cyan-strong);
-    }
-
-    header p {
-      margin: 1rem auto 0;
-      line-height: 1.65;
-      color: rgba(229, 238, 255, 0.8);
-      font-size: clamp(1rem, 2.1vw, 1.2rem);
-    }
-
-    header p strong {
-      color: var(--palette-amber);
-    }
-
-    main {
-      width: min(1200px, 100%);
-      display: grid;
-      gap: 1.75rem;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      z-index: 1;
-    }
-
-    .component-card {
-      position: relative;
-      padding: var(--component-padding);
-      border-radius: var(--component-radius);
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      box-shadow: 0 0 22px var(--glow-violet-base), 0 0 90px var(--glow-violet-soft);
-      backdrop-filter: blur(18px);
-      display: flex;
-      flex-direction: column;
-      gap: 0.9rem;
-      transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
-    }
-
-    .component-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 0 32px var(--glow-violet-hover), 0 0 110px var(--gradient-glow);
-    }
-
-    .component-card::before {
-      content: "";
-      position: absolute;
-      inset: -2px;
-      border-radius: calc(var(--component-radius) + 2px);
-      background: linear-gradient(135deg, var(--glow-cyan-overlay), var(--glow-magenta-overlay));
-      z-index: -1;
-      opacity: 0.35;
-      filter: blur(calc(14px * var(--glow-strength))); /* change this to increase glow spread */
-    }
-
-    .component-header {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
-    .component-header h2 {
-      margin: 0;
-      font-size: 1.15rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #f8f8ff;
-    }
-
-    .component-header p {
-      margin: 0;
-      color: rgba(229, 238, 255, 0.72);
-      font-size: 0.95rem;
-      line-height: 1.5;
-    }
-
-    .data-select {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 0.85rem;
-    }
-
-    .data-select select {
-      flex: 1;
-      padding: 0.45rem 0.65rem;
-      border-radius: 999px;
-      border: 1px solid var(--glow-cyan-border);
-      background: rgba(10, 12, 45, 0.8);
-      color: #e2e7ff;
-      font-family: inherit;
-      font-size: 0.85rem;
-      letter-spacing: 0.04em;
-      transition: border var(--transition-speed) ease;
-    }
-
-    .data-select select:focus-visible {
-      outline: none;
-      border-color: var(--glow-magenta-strong);
-      box-shadow: 0 0 0 3px var(--glow-magenta-soft);
-    }
-
-    .component-generator {
-      grid-column: 1 / -1;
-    }
-
-    .component-generator .generator-controls {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    @media (min-width: 720px) {
-      .component-generator .generator-controls {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    .component-generator .generator-preview {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .component-generator .generator-preview canvas,
-    .component-generator .generator-preview .viz-block {
-      margin-top: 0.25rem;
-    }
-
-    .component-generator .code-wrapper {
-      display: grid;
-      gap: 0.5rem;
-    }
-
-    .component-generator .code-snippet {
-      margin: 0;
-      padding: 0.85rem 1rem;
-      border-radius: 12px;
-      background: rgba(7, 12, 42, 0.85);
-      border: 1px solid rgba(0, 0, 0, 0.35);
-      box-shadow: inset 0 0 18px rgba(0, 12, 61, 0.45);
-      font-family: "Fira Code", "SFMono-Regular", Menlo, monospace;
-      font-size: 0.82rem;
-      line-height: 1.4;
-      color: rgba(229, 238, 255, 0.85);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .component-generator .copy-button {
-      align-self: start;
-      padding: 0.45rem 0.9rem;
-      border-radius: 999px;
-      border: 1px solid var(--glow-cyan-border);
-      background: linear-gradient(135deg, var(--glow-cyan-soft), var(--glow-magenta-soft));
-      color: #f5f6ff;
-      font-family: inherit;
-      font-size: 0.8rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
-    }
-
-    .component-generator .copy-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 18px var(--glow-cyan-strong);
-    }
-
-    .component-generator .copy-button:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 3px var(--glow-magenta-focus);
-    }
-
-    canvas,
-    .viz-block {
-      width: 100%;
-      border-radius: 14px;
-      background: rgba(6, 4, 24, 0.75);
-      border: 1px solid var(--glow-cyan-panel);
-      box-shadow: inset 0 0 18px rgba(0, 12, 61, 0.65);
-      position: relative;
-    }
-
-    canvas {
-      aspect-ratio: 16 / 9;
-    }
-
-    .viz-block {
-      padding: 1.2rem;
-      display: grid;
-      gap: 0.6rem;
-    }
-
-    .stat-number {
-      font-size: clamp(2.5rem, 5vw, 3.6rem);
-      font-weight: 700;
-      color: var(--accent-cyan);
-      text-shadow: 0 0 18px var(--glow-cyan-text);
-    }
-
-    .stat-meta {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.95rem;
-      color: rgba(229, 238, 255, 0.75);
-    }
-
-    .stat-trend {
-      color: var(--accent-green);
-    }
-
-    .bar-gauge-row {
-      display: grid;
-      gap: 0.35rem;
-    }
-
-    .bar-gauge-bar {
-      height: 0.6rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.08);
-      overflow: hidden;
-      position: relative;
-    }
-
-    .bar-gauge-bar span {
-      display: block;
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
-      box-shadow: 0 0 16px var(--gradient-glow);
-      transition: width var(--transition-speed) ease;
-    }
-
-    footer {
-      text-align: center;
-      color: rgba(229, 238, 255, 0.6);
-      font-size: 0.85rem;
-      letter-spacing: 0.05em;
-    }
-  </style>
+  <title>Gravibe Neon Chart Kit</title>
+  <link rel="stylesheet" href="gravibe.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js" defer></script>
+  <script src="gravibe.js" type="module" defer></script>
 </head>
 <body>
-  <header>
+  <header class="page-header">
     <h1>Gravibe</h1>
-    <p>
-      Neon-ready chart templates for AI agents to remix. Swap datasets, retune the glow, and rewrite rendering logic without
-      hunting for wiring. Each component exposes clear constants (look for the inline comments!) to retheme transitions, fonts,
-      and bloom.
-    </p>
+    <p>A neon-soaked template kit of arcade-ready charts and stat cards built for AI agents to remix.</p>
   </header>
-  <main id="component-grid"></main>
-  <footer>Built for retro-futuristic dashboards · Feed multiple datasets into each component</footer>
-
-  <script>
-    // === Global configuration knobs (visible to make templating easy) ===
-    const GLOW_INTENSITY = 0.9; // change this to increase glow energy across charts
-    const TRANSITION_MS = 320; // this changes the animation transition speed for redraws
-    const FONT_SIZE_REM = 1; // this sets the font size multiplier for labels
-
-    // Keep CSS and JS in sync so that tweaking one constant adjusts the whole kit.
-    document.documentElement.style.setProperty("--glow-strength", GLOW_INTENSITY.toString());
-    document.documentElement.style.setProperty("--transition-speed", `${TRANSITION_MS}ms`);
-    document.documentElement.style.setProperty("--base-font-size", `${FONT_SIZE_REM}rem`);
-
-    const rootStyles = getComputedStyle(document.documentElement);
-
-    function cssVar(name) {
-      return rootStyles.getPropertyValue(name).trim();
-    }
-
-    function parseHexColor(hex) {
-      const normalized = hex.replace("#", "").trim();
-      const expanded = normalized.length === 3 ? normalized.split("").map((ch) => ch + ch).join("") : normalized;
-      const value = parseInt(expanded, 16);
-      return {
-        r: (value >> 16) & 255,
-        g: (value >> 8) & 255,
-        b: value & 255
-      };
-    }
-
-    function withAlpha(hex, alpha) {
-      const { r, g, b } = parseHexColor(hex);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-
-    function mixColors(hexA, hexB, ratio, alpha = 1) {
-      const start = parseHexColor(hexA);
-      const end = parseHexColor(hexB);
-      const blend = (channel) => Math.round(start[channel] + (end[channel] - start[channel]) * ratio);
-      return `rgba(${blend("r")}, ${blend("g")}, ${blend("b")}, ${alpha})`;
-    }
-
-    // Shared palette keeps every chart aligned with the same neon accents.
-    const COLOR_PALETTE = {
-      cyan: cssVar("--palette-cyan"),
-      magenta: cssVar("--palette-magenta"),
-      amber: cssVar("--palette-amber"),
-      green: cssVar("--palette-green"),
-      violet: cssVar("--palette-violet"),
-      orange: cssVar("--palette-orange")
-    };
-
-    const PALETTE_SEQUENCE = [
-      COLOR_PALETTE.cyan,
-      COLOR_PALETTE.magenta,
-      COLOR_PALETTE.amber,
-      COLOR_PALETTE.green,
-      COLOR_PALETTE.violet,
-      COLOR_PALETTE.orange
-    ];
-
-    function getPaletteColor(index) {
-      return PALETTE_SEQUENCE[index % PALETTE_SEQUENCE.length];
-    }
-
-    function applyPaletteTokens() {
-      const root = document.documentElement.style;
-      root.setProperty("--card-border", withAlpha(COLOR_PALETTE.violet, 0.45));
-      root.setProperty("--card-highlight", withAlpha(COLOR_PALETTE.violet, 0.85));
-      root.setProperty("--glow-color", withAlpha(COLOR_PALETTE.violet, 0.8));
-      root.setProperty("--gradient-start", withAlpha(COLOR_PALETTE.magenta, 0.95));
-      root.setProperty("--gradient-end", withAlpha(COLOR_PALETTE.cyan, 0.9));
-      root.setProperty("--gradient-glow", withAlpha(COLOR_PALETTE.cyan, 0.4));
-      root.setProperty("--accent-cyan", COLOR_PALETTE.cyan);
-      root.setProperty("--accent-magenta", COLOR_PALETTE.magenta);
-      root.setProperty("--accent-yellow", COLOR_PALETTE.amber);
-      root.setProperty("--accent-green", COLOR_PALETTE.green);
-      root.setProperty("--glow-magenta-soft", withAlpha(COLOR_PALETTE.magenta, 0.24));
-      root.setProperty("--glow-magenta-overlay", withAlpha(COLOR_PALETTE.magenta, 0.45));
-      root.setProperty("--glow-magenta-strong", withAlpha(COLOR_PALETTE.magenta, 0.7));
-      root.setProperty("--glow-magenta-focus", withAlpha(COLOR_PALETTE.magenta, 0.35));
-      root.setProperty("--glow-cyan-soft", withAlpha(COLOR_PALETTE.cyan, 0.16));
-      root.setProperty("--glow-cyan-strong", withAlpha(COLOR_PALETTE.cyan, 0.45));
-      root.setProperty("--glow-cyan-overlay", withAlpha(COLOR_PALETTE.cyan, 0.6));
-      root.setProperty("--glow-cyan-border", withAlpha(COLOR_PALETTE.cyan, 0.35));
-      root.setProperty("--glow-cyan-panel", withAlpha(COLOR_PALETTE.cyan, 0.15));
-      root.setProperty("--glow-cyan-text", withAlpha(COLOR_PALETTE.cyan, 0.7));
-      root.setProperty("--glow-green-soft", withAlpha(COLOR_PALETTE.green, 0.18));
-      root.setProperty("--glow-violet-soft", withAlpha(COLOR_PALETTE.violet, 0.35));
-      root.setProperty("--glow-violet-strong", withAlpha(COLOR_PALETTE.violet, 0.7));
-      root.setProperty("--glow-violet-hover", withAlpha(COLOR_PALETTE.violet, 0.75));
-      root.setProperty("--glow-violet-base", withAlpha(COLOR_PALETTE.violet, 0.55));
-    }
-
-    applyPaletteTokens();
-
-    function blendPalette(value) {
-      const normalized = Math.max(0, Math.min(1, value));
-      if (normalized < 0.5) {
-        return mixColors(COLOR_PALETTE.magenta, COLOR_PALETTE.cyan, normalized / 0.5, 0.85);
-      }
-      return mixColors(COLOR_PALETTE.cyan, COLOR_PALETTE.green, (normalized - 0.5) / 0.5, 0.85);
-    }
-
-    // === Dataset definitions ===
-    const DATASETS = {
-      timeSeries: [
-        {
-          id: "synthwave-traffic",
-          name: "Synthwave Traffic",
-          channels: [
-            {
-              name: "Neon Avenue",
-              color: getPaletteColor(0),
-              points: [
-                { t: 0, v: 16 },
-                { t: 1, v: 24 },
-                { t: 2, v: 21 },
-                { t: 3, v: 30 },
-                { t: 4, v: 26 },
-                { t: 5, v: 34 },
-                { t: 6, v: 40 }
-              ]
-            },
-            {
-              name: "Retro Loop",
-              color: getPaletteColor(1),
-              points: [
-                { t: 0, v: 10 },
-                { t: 1, v: 14 },
-                { t: 2, v: 18 },
-                { t: 3, v: 23 },
-                { t: 4, v: 20 },
-                { t: 5, v: 26 },
-                { t: 6, v: 31 }
-              ]
-            }
-          ]
-        },
-        {
-          id: "orbital-scan",
-          name: "Orbital Scan",
-          channels: [
-            {
-              name: "Zenith Array",
-              color: getPaletteColor(2),
-              points: [
-                { t: 0, v: 8 },
-                { t: 1, v: 12 },
-                { t: 2, v: 19 },
-                { t: 3, v: 18 },
-                { t: 4, v: 24 },
-                { t: 5, v: 28 },
-                { t: 6, v: 35 }
-              ]
-            },
-            {
-              name: "Pulse Deck",
-              color: getPaletteColor(3),
-              points: [
-                { t: 0, v: 12 },
-                { t: 1, v: 18 },
-                { t: 2, v: 22 },
-                { t: 3, v: 29 },
-                { t: 4, v: 33 },
-                { t: 5, v: 37 },
-                { t: 6, v: 44 }
-              ]
-            }
-          ]
-        }
-      ],
-      stateTimeline: [
-        {
-          id: "mission-cycle",
-          name: "Mission Cycle",
-          states: [
-            { label: "Boot", duration: 2, status: "prep", color: getPaletteColor(0) },
-            { label: "Sync", duration: 3, status: "sync", color: getPaletteColor(1) },
-            { label: "Deploy", duration: 4, status: "live", color: getPaletteColor(3) },
-            { label: "Cooldown", duration: 2, status: "idle", color: getPaletteColor(2) }
-          ]
-        },
-        {
-          id: "training-loop",
-          name: "Training Loop",
-          states: [
-            { label: "Warmup", duration: 1.5, status: "prep", color: getPaletteColor(2) },
-            { label: "Inference", duration: 4, status: "live", color: getPaletteColor(0) },
-            { label: "Feedback", duration: 2, status: "sync", color: getPaletteColor(1) },
-            { label: "Archive", duration: 3, status: "idle", color: getPaletteColor(3) }
-          ]
-        }
-      ],
-      statusHistory: [
-        {
-          id: "uplink-scan",
-          name: "Uplink Scan",
-          windows: [
-            { label: "00:00", value: "ok" },
-            { label: "01:00", value: "ok" },
-            { label: "02:00", value: "warn" },
-            { label: "03:00", value: "offline" },
-            { label: "04:00", value: "ok" },
-            { label: "05:00", value: "ok" }
-          ]
-        },
-        {
-          id: "server-grid",
-          name: "Server Grid",
-          windows: [
-            { label: "A", value: "ok" },
-            { label: "B", value: "ok" },
-            { label: "C", value: "warn" },
-            { label: "D", value: "ok" },
-            { label: "E", value: "offline" },
-            { label: "F", value: "ok" }
-          ]
-        }
-      ],
-      barChart: [
-        {
-          id: "refinery-output",
-          name: "Refinery Output",
-          bars: [
-            { label: "Coils", value: 40 },
-            { label: "Cores", value: 52 },
-            { label: "Shards", value: 34 },
-            { label: "Boosts", value: 61 }
-          ]
-        },
-        {
-          id: "sector-intensity",
-          name: "Sector Intensity",
-          bars: [
-            { label: "North", value: 28 },
-            { label: "South", value: 46 },
-            { label: "East", value: 51 },
-            { label: "West", value: 33 }
-          ]
-        }
-      ],
-      histogram: [
-        {
-          id: "latency",
-          name: "Latency Spread",
-          bins: [5, 12, 18, 26, 20, 11, 6]
-        },
-        {
-          id: "energy",
-          name: "Energy Pulse",
-          bins: [3, 7, 14, 25, 22, 15, 9]
-        }
-      ],
-      heatmap: [
-        {
-          id: "arena-heat",
-          name: "Arena Heat",
-          columns: 6,
-          rows: 4,
-          cells: [
-            0.1, 0.25, 0.35, 0.4, 0.55, 0.8,
-            0.15, 0.28, 0.5, 0.64, 0.7, 0.9,
-            0.2, 0.32, 0.48, 0.56, 0.62, 0.75,
-            0.05, 0.16, 0.26, 0.36, 0.44, 0.52
-          ]
-        },
-        {
-          id: "signal-density",
-          name: "Signal Density",
-          columns: 5,
-          rows: 5,
-          cells: [
-            0.08, 0.22, 0.4, 0.55, 0.76,
-            0.12, 0.31, 0.45, 0.6, 0.84,
-            0.1, 0.24, 0.5, 0.68, 0.9,
-            0.06, 0.19, 0.33, 0.5, 0.71,
-            0.03, 0.12, 0.28, 0.44, 0.6
-          ]
-        }
-      ],
-      pie: [
-        {
-          id: "faction-share",
-          name: "Faction Share",
-          slices: [
-            { label: "Nova", value: 32, color: getPaletteColor(0) },
-            { label: "Flux", value: 22, color: getPaletteColor(1) },
-            { label: "Helix", value: 18, color: getPaletteColor(2) },
-            { label: "Phantom", value: 28, color: getPaletteColor(3) }
-          ]
-        },
-        {
-          id: "power-grid",
-          name: "Power Grid",
-          slices: [
-            { label: "Solar", value: 36, color: getPaletteColor(2) },
-            { label: "Fusion", value: 30, color: getPaletteColor(0) },
-            { label: "Dark", value: 17, color: getPaletteColor(3) },
-            { label: "Backups", value: 17, color: getPaletteColor(1) }
-          ]
-        }
-      ],
-      candlestick: [
-        {
-          id: "core-market",
-          name: "Core Market",
-          candles: [
-            { label: "00:00", open: 22, high: 28, low: 20, close: 26 },
-            { label: "01:00", open: 26, high: 32, low: 24, close: 28 },
-            { label: "02:00", open: 28, high: 36, low: 26, close: 34 },
-            { label: "03:00", open: 34, high: 38, low: 30, close: 32 },
-            { label: "04:00", open: 32, high: 37, low: 29, close: 35 }
-          ]
-        },
-        {
-          id: "ion-market",
-          name: "Ion Market",
-          candles: [
-            { label: "Phase 1", open: 12, high: 18, low: 10, close: 16 },
-            { label: "Phase 2", open: 16, high: 21, low: 13, close: 18 },
-            { label: "Phase 3", open: 18, high: 25, low: 14, close: 20 },
-            { label: "Phase 4", open: 20, high: 27, low: 17, close: 24 },
-            { label: "Phase 5", open: 24, high: 30, low: 20, close: 28 }
-          ]
-        }
-      ],
-      gauge: [
-        {
-          id: "drive-charge",
-          name: "Drive Charge",
-          value: 72,
-          max: 100,
-          thresholds: [
-            { value: 35, color: getPaletteColor(1) },
-            { value: 65, color: getPaletteColor(2) },
-            { value: 100, color: getPaletteColor(0) }
-          ]
-        },
-        {
-          id: "shield-sync",
-          name: "Shield Sync",
-          value: 55,
-          max: 90,
-          thresholds: [
-            { value: 30, color: getPaletteColor(1) },
-            { value: 60, color: getPaletteColor(2) },
-            { value: 90, color: getPaletteColor(3) }
-          ]
-        }
-      ],
-      trend: [
-        {
-          id: "signal-trend",
-          name: "Signal Trend",
-          points: [10, 12, 15, 21, 25, 28, 30, 33, 36]
-        },
-        {
-          id: "uptime-trend",
-          name: "Uptime Trend",
-          points: [22, 24, 23, 26, 32, 38, 41, 43, 48]
-        }
-      ],
-      xy: [
-        {
-          id: "drift-clusters",
-          name: "Drift Clusters",
-          points: [
-            { x: 6, y: 12 },
-            { x: 12, y: 18 },
-            { x: 18, y: 9 },
-            { x: 24, y: 20 },
-            { x: 28, y: 14 },
-            { x: 32, y: 24 },
-            { x: 36, y: 18 }
-          ]
-        },
-        {
-          id: "orbit-map",
-          name: "Orbit Map",
-          points: [
-            { x: 4, y: 8 },
-            { x: 8, y: 16 },
-            { x: 12, y: 12 },
-            { x: 16, y: 20 },
-            { x: 20, y: 18 },
-            { x: 24, y: 26 },
-            { x: 28, y: 22 }
-          ]
-        }
-      ],
-      stat: [
-        {
-          id: "core-temp",
-          name: "Core Temperature",
-          value: 68,
-          unit: "°C",
-          delta: "+3.5",
-          meta: "Within stable variance"
-        },
-        {
-          id: "mission-score",
-          name: "Mission Score",
-          value: 9820,
-          unit: "pts",
-          delta: "+420",
-          meta: "Arcade records rising"
-        }
-      ],
-      barGauge: [
-        {
-          id: "resource-allocation",
-          name: "Resource Allocation",
-          bars: [
-            { label: "AI Ops", value: 0.82 },
-            { label: "Pilots", value: 0.64 },
-            { label: "Maintenance", value: 0.58 }
-          ]
-        },
-        {
-          id: "squad-synergy",
-          name: "Squad Synergy",
-          bars: [
-            { label: "Alpha", value: 0.76 },
-            { label: "Beta", value: 0.67 },
-            { label: "Gamma", value: 0.92 }
-          ]
-        }
-      ]
-    };
-
-    // === Live dataset plumbing ===
-    const randomInRange = (min, max) => Math.random() * (max - min) + min;
-    const randomInt = (min, max) => Math.round(randomInRange(min, max));
-    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-    // Small helper so mutations never leak references back to the renderers.
-    const clone = (value) => (typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value)));
-
-    /**
-     * Wraps a dataset in a tiny pub/sub stream that mutates the payload on an interval.
-     * Consumers call subscribe() to receive snapshots that stay immutable between ticks.
-     */
-    function createLiveDataset(seed, mutate, { interval = 1200 } = {}) {
-      let state = clone(seed);
-      const listeners = new Set();
-      let timerId = null;
-
-      const notify = () => {
-        const snapshot = clone(state);
-        listeners.forEach((listener) => listener(snapshot));
-      };
-
-      const step = () => {
-        state = mutate(clone(state));
-        notify();
-      };
-
-      const start = () => {
-        if (timerId === null) {
-          timerId = setInterval(step, interval);
-        }
-      };
-
-      const stop = () => {
-        if (timerId !== null) {
-          clearInterval(timerId);
-          timerId = null;
-        }
-      };
-
-      return {
-        id: seed.id,
-        name: seed.name,
-        subscribe(listener) {
-          listeners.add(listener);
-          listener(clone(state));
-          start();
-          return () => {
-            listeners.delete(listener);
-            if (listeners.size === 0) {
-              stop();
-            }
-          };
-        }
-      };
-    }
-
-    const LIVE_DATASET_FACTORIES = {
-      timeSeries(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const channels = current.channels.map((channel) => {
-              const points = channel.points.slice();
-              const maxPoints = channel.points.length;
-              const lastPoint = points[points.length - 1];
-              const nextValue = clamp(lastPoint.v + randomInRange(-6, 9), 0, 120);
-              points.push({ t: lastPoint.t + 1, v: Math.round(nextValue) });
-              while (points.length > maxPoints) {
-                points.shift();
-              }
-              return { ...channel, points };
-            });
-            return { ...current, channels };
-          },
-          { interval: 1400 }
-        );
-      },
-      stateTimeline(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const jittered = current.states.map((state) => ({
-              ...state,
-              duration: Math.max(0.6, +(state.duration + randomInRange(-0.4, 0.6)).toFixed(1))
-            }));
-            const rotated = jittered.length > 1 ? [...jittered.slice(1), jittered[0]] : jittered;
-            return { ...current, states: rotated };
-          },
-          { interval: 2400 }
-        );
-      },
-      statusHistory(seed) {
-        const statuses = ["ok", "warn", "offline"];
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const windows = current.windows.map((window) => {
-              if (Math.random() < 0.6) {
-                return window;
-              }
-              const nextStatus = statuses[randomInt(0, statuses.length - 1)];
-              return { ...window, value: nextStatus };
-            });
-            return { ...current, windows };
-          },
-          { interval: 1800 }
-        );
-      },
-      barChart(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const bars = current.bars.map((bar) => ({
-              ...bar,
-              value: Math.round(clamp(bar.value + randomInRange(-8, 10), 12, 92))
-            }));
-            return { ...current, bars };
-          }
-        );
-      },
-      histogram(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const bins = current.bins.map((value) => Math.max(0, Math.round(value + randomInRange(-4, 6))));
-            return { ...current, bins };
-          }
-        );
-      },
-      heatmap(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const cells = current.cells.map((value) => {
-              const jittered = value + randomInRange(-0.08, 0.08);
-              return Math.round(clamp(jittered, 0, 1) * 100) / 100;
-            });
-            return { ...current, cells };
-          },
-          { interval: 900 }
-        );
-      },
-      pie(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const baselineTotal = current.slices.reduce((sum, slice) => sum + slice.value, 0);
-            const provisional = current.slices.map((slice) => Math.max(6, slice.value + randomInRange(-5, 5)));
-            const provisionalTotal = provisional.reduce((sum, value) => sum + value, 0);
-            let running = 0;
-            const slices = current.slices.map((slice, index) => {
-              const normalised = Math.round((provisional[index] / provisionalTotal) * baselineTotal);
-              running += normalised;
-              return { ...slice, value: normalised };
-            });
-            const diff = baselineTotal - running;
-            if (diff !== 0 && slices.length) {
-              slices[0] = { ...slices[0], value: slices[0].value + diff };
-            }
-            return { ...current, slices };
-          },
-          { interval: 2200 }
-        );
-      },
-      candlestick(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const history = current.candles.slice();
-            const last = history[history.length - 1];
-            const base = last ? last.close : 20;
-            const open = Math.max(6, Math.round(base + randomInRange(-4, 4)));
-            const close = Math.max(6, Math.round(open + randomInRange(-5, 5)));
-            const high = Math.max(open, close) + randomInt(1, 4);
-            const low = Math.max(2, Math.min(open, close) - randomInt(1, 4));
-            const step = (current._step ?? history.length) + 1;
-            const label = `T+${step}`;
-            history.push({ label, open, high, low, close });
-            while (history.length > seed.candles.length) {
-              history.shift();
-            }
-            return { ...current, candles: history, _step: step };
-          },
-          { interval: 2600 }
-        );
-      },
-      gauge(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const swing = randomInRange(-8, 10);
-            const value = Math.round(clamp(current.value + swing, 0, current.max));
-            return { ...current, value };
-          },
-          { interval: 1700 }
-        );
-      },
-      trend(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const points = current.points.slice();
-            const last = points[points.length - 1];
-            const next = Math.round(clamp(last + randomInRange(-4, 6), 0, 120));
-            points.push(next);
-            while (points.length > seed.points.length) {
-              points.shift();
-            }
-            return { ...current, points };
-          },
-          { interval: 1100 }
-        );
-      },
-      xy(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const points = current.points.map((pt) => ({
-              x: Math.round(Math.max(0, pt.x + randomInRange(-3, 3))),
-              y: Math.round(Math.max(0, pt.y + randomInRange(-3, 3)))
-            }));
-            return { ...current, points };
-          },
-          { interval: 1500 }
-        );
-      },
-      stat(seed) {
-        const metas = ["Stable within range", "Slight oscillation detected", "Tracking ahead of plan", "Holding pattern"];
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const swing = randomInRange(-5, 6);
-            const value = Math.max(0, Math.round(current.value + swing));
-            const trend = `${swing >= 0 ? "+" : ""}${swing.toFixed(1)}`;
-            const meta = metas[randomInt(0, metas.length - 1)];
-            return { ...current, value, delta: trend, meta };
-          },
-          { interval: 2000 }
-        );
-      },
-      barGauge(seed) {
-        return createLiveDataset(
-          seed,
-          (current) => {
-            const bars = current.bars.map((bar) => ({
-              ...bar,
-              value: Math.round(clamp(bar.value + randomInRange(-0.08, 0.08), 0, 1) * 100) / 100
-            }));
-            return { ...current, bars };
-          },
-          { interval: 1600 }
-        );
-      }
-    };
-
-    const LIVE_DATASETS = Object.fromEntries(
-      Object.entries(DATASETS).map(([key, seeds]) => {
-        const factory = LIVE_DATASET_FACTORIES[key];
-        if (!factory) {
-          throw new Error(`Missing live dataset factory for ${key}`);
-        }
-        return [key, seeds.map((seed) => factory(seed))];
-      })
-    );
-
-    // === Component registry ===
-    const COMPONENTS = [
-      {
-        id: "time-series",
-        title: "Time Series Pulse",
-        description: "Plot multi-channel neon telemetry across synced timestamps.",
-        datasetKey: "timeSeries",
-        element: "canvas",
-        size: { width: 420, height: 220 },
-        render: renderTimeSeries
-      },
-      {
-        id: "state-timeline",
-        title: "State Timeline",
-        description: "Map mission phases as glowing segments with clear labels.",
-        datasetKey: "stateTimeline",
-        element: "canvas",
-        size: { width: 420, height: 160 },
-        render: renderStateTimeline
-      },
-      {
-        id: "status-history",
-        title: "Status History",
-        description: "Display discrete status codes over a rolling window.",
-        datasetKey: "statusHistory",
-        element: "canvas",
-        size: { width: 420, height: 150 },
-        render: renderStatusHistory
-      },
-      {
-        id: "bar-chart",
-        title: "Bar Chart",
-        description: "Show category magnitudes with luminous vertical bars.",
-        datasetKey: "barChart",
-        element: "canvas",
-        size: { width: 420, height: 220 },
-        render: renderBarChart
-      },
-      {
-        id: "histogram",
-        title: "Histogram",
-        description: "Visualize distribution bins for key metrics.",
-        datasetKey: "histogram",
-        element: "canvas",
-        size: { width: 420, height: 200 },
-        render: renderHistogram
-      },
-      {
-        id: "heatmap",
-        title: "Heatmap",
-        description: "Inspect intensity grids with gradient neon cells.",
-        datasetKey: "heatmap",
-        element: "canvas",
-        size: { width: 420, height: 220 },
-        render: renderHeatmap
-      },
-      {
-        id: "pie-chart",
-        title: "Pie Chart",
-        description: "Compare shares with radiant wedges and subtle glow.",
-        datasetKey: "pie",
-        element: "canvas",
-        size: { width: 420, height: 220 },
-        render: renderPieChart
-      },
-      {
-        id: "candlestick",
-        title: "Candlestick",
-        description: "Track open/high/low/close cycles with neon wicks.",
-        datasetKey: "candlestick",
-        element: "canvas",
-        size: { width: 420, height: 220 },
-        render: renderCandlestick
-      },
-      {
-        id: "gauge",
-        title: "Gauge",
-        description: "Arc dial with threshold-aware segments for quick reads.",
-        datasetKey: "gauge",
-        element: "canvas",
-        size: { width: 320, height: 200 },
-        render: renderGauge
-      },
-      {
-        id: "trend",
-        title: "Trend Spark",
-        description: "Mini sparkline for tracking recent surges.",
-        datasetKey: "trend",
-        element: "canvas",
-        size: { width: 320, height: 140 },
-        render: renderTrend
-      },
-      {
-        id: "xy-chart",
-        title: "XY Scatter",
-        description: "Plot positional data on a neon radar grid.",
-        datasetKey: "xy",
-        element: "canvas",
-        size: { width: 420, height: 220 },
-        render: renderXY
-      },
-      {
-        id: "stat",
-        title: "Stat Readout",
-        description: "Large headline stat with delta and guidance.",
-        datasetKey: "stat",
-        element: "div",
-        render: renderStat
-      },
-      {
-        id: "bar-gauge",
-        title: "Bar Gauge",
-        description: "Stacked progress bars for allocation tracking.",
-        datasetKey: "barGauge",
-        element: "div",
-        render: renderBarGauge
-      }
-    ];
-
-    const grid = document.querySelector("#component-grid");
-
-    // Builds an interactive card that mirrors the generator shipped on the game list branch.
-    function buildComponentGenerator(container) {
-      const card = document.createElement("article");
-      card.className = "component-card component-generator";
-      card.style.setProperty("--transition-speed", `${TRANSITION_MS}ms`);
-
-      const header = document.createElement("div");
-      header.className = "component-header";
-
-      const title = document.createElement("h2");
-      title.textContent = "Chart Component Generator";
-
-      const copy = document.createElement("p");
-      copy.textContent = "Combine any Gravibe chart template with a dataset and grab a config stub for your own dashboards.";
-
-      header.append(title, copy);
-
-      const controls = document.createElement("div");
-      controls.className = "generator-controls";
-
-      const chartLabel = document.createElement("label");
-      chartLabel.className = "data-select";
-      chartLabel.innerHTML = "<span>Chart</span>";
-      const chartSelect = document.createElement("select");
-      COMPONENTS.forEach((component) => {
-        const option = document.createElement("option");
-        option.value = component.id;
-        option.textContent = component.title;
-        chartSelect.append(option);
-      });
-      chartLabel.append(chartSelect);
-
-      const datasetLabel = document.createElement("label");
-      datasetLabel.className = "data-select";
-      datasetLabel.innerHTML = "<span>Dataset</span>";
-      const datasetSelect = document.createElement("select");
-      datasetLabel.append(datasetSelect);
-
-      controls.append(chartLabel, datasetLabel);
-
-      const preview = document.createElement("div");
-      preview.className = "generator-preview";
-
-      const previewLabel = document.createElement("span");
-      previewLabel.textContent = "Live preview";
-      previewLabel.style.fontSize = "0.85rem";
-      previewLabel.style.color = "rgba(229, 238, 255, 0.7)";
-      preview.append(previewLabel);
-
-      const previewContainer = document.createElement("div");
-      preview.append(previewContainer);
-
-      const codeWrapper = document.createElement("div");
-      codeWrapper.className = "code-wrapper";
-
-      const snippetLabel = document.createElement("span");
-      snippetLabel.textContent = "Config snippet";
-      snippetLabel.style.fontSize = "0.85rem";
-      snippetLabel.style.color = "rgba(229, 238, 255, 0.7)";
-
-      const copyButton = document.createElement("button");
-      copyButton.type = "button";
-      copyButton.className = "copy-button";
-      copyButton.textContent = "Copy snippet";
-
-      const codeBlock = document.createElement("pre");
-      codeBlock.className = "code-snippet";
-      const codeInner = document.createElement("code");
-      codeBlock.append(codeInner);
-
-      codeWrapper.append(snippetLabel, copyButton, codeBlock);
-
-      card.append(header, controls, preview, codeWrapper);
-      container.prepend(card);
-
-      chartSelect.value = COMPONENTS[0].id;
-
-      let previewViz;
-
-      function refreshDatasetOptions() {
-        datasetSelect.innerHTML = "";
-        const component = COMPONENTS.find((item) => item.id === chartSelect.value) || COMPONENTS[0];
-        const datasets = DATASETS[component.datasetKey];
-        datasets.forEach((dataset) => {
-          const option = document.createElement("option");
-          option.value = dataset.id;
-          option.textContent = dataset.name;
-          datasetSelect.append(option);
-        });
-        return component;
-      }
-
-      function ensurePreviewElement(component) {
-        if (previewViz) {
-          previewViz.remove();
-        }
-        if (component.element === "canvas") {
-          previewViz = document.createElement("canvas");
-          previewViz.width = component.size.width;
-          previewViz.height = component.size.height;
-        } else {
-          previewViz = document.createElement("div");
-          previewViz.className = "viz-block";
-        }
-        previewContainer.innerHTML = "";
-        previewContainer.append(previewViz);
-      }
-
-      function formatSnippet(component, dataset) {
-        const safeDescription = component.description.replace(/"/g, '\\"');
-        return `{
-  component: "${component.id}",
-  dataset: "${dataset.id}",
-  datasetKey: "${component.datasetKey}",
-  title: "${component.title}",
-  description: "${safeDescription}",
-  palette: ${JSON.stringify(PALETTE_SEQUENCE)}
-}`;
-      }
-
-      function renderPreview() {
-        const component = COMPONENTS.find((item) => item.id === chartSelect.value) || COMPONENTS[0];
-        const dataset =
-          DATASETS[component.datasetKey].find((entry) => entry.id === datasetSelect.value) ||
-          DATASETS[component.datasetKey][0];
-        ensurePreviewElement(component);
-        component.render(previewViz, dataset);
-        codeInner.textContent = formatSnippet(component, dataset);
-      }
-
-      async function handleCopy() {
-        const snippet = codeInner.textContent;
-        if (!snippet) {
-          return;
-        }
-
-        try {
-          if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(snippet);
-          } else {
-            const textarea = document.createElement("textarea");
-            textarea.value = snippet;
-            textarea.style.position = "fixed";
-            textarea.style.opacity = "0";
-            document.body.append(textarea);
-            textarea.focus();
-            textarea.select();
-            document.execCommand("copy");
-            textarea.remove();
-          }
-          copyButton.textContent = "Copied!";
-        } catch (error) {
-          copyButton.textContent = "Copy failed";
-        } finally {
-          setTimeout(() => {
-            copyButton.textContent = "Copy snippet";
-          }, 1500);
-        }
-      }
-
-      chartSelect.addEventListener("change", () => {
-        const component = refreshDatasetOptions();
-        datasetSelect.value = DATASETS[component.datasetKey][0]?.id || "";
-        renderPreview();
-      });
-
-      datasetSelect.addEventListener("change", () => {
-        renderPreview();
-      });
-
-      copyButton.addEventListener("click", handleCopy);
-
-      const initialComponent = refreshDatasetOptions();
-      datasetSelect.value = DATASETS[initialComponent.datasetKey][0]?.id || "";
-      renderPreview();
-    }
-
-    buildComponentGenerator(grid);
-
-    COMPONENTS.forEach((component) => {
-      const card = document.createElement("article");
-      card.className = "component-card";
-      card.style.setProperty("--transition-speed", `${TRANSITION_MS}ms`);
-
-      const header = document.createElement("div");
-      header.className = "component-header";
-
-      const title = document.createElement("h2");
-      title.textContent = component.title;
-
-      const description = document.createElement("p");
-      description.textContent = component.description;
-
-      header.append(title, description);
-
-      const selector = document.createElement("label");
-      selector.className = "data-select";
-      selector.innerHTML = `<span>Dataset</span>`;
-
-      const selectEl = document.createElement("select");
-      const options = LIVE_DATASETS[component.datasetKey];
-      options.forEach((dataset) => {
-        const option = document.createElement("option");
-        option.value = dataset.id;
-        option.textContent = dataset.name;
-        selectEl.append(option);
-      });
-
-      selector.append(selectEl);
-
-      let viz;
-      if (component.element === "canvas") {
-        viz = document.createElement("canvas");
-        viz.width = component.size.width;
-        viz.height = component.size.height;
-      } else {
-        viz = document.createElement("div");
-        viz.className = "viz-block";
-      }
-
-      card.append(header, selector, viz);
-      grid.append(card);
-
-      let unsubscribe = null;
-
-      const attachStream = () => {
-        if (unsubscribe) {
-          unsubscribe();
-          unsubscribe = null;
-        }
-
-        const stream = options.find((item) => item.id === selectEl.value) || options[0];
-        unsubscribe = stream.subscribe((dataset) => {
-          component.render(viz, dataset);
-        });
-      };
-
-      selectEl.addEventListener("change", attachStream);
-
-      selectEl.value = options[0].id;
-      attachStream();
-    });
-
-    // === Utility helpers ===
-    function clearCanvas(canvas) {
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      return ctx;
-    }
-
-    function drawGrid(ctx, width, height) {
-      ctx.save();
-      ctx.strokeStyle = withAlpha(COLOR_PALETTE.cyan, 0.12);
-      ctx.lineWidth = 1;
-      const step = 40;
-      for (let x = step; x < width; x += step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-      for (let y = step; y < height; y += step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    function drawNeonLine(ctx, points, color) {
-      ctx.save();
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 12 * GLOW_INTENSITY;
-      ctx.lineWidth = 3;
-
-      ctx.beginPath();
-      points.forEach((pt, index) => {
-        if (index === 0) {
-          ctx.moveTo(pt.x, pt.y);
-        } else {
-          ctx.lineTo(pt.x, pt.y);
-        }
-      });
-      ctx.stroke();
-
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    function drawLabel(ctx, text, x, y, color = "#e2e7ff") {
-      ctx.save();
-      ctx.fillStyle = color;
-      ctx.font = `${0.75 * FONT_SIZE_REM}rem ${getComputedStyle(document.body).fontFamily}`;
-      ctx.fillText(text, x, y);
-      ctx.restore();
-    }
-
-    // === Renderers ===
-    function renderTimeSeries(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const maxT = Math.max(...dataset.channels.flatMap((c) => c.points.map((p) => p.t)));
-      const maxV = Math.max(...dataset.channels.flatMap((c) => c.points.map((p) => p.v)));
-
-      dataset.channels.forEach((channel) => {
-        const mapped = channel.points.map((p) => ({
-          x: (p.t / maxT) * (width - 40) + 20,
-          y: height - (p.v / maxV) * (height - 40) - 20
-        }));
-        drawNeonLine(ctx, mapped, channel.color);
-      });
-    }
-
-    function renderStateTimeline(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const total = dataset.states.reduce((sum, state) => sum + state.duration, 0);
-      let xStart = 20;
-      const y = height / 2;
-      const barHeight = 46;
-
-      dataset.states.forEach((state) => {
-        const segmentWidth = ((state.duration / total) * (width - 40));
-        ctx.fillStyle = state.color;
-        ctx.shadowColor = state.color;
-        ctx.shadowBlur = 16 * GLOW_INTENSITY;
-        ctx.fillRect(xStart, y - barHeight / 2, segmentWidth, barHeight);
-
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
-        ctx.strokeRect(xStart, y - barHeight / 2, segmentWidth, barHeight);
-
-        drawLabel(ctx, state.label, xStart + 8, y + 4);
-
-        xStart += segmentWidth;
-      });
-    }
-
-    function renderStatusHistory(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const cellWidth = (width - 60) / dataset.windows.length;
-      const cellHeight = 46;
-      const y = (height - cellHeight) / 2;
-      const statusColors = {
-        ok: COLOR_PALETTE.green,
-        warn: COLOR_PALETTE.amber,
-        offline: COLOR_PALETTE.magenta
-      };
-
-      dataset.windows.forEach((window, index) => {
-        const x = 30 + index * cellWidth;
-        const color = statusColors[window.value] || COLOR_PALETTE.cyan;
-        ctx.fillStyle = color;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 12 * GLOW_INTENSITY;
-        ctx.fillRect(x, y, cellWidth - 12, cellHeight);
-
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-        ctx.strokeRect(x, y, cellWidth - 12, cellHeight);
-
-        drawLabel(ctx, window.label, x + 8, y + cellHeight + 16, "rgba(229, 238, 255, 0.7)");
-      });
-    }
-
-    function renderBarChart(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const barWidth = (width - 80) / dataset.bars.length;
-      const maxValue = Math.max(...dataset.bars.map((bar) => bar.value));
-
-      dataset.bars.forEach((bar, index) => {
-        const x = 40 + index * barWidth;
-        const barHeight = ((bar.value / maxValue) * (height - 60));
-        const y = height - 30 - barHeight;
-        const gradient = ctx.createLinearGradient(0, y, 0, height - 30);
-        gradient.addColorStop(0, withAlpha(COLOR_PALETTE.magenta, 0.95));
-        gradient.addColorStop(1, withAlpha(COLOR_PALETTE.cyan, 0.85));
-        ctx.fillStyle = gradient;
-        ctx.shadowColor = withAlpha(COLOR_PALETTE.cyan, 0.7);
-        ctx.shadowBlur = 16 * GLOW_INTENSITY;
-        ctx.fillRect(x, y, barWidth * 0.65, barHeight);
-        ctx.shadowBlur = 0;
-        drawLabel(ctx, bar.label, x, height - 10);
-      });
-    }
-
-    function renderHistogram(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const binWidth = (width - 80) / dataset.bins.length;
-      const maxBin = Math.max(...dataset.bins);
-
-      dataset.bins.forEach((value, index) => {
-        const x = 40 + index * binWidth;
-        const barHeight = ((value / maxBin) * (height - 60));
-        const y = height - 30 - barHeight;
-        ctx.fillStyle = withAlpha(COLOR_PALETTE.cyan, 0.75);
-        ctx.shadowColor = withAlpha(COLOR_PALETTE.cyan, 0.8);
-        ctx.shadowBlur = 12 * GLOW_INTENSITY;
-        ctx.fillRect(x, y, binWidth * 0.7, barHeight);
-        ctx.shadowBlur = 0;
-      });
-    }
-
-    function renderHeatmap(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const cellWidth = (width - 40) / dataset.columns;
-      const cellHeight = (height - 40) / dataset.rows;
-
-      dataset.cells.forEach((value, index) => {
-        const row = Math.floor(index / dataset.columns);
-        const col = index % dataset.columns;
-        const x = 20 + col * cellWidth;
-        const y = 20 + row * cellHeight;
-        const color = blendPalette(value);
-        ctx.fillStyle = color;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 10 * GLOW_INTENSITY;
-        ctx.fillRect(x, y, cellWidth - 6, cellHeight - 6);
-      });
-    }
-
-    function renderPieChart(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const total = dataset.slices.reduce((sum, slice) => sum + slice.value, 0);
-      const centerX = width / 2;
-      const centerY = height / 2;
-      const radius = Math.min(width, height) / 2 - 20;
-      let angleStart = -Math.PI / 2;
-
-      dataset.slices.forEach((slice) => {
-        const angle = (slice.value / total) * Math.PI * 2;
-        const angleEnd = angleStart + angle;
-
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.arc(centerX, centerY, radius, angleStart, angleEnd);
-        ctx.closePath();
-
-        ctx.fillStyle = slice.color;
-        ctx.shadowColor = withAlpha(slice.color, 0.85);
-        ctx.shadowBlur = 18 * GLOW_INTENSITY;
-        ctx.fill();
-
-        angleStart = angleEnd;
-      });
-    }
-
-    function renderCandlestick(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const candleWidth = (width - 80) / dataset.candles.length;
-      const allValues = dataset.candles.flatMap((candle) => [candle.open, candle.close, candle.high, candle.low]);
-      const minValue = Math.min(...allValues);
-      const maxValue = Math.max(...allValues);
-
-      dataset.candles.forEach((candle, index) => {
-        const x = 40 + index * candleWidth;
-        const scaled = (value) => height - 30 - ((value - minValue) / (maxValue - minValue)) * (height - 60);
-        const bodyTop = scaled(Math.max(candle.open, candle.close));
-        const bodyBottom = scaled(Math.min(candle.open, candle.close));
-        const wickTop = scaled(candle.high);
-        const wickBottom = scaled(candle.low);
-        const isUp = candle.close >= candle.open;
-        const color = isUp ? COLOR_PALETTE.cyan : COLOR_PALETTE.magenta;
-
-        ctx.strokeStyle = color;
-        ctx.shadowColor = withAlpha(color, 0.75);
-        ctx.shadowBlur = 12 * GLOW_INTENSITY;
-        ctx.beginPath();
-        ctx.moveTo(x + candleWidth * 0.35, wickTop);
-        ctx.lineTo(x + candleWidth * 0.35, wickBottom);
-        ctx.stroke();
-
-        ctx.fillStyle = color;
-        ctx.fillRect(x + candleWidth * 0.15, bodyTop, candleWidth * 0.4, bodyBottom - bodyTop || 2);
-        ctx.shadowBlur = 0;
-        drawLabel(ctx, candle.label, x + candleWidth * 0.05, height - 8);
-      });
-    }
-
-    function renderGauge(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      const centerX = width / 2;
-      const centerY = height * 0.9;
-      const radius = Math.min(width, height) * 0.45;
-      const startAngle = Math.PI;
-      const endAngle = 0;
-
-      ctx.lineWidth = 20;
-      let previousValue = 0;
-      dataset.thresholds.forEach((threshold) => {
-        const normalizedStart = previousValue / dataset.max;
-        const normalizedEnd = threshold.value / dataset.max;
-        ctx.beginPath();
-        ctx.strokeStyle = threshold.color;
-        ctx.shadowColor = threshold.color;
-        ctx.shadowBlur = 14 * GLOW_INTENSITY;
-        ctx.arc(
-          centerX,
-          centerY,
-          radius,
-          startAngle + normalizedStart * Math.PI,
-          startAngle + normalizedEnd * Math.PI
-        );
-        ctx.stroke();
-        previousValue = threshold.value;
-      });
-
-      const valueRatio = dataset.value / dataset.max;
-      const angle = startAngle + valueRatio * Math.PI;
-      const needleX = centerX + Math.cos(angle) * (radius - 8);
-      const needleY = centerY + Math.sin(angle) * (radius - 8);
-
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.lineTo(needleX, needleY);
-      ctx.stroke();
-
-      ctx.fillStyle = "#0b0b1f";
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-      ctx.stroke();
-
-      drawLabel(ctx, `${dataset.value} / ${dataset.max}`, centerX - 36, centerY - radius - 12);
-    }
-
-    function renderTrend(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const max = Math.max(...dataset.points);
-      const min = Math.min(...dataset.points);
-      const stepX = (width - 40) / (dataset.points.length - 1);
-
-      const mapped = dataset.points.map((value, index) => ({
-        x: 20 + index * stepX,
-        y: height - 20 - ((value - min) / (max - min || 1)) * (height - 40)
-      }));
-
-      const gradient = ctx.createLinearGradient(0, 0, width, 0);
-      gradient.addColorStop(0, withAlpha(COLOR_PALETTE.cyan, 0.5));
-      gradient.addColorStop(1, withAlpha(COLOR_PALETTE.magenta, 0.5));
-
-      ctx.beginPath();
-      ctx.moveTo(mapped[0].x, height - 20);
-      mapped.forEach((pt) => ctx.lineTo(pt.x, pt.y));
-      ctx.lineTo(mapped[mapped.length - 1].x, height - 20);
-      ctx.closePath();
-      ctx.fillStyle = gradient;
-      ctx.globalAlpha = 0.65;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-
-      drawNeonLine(ctx, mapped, COLOR_PALETTE.cyan);
-    }
-
-    function renderXY(canvas, dataset) {
-      const ctx = clearCanvas(canvas);
-      const { width, height } = canvas;
-      drawGrid(ctx, width, height);
-
-      const maxX = Math.max(...dataset.points.map((pt) => pt.x));
-      const maxY = Math.max(...dataset.points.map((pt) => pt.y));
-
-      dataset.points.forEach((pt) => {
-        const x = 20 + (pt.x / maxX) * (width - 40);
-        const y = height - 20 - (pt.y / maxY) * (height - 40);
-        ctx.fillStyle = withAlpha(COLOR_PALETTE.green, 0.85);
-        ctx.shadowColor = withAlpha(COLOR_PALETTE.cyan, 0.8);
-        ctx.shadowBlur = 12 * GLOW_INTENSITY;
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
-
-    function renderStat(container, dataset) {
-      container.innerHTML = "";
-      const number = document.createElement("div");
-      number.className = "stat-number";
-      number.textContent = `${dataset.value}${dataset.unit}`;
-
-      const meta = document.createElement("div");
-      meta.className = "stat-meta";
-      meta.innerHTML = `<span>${dataset.name}</span><span class="stat-trend">${dataset.delta}</span>`;
-
-      const sub = document.createElement("div");
-      sub.textContent = dataset.meta;
-      sub.style.color = "rgba(229, 238, 255, 0.7)";
-      sub.style.fontSize = "0.9rem";
-
-      container.append(number, meta, sub);
-    }
-
-    function renderBarGauge(container, dataset) {
-      container.innerHTML = "";
-      dataset.bars.forEach((bar) => {
-        const row = document.createElement("div");
-        row.className = "bar-gauge-row";
-
-        const label = document.createElement("div");
-        label.textContent = bar.label;
-        label.style.fontSize = "0.9rem";
-        label.style.color = "rgba(229, 238, 255, 0.75)";
-
-        const track = document.createElement("div");
-        track.className = "bar-gauge-bar";
-        const fill = document.createElement("span");
-        fill.style.width = `${Math.round(bar.value * 100)}%`;
-        track.append(fill);
-
-        row.append(label, track);
-        container.append(row);
-      });
-    }
-  </script>
+  <main class="component-grid">
+    <article class="component-card" data-component="timeSeries">
+      <header>
+        <h2>Time Series Flux</h2>
+        <p>Compare up to three concurrent signals pulsing across the same time axis.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Drop in more series with matching timestamps to expand the glow trail.</footer>
+    </article>
+
+    <article class="component-card" data-component="stateTimeline">
+      <header>
+        <h2>State Timeline</h2>
+        <p>Visualize how a system jumped between named states throughout a shift.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Extend the timeline by appending additional state spans.</footer>
+    </article>
+
+    <article class="component-card" data-component="statusHistory">
+      <header>
+        <h2>Status History Bands</h2>
+        <p>Show the stacked history of categorical statuses across multiple squads.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add or remove squads to show more tracks.</footer>
+    </article>
+
+    <article class="component-card" data-component="barChart">
+      <header>
+        <h2>Clustered Bar Pulse</h2>
+        <p>Compare categories side-by-side, across multiple samples.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Feed more samples to add additional glowing groups.</footer>
+    </article>
+
+    <article class="component-card" data-component="histogram">
+      <header>
+        <h2>Spectrum Histogram</h2>
+        <p>Bucket raw values into luminous frequency bars.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Tune the bin count to tighten or soften the glow.</footer>
+    </article>
+
+    <article class="component-card" data-component="heatmap">
+      <header>
+        <h2>Heatmap Grid</h2>
+        <p>Encode intensity and compare multiple sources across a matrix.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Blend in additional channels by supplying more rows.</footer>
+    </article>
+
+    <article class="component-card" data-component="pieChart">
+      <header>
+        <h2>Radial Split</h2>
+        <p>Display share of voice with a neon segmented pie.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Reorder slices by editing the dataset array.</footer>
+    </article>
+
+    <article class="component-card" data-component="candlestick">
+      <header>
+        <h2>Candlestick Ticker</h2>
+        <p>Capture open-high-low-close telemetry with glimmering wicks.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Feed in more sessions to project longer runs.</footer>
+    </article>
+
+    <article class="component-card" data-component="gauge">
+      <header>
+        <h2>Arcade Gauge</h2>
+        <p>Track current progress against a neon halo threshold.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Switch the target threshold to change the danger band.</footer>
+    </article>
+
+    <article class="component-card" data-component="trend">
+      <header>
+        <h2>Trend Ribbon</h2>
+        <p>Blend multiple smoothed trends into a single glow ribbon.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Adjust the smoothing multiplier for sharper turns.</footer>
+    </article>
+
+    <article class="component-card" data-component="xyScatter">
+      <header>
+        <h2>XY Scatter Field</h2>
+        <p>Plot clusters and see how they drift together through glowing space.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add more clusters to compare additional cohorts.</footer>
+    </article>
+
+    <article class="component-card" data-component="stat">
+      <header>
+        <h2>Stat Pulse</h2>
+        <p>Showcase a primary metric with a rolling delta indicator.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="stat-shell">
+        <div class="stat-value"></div>
+        <div class="stat-meta"></div>
+      </div>
+      <footer class="component-notes">Pair with different baselines to flip the delta tone.</footer>
+    </article>
+
+    <article class="component-card" data-component="barGauge">
+      <header>
+        <h2>Bar Gauge Stack</h2>
+        <p>Render stacked contributions with a linear neon bar.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="stat-shell">
+        <div class="bar-gauge-track">
+          <div class="bar-gauge-fill"></div>
+        </div>
+        <ul class="bar-gauge-legend"></ul>
+      </div>
+      <footer class="component-notes">Rebalance the contributions to highlight different segments.</footer>
+    </article>
+  </main>
 </body>
 </html>

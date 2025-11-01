@@ -18,6 +18,7 @@ Each game is also directly accessible:
 - https://asynkron.github.io/VibeGames/nemesis/
 - https://asynkron.github.io/VibeGames/battle-isle/
 - https://asynkron.github.io/VibeGames/sprite-generator/
+- https://asynkron.github.io/VibeGames/gravibe/
 
 ### Enable the site
 
