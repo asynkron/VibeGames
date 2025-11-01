@@ -600,15 +600,15 @@ body {
 }
 
 .log-row--severity-info .log-row-severity {
-  color: var(--accent-secondary);
-  border-color: rgb(var(--accent-secondary-rgb) / 0.45);
-  background: rgb(var(--accent-secondary-rgb) / 0.16);
+  color: var(--accent-tertiary);
+  border-color: rgb(var(--accent-tertiary-rgb) / 0.45);
+  background: rgb(var(--accent-tertiary-rgb) / 0.16);
 }
 
 .log-row--severity-warn .log-row-severity {
-  color: var(--accent-quinary);
-  border-color: rgb(var(--accent-quinary-rgb) / 0.45);
-  background: rgb(var(--accent-quinary-rgb) / 0.16);
+  color: var(--accent-secondary);
+  border-color: rgb(var(--accent-secondary-rgb) / 0.45);
+  background: rgb(var(--accent-secondary-rgb) / 0.16);
 }
 
 .log-row--severity-error .log-row-severity {
