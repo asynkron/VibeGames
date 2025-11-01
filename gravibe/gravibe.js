@@ -1087,16 +1087,24 @@ const chartResizeHandlers = new WeakMap();
 function initDatasetSelector(article, datasetKey) {
   const select = article.querySelector(".dataset-select");
   const entries = neonDatasets[datasetKey] ?? [];
+
+  if (!select) {
+    return { select: null, defaultIndex: 0 };
+  }
+
   select.innerHTML = "";
 
   entries.forEach((dataset, index) => {
     const option = document.createElement("option");
     option.value = index.toString();
-    option.textContent = dataset.label;
+    const liveSuffix = dataset.live ? " (Live)" : "";
+    option.textContent = `${dataset.label}${liveSuffix}`;
     select.append(option);
   });
 
-  return select;
+  // Default to the first streaming dataset so the dashboard feels alive on load.
+  const liveIndex = entries.findIndex((dataset) => dataset.live);
+  return { select, defaultIndex: liveIndex >= 0 ? liveIndex : 0 };
 }
 
 function createChartInstance(container) {
@@ -2317,7 +2325,7 @@ function setupComponent(article) {
     return;
   }
 
-  const datasetSelect = initDatasetSelector(article, datasetKey);
+  const { select: datasetSelect, defaultIndex } = initDatasetSelector(article, datasetKey);
   let liveController = null;
 
   function stopLiveMode() {
@@ -2337,7 +2345,11 @@ function setupComponent(article) {
   }
 
   function runRender() {
-    const selectedIndex = Number.parseInt(datasetSelect.value, 10) || 0;
+    // Fall back to a live dataset index when the selector is absent (e.g. stat cards).
+    const fallbackIndex = defaultIndex ?? 0;
+    const rawValue = datasetSelect?.value ?? fallbackIndex.toString();
+    const parsedIndex = Number.parseInt(rawValue, 10);
+    const selectedIndex = Number.isNaN(parsedIndex) ? fallbackIndex : parsedIndex;
     const dataset = neonDatasets[datasetKey]?.[selectedIndex];
 
     if (!dataset) {
@@ -2359,8 +2371,11 @@ function setupComponent(article) {
     }
   }
 
-  datasetSelect.addEventListener("change", runRender);
-  datasetSelect.value = "0";
+  if (datasetSelect) {
+    datasetSelect.addEventListener("change", runRender);
+    datasetSelect.value = (defaultIndex ?? 0).toString();
+  }
+
   runRender();
 
   componentRegistry.add(runRender);
