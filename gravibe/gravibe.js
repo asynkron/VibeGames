@@ -422,6 +422,542 @@ const neonDatasets = {
   ],
 };
 
+function createLiveTimeSeriesDataset() {
+  const axisLength = 12;
+  const baseSeries = [
+    { name: "Projected", color: "#38f2ff", base: 650, variance: 28, min: 520, max: 780 },
+    { name: "Actual", color: "#f472b6", base: 610, variance: 32, min: 480, max: 760 },
+    { name: "Capacity", color: "#a855f7", base: 720, variance: 18, min: 640, max: 820 },
+  ];
+
+  const axis = [];
+  const dataset = {
+    label: "Live Flux Telemetry",
+    live: true,
+    axis,
+    series: baseSeries.map(({ name, color }) => ({ name, color, data: [] })),
+    interval: 2200,
+    next,
+    reset,
+  };
+
+  let tick = 0;
+
+  function formatTick(index) {
+    const hour = String(index % 24).padStart(2, "0");
+    const minute = String((index * 5) % 60).padStart(2, "0");
+    return `${hour}:${minute}`;
+  }
+
+  function reset() {
+    axis.length = 0;
+    tick = 0;
+    for (let i = 0; i < axisLength; i += 1) {
+      axis.push(formatTick(tick));
+      tick += 1;
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      series.data.length = 0;
+      let value = config.base;
+      for (let i = 0; i < axisLength; i += 1) {
+        value = jitterValue(value, config.variance, config.min, config.max);
+        series.data.push(Math.round(value));
+      }
+    });
+  }
+
+  function next() {
+    axis.push(formatTick(tick));
+    tick += 1;
+    if (axis.length > axisLength) {
+      axis.shift();
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      const last = series.data[series.data.length - 1] ?? config.base;
+      const value = jitterValue(last, config.variance, config.min, config.max);
+      series.data.push(Math.round(value));
+      if (series.data.length > axisLength) {
+        series.data.shift();
+      }
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveStateTimelineDataset() {
+  const palette = {
+    Idle: "#38bdf8",
+    Warmup: "#22d3ee",
+    Online: "#38f2ff",
+    Alert: "#f97316",
+    Cooldown: "#a855f7",
+    Offline: "#475569",
+    Calibration: "#f472b6",
+    Maintenance: "#fb7185",
+  };
+
+  const dataset = {
+    label: "Live Shift Timeline",
+    live: true,
+    maxTime: 8,
+    tracks: [],
+    palette,
+    interval: 6000,
+    next: reset,
+    reset,
+  };
+
+  function buildTrack(name) {
+    const spans = [];
+    let cursor = 0;
+    while (cursor < dataset.maxTime) {
+      const duration = randomFloat(0.6, 1.6, 2);
+      const end = Math.min(dataset.maxTime, parseFloat((cursor + duration).toFixed(2)));
+      const state = weightedRandomPick([
+        { value: "Online", weight: 4 },
+        { value: "Idle", weight: 2 },
+        { value: "Warmup", weight: 1.5 },
+        { value: "Cooldown", weight: 1.5 },
+        { value: "Alert", weight: 1 },
+        { value: "Maintenance", weight: 0.8 },
+        { value: "Calibration", weight: 0.7 },
+        { value: "Offline", weight: 0.6 },
+      ]);
+      spans.push({ state, start: parseFloat(cursor.toFixed(2)), end });
+      cursor = end;
+    }
+    return { name, spans };
+  }
+
+  function reset() {
+    dataset.tracks = [
+      buildTrack("Reactor Core"),
+      buildTrack("Shield Array"),
+      buildTrack("Drone Bay"),
+    ];
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveStatusHistoryDataset() {
+  const statusPalette = {
+    Idle: "#1f2937",
+    Online: "#38f2ff",
+    Alert: "#f97316",
+    Maintenance: "#f472b6",
+    Offline: "#0f172a",
+    Standby: "#a855f7",
+  };
+
+  const categoryCount = 6;
+  let tick = 0;
+
+  const dataset = {
+    label: "Live Relay Status",
+    live: true,
+    categories: Array.from({ length: categoryCount }, () => ""),
+    series: [],
+    interval: 5000,
+    reset,
+    next: reset,
+  };
+
+  const teams = ["Relay One", "Relay Two", "Relay Three"];
+  const states = Object.keys(statusPalette);
+
+  function formatCategory(index) {
+    const hour = String(index % 24).padStart(2, "0");
+    const minute = String((index * 10) % 60).padStart(2, "0");
+    return `${hour}:${minute}`;
+  }
+
+  function rotateCategories() {
+    for (let i = 0; i < categoryCount; i += 1) {
+      dataset.categories[i] = formatCategory(tick + i);
+    }
+    tick += 1;
+  }
+
+  function randomStates() {
+    return dataset.categories.map(() => states[randomInt(0, states.length - 1)]);
+  }
+
+  function reset() {
+    rotateCategories();
+    dataset.series = teams.map((name) => ({
+      name,
+      states: randomStates(),
+      colors: statusPalette,
+    }));
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveBarChartDataset() {
+  const dataset = {
+    label: "Live Signal Load",
+    live: true,
+    axis: ["Node A", "Node B", "Node C", "Node D"],
+    series: [
+      { name: "Inbound", color: "#38f2ff", data: [] },
+      { name: "Outbound", color: "#f472b6", data: [] },
+    ],
+    interval: 2600,
+    reset,
+    next,
+  };
+
+  function reset() {
+    dataset.series.forEach((series) => {
+      series.data = dataset.axis.map(() => randomInt(32, 68));
+    });
+  }
+
+  function next() {
+    dataset.series.forEach((series) => {
+      series.data = series.data.map((value) => Math.round(jitterValue(value, 6, 20, 80)));
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveHistogramDataset() {
+  const bins = 8;
+  const dataset = {
+    label: "Live Signal Noise",
+    live: true,
+    bins: [],
+    interval: 3200,
+    reset,
+    next,
+  };
+
+  function reset() {
+    dataset.bins = Array.from({ length: bins }, () => randomInt(4, 18));
+  }
+
+  function next() {
+    dataset.bins = dataset.bins.map((value) => Math.max(2, Math.round(jitterValue(value, 4, 2, 24))));
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveHeatmapDataset() {
+  const width = 6;
+  const height = 4;
+  const dataset = {
+    label: "Live Command Grid",
+    live: true,
+    xLabels: Array.from({ length: width }, (_, i) => `T+${i}h`),
+    yLabels: ["Alpha", "Beta", "Gamma", "Delta"],
+    matrix: [],
+    interval: 2800,
+    reset,
+    next,
+  };
+
+  function reset() {
+    dataset.matrix = Array.from({ length: height }, () =>
+      Array.from({ length: width }, () => randomFloat(0.2, 1, 2)),
+    );
+  }
+
+  function next() {
+    dataset.matrix = dataset.matrix.map((row) =>
+      row.map((value) => parseFloat(jitterValue(value, 0.15, 0.05, 1).toFixed(2))),
+    );
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLivePieChartDataset() {
+  const slices = [
+    { name: "Beacon", color: "#38f2ff" },
+    { name: "Relay", color: "#f472b6" },
+    { name: "Drone", color: "#a855f7" },
+    { name: "Reserve", color: "#34d399" },
+  ];
+
+  const dataset = {
+    label: "Live Signal Share",
+    live: true,
+    slices: [],
+    interval: 3400,
+    reset,
+    next: reset,
+  };
+
+  function reset() {
+    const totals = slices.map(() => randomInt(12, 36));
+    const sum = totals.reduce((acc, value) => acc + value, 0);
+    dataset.slices = slices.map((slice, index) => ({
+      ...slice,
+      value: Math.round((totals[index] / sum) * 100),
+    }));
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveCandlestickDataset() {
+  const axisLength = 10;
+  const axis = [];
+  const candles = [];
+  let tick = 0;
+
+  const dataset = {
+    label: "Live Flux Futures",
+    live: true,
+    axis,
+    candles,
+    interval: 3600,
+    reset,
+    next,
+  };
+
+  function axisLabel(index) {
+    return `T${String(index).padStart(2, "0")}`;
+  }
+
+  function makeCandle(base) {
+    const open = jitterValue(base, 12, 420, 780);
+    const close = jitterValue(open, 14, 420, 800);
+    const high = Math.max(open, close) + Math.random() * 16;
+    const low = Math.min(open, close) - Math.random() * 16;
+    return [Math.round(open), Math.round(close), Math.round(low), Math.round(high)];
+  }
+
+  function reset() {
+    axis.length = 0;
+    candles.length = 0;
+    tick = 0;
+    let base = 640;
+    for (let i = 0; i < axisLength; i += 1) {
+      axis.push(axisLabel(tick));
+      tick += 1;
+      const candle = makeCandle(base);
+      candles.push(candle);
+      base = candle[1];
+    }
+  }
+
+  function next() {
+    axis.push(axisLabel(tick));
+    tick += 1;
+    if (axis.length > axisLength) {
+      axis.shift();
+    }
+
+    const base = candles[candles.length - 1]?.[1] ?? 640;
+    const candle = makeCandle(base);
+    candles.push(candle);
+    if (candles.length > axisLength) {
+      candles.shift();
+    }
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveGaugeDataset() {
+  const dataset = {
+    label: "Live Charge Level",
+    live: true,
+    value: 70,
+    target: 85,
+    interval: 2400,
+    reset,
+    next,
+  };
+
+  function reset() {
+    dataset.value = randomInt(54, 88);
+  }
+
+  function next() {
+    dataset.value = Math.round(jitterValue(dataset.value, 6, 40, 100));
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveTrendDataset() {
+  const axis = Array.from({ length: 18 }, (_, i) => `T+${i}`);
+  const baseSeries = [
+    { name: "Baseline", color: "#38f2ff", base: 38, variance: 6, min: 20, max: 80 },
+    { name: "Smoothed", color: "#f472b6", base: 34, variance: 5, min: 18, max: 74 },
+  ];
+
+  const dataset = {
+    label: "Live Energy Trend",
+    live: true,
+    axis,
+    series: baseSeries.map(({ name, color }) => ({ name, color, data: [] })),
+    interval: 2500,
+    reset,
+    next,
+  };
+
+  function reset() {
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      series.data.length = 0;
+      let value = config.base;
+      for (let i = 0; i < axis.length; i += 1) {
+        value = jitterValue(value, config.variance, config.min, config.max);
+        series.data.push(parseFloat(value.toFixed(1)));
+      }
+    });
+  }
+
+  function next() {
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      const last = series.data[series.data.length - 1] ?? config.base;
+      const value = jitterValue(last, config.variance, config.min, config.max);
+      series.data.push(parseFloat(value.toFixed(1)));
+      series.data.shift();
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveScatterDataset() {
+  const dataset = {
+    label: "Live Drone Swarms",
+    live: true,
+    series: [
+      { name: "Squad A", color: "#38f2ff", points: [] },
+      { name: "Squad B", color: "#f472b6", points: [] },
+    ],
+    interval: 3000,
+    reset,
+    next,
+  };
+
+  function randomPoint() {
+    return [randomInt(10, 40), randomInt(20, 60), randomInt(8, 18)];
+  }
+
+  function reset() {
+    dataset.series.forEach((series) => {
+      series.points = Array.from({ length: 4 }, () => randomPoint());
+    });
+  }
+
+  function next() {
+    dataset.series.forEach((series) => {
+      series.points = series.points.map(([x, y, z]) => [
+        Math.round(jitterValue(x, 4, 8, 48)),
+        Math.round(jitterValue(y, 6, 10, 70)),
+        Math.round(jitterValue(z, 3, 6, 22)),
+      ]);
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveStatDataset() {
+  const dataset = {
+    label: "Live Core Output",
+    live: true,
+    value: 9600,
+    delta: 0,
+    deltaLabel: "vs. prior pulse",
+    meta: "Neon array adjusting in real time",
+    interval: 2600,
+    unit: "",
+    reset,
+    next,
+  };
+
+  function reset() {
+    dataset.value = randomInt(9000, 10200);
+    dataset.delta = randomInt(-120, 180);
+  }
+
+  function next() {
+    dataset.value = randomInt(9000, 10400);
+    dataset.delta = randomInt(-180, 260);
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveBarGaugeDataset() {
+  const sections = [
+    { name: "Ops", color: "#38f2ff" },
+    { name: "Defense", color: "#f472b6" },
+    { name: "Support", color: "#a855f7" },
+    { name: "Reserve", color: "#38bdf8" },
+  ];
+
+  const dataset = {
+    label: "Live Resource Allocation",
+    live: true,
+    sections: [],
+    interval: 3200,
+    reset,
+    next: reset,
+  };
+
+  function reset() {
+    const weights = sections.map(() => Math.random() + 0.4);
+    const total = weights.reduce((sum, value) => sum + value, 0);
+    dataset.sections = sections.map((section, index) => ({
+      ...section,
+      value: parseFloat((weights[index] / total).toFixed(2)),
+    }));
+  }
+
+  reset();
+  return dataset;
+}
+
+function registerLiveDatasets() {
+  neonDatasets.timeSeries.push(createLiveTimeSeriesDataset());
+  neonDatasets.stateTimeline.push(createLiveStateTimelineDataset());
+  neonDatasets.statusHistory.push(createLiveStatusHistoryDataset());
+  neonDatasets.barChart.push(createLiveBarChartDataset());
+  neonDatasets.histogram.push(createLiveHistogramDataset());
+  neonDatasets.heatmap.push(createLiveHeatmapDataset());
+  neonDatasets.pieChart.push(createLivePieChartDataset());
+  neonDatasets.candlestick.push(createLiveCandlestickDataset());
+  neonDatasets.gauge.push(createLiveGaugeDataset());
+  neonDatasets.trend.push(createLiveTrendDataset());
+  neonDatasets.xyScatter.push(createLiveScatterDataset());
+  neonDatasets.stat.push(createLiveStatDataset());
+  neonDatasets.barGauge.push(createLiveBarGaugeDataset());
+}
+
+registerLiveDatasets();
+
+const chartResizeHandlers = new WeakMap();
+
 function initDatasetSelector(article, datasetKey) {
   const select = article.querySelector(".dataset-select");
   const entries = neonDatasets[datasetKey] ?? [];
@@ -438,14 +974,75 @@ function initDatasetSelector(article, datasetKey) {
 }
 
 function createChartInstance(container) {
+  const existing = echarts.getInstanceByDom(container);
+  if (existing) {
+    return existing;
+  }
+
   const chart = echarts.init(container);
-  window.addEventListener("resize", () => chart.resize());
+  const resizeHandler = () => chart.resize();
+  chartResizeHandlers.set(chart, resizeHandler);
+  window.addEventListener("resize", resizeHandler);
   return chart;
+}
+
+const LIVE_DEFAULT_INTERVAL = 2600;
+
+function clamp(value, min, max) {
+  if (typeof min === "number") {
+    value = Math.max(min, value);
+  }
+  if (typeof max === "number") {
+    value = Math.min(max, value);
+  }
+  return value;
+}
+
+function jitterValue(value, variance, min, max) {
+  const delta = (Math.random() * variance * 2) - variance;
+  return clamp(value + delta, min, max);
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomFloat(min, max, precision = 2) {
+  const factor = 10 ** precision;
+  return Math.round((Math.random() * (max - min) + min) * factor) / factor;
+}
+
+function weightedRandomPick(items) {
+  const total = items.reduce((sum, item) => sum + (item.weight ?? 1), 0);
+  const target = Math.random() * total;
+  let cumulative = 0;
+  for (const item of items) {
+    cumulative += item.weight ?? 1;
+    if (target <= cumulative) return item.value;
+  }
+  return items[items.length - 1]?.value;
+}
+
+function startLiveUpdater(callback, interval = LIVE_DEFAULT_INTERVAL) {
+  const timer = window.setInterval(() => {
+    try {
+      callback();
+    } catch (error) {
+      console.error("Live data update failed", error);
+    }
+  }, interval);
+
+  return {
+    stop() {
+      window.clearInterval(timer);
+    },
+  };
 }
 
 function renderTimeSeries(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     animationDuration: 700,
@@ -534,6 +1131,7 @@ function renderStateTimeline(dataset, container) {
     })),
   );
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     grid: {
@@ -636,6 +1234,7 @@ function renderStatusHistory(dataset, container) {
 
   const statuses = Array.from(statusSet);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     legend: {
@@ -716,6 +1315,7 @@ function renderStatusHistory(dataset, container) {
 function renderBarChart(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     legend: {
@@ -793,6 +1393,7 @@ function renderBarChart(dataset, container) {
 function renderHistogram(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     grid: {
@@ -864,6 +1465,7 @@ function renderHeatmap(dataset, container) {
   const min = Math.min(...flattened);
   const max = Math.max(...flattened);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     grid: {
@@ -949,6 +1551,7 @@ function renderHeatmap(dataset, container) {
 function renderPieChart(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     tooltip: {
@@ -1011,6 +1614,7 @@ function renderPieChart(dataset, container) {
 function renderCandlestick(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     animationDuration: 700,
@@ -1083,6 +1687,7 @@ function renderCandlestick(dataset, container) {
 function renderGauge(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   // Clamp values so the gauge never renders beyond its 0-100 domain.
   const value = Math.min(Math.max(dataset.value ?? 0, 0), 100);
   const target = Math.min(Math.max(dataset.target ?? 0, 0), 100);
@@ -1273,6 +1878,7 @@ function renderGauge(dataset, container) {
 function renderTrend(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     grid: {
@@ -1349,6 +1955,7 @@ function renderTrend(dataset, container) {
 function renderXYScatter(dataset, container) {
   const chart = createChartInstance(container);
 
+  chart.clear();
   chart.setOption({
     backgroundColor: "transparent",
     legend: {
@@ -1581,7 +2188,23 @@ function setupComponent(article) {
   }
 
   const datasetSelect = initDatasetSelector(article, datasetKey);
-  let chartInstance = null;
+  let liveController = null;
+
+  function stopLiveMode() {
+    if (liveController) {
+      liveController.stop();
+      liveController = null;
+    }
+  }
+
+  function renderIntoArticle(dataset) {
+    const chartContainer = article.querySelector(".chart-canvas");
+    if (chartContainer) {
+      renderer(dataset, chartContainer);
+    } else {
+      renderer(dataset, article);
+    }
+  }
 
   function runRender() {
     const selectedIndex = Number.parseInt(datasetSelect.value, 10) || 0;
@@ -1592,16 +2215,17 @@ function setupComponent(article) {
       return;
     }
 
-    if (chartInstance) {
-      chartInstance.dispose?.();
-      chartInstance = null;
-    }
+    stopLiveMode();
 
-    if (article.querySelector(".chart-canvas")) {
-      const chartContainer = article.querySelector(".chart-canvas");
-      chartInstance = renderer(dataset, chartContainer);
-    } else {
-      renderer(dataset, article);
+    dataset.reset?.();
+    renderIntoArticle(dataset);
+
+    if (dataset.live && typeof dataset.next === "function") {
+      const interval = dataset.interval ?? LIVE_DEFAULT_INTERVAL;
+      liveController = startLiveUpdater(() => {
+        dataset.next();
+        renderIntoArticle(dataset);
+      }, interval);
     }
   }
 
