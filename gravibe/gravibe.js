@@ -3,6 +3,8 @@
  * Each component exposes multiple datasets and detailed comments so AI agents can remix the visuals quickly.
  */
 
+import { initLogConsole, sampleLogRows } from "./gravibe-logs.js";
+
 const colorRoles = [
   "accentPrimary",
   "accentSecondary",
@@ -3969,6 +3971,12 @@ function initGravibe() {
 
   const components = document.querySelectorAll(".component-card");
   components.forEach((component) => setupComponent(component));
+
+  const logConsoleHost = document.querySelector('[data-component="logConsole"]');
+  if (logConsoleHost) {
+    const rerenderLogConsole = initLogConsole(logConsoleHost, sampleLogRows);
+    componentRegistry.add(rerenderLogConsole);
+  }
 }
 
 if (document.readyState === "loading") {
