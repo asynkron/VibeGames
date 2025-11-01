@@ -733,7 +733,7 @@ function renderSpanNode(trace, node, state) {
   let detailsOpen = hasDetails && spanState.expandedAttributes.has(spanId);
   if (hasDetails) {
     timeline.setAttribute("aria-controls", detailSections.id);
-    detailSections.hidden = !detailsOpen;
+    // Don't use hidden - let CSS handle the fade-in animation
     timeline.setAttribute("aria-expanded", String(detailsOpen));
     container.classList.toggle("trace-span--details-open", detailsOpen);
   } else {
@@ -779,7 +779,7 @@ function renderSpanNode(trace, node, state) {
     event.stopPropagation();
     detailsOpen = !detailsOpen;
     container.classList.toggle("trace-span--details-open", detailsOpen);
-    detailSections.hidden = !detailsOpen;
+    // Don't use hidden - let CSS handle the animation
     timeline.setAttribute("aria-expanded", String(detailsOpen));
     if (detailsOpen) {
       spanState.expandedAttributes.add(spanId);
