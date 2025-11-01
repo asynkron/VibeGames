@@ -574,13 +574,21 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  align-items: baseline;
+  align-items: center;
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   color: var(--text-muted);
   cursor: pointer;
   text-align: left;
   inline-size: var(--trace-span-service-width, 16rem);
+}
+
+.trace-span__service-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .trace-span__service:disabled,
@@ -923,12 +931,16 @@ body {
 
 .log-row {
   background: rgba(18, 22, 30, 0.85);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
 }
 
 .log-row[open] {
   box-shadow: 0 0 0 1px rgb(var(--accent-secondary-rgb) / 0.45);
   transform: translateY(-1px);
+}
+
+.log-row-summary:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .log-row-summary {

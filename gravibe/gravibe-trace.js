@@ -892,7 +892,36 @@ function renderSpanSummary(trace, node, timeWindow = { start: 0, end: 100 }) {
   const serviceName = node.span.resource?.serviceName || "unknown-service";
   const namespace = node.span.resource?.serviceNamespace;
   const scope = node.span.instrumentationScope?.name;
+
+  // Get service color for indicator (will compute for bar later too)
+  const getServiceColor = (serviceName) => {
+    const serviceIdx = trace.serviceNameMapping?.get(serviceName) ?? 0;
+    const paletteCols = getPaletteColors();
+    const paletteLen = paletteCols.length;
+    const colorIdx = serviceIdx % paletteLen;
+    const palColor = paletteCols[colorIdx];
+    const normColor = normalizeColorBrightness(palColor, 50, 0.7);
+
+    const hexToRgbHelper = (hex) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: Number.parseInt(result[1], 16),
+        g: Number.parseInt(result[2], 16),
+        b: Number.parseInt(result[3], 16),
+      } : null;
+    };
+
+    return hexToRgbHelper(normColor);
+  };
+
+  const serviceRgb = getServiceColor(serviceName);
+  let serviceColorStyle = "";
+  if (serviceRgb) {
+    serviceColorStyle = `background-color: rgba(${serviceRgb.r}, ${serviceRgb.g}, ${serviceRgb.b}, 0.6);`;
+  }
+
   service.innerHTML = `
+    <span class="trace-span__service-indicator" style="${serviceColorStyle}"></span>
     <span class="trace-span__service-name">${serviceName}</span>
     ${namespace ? `<span class="trace-span__service-namespace">${namespace}</span>` : ""}
     ${scope ? `<span class="trace-span__scope">${scope}</span>` : ""}
