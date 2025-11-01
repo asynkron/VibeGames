@@ -12,6 +12,10 @@ const colorRoles = [
   "accentSenary",
 ];
 
+const DEFAULT_RENDERER_MODE = "svg";
+const BACKGROUND_EFFECTS = ["solid", "linear", "radial"];
+const DEFAULT_BACKGROUND_EFFECT = "linear";
+
 // Each entry describes a selectable base palette so designers can add new themes quickly.
 const colorPalettes = [
   {
@@ -40,10 +44,10 @@ const paletteState = {
 const componentRegistry = new Set();
 
 // Track the current ECharts renderer so we can recreate instances when toggled.
-const rendererState = { mode: "canvas" };
+const rendererState = { mode: DEFAULT_RENDERER_MODE };
 
 function normalizeBackgroundEffect(effect) {
-  return ["solid", "linear", "radial"].includes(effect) ? effect : "solid";
+  return BACKGROUND_EFFECTS.includes(effect) ? effect : DEFAULT_BACKGROUND_EFFECT;
 }
 
 // Remember the chosen ambient background so the dropdown can stay in sync.
@@ -51,7 +55,7 @@ const backgroundState = {
   effect: normalizeBackgroundEffect(
     document.querySelector(".chart-shell")?.dataset.backgroundEffect ||
       document.body?.dataset.backgroundEffect ||
-      "solid"
+      DEFAULT_BACKGROUND_EFFECT
   ),
 };
 
@@ -216,6 +220,9 @@ function registerRendererControl() {
 function applyBackgroundEffect(effect) {
   const resolved = normalizeBackgroundEffect(effect);
   backgroundState.effect = resolved;
+  if (document.body) {
+    document.body.dataset.backgroundEffect = resolved;
+  }
   document
     .querySelectorAll(".chart-shell")
     .forEach((shell) => {
@@ -230,8 +237,9 @@ function registerBackgroundControl() {
     return;
   }
 
-  applyBackgroundEffect(select.value || backgroundState.effect);
-  select.value = backgroundState.effect;
+  const initialEffect = backgroundState.effect;
+  select.value = initialEffect;
+  applyBackgroundEffect(initialEffect);
 
   select.addEventListener("change", (event) => {
     applyBackgroundEffect(event.target.value);
