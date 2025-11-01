@@ -5,7 +5,7 @@
  * definitions.
  */
 
-import { normalizeAnyValue, createLogAttribute } from "./gravibe-logs.js";
+import { normalizeAnyValue, createLogAttribute, createAttributeTable } from "./gravibe-logs.js";
 
 /**
  * @typedef {ReturnType<typeof createTraceSpan>} TraceSpan
@@ -175,6 +175,121 @@ export function buildTraceModel(spans) {
   };
 }
 
+export function validateTraceSpans(spans) {
+  const result = { errors: [], warnings: [] };
+
+  if (!Array.isArray(spans)) {
+    result.errors.push({ level: "error", message: "Trace data must be an array of spans." });
+    return result;
+  }
+
+  const spanIds = new Set();
+  const traceIds = new Set();
+
+  spans.forEach((span, index) => {
+    const context = span?.spanId ? `Span "${span.spanId}"` : `Span @ index ${index}`;
+
+    if (!span || typeof span !== "object") {
+      result.errors.push({ level: "error", message: `${context}: Span must be an object.` });
+      return;
+    }
+
+    if (!span.spanId) {
+      result.errors.push({ level: "error", message: `${context}: Missing spanId.` });
+    } else if (spanIds.has(span.spanId)) {
+      result.errors.push({ level: "error", message: `${context}: Duplicate spanId detected.` });
+    } else {
+      spanIds.add(span.spanId);
+    }
+
+    if (!span.traceId) {
+      result.errors.push({ level: "error", message: `${context}: Missing traceId.` });
+    } else {
+      traceIds.add(span.traceId);
+    }
+
+    if (!span.name) {
+      result.errors.push({ level: "error", message: `${context}: Missing span name.` });
+    }
+
+    const start = toNumberTimestamp(span.startTimeUnixNano);
+    const end = toNumberTimestamp(span.endTimeUnixNano);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      result.errors.push({ level: "error", message: `${context}: Invalid start or end timestamp.` });
+    } else if (end < start) {
+      result.errors.push({ level: "error", message: `${context}: endTimeUnixNano occurs before startTimeUnixNano.` });
+    }
+
+    if (span.parentSpanId && span.parentSpanId === span.spanId) {
+      result.errors.push({ level: "error", message: `${context}: span cannot be its own parent.` });
+    }
+
+    const attributes = Array.isArray(span.attributes) ? span.attributes : [];
+    const attributeKeys = new Set();
+    attributes.forEach((attribute, attrIndex) => {
+      if (!attribute || typeof attribute !== "object") {
+        result.errors.push({ level: "error", message: `${context}: Attribute at index ${attrIndex} must be an object.` });
+        return;
+      }
+      if (!attribute.key) {
+        result.errors.push({ level: "error", message: `${context}: Attribute at index ${attrIndex} is missing key.` });
+      } else if (attributeKeys.has(attribute.key)) {
+        result.warnings.push({ level: "warning", message: `${context}: Duplicate attribute key "${attribute.key}".` });
+      } else {
+        attributeKeys.add(attribute.key);
+      }
+    });
+
+    const events = Array.isArray(span.events) ? span.events : [];
+    events.forEach((event, eventIndex) => {
+      if (!event || typeof event !== "object") {
+        result.errors.push({ level: "error", message: `${context}: Event at index ${eventIndex} must be an object.` });
+        return;
+      }
+      const eventTime = toNumberTimestamp(event.timeUnixNano);
+      if (!Number.isFinite(eventTime)) {
+        result.warnings.push({ level: "warning", message: `${context}: Event @${eventIndex} has invalid timestamp.` });
+      } else if (eventTime < start || eventTime > end) {
+        result.warnings.push({ level: "warning", message: `${context}: Event "${event.name ?? eventIndex}" is outside the span time window.` });
+      }
+    });
+  });
+
+  if (traceIds.size > 1) {
+    result.warnings.push({ level: "warning", message: "Multiple traceIds detected in span collection." });
+  }
+
+  return result;
+}
+
+function renderValidationBanner(host, validation) {
+  const hasErrors = validation.errors?.length;
+  const hasWarnings = validation.warnings?.length;
+  if (!hasErrors && !hasWarnings) {
+    return;
+  }
+
+  const banner = document.createElement("section");
+  banner.className = "validation-banner";
+
+  const title = document.createElement("h3");
+  title.className = "validation-banner__title";
+  title.textContent = hasErrors ? "Trace validation issues" : "Trace validation warnings";
+  banner.append(title);
+
+  const list = document.createElement("ul");
+  list.className = "validation-banner__list";
+  const entries = [...(validation.errors ?? []), ...(validation.warnings ?? [])];
+  entries.forEach((issue) => {
+    const item = document.createElement("li");
+    item.className = `validation-banner__item validation-banner__item--${issue.level}`;
+    item.textContent = issue.message;
+    list.append(item);
+  });
+
+  host.append(banner);
+}
+
 /**
  * Computes percentage offsets for rendering a span bar relative to the trace
  * duration. Returns values between 0 and 100.
@@ -234,55 +349,6 @@ function formatTimestamp(value) {
   }).format(date);
 }
 
-function renderAttributeList(attributes) {
-  const container = document.createElement("dl");
-  container.className = "log-row-meta";
-  attributes.forEach(({ key, value }) => {
-    const dt = document.createElement("dt");
-    dt.textContent = key;
-    const dd = document.createElement("dd");
-    dd.textContent = describeAnyValue(normalizeAnyValue(value));
-    container.append(dt, dd);
-  });
-  return container;
-}
-
-function describeAnyValue(anyValue) {
-  if (!anyValue) {
-    return "";
-  }
-  const { kind, value } = anyValue;
-  switch (kind) {
-    case "string":
-      return String(value ?? "");
-    case "boolean":
-      return value ? "true" : "false";
-    case "int":
-    case "double":
-      return String(value);
-    case "bytes":
-      return `0x${Array.from(value || [])
-        .map((byte) => byte.toString(16).padStart(2, "0"))
-        .join("")}`;
-    case "array":
-      return `[${
-        Array.isArray(value)
-          ? value.map((entry) => describeAnyValue(entry)).join(", ")
-          : ""
-      }]`;
-    case "kvlist":
-      return `{${
-        Array.isArray(value)
-          ? value
-              .map((entry) => `${entry.key}: ${describeAnyValue(entry.value)}`)
-              .join(", ")
-          : ""
-      }}`;
-    default:
-      return "";
-  }
-}
-
 function renderSpanEvents(events) {
   if (!events || events.length === 0) {
     return null;
@@ -307,7 +373,7 @@ function renderSpanEvents(events) {
     item.append(title);
 
     if (event.attributes?.length) {
-      const meta = renderAttributeList(event.attributes);
+      const meta = createAttributeTable(event.attributes);
       meta.classList.add("trace-span-events__meta");
       item.append(meta);
     }
@@ -328,8 +394,8 @@ function renderSpanDetails(span) {
     attributesSection.className = "log-row-attributes";
     const heading = document.createElement("h4");
     heading.textContent = "Attributes";
-    const list = renderAttributeList(span.attributes);
-    attributesSection.append(heading, list);
+    const table = createAttributeTable(span.attributes);
+    attributesSection.append(heading, table);
     details.append(attributesSection);
   }
 

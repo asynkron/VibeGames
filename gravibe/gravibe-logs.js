@@ -218,6 +218,172 @@ export function createLogRow(params) {
   };
 }
 
+function extractTemplatePlaceholders(template) {
+  if (!template || typeof template !== "string") {
+    return new Set();
+  }
+  const regex = /\{\{([^}]+)\}\}/g;
+  const matches = new Set();
+  let match = regex.exec(template);
+  while (match) {
+    if (match[1]) {
+      matches.add(match[1].trim());
+    }
+    match = regex.exec(template);
+  }
+  return matches;
+}
+
+function describeAttribute(attribute) {
+  if (!attribute) {
+    return "";
+  }
+  return attribute.key || "";
+}
+
+function isValidSeverityNumber(value) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 24;
+}
+
+function validateTraceContext(row) {
+  const issues = [];
+  if (row.traceId && typeof row.traceId === "string" && row.traceId.trim()) {
+    if (row.traceId.length !== 32) {
+      issues.push({ level: "warning", message: `TraceId should be 32 characters, found ${row.traceId.length}.` });
+    }
+  }
+  if (row.spanId && typeof row.spanId === "string" && row.spanId.trim()) {
+    if (row.spanId.length !== 16) {
+      issues.push({ level: "warning", message: `SpanId should be 16 characters, found ${row.spanId.length}.` });
+    }
+  }
+  if (row.traceId && !row.spanId) {
+    issues.push({ level: "warning", message: "TraceId provided without a spanId." });
+  }
+  return issues;
+}
+
+export function validateLogRows(rows) {
+  const result = { errors: [], warnings: [] };
+  if (!Array.isArray(rows)) {
+    result.errors.push({ level: "error", message: "Log rows must be provided as an array." });
+    return result;
+  }
+
+  const ids = new Set();
+
+  rows.forEach((row, index) => {
+    const context = row?.id ? `Log "${row.id}"` : `Log @ index ${index}`;
+
+    if (!row || typeof row !== "object") {
+      result.errors.push({ level: "error", message: `${context}: Row must be an object.` });
+      return;
+    }
+
+    if (!row.id) {
+      result.errors.push({ level: "error", message: `${context}: Missing required id.` });
+    } else if (ids.has(row.id)) {
+      result.warnings.push({ level: "warning", message: `${context}: Duplicate id detected.` });
+    } else {
+      ids.add(row.id);
+    }
+
+    if (typeof row.timeUnixNano !== "number" && typeof row.timeUnixNano !== "bigint") {
+      result.errors.push({ level: "error", message: `${context}: timeUnixNano must be a number or bigint.` });
+    }
+
+    if (
+      row.observedTimeUnixNano !== undefined &&
+      typeof row.observedTimeUnixNano !== "number" &&
+      typeof row.observedTimeUnixNano !== "bigint"
+    ) {
+      result.warnings.push({ level: "warning", message: `${context}: observedTimeUnixNano should be a number or bigint.` });
+    }
+
+    if (
+      typeof row.timeUnixNano === "number" &&
+      typeof row.observedTimeUnixNano === "number" &&
+      row.observedTimeUnixNano < row.timeUnixNano
+    ) {
+      result.warnings.push({ level: "warning", message: `${context}: observedTimeUnixNano occurs before timeUnixNano.` });
+    }
+
+    if (row.severityNumber !== undefined && !isValidSeverityNumber(row.severityNumber)) {
+      result.warnings.push({
+        level: "warning",
+        message: `${context}: severityNumber should be an integer between 1 and 24.`,
+      });
+    }
+
+    const attributes = Array.isArray(row.attributes) ? row.attributes : [];
+    const attributeKeys = new Set();
+    attributes.forEach((attribute, attrIndex) => {
+      if (!attribute || typeof attribute !== "object") {
+        result.errors.push({
+          level: "error",
+          message: `${context}: Attribute at index ${attrIndex} must be an object.`,
+        });
+        return;
+      }
+
+      if (!attribute.key) {
+        result.errors.push({ level: "error", message: `${context}: Attribute at index ${attrIndex} is missing key.` });
+      } else if (attributeKeys.has(attribute.key)) {
+        result.warnings.push({ level: "warning", message: `${context}: Duplicate attribute key "${attribute.key}".` });
+      } else {
+        attributeKeys.add(attribute.key);
+      }
+    });
+
+    const placeholders = extractTemplatePlaceholders(row.template ?? "");
+    placeholders.forEach((placeholder) => {
+      if (!attributeKeys.has(placeholder)) {
+        result.warnings.push({
+          level: "warning",
+          message: `${context}: Template placeholder "${placeholder}" does not match any attribute key.`,
+        });
+      }
+    });
+
+    validateTraceContext(row).forEach((issue) => {
+      result.warnings.push({ level: issue.level, message: `${context}: ${issue.message}` });
+    });
+  });
+
+  return result;
+}
+
+function renderValidationBanner(host, validation) {
+  const hasErrors = validation.errors?.length;
+  const hasWarnings = validation.warnings?.length;
+  if (!hasErrors && !hasWarnings) {
+    return null;
+  }
+
+  const banner = document.createElement("section");
+  banner.className = "validation-banner";
+
+  const title = document.createElement("h3");
+  title.className = "validation-banner__title";
+  title.textContent = hasErrors ? "Log validation issues" : "Log validation warnings";
+  banner.append(title);
+
+  const list = document.createElement("ul");
+  list.className = "validation-banner__list";
+
+  const entries = [...(validation.errors ?? []), ...(validation.warnings ?? [])];
+  entries.forEach((issue) => {
+    const item = document.createElement("li");
+    item.className = `validation-banner__item validation-banner__item--${issue.level}`;
+    item.textContent = issue.message;
+    list.append(item);
+  });
+
+  banner.append(list);
+  host.append(banner);
+  return banner;
+}
+
 // Collapse the proto severity spectrum into the four common log levels so the
 // UI can style each row with a predictable palette.
 const severityGroups = [
@@ -350,7 +516,12 @@ function formatAnyValueMultiline(anyValue) {
   }
 }
 
-function createAttributeTable(logRow) {
+/**
+ * Creates a reusable attribute table component with columns for name, type, and value.
+ * @param {LogAttribute[]} attributes
+ * @returns {HTMLTableElement}
+ */
+export function createAttributeTable(attributes) {
   const table = document.createElement("table");
   table.className = "log-attributes-table";
   const thead = document.createElement("thead");
@@ -365,7 +536,7 @@ function createAttributeTable(logRow) {
   table.appendChild(thead);
 
   const tbody = document.createElement("tbody");
-  logRow.attributes.forEach((attribute) => {
+  attributes.forEach((attribute) => {
     const tr = document.createElement("tr");
     const nameCell = document.createElement("td");
     nameCell.textContent = attribute.key;
@@ -435,7 +606,7 @@ function createMetaSection(logRow) {
     attributesSection.className = "log-row-attributes";
     const attrTitle = document.createElement("h4");
     attrTitle.textContent = "Attributes";
-    attributesSection.append(attrTitle, createAttributeTable(logRow));
+    attributesSection.append(attrTitle, createAttributeTable(logRow.attributes));
     wrapper.appendChild(attributesSection);
   }
 

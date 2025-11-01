@@ -510,13 +510,13 @@ body {
 .trace-span__service:disabled,
 .trace-span__service[aria-disabled="true"] {
   cursor: default;
-  opacity: 0.7;
 }
 
 .trace-span__service-name {
+  font-family: var(--font-base);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgb(var(--accent-tertiary-rgb) / 0.95);
+  color: var(--accent-quaternary);
 }
 
 .trace-span__service-namespace {
@@ -565,11 +565,21 @@ body {
 
 .trace-span__details {
   margin-left: 40px;
+  padding: 0.85rem 1.1rem;
+  background: rgba(18, 22, 30, 0.85);
+  transition: box-shadow 0.2s ease;
+}
+
+.trace-span--details-open .trace-span__details {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  box-shadow: 0 0 0 1px rgb(var(--accent-secondary-rgb) / 0.45);
 }
 
 .trace-span__name {
+  font-family: var(--font-base);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
 .trace-span__duration {
@@ -621,10 +631,6 @@ body {
 }
 
 .trace-span-events__item {
-  background: rgba(13, 17, 26, 0.92);
-  border: 1px solid rgba(86, 98, 122, 0.35);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
   display: grid;
   gap: 0.5rem;
 }
@@ -636,8 +642,7 @@ body {
 }
 
 .trace-span-events__meta {
-  display: grid;
-  gap: 0.35rem 1rem;
+  width: 100%;
 }
 
 .trace-span-status {
@@ -794,6 +799,40 @@ body {
   word-break: break-word;
 }
 
+.validation-banner {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-block: 1rem;
+  color: rgba(120, 53, 15, 0.95);
+}
+
+.validation-banner__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.validation-banner__list {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.validation-banner__item {
+  line-height: 1.45;
+}
+
+.validation-banner__item--error {
+  color: rgba(185, 28, 28, 0.95);
+}
+
+.validation-banner__item--warning {
+  color: rgba(133, 77, 14, 0.95);
+}
+
 .log-attributes-table {
   width: 100%;
   border-collapse: collapse;
@@ -821,7 +860,6 @@ body {
 
 .log-attr {
   font-family: var(--font-mono);
-  border-radius: 6px;
   background: rgba(54, 60, 74, 0.55);
   color: var(--accent-primary);
   line-height: 1;

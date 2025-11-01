@@ -1,0 +1,14 @@
+Timestamp: 2025-11-01T13:48:26+01:00
+Shell: bash
+Cwd: /Users/rogerjohansson/git/asynkron/VibeGames/gravibe
+Run: rg -n "(trace|Trace|span|Span|otel)" --glob '*.go'
+TimeoutSec: 60
+MaxBytes: 16384
+TailLines: 200
+Error: exit status 2
+StepID: step-search-tracing
+
+===== STDOUT (raw) =====
+===== STDERR (raw) =====
+rg: No files were searched, which means ripgrep probably applied a filter you didn't expect.
+Running with --debug will show why files are being skipped.
