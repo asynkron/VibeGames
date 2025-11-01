@@ -516,16 +516,38 @@ function renderSpanEvents(events) {
   return wrapper;
 }
 
-function renderSpanLogs(spanId) {
+function renderSpanLogs(span) {
   // Filter logs by span ID
-  const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === spanId);
+  const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === span.spanId);
 
-  if (spanLogs.length === 0) {
+  // Convert span events to log row format
+  const eventLogs = (span.events || []).map((event, index) => {
+    // Build a template from event name
+    const template = event.name;
+    return {
+      id: `event-${span.spanId}-${index}`,
+      template,
+      timeUnixNano: event.timeUnixNano,
+      severityNumber: undefined,
+      severityText: "event",
+      body: undefined,
+      attributes: event.attributes || [],
+      droppedAttributesCount: undefined,
+      flags: undefined,
+      traceId: undefined,
+      spanId: span.spanId,
+    };
+  });
+
+  // Combine logs and events
+  const allLogs = [...spanLogs, ...eventLogs];
+
+  if (allLogs.length === 0) {
     return null;
   }
 
-  // Sort logs by time
-  const sortedLogs = [...spanLogs].sort((a, b) => {
+  // Sort all logs by time
+  const sortedLogs = [...allLogs].sort((a, b) => {
     const timeA = typeof a.timeUnixNano === "bigint" ? Number(a.timeUnixNano) : a.timeUnixNano;
     const timeB = typeof b.timeUnixNano === "bigint" ? Number(b.timeUnixNano) : b.timeUnixNano;
     return timeA - timeB;
@@ -604,15 +626,8 @@ function renderSpanDetails(span) {
     details.append(attributesSection);
   }
 
-  if (span.events?.length) {
-    const eventsSection = renderSpanEvents(span.events);
-    if (eventsSection) {
-      details.append(eventsSection);
-    }
-  }
-
-  // Add logs section filtered by span ID
-  const logsSection = renderSpanLogs(span.spanId);
+  // Add logs section filtered by span ID (includes events converted to log rows)
+  const logsSection = renderSpanLogs(span);
   if (logsSection) {
     details.append(logsSection);
   }
