@@ -520,10 +520,10 @@ function renderSpanLogs(span) {
   // Filter logs by span ID
   const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === span.spanId);
 
-  // Convert the span itself to a log row format
-  const spanLog = {
-    id: `span-${span.spanId}`,
-    template: span.name,
+  // Convert the span start to a log row format
+  const spanStartLog = {
+    id: `span-start-${span.spanId}`,
+    template: `Span start : ${span.name}`,
     timeUnixNano: span.startTimeUnixNano,
     severityNumber: undefined,
     severityText: "span",
@@ -534,6 +534,27 @@ function renderSpanLogs(span) {
     traceId: span.traceId,
     spanId: span.spanId,
   };
+
+  // Convert the span end to a log row format (if span has status)
+  let spanEndLog = null;
+  if (span.status?.code && span.status.code !== "STATUS_CODE_UNSET") {
+    const statusText = span.status.message
+      ? `${span.status.code.replace("STATUS_CODE_", "")}: ${span.status.message}`
+      : span.status.code.replace("STATUS_CODE_", "");
+    spanEndLog = {
+      id: `span-end-${span.spanId}`,
+      template: `Span ended : ${span.name}, status: ${statusText}`,
+      timeUnixNano: span.endTimeUnixNano,
+      severityNumber: undefined,
+      severityText: "span",
+      body: undefined,
+      attributes: [],
+      droppedAttributesCount: undefined,
+      flags: undefined,
+      traceId: span.traceId,
+      spanId: span.spanId,
+    };
+  }
 
   // Convert span events to log row format
   const eventLogs = (span.events || []).map((event, index) => {
@@ -554,8 +575,13 @@ function renderSpanLogs(span) {
     };
   });
 
-  // Combine span, logs, and events
-  const allLogs = [spanLog, ...spanLogs, ...eventLogs];
+  // Combine span start, logs, events, and span end
+  const allLogs = [
+    spanStartLog,
+    ...spanLogs,
+    ...eventLogs,
+    ...(spanEndLog ? [spanEndLog] : []),
+  ];
 
   if (allLogs.length === 0) {
     return null;
@@ -627,24 +653,10 @@ function renderSpanDetails(span) {
   const details = document.createElement("div");
   details.className = "trace-span__details";
 
-  // Add logs section filtered by span ID (includes span, events, and logs converted to log rows)
+  // Add logs section filtered by span ID (includes span start, events, logs, and span end converted to log rows)
   const logsSection = renderSpanLogs(span);
   if (logsSection) {
     details.append(logsSection);
-  }
-
-  if (span.status?.code && span.status.code !== "STATUS_CODE_UNSET") {
-    const statusSection = document.createElement("section");
-    statusSection.className = "trace-span-status";
-    const heading = document.createElement("h4");
-    heading.textContent = "Status";
-    const statusBody = document.createElement("p");
-    statusBody.className = "trace-span-status__text";
-    statusBody.textContent = span.status.message
-      ? `${span.status.code.replace("STATUS_CODE_", "")}: ${span.status.message}`
-      : span.status.code.replace("STATUS_CODE_", "");
-    statusSection.append(heading, statusBody);
-    details.append(statusSection);
   }
 
   return details;
