@@ -245,9 +245,9 @@ body {
 
 .chart-shell[data-background-effect="radial"] {
   background:
-    radial-gradient(circle at 18% 12%, rgb(var(--accent-primary-rgb) / 0.18), transparent 58%),
-    radial-gradient(circle at 82% 16%, rgb(var(--accent-tertiary-rgb) / 0.16), transparent 55%),
-    radial-gradient(circle at 50% 80%, rgb(var(--accent-secondary-rgb) / 0.12), transparent 60%),
+    radial-gradient(circle at 18% 12%, rgb(0 107 153 / 18%), transparent 58%),
+    radial-gradient(circle at 82% 16%, rgb(28 0 31 / 16%), transparent 55%),
+    radial-gradient(circle at 50% 80%, rgb(221 0 255 / 12%), transparent 60%),
     var(--surface-2);
 }
 
