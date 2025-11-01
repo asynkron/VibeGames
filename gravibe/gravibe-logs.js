@@ -5,6 +5,8 @@
  * structure mappable from the proto payloads while remaining ergonomic in JS.
  */
 
+import { formatAnyValueInline, formatAnyValueMultiline, createAttributeTable } from "./gravibe-attributes.js";
+
 /**
  * @typedef {Object} LogAnyValue
  * @property {"string"|"boolean"|"int"|"double"|"bytes"|"array"|"kvlist"|"empty"} kind
@@ -477,84 +479,8 @@ function formatNanoseconds(value) {
   return "—";
 }
 
-function formatAnyValueInline(anyValue) {
-  switch (anyValue.kind) {
-    case LogAnyValueKind.STRING:
-      return String(anyValue.value);
-    case LogAnyValueKind.BOOLEAN:
-      return anyValue.value ? "true" : "false";
-    case LogAnyValueKind.INT:
-    case LogAnyValueKind.DOUBLE:
-      return String(anyValue.value);
-    case LogAnyValueKind.BYTES:
-      return `0x${Array.from(asUint8Array(anyValue.value))
-        .map((byte) => byte.toString(16).padStart(2, "0"))
-        .join("")}`;
-    case LogAnyValueKind.ARRAY:
-      return `[${(anyValue.value || []).map((item) => formatAnyValueInline(item)).join(", " )}]`;
-    case LogAnyValueKind.KVLIST:
-      return `{${(anyValue.value || [])
-        .map((item) => `${item.key}: ${formatAnyValueInline(item.value)}`)
-        .join(", ")}}`;
-    default:
-      return "—";
-  }
-}
-
-function formatAnyValueMultiline(anyValue) {
-  switch (anyValue.kind) {
-    case LogAnyValueKind.ARRAY:
-      return `[\n${(anyValue.value || [])
-        .map((item) => `  ${formatAnyValueInline(item)}`)
-        .join("\n")}\n]`;
-    case LogAnyValueKind.KVLIST:
-      return `{\n${(anyValue.value || [])
-        .map((item) => `  ${item.key}: ${formatAnyValueInline(item.value)}`)
-        .join("\n")}\n}`;
-    default:
-      return formatAnyValueInline(anyValue);
-  }
-}
-
-/**
- * Creates a reusable attribute table component with columns for name, type, and value.
- * @param {LogAttribute[]} attributes
- * @returns {HTMLTableElement}
- */
-export function createAttributeTable(attributes) {
-  const table = document.createElement("table");
-  table.className = "log-attributes-table";
-  const thead = document.createElement("thead");
-  const headerRow = document.createElement("tr");
-  ["Attribute", "Type", "Value"].forEach((label) => {
-    const th = document.createElement("th");
-    th.scope = "col";
-    th.textContent = label;
-    headerRow.appendChild(th);
-  });
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
-
-  const tbody = document.createElement("tbody");
-  attributes.forEach((attribute) => {
-    const tr = document.createElement("tr");
-    const nameCell = document.createElement("td");
-    nameCell.textContent = attribute.key;
-    if (attribute.description) {
-      nameCell.title = attribute.description;
-    }
-    const typeCell = document.createElement("td");
-    typeCell.textContent = attribute.value.kind;
-    const valueCell = document.createElement("td");
-    valueCell.className = `log-attr log-attr--${attribute.value.kind}`;
-    valueCell.textContent = formatAnyValueMultiline(attribute.value);
-
-    tr.append(nameCell, typeCell, valueCell);
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  return table;
-}
+// Re-export for external consumers
+export { formatAnyValueInline, formatAnyValueMultiline, createAttributeTable } from "./gravibe-attributes.js";
 
 function createMetaSection(logRow) {
   const wrapper = document.createElement("div");

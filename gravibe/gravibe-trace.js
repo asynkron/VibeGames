@@ -5,7 +5,8 @@
  * definitions.
  */
 
-import { normalizeAnyValue, createLogAttribute, createAttributeTable } from "./gravibe-logs.js";
+import { normalizeAnyValue, createLogAttribute } from "./gravibe-logs.js";
+import { createAttributeTable } from "./gravibe-attributes.js";
 
 /**
  * @typedef {ReturnType<typeof createTraceSpan>} TraceSpan
