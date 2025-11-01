@@ -639,6 +639,262 @@ const neonDatasets = {
       ],
     },
   ],
+  stackedArea: [
+    {
+      label: "Latency Percentiles",
+      axis: ["00:00", "01:00", "02:00", "03:00", "04:00", "05:00", "06:00", "07:00"],
+      series: [
+        { name: "P50", color: "accentPrimary", data: [118, 124, 132, 136, 140, 148, 144, 138] },
+        { name: "P75", color: "accentSecondary", data: [162, 170, 180, 186, 192, 204, 196, 184] },
+        { name: "P95", color: "accentTertiary", data: [228, 236, 248, 256, 270, 284, 272, 258] },
+        { name: "P99", color: "accentSenary", data: [318, 336, 352, 368, 384, 402, 388, 366] },
+      ],
+    },
+    {
+      label: "Checkout Latency Bands",
+      axis: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      series: [
+        { name: "P50", color: "accentPrimary", data: [112, 116, 121, 132, 138, 146, 134] },
+        { name: "P75", color: "accentSecondary", data: [154, 158, 168, 182, 196, 208, 188] },
+        { name: "P95", color: "accentTertiary", data: [212, 220, 238, 258, 278, 292, 268] },
+        { name: "P99", color: "accentSenary", data: [296, 308, 326, 348, 372, 392, 362] },
+      ],
+    },
+  ],
+  dualAxis: [
+    {
+      label: "Checkout Throughput",
+      axis: ["00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
+      yAxes: [
+        { name: "Requests/min", min: 0, max: 900, suffix: "" },
+        { name: "Error Rate %", min: 0, max: 6, suffix: "%", decimals: 1 },
+      ],
+      series: [
+        {
+          name: "Requests/min",
+          type: "bar",
+          axisIndex: 0,
+          color: "accentPrimary",
+          data: [520, 548, 590, 636, 702, 756, 810, 782],
+        },
+        {
+          name: "Error Rate %",
+          type: "line",
+          axisIndex: 1,
+          color: "accentSenary",
+          data: [1.2, 1.0, 0.9, 1.4, 2.8, 3.6, 2.2, 1.6],
+        },
+      ],
+    },
+    {
+      label: "API Load vs Saturation",
+      axis: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      yAxes: [
+        { name: "Requests/min", min: 0, max: 1000, suffix: "" },
+        { name: "CPU Util %", min: 0, max: 100, suffix: "%", decimals: 0 },
+      ],
+      series: [
+        {
+          name: "Requests/min",
+          type: "bar",
+          axisIndex: 0,
+          color: "accentPrimary",
+          data: [640, 688, 734, 812, 868, 784, 720],
+        },
+        {
+          name: "CPU Util %",
+          type: "line",
+          axisIndex: 1,
+          color: "accentTertiary",
+          data: [58, 62, 68, 74, 83, 70, 64],
+        },
+      ],
+    },
+  ],
+  radar: [
+    {
+      label: "Prod Cluster Health",
+      indicators: [
+        { name: "CPU", max: 100 },
+        { name: "Memory", max: 100 },
+        { name: "Disk", max: 100 },
+        { name: "Network", max: 100 },
+        { name: "Saturation", max: 100 },
+      ],
+      series: [
+        { name: "Prod East", color: "accentPrimary", data: [78, 68, 62, 84, 58] },
+        { name: "Prod West", color: "accentSecondary", data: [72, 74, 58, 76, 64] },
+      ],
+    },
+    {
+      label: "Staging vs QA",
+      indicators: [
+        { name: "CPU", max: 100 },
+        { name: "Memory", max: 100 },
+        { name: "Disk", max: 100 },
+        { name: "Network", max: 100 },
+        { name: "Saturation", max: 100 },
+      ],
+      series: [
+        { name: "Staging", color: "accentQuaternary", data: [46, 58, 44, 52, 38] },
+        { name: "QA", color: "accentTertiary", data: [38, 42, 48, 46, 34] },
+      ],
+    },
+  ],
+  boxplot: [
+    {
+      label: "Latency Distribution",
+      categories: ["Gateway", "Checkout", "Inventory", "Search"],
+      boxes: [
+        { name: "Gateway", color: "accentPrimary", values: [92, 118, 134, 168, 214] },
+        { name: "Checkout", color: "accentSecondary", values: [104, 132, 156, 182, 236] },
+        { name: "Inventory", color: "accentTertiary", values: [88, 118, 144, 176, 222] },
+        { name: "Search", color: "accentQuinary", values: [96, 126, 162, 198, 246] },
+      ],
+      outliers: [
+        { name: "Gateway spike", color: "accentSenary", value: [0, 246] },
+        { name: "Checkout spike", color: "accentSenary", value: [1, 268] },
+      ],
+    },
+    {
+      label: "Worker Latency",
+      categories: ["Ingest", "Transform", "Enrich", "Publish"],
+      boxes: [
+        { name: "Ingest", color: "accentPrimary", values: [64, 88, 104, 126, 154] },
+        { name: "Transform", color: "accentSecondary", values: [72, 96, 116, 142, 176] },
+        { name: "Enrich", color: "accentTertiary", values: [82, 108, 132, 158, 190] },
+        { name: "Publish", color: "accentQuinary", values: [76, 102, 124, 150, 188] },
+      ],
+      outliers: [{ name: "Publish retry", color: "accentSenary", value: [3, 212] }],
+    },
+  ],
+  sankey: [
+    {
+      label: "Ingress Request Flow",
+      nodes: [
+        { name: "Ingress", color: "accentPrimary" },
+        { name: "API Gateway", color: "accentSecondary" },
+        { name: "Auth", color: "accentTertiary" },
+        { name: "Checkout", color: "accentQuinary" },
+        { name: "Inventory", color: "accentQuaternary" },
+        { name: "Search", color: "accentPrimary" },
+        { name: "Payments", color: "accentSenary" },
+        { name: "Data Lake", color: "accentSecondary" },
+      ],
+      links: [
+        { source: "Ingress", target: "API Gateway", value: 820 },
+        { source: "API Gateway", target: "Auth", value: 640 },
+        { source: "API Gateway", target: "Search", value: 260 },
+        { source: "Auth", target: "Checkout", value: 380 },
+        { source: "Checkout", target: "Payments", value: 360 },
+        { source: "Checkout", target: "Inventory", value: 240 },
+        { source: "Inventory", target: "Data Lake", value: 160 },
+        { source: "Search", target: "Data Lake", value: 220 },
+      ],
+    },
+    {
+      label: "Deployment Flow",
+      nodes: [
+        { name: "Commits", color: "accentPrimary" },
+        { name: "CI", color: "accentSecondary" },
+        { name: "Artifact", color: "accentTertiary" },
+        { name: "Staging", color: "accentQuinary" },
+        { name: "Prod", color: "accentSenary" },
+        { name: "Rollback", color: "accentSecondary" },
+      ],
+      links: [
+        { source: "Commits", target: "CI", value: 240 },
+        { source: "CI", target: "Artifact", value: 210 },
+        { source: "Artifact", target: "Staging", value: 188 },
+        { source: "Staging", target: "Prod", value: 160 },
+        { source: "Staging", target: "Rollback", value: 12 },
+        { source: "Prod", target: "Rollback", value: 6 },
+      ],
+    },
+  ],
+  treemap: [
+    {
+      label: "Error Budget Burn",
+      tree: [
+        {
+          name: "Client",
+          color: "accentPrimary",
+          children: [
+            { name: "Mobile", value: 26, color: "accentPrimary" },
+            { name: "Web", value: 32, color: "accentSecondary" },
+          ],
+        },
+        {
+          name: "Edge",
+          color: "accentTertiary",
+          children: [
+            { name: "CDN", value: 18, color: "accentTertiary" },
+            { name: "WAF", value: 12, color: "accentQuinary" },
+          ],
+        },
+        {
+          name: "Core",
+          color: "accentSecondary",
+          children: [
+            { name: "API", value: 34, color: "accentSecondary" },
+            { name: "Checkout", value: 28, color: "accentQuaternary" },
+            { name: "Search", value: 22, color: "accentQuinary" },
+          ],
+        },
+      ],
+    },
+    {
+      label: "Incident Minutes",
+      tree: [
+        {
+          name: "Infrastructure",
+          color: "accentPrimary",
+          children: [
+            { name: "Compute", value: 42, color: "accentPrimary" },
+            { name: "Storage", value: 28, color: "accentSecondary" },
+          ],
+        },
+        {
+          name: "Platform",
+          color: "accentTertiary",
+          children: [
+            { name: "Deploy", value: 24, color: "accentTertiary" },
+            { name: "Observability", value: 16, color: "accentQuinary" },
+          ],
+        },
+        {
+          name: "Product",
+          color: "accentQuaternary",
+          children: [
+            { name: "Checkout", value: 30, color: "accentQuaternary" },
+            { name: "Profile", value: 18, color: "accentSecondary" },
+          ],
+        },
+      ],
+    },
+  ],
+  funnel: [
+    {
+      label: "Deploy Pipeline",
+      steps: [
+        { name: "Commits", value: 240, color: "accentPrimary" },
+        { name: "Build", value: 210, color: "accentSecondary" },
+        { name: "Test", value: 188, color: "accentTertiary" },
+        { name: "Staging", value: 164, color: "accentQuaternary" },
+        { name: "Production", value: 152, color: "accentQuinary" },
+      ],
+    },
+    {
+      label: "Alert Lifecycle",
+      steps: [
+        { name: "Triggered", value: 180, color: "accentPrimary" },
+        { name: "Triaged", value: 138, color: "accentSecondary" },
+        { name: "Acknowledged", value: 112, color: "accentTertiary" },
+        { name: "Resolved", value: 94, color: "accentQuinary" },
+        { name: "Verified", value: 86, color: "accentSenary" },
+      ],
+    },
+  ],
   stat: [
     {
       label: "Core Output",
@@ -673,6 +929,205 @@ const neonDatasets = {
         { name: "Beta", value: 0.24, color: "accentSecondary" },
         { name: "Gamma", value: 0.22, color: "accentTertiary" },
         { name: "Delta", value: 0.18, color: "accentQuaternary" },
+      ],
+    },
+  ],
+  stackedBar: [
+    {
+      label: "Incident Volume by Severity",
+      axis: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      series: [
+        { name: "Critical", color: "accentSenary", data: [4, 6, 3, 5, 8, 2, 1] },
+        { name: "Major", color: "accentSecondary", data: [12, 10, 14, 15, 18, 9, 8] },
+        { name: "Minor", color: "accentPrimary", data: [22, 20, 24, 26, 28, 16, 14] },
+        { name: "Info", color: "accentQuaternary", data: [18, 16, 20, 22, 24, 12, 10] },
+      ],
+    },
+    {
+      label: "Deployment Outcomes",
+      axis: ["Sprint 21", "Sprint 22", "Sprint 23", "Sprint 24", "Sprint 25"],
+      series: [
+        { name: "Failed", color: "accentSenary", data: [3, 2, 4, 3, 2] },
+        { name: "Rolled Back", color: "accentSecondary", data: [5, 4, 5, 6, 5] },
+        { name: "Passed", color: "accentPrimary", data: [18, 20, 22, 24, 26] },
+      ],
+    },
+  ],
+  calendarHeatmap: [
+    {
+      label: "Deployments per Day",
+      year: "2024",
+      entries: [
+        { date: "2024-01-03", value: 4 },
+        { date: "2024-01-08", value: 7 },
+        { date: "2024-01-12", value: 3 },
+        { date: "2024-01-16", value: 6 },
+        { date: "2024-01-21", value: 9 },
+        { date: "2024-02-02", value: 5 },
+        { date: "2024-02-08", value: 8 },
+        { date: "2024-02-12", value: 4 },
+        { date: "2024-02-20", value: 7 },
+        { date: "2024-02-27", value: 6 },
+        { date: "2024-03-04", value: 10 },
+        { date: "2024-03-11", value: 6 },
+        { date: "2024-03-15", value: 5 },
+        { date: "2024-03-19", value: 8 },
+        { date: "2024-03-25", value: 11 },
+      ],
+    },
+    {
+      label: "Paged Alerts",
+      year: "2023",
+      entries: [
+        { date: "2023-07-02", value: 2 },
+        { date: "2023-07-05", value: 5 },
+        { date: "2023-07-08", value: 3 },
+        { date: "2023-07-14", value: 6 },
+        { date: "2023-07-20", value: 4 },
+        { date: "2023-07-26", value: 7 },
+        { date: "2023-08-03", value: 5 },
+        { date: "2023-08-10", value: 4 },
+        { date: "2023-08-17", value: 6 },
+        { date: "2023-08-23", value: 8 },
+        { date: "2023-08-29", value: 5 },
+        { date: "2023-09-04", value: 7 },
+        { date: "2023-09-12", value: 9 },
+        { date: "2023-09-19", value: 6 },
+        { date: "2023-09-27", value: 4 },
+      ],
+    },
+  ],
+  themeRiver: [
+    {
+      label: "Service Traffic Composition",
+      axis: ["00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"],
+      streams: [
+        {
+          name: "Checkout",
+          color: "accentPrimary",
+          data: [45, 50, 56, 62, 70, 78, 86, 82, 76, 68, 60, 52],
+        },
+        {
+          name: "Search",
+          color: "accentSecondary",
+          data: [38, 42, 48, 54, 60, 65, 72, 70, 64, 58, 50, 46],
+        },
+        {
+          name: "Profile",
+          color: "accentTertiary",
+          data: [22, 26, 28, 30, 36, 40, 44, 46, 42, 38, 32, 28],
+        },
+        {
+          name: "Support",
+          color: "accentQuinary",
+          data: [12, 14, 18, 20, 24, 28, 32, 34, 30, 26, 22, 18],
+        },
+      ],
+    },
+    {
+      label: "Error Budget Burn",
+      axis: ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6"],
+      streams: [
+        { name: "Client", color: "accentPrimary", data: [16, 18, 20, 24, 22, 20] },
+        { name: "Edge", color: "accentSecondary", data: [10, 12, 14, 16, 17, 15] },
+        { name: "Core", color: "accentTertiary", data: [22, 24, 26, 28, 30, 27] },
+        { name: "Data", color: "accentQuaternary", data: [8, 9, 10, 12, 14, 13] },
+      ],
+    },
+  ],
+  sunburst: [
+    {
+      label: "Service Ownership Map",
+      tree: [
+        {
+          name: "Customer",
+          color: "accentPrimary",
+          children: [
+            {
+              name: "Checkout",
+              color: "accentPrimary",
+              children: [
+                { name: "Cart", value: 18, color: "accentPrimary" },
+                { name: "Payments", value: 24, color: "accentSecondary" },
+              ],
+            },
+            {
+              name: "Account",
+              color: "accentQuinary",
+              children: [
+                { name: "Profile", value: 20, color: "accentQuinary" },
+                { name: "Security", value: 16, color: "accentSenary" },
+              ],
+            },
+          ],
+        },
+        {
+          name: "Platform",
+          color: "accentSecondary",
+          children: [
+            { name: "Ingest", value: 22, color: "accentSecondary" },
+            { name: "Stream", value: 18, color: "accentTertiary" },
+            { name: "Analytics", value: 26, color: "accentQuaternary" },
+          ],
+        },
+        {
+          name: "Infrastructure",
+          color: "accentTertiary",
+          children: [
+            { name: "Compute", value: 30, color: "accentTertiary" },
+            { name: "Storage", value: 26, color: "accentSecondary" },
+            { name: "Network", value: 22, color: "accentPrimary" },
+          ],
+        },
+      ],
+    },
+    {
+      label: "Incident Taxonomy",
+      tree: [
+        {
+          name: "Availability",
+          color: "accentPrimary",
+          children: [
+            { name: "Outage", value: 18, color: "accentSenary" },
+            { name: "Degradation", value: 24, color: "accentPrimary" },
+          ],
+        },
+        {
+          name: "Performance",
+          color: "accentSecondary",
+          children: [
+            { name: "Latency", value: 20, color: "accentSecondary" },
+            { name: "Throughput", value: 16, color: "accentQuinary" },
+          ],
+        },
+        {
+          name: "Security",
+          color: "accentTertiary",
+          children: [
+            { name: "Vulnerability", value: 14, color: "accentTertiary" },
+            { name: "Policy", value: 12, color: "accentQuaternary" },
+          ],
+        },
+      ],
+    },
+  ],
+  pictorialBar: [
+    {
+      label: "SLO Compliance",
+      items: [
+        { name: "Checkout", actual: 94, target: 99, color: "accentPrimary" },
+        { name: "Search", actual: 96, target: 99, color: "accentSecondary" },
+        { name: "Profile", actual: 92, target: 98, color: "accentTertiary" },
+        { name: "Payments", actual: 97, target: 99, color: "accentSenary" },
+      ],
+    },
+    {
+      label: "Backup Success Rate",
+      items: [
+        { name: "Database", actual: 91, target: 95, color: "accentPrimary" },
+        { name: "Blob Store", actual: 95, target: 98, color: "accentSecondary" },
+        { name: "Search Index", actual: 89, target: 95, color: "accentTertiary" },
+        { name: "Analytics", actual: 93, target: 97, color: "accentQuinary" },
       ],
     },
   ],
@@ -1136,6 +1591,262 @@ function createLiveScatterDataset() {
   return dataset;
 }
 
+function createLiveStackedAreaDataset() {
+  const axisLength = 12;
+  const axis = [];
+  const percentileSeries = [
+    { name: "P50", color: "accentPrimary", base: 130, variance: 8, min: 90, max: 180 },
+    { name: "P75", color: "accentSecondary", base: 170, variance: 10, min: 120, max: 230 },
+    { name: "P95", color: "accentTertiary", base: 230, variance: 12, min: 160, max: 320 },
+    { name: "P99", color: "accentSenary", base: 310, variance: 14, min: 200, max: 420 },
+  ];
+
+  const dataset = {
+    label: "Live Latency Bands",
+    live: true,
+    axis,
+    series: percentileSeries.map(({ name, color }) => ({ name, color, data: [] })),
+    interval: 2800,
+    reset,
+    next,
+  };
+
+  let tick = 0;
+
+  function formatTick(index) {
+    const minutes = index * 5;
+    const hour = Math.floor(minutes / 60);
+    const minute = minutes % 60;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  function reset() {
+    axis.length = 0;
+    tick = 0;
+    for (let i = 0; i < axisLength; i += 1) {
+      axis.push(formatTick(tick));
+      tick += 1;
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = percentileSeries[index];
+      series.data.length = 0;
+      let value = config.base;
+      for (let i = 0; i < axis.length; i += 1) {
+        value = jitterValue(value, config.variance, config.min, config.max);
+        series.data.push(Math.round(value));
+      }
+    });
+  }
+
+  function next() {
+    axis.push(formatTick(tick));
+    tick += 1;
+    if (axis.length > axisLength) {
+      axis.shift();
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = percentileSeries[index];
+      const last = series.data[series.data.length - 1] ?? config.base;
+      const value = jitterValue(last, config.variance, config.min, config.max);
+      series.data.push(Math.round(value));
+      if (series.data.length > axisLength) {
+        series.data.shift();
+      }
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveDualAxisDataset() {
+  const axisLength = 8;
+  const axis = [];
+  const baseSeries = [
+    {
+      name: "Requests/min",
+      type: "bar",
+      axisIndex: 0,
+      color: "accentPrimary",
+      base: 680,
+      variance: 60,
+      min: 420,
+      max: 940,
+    },
+    {
+      name: "Error Rate %",
+      type: "line",
+      axisIndex: 1,
+      color: "accentSenary",
+      base: 1.8,
+      variance: 0.9,
+      min: 0.2,
+      max: 5,
+      precision: 1,
+    },
+  ];
+
+  const dataset = {
+    label: "Live Throughput vs Errors",
+    live: true,
+    axis,
+    yAxes: [
+      { name: "Requests/min", min: 0, max: 960, suffix: "" },
+      { name: "Error Rate %", min: 0, max: 6, suffix: "%", decimals: 1 },
+    ],
+    series: baseSeries.map(({ name, type, axisIndex, color }) => ({
+      name,
+      type,
+      axisIndex,
+      color,
+      data: [],
+    })),
+    interval: 2600,
+    reset,
+    next,
+  };
+
+  let tick = 0;
+
+  function formatTick(index) {
+    return `${String(index * 2).padStart(2, "0")}:00`;
+  }
+
+  function reset() {
+    axis.length = 0;
+    tick = 0;
+    for (let i = 0; i < axisLength; i += 1) {
+      axis.push(formatTick(tick));
+      tick += 1;
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      series.data.length = 0;
+      let value = config.base;
+      for (let i = 0; i < axis.length; i += 1) {
+        value = jitterValue(value, config.variance, config.min, config.max);
+        const formatted =
+          typeof config.precision === "number"
+            ? parseFloat(value.toFixed(config.precision))
+            : Math.round(value);
+        series.data.push(formatted);
+      }
+    });
+  }
+
+  function next() {
+    axis.push(formatTick(tick));
+    tick += 1;
+    if (axis.length > axisLength) {
+      axis.shift();
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      const last = series.data[series.data.length - 1] ?? config.base;
+      const value = jitterValue(last, config.variance, config.min, config.max);
+      const formatted =
+        typeof config.precision === "number"
+          ? parseFloat(value.toFixed(config.precision))
+          : Math.round(value);
+      series.data.push(formatted);
+      if (series.data.length > axisLength) {
+        series.data.shift();
+      }
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveRadarDataset() {
+  const indicators = [
+    { name: "CPU", max: 100 },
+    { name: "Memory", max: 100 },
+    { name: "Disk", max: 100 },
+    { name: "Network", max: 100 },
+    { name: "Saturation", max: 100 },
+  ];
+
+  const baseSeries = [
+    { name: "Prod East", color: "accentPrimary", min: 55, max: 88 },
+    { name: "Prod West", color: "accentSecondary", min: 52, max: 84 },
+  ];
+
+  const dataset = {
+    label: "Live Cluster Health",
+    live: true,
+    indicators,
+    series: baseSeries.map(({ name, color }) => ({ name, color, data: [] })),
+    interval: 4200,
+    reset,
+    next,
+  };
+
+  function randomIndicatorValue(min, max) {
+    return randomInt(min, max);
+  }
+
+  function reset() {
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      series.data = indicators.map(() => randomIndicatorValue(config.min, config.max));
+    });
+  }
+
+  function next() {
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      series.data = series.data.map((value) =>
+        Math.round(jitterValue(value, 6, config.min, config.max)),
+      );
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveFunnelDataset() {
+  const stepConfigs = [
+    { name: "Commits", color: "accentPrimary", ratio: 1 },
+    { name: "Build", color: "accentSecondary", ratio: 0.88 },
+    { name: "Test", color: "accentTertiary", ratio: 0.8 },
+    { name: "Staging", color: "accentQuaternary", ratio: 0.72 },
+    { name: "Production", color: "accentQuinary", ratio: 0.68 },
+  ];
+
+  const dataset = {
+    label: "Live Deploy Pipeline",
+    live: true,
+    steps: [],
+    interval: 4800,
+    reset,
+    next: reset,
+  };
+
+  function reset() {
+    let current = randomInt(210, 280);
+    dataset.steps = stepConfigs.map((step, index) => {
+      if (index === 0) {
+        return { ...step, value: current };
+      }
+      current = Math.max(
+        0,
+        Math.round(jitterValue(current * step.ratio, current * 0.08, 0, current)),
+      );
+      return { ...step, value: current };
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
 function createLiveStatDataset() {
   const dataset = {
     label: "Live Core Output",
@@ -1206,8 +1917,12 @@ function registerLiveDatasets() {
   neonDatasets.gauge.push(createLiveGaugeDataset());
   neonDatasets.trend.push(createLiveTrendDataset());
   neonDatasets.xyScatter.push(createLiveScatterDataset());
+  neonDatasets.stackedArea.push(createLiveStackedAreaDataset());
+  neonDatasets.dualAxis.push(createLiveDualAxisDataset());
+  neonDatasets.radar.push(createLiveRadarDataset());
   neonDatasets.stat.push(createLiveStatDataset());
   neonDatasets.barGauge.push(createLiveBarGaugeDataset());
+  neonDatasets.funnel.push(createLiveFunnelDataset());
 }
 
 registerLiveDatasets();
@@ -1361,14 +2076,14 @@ function renderTimeSeries(dataset, container) {
       },
     },
     legend: {
-      data: dataset.series.map((series) => series.name),
+      data: (dataset.series ?? []).map((series) => series.name),
       textStyle: {
         color: "rgba(226, 232, 240, 0.8)",
         fontFamily: "Space Grotesk, sans-serif",
       },
       top: 0,
     },
-    series: dataset.series.map((series) => ({
+    series: (dataset.series ?? []).map((series) => ({
       name: series.name,
       type: "line",
       smooth: true,
@@ -1513,7 +2228,7 @@ function renderStatusHistory(dataset, container) {
   applyChartOption(chart, {
     backgroundColor: "transparent",
     legend: {
-      data: dataset.series.map((series) => series.name),
+      data: (dataset.series ?? []).map((series) => series.name),
       textStyle: {
         color: "rgba(226, 232, 240, 0.8)",
         fontFamily: "Space Grotesk, sans-serif",
@@ -2349,6 +3064,594 @@ function renderXYScatter(dataset, container) {
   return chart;
 }
 
+function renderStackedArea(dataset, container) {
+  const chart = createChartInstance(container);
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    grid: {
+      left: "6%",
+      right: "4%",
+      top: "12%",
+      bottom: "12%",
+      containLabel: true,
+    },
+    legend: {
+      data: dataset.series.map((series) => series.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.8)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: dataset.axis,
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.8)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.8)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    },
+    series: dataset.series.map((series) => ({
+      name: series.name,
+      type: "line",
+      stack: dataset.label ?? "stacked",
+      smooth: true,
+      symbol: "none",
+      lineStyle: {
+        width: 2,
+        color: resolveColor(series.color),
+      },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: colorWithAlpha(series.color, 0.65) },
+          { offset: 1, color: "rgba(15, 23, 42, 0)" },
+        ]),
+      },
+      emphasis: {
+        focus: "series",
+      },
+      data: series.data,
+    })),
+  });
+
+  return chart;
+}
+
+function renderDualAxis(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const axisConfigs = dataset.yAxes ?? [];
+  const axisColorMap = new Map();
+  (dataset.series ?? []).forEach((series) => {
+    const index = series.axisIndex ?? 0;
+    if (!axisColorMap.has(index)) {
+      axisColorMap.set(index, resolveColor(series.color ?? "accentPrimary"));
+    }
+  });
+
+  const yAxis = axisConfigs.map((axis, index) => {
+    const resolvedColor = axisColorMap.get(index) ?? resolveColor("accentPrimary");
+    const decimals = typeof axis.decimals === "number" ? axis.decimals : 0;
+
+    return {
+      type: "value",
+      name: axis.name ?? "",
+      position: index === 0 ? "left" : "right",
+      offset: index > 1 ? (index - 1) * 56 : 0,
+      min: axis.min,
+      max: axis.max,
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha(resolvedColor, 0.45),
+        },
+      },
+      axisLabel: {
+        formatter: (value) => {
+          const formatted = Number.parseFloat(value).toFixed(decimals);
+          return `${formatted}${axis.suffix ?? ""}`;
+        },
+        color: "rgba(148, 163, 184, 0.8)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      splitLine: {
+        show: index === 0,
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    };
+  });
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    grid: {
+      left: "6%",
+      right: axisConfigs.length > 1 ? "12%" : "4%",
+      top: "14%",
+      bottom: "12%",
+      containLabel: true,
+    },
+    legend: {
+      data: dataset.series.map((series) => series.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.8)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+    },
+    xAxis: {
+      type: "category",
+      data: dataset.axis,
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.85)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+    },
+    yAxis,
+    series: (dataset.series ?? []).map((series) => {
+      const isBar = (series.type ?? "bar") === "bar";
+      const color = resolveColor(series.color);
+      return {
+        name: series.name,
+        type: series.type ?? "bar",
+        yAxisIndex: series.axisIndex ?? 0,
+        data: series.data,
+        smooth: (series.type ?? "") === "line",
+        showSymbol: (series.type ?? "") === "line",
+        symbol: "circle",
+        symbolSize: 6,
+        lineStyle: {
+          width: 2,
+          color,
+        },
+        itemStyle: isBar
+          ? {
+              borderRadius: [6, 6, 0, 0],
+              shadowBlur: withGlowBlur(18),
+              shadowColor: withGlowColor(series.color, 0.45),
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color },
+                { offset: 1, color: colorWithAlpha(series.color, 0.45) },
+              ]),
+              borderColor: chartOutlineColor,
+              borderWidth: withOutlineWidth(1),
+            }
+          : {
+              color,
+              shadowBlur: withGlowBlur(16),
+              shadowColor: withGlowColor(series.color, 0.45),
+              borderColor: chartOutlineColor,
+              borderWidth: withOutlineWidth(1),
+            },
+      };
+    }),
+  });
+
+  return chart;
+}
+
+function renderRadar(dataset, container) {
+  const chart = createChartInstance(container);
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    legend: {
+      data: (dataset.series ?? []).map((series) => series.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.82)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+    },
+    radar: {
+      indicator: dataset.indicators ?? [],
+      radius: "62%",
+      splitNumber: 5,
+      shape: "polygon",
+      axisName: {
+        color: "rgba(226, 232, 240, 0.75)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      splitArea: {
+        areaStyle: {
+          color: [
+            "rgba(15, 23, 42, 0.9)",
+            "rgba(15, 23, 42, 0.7)",
+            "rgba(15, 23, 42, 0.5)",
+            "rgba(15, 23, 42, 0.3)",
+            "rgba(15, 23, 42, 0.1)",
+          ],
+        },
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.18),
+        },
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.22),
+        },
+      },
+    },
+    series: [
+      {
+        type: "radar",
+        data: (dataset.series ?? []).map((series) => ({
+          value: series.data,
+          name: series.name,
+          lineStyle: {
+            color: resolveColor(series.color),
+            width: 2,
+          },
+          areaStyle: {
+            color: colorWithAlpha(series.color, 0.25),
+          },
+          symbol: "circle",
+          symbolSize: 6,
+          itemStyle: {
+            color: resolveColor(series.color),
+            borderColor: chartOutlineColor,
+            borderWidth: withOutlineWidth(1),
+            shadowBlur: withGlowBlur(14),
+            shadowColor: withGlowColor(series.color, 0.4),
+          },
+        })),
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderBoxplot(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const boxData = (dataset.boxes ?? []).map((box) => ({
+    value: box.values,
+    name: box.name,
+    itemStyle: {
+      color: colorWithAlpha(box.color ?? "accentPrimary", 0.65),
+      borderColor: resolveColor(box.color ?? "accentPrimary"),
+      borderWidth: withOutlineWidth(1),
+      shadowBlur: withGlowBlur(18),
+      shadowColor: withGlowColor(box.color ?? "accentPrimary", 0.45),
+    },
+  }));
+
+  const outlierData = (dataset.outliers ?? []).map((outlier) => ({
+    value: outlier.value,
+    name: outlier.name,
+    itemStyle: {
+      color: resolveColor(outlier.color ?? "accentSenary"),
+      shadowBlur: withGlowBlur(16),
+      shadowColor: withGlowColor(outlier.color ?? "accentSenary", 0.45),
+      borderColor: chartOutlineColor,
+      borderWidth: withOutlineWidth(1),
+    },
+  }));
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    grid: {
+      left: "8%",
+      right: "6%",
+      top: "14%",
+      bottom: "12%",
+      containLabel: true,
+    },
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        if (params.seriesType === "scatter") {
+          return `${params.name}<br/>Value: ${params.data.value[1]} ms`;
+        }
+        if (Array.isArray(params.data?.value)) {
+          const [min, q1, median, q3, max] = params.data.value;
+          return `${params.name}<br/>P25: ${q1} ms<br/>P50: ${median} ms<br/>P75: ${q3} ms<br/>Min/Max: ${min} ms / ${max} ms`;
+        }
+        return params.name;
+      },
+    },
+    xAxis: {
+      type: "category",
+      data: dataset.categories,
+      boundaryGap: true,
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.85)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.8)",
+        fontFamily: "Share Tech Mono, monospace",
+        formatter: (value) => `${value} ms`,
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    },
+    series: [
+      {
+        name: dataset.label,
+        type: "boxplot",
+        data: boxData,
+      },
+      {
+        name: "Outliers",
+        type: "scatter",
+        data: outlierData,
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderSankey(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const colorLookup = new Map();
+  (dataset.nodes ?? []).forEach((node) => {
+    colorLookup.set(node.name, resolveColor(node.color ?? "accentPrimary"));
+  });
+
+  const nodes = (dataset.nodes ?? []).map((node) => {
+    const color = colorLookup.get(node.name) ?? resolveColor("accentPrimary");
+    return {
+      name: node.name,
+      itemStyle: {
+        color,
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
+        shadowBlur: withGlowBlur(18),
+        shadowColor: withGlowColor(node.color ?? color, 0.4),
+      },
+    };
+  });
+
+  const links = (dataset.links ?? []).map((link) => {
+    const sourceColor = colorLookup.get(link.source) ?? resolveColor("accentPrimary");
+    return {
+      ...link,
+      lineStyle: {
+        color: colorWithAlpha(sourceColor, 0.55),
+        opacity: 0.85,
+        curveness: 0.5,
+      },
+    };
+  });
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        if (params.dataType === "edge") {
+          return `${params.data.source} → ${params.data.target}<br/>${params.data.value} req/min`;
+        }
+        return `${params.name}`;
+      },
+    },
+    series: [
+      {
+        type: "sankey",
+        data: nodes,
+        links,
+        draggable: false,
+        emphasis: {
+          focus: "adjacency",
+        },
+        label: {
+          color: "rgba(226, 232, 240, 0.85)",
+          fontFamily: "Space Grotesk, sans-serif",
+        },
+        lineStyle: {
+          curveness: 0.5,
+        },
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderTreemap(dataset, container) {
+  const chart = createChartInstance(container);
+
+  function mapNode(node) {
+    const color = resolveColor(node.color ?? "accentPrimary");
+    const children = Array.isArray(node.children) ? node.children.map(mapNode) : null;
+    const value =
+      node.value ?? children?.reduce((sum, child) => sum + (child.value ?? 0), 0) ?? 0;
+    return {
+      name: node.name,
+      value,
+      itemStyle: {
+        color,
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
+        shadowBlur: withGlowBlur(16),
+        shadowColor: withGlowColor(node.color ?? color, 0.35),
+      },
+      ...(children ? { children } : {}),
+    };
+  }
+
+  const data = (dataset.tree ?? []).map(mapNode);
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: ({ data }) =>
+        data ? `${data.name}<br/>Value: ${data.value ?? 0}` : dataset.label,
+    },
+    series: [
+      {
+        type: "treemap",
+        data,
+        leafDepth: 2,
+        roam: false,
+        breadcrumb: {
+          show: false,
+        },
+        label: {
+          show: true,
+          color: "rgba(226, 232, 240, 0.85)",
+          fontFamily: "Space Grotesk, sans-serif",
+        },
+        levels: [
+          {
+            itemStyle: {
+              borderColor: colorWithAlpha("accentPrimary", 0.18),
+              borderWidth: withOutlineWidth(2),
+              gapWidth: 4,
+            },
+          },
+          {
+            itemStyle: {
+              borderColor: colorWithAlpha("accentPrimary", 0.1),
+              borderWidth: withOutlineWidth(1),
+              gapWidth: 2,
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderFunnel(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const data = (dataset.steps ?? []).map((step) => ({
+    name: step.name,
+    value: step.value,
+    itemStyle: {
+      color: resolveColor(step.color ?? "accentPrimary"),
+      borderColor: chartOutlineColor,
+      borderWidth: withOutlineWidth(1),
+      shadowBlur: withGlowBlur(20),
+      shadowColor: withGlowColor(step.color ?? "accentPrimary", 0.45),
+    },
+  }));
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: ({ name, value }) => `${name}<br/>Value: ${value}`,
+    },
+    series: [
+      {
+        name: dataset.label,
+        type: "funnel",
+        left: "12%",
+        right: "12%",
+        top: "10%",
+        bottom: "10%",
+        width: "76%",
+        sort: "descending",
+        gap: 4,
+        label: {
+          color: "rgba(226, 232, 240, 0.85)",
+          fontFamily: "Space Grotesk, sans-serif",
+        },
+        data,
+      },
+    ],
+  });
+
+  return chart;
+}
+
 function renderStat(dataset, article) {
   const valueElement = article.querySelector(".stat-value");
   const metaElement = article.querySelector(".stat-meta");
@@ -2497,6 +3800,461 @@ function renderBarGauge(dataset, container) {
   return chart;
 }
 
+function renderStackedBar(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const categories = dataset.axis ?? [];
+  const series = (dataset.series ?? []).map((entry) => ({
+    name: entry.name,
+    type: "bar",
+    stack: "total",
+    emphasis: { focus: "series" },
+    barWidth: 18,
+    data: entry.data ?? [],
+    itemStyle: {
+      color: resolveColor(entry.color ?? "accentPrimary"),
+      borderColor: chartOutlineColor,
+      borderWidth: withOutlineWidth(1),
+      shadowBlur: withGlowBlur(18),
+      shadowColor: withGlowColor(entry.color ?? "accentPrimary", 0.4),
+    },
+  }));
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    grid: {
+      left: "6%",
+      right: "6%",
+      top: "14%",
+      bottom: "14%",
+      containLabel: true,
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      axisPointer: { type: "shadow" },
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        if (!Array.isArray(params)) {
+          return dataset.label;
+        }
+        const total = params.reduce((sum, item) => sum + (item.data ?? 0), 0);
+        const lines = params
+          .map((item) => `${item.marker} ${item.seriesName}: ${item.data}`)
+          .join("<br/>");
+        return `${params[0]?.axisValue ?? ""}<br/>${lines}<br/><strong>Total: ${total}</strong>`;
+      },
+    },
+    legend: {
+      data: series.map((entry) => entry.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.82)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    xAxis: {
+      type: "category",
+      data: categories,
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.75)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.75)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    },
+    series,
+  });
+
+  return chart;
+}
+
+function renderCalendarHeatmap(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const entries = dataset.entries ?? [];
+  const data = entries.map((entry) => [entry.date, entry.value ?? 0]);
+  const values = entries.map((entry) => entry.value ?? 0);
+  const minValue = values.length ? Math.min(...values) : 0;
+  const maxValue = values.length ? Math.max(...values) : 1;
+  const valueLookup = new Map(entries.map((entry) => [entry.date, entry.value ?? 0]));
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    visualMap: {
+      min: minValue,
+      max: maxValue,
+      orient: "horizontal",
+      left: "center",
+      bottom: 12,
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.82)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      inRange: {
+        color: [
+          colorWithAlpha("accentQuaternary", 0.25),
+          colorWithAlpha("accentSecondary", 0.65),
+          resolveColor("accentPrimary"),
+        ],
+      },
+    },
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        const value = valueLookup.get(params.data?.[0]) ?? 0;
+        return `${params.data?.[0]}<br/>${dataset.label}: ${value}`;
+      },
+    },
+    calendar: {
+      range: dataset.year,
+      cellSize: [20, 20],
+      top: 40,
+      left: "center",
+      orient: "horizontal",
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.12),
+        },
+      },
+      itemStyle: {
+        borderWidth: withOutlineWidth(1),
+        borderColor: colorWithAlpha("accentPrimary", 0.35),
+      },
+      dayLabel: {
+        color: "rgba(148, 163, 184, 0.75)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      monthLabel: {
+        color: "rgba(226, 232, 240, 0.82)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      yearLabel: {
+        color: "rgba(226, 232, 240, 0.85)",
+        fontFamily: "Space Grotesk, sans-serif",
+        margin: 30,
+      },
+    },
+    series: [
+      {
+        type: "heatmap",
+        coordinateSystem: "calendar",
+        data,
+        itemStyle: {
+          shadowBlur: withGlowBlur(18),
+          shadowColor: withGlowColor("accentPrimary", 0.45),
+        },
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderThemeRiver(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const streams = dataset.streams ?? [];
+  const axis = dataset.axis ?? [];
+
+  const data = [];
+  streams.forEach((stream) => {
+    axis.forEach((point, index) => {
+      const value = stream.data?.[index] ?? 0;
+      data.push([point, value, stream.name]);
+    });
+  });
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    color: streams.map((stream) => resolveColor(stream.color ?? "accentPrimary")),
+    singleAxis: {
+      type: "category",
+      data: axis,
+      top: 60,
+      bottom: 60,
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.75)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+      splitLine: {
+        show: true,
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    },
+    legend: {
+      data: streams.map((stream) => stream.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.82)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      axisPointer: {
+        type: "line",
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.45),
+        },
+      },
+      formatter: (params) => {
+        if (!Array.isArray(params)) {
+          return dataset.label;
+        }
+        const lines = params
+          .map((item) => `${item.marker} ${item.value?.[2]}: ${item.value?.[1]}`)
+          .join("<br/>");
+        return `${params[0]?.value?.[0] ?? ""}<br/>${lines}`;
+      },
+    },
+    series: [
+      {
+        type: "themeRiver",
+        data,
+        emphasis: {
+          itemStyle: {
+            shadowBlur: withGlowBlur(26),
+            shadowColor: withGlowColor("accentPrimary", 0.4),
+          },
+        },
+        itemStyle: {
+          borderColor: chartOutlineColor,
+          borderWidth: withOutlineWidth(0.6),
+        },
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderSunburst(dataset, container) {
+  const chart = createChartInstance(container);
+
+  function decorate(nodes) {
+    return (nodes ?? []).map((node) => ({
+      name: node.name,
+      value: node.value,
+      children: decorate(node.children),
+      itemStyle: {
+        color: resolveColor(node.color ?? "accentPrimary"),
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
+        shadowBlur: withGlowBlur(18),
+        shadowColor: withGlowColor(node.color ?? "accentPrimary", 0.4),
+      },
+      label: {
+        color: "rgba(226, 232, 240, 0.85)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+    }));
+  }
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        const value = Array.isArray(params.value) ? params.value[params.value.length - 1] : params.value;
+        return `${params.treePathInfo.map((info) => info.name).join(" → ")}<br/>Score: ${value ?? 0}`;
+      },
+    },
+    series: [
+      {
+        type: "sunburst",
+        radius: ["12%", "82%"],
+        data: decorate(dataset.tree),
+        sort: undefined,
+        itemStyle: {
+          borderColor: chartOutlineColor,
+          borderWidth: withOutlineWidth(1),
+        },
+        emphasis: {
+          focus: "ancestor",
+        },
+        levels: [
+          {},
+          {
+            r0: "12%",
+            r: "30%",
+          },
+          {
+            r0: "30%",
+            r: "55%",
+          },
+          {
+            r0: "55%",
+            r: "82%",
+          },
+        ],
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderPictorialBar(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const items = dataset.items ?? [];
+  const categories = items.map((item) => item.name);
+  const maxValue = items.reduce((max, item) => Math.max(max, item.target ?? 0, item.actual ?? 0), 0) || 100;
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    grid: {
+      left: "8%",
+      right: "6%",
+      top: "18%",
+      bottom: "18%",
+      containLabel: true,
+    },
+    legend: {
+      data: ["Target", "Actual"],
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.82)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      axisPointer: { type: "shadow" },
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        if (!Array.isArray(params)) {
+          return dataset.label;
+        }
+        const target = params.find((item) => item.seriesName === "Target")?.value ?? 0;
+        const actual = params.find((item) => item.seriesName === "Actual")?.value ?? 0;
+        const category = params[0]?.axisValue ?? "";
+        return `${category}<br/>Actual: ${actual}%<br/>Target: ${target}%`;
+      },
+    },
+    xAxis: {
+      type: "category",
+      data: categories,
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.78)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: Math.max(100, Math.ceil(maxValue / 5) * 5),
+      axisLabel: {
+        formatter: (value) => `${value}%`,
+        color: "rgba(148, 163, 184, 0.75)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    },
+    series: [
+      {
+        name: "Target",
+        type: "pictorialBar",
+        symbol: "rect",
+        symbolRepeat: true,
+        symbolSize: [14, 6],
+        symbolMargin: 2,
+        symbolBoundingData: Math.max(100, maxValue),
+        data: items.map((item) => ({
+          value: item.target ?? 0,
+          itemStyle: {
+            color: colorWithAlpha(item.color ?? "accentPrimary", 0.25),
+            borderColor: chartOutlineColor,
+            borderWidth: withOutlineWidth(1),
+          },
+        })),
+        z: 1,
+      },
+      {
+        name: "Actual",
+        type: "pictorialBar",
+        symbol: "rect",
+        symbolRepeat: true,
+        symbolSize: [14, 6],
+        symbolMargin: 2,
+        symbolBoundingData: Math.max(100, maxValue),
+        data: items.map((item) => ({
+          value: item.actual ?? 0,
+          itemStyle: {
+            color: resolveColor(item.color ?? "accentPrimary"),
+            borderColor: chartOutlineColor,
+            borderWidth: withOutlineWidth(1),
+            shadowBlur: withGlowBlur(18),
+            shadowColor: withGlowColor(item.color ?? "accentPrimary", 0.45),
+          },
+        })),
+        z: 2,
+      },
+    ],
+  });
+
+  return chart;
+}
+
 const componentRenderers = {
   timeSeries: renderTimeSeries,
   stateTimeline: renderStateTimeline,
@@ -2509,8 +4267,20 @@ const componentRenderers = {
   gauge: renderGauge,
   trend: renderTrend,
   xyScatter: renderXYScatter,
+  stackedArea: renderStackedArea,
+  dualAxis: renderDualAxis,
+  radar: renderRadar,
+  boxplot: renderBoxplot,
+  sankey: renderSankey,
+  treemap: renderTreemap,
+  funnel: renderFunnel,
   stat: renderStat,
   barGauge: renderBarGauge,
+  stackedBar: renderStackedBar,
+  calendarHeatmap: renderCalendarHeatmap,
+  themeRiver: renderThemeRiver,
+  sunburst: renderSunburst,
+  pictorialBar: renderPictorialBar,
 };
 
 function setupComponent(article) {

@@ -179,6 +179,20 @@
       <footer class="component-notes">Blend in additional channels by supplying more rows.</footer>
     </article>
 
+    <article class="component-card" data-component="calendarHeatmap">
+      <header>
+        <h2>Calendar Deploy Heatmap</h2>
+        <p>Plot deploy cadence or page frequency right on a date grid.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add more YYYY-MM-DD entries to span additional months.</footer>
+    </article>
+
     <article class="component-card" data-component="pieChart">
       <header>
         <h2>Radial Split</h2>
@@ -249,6 +263,146 @@
       <footer class="component-notes">Add more clusters to compare additional cohorts.</footer>
     </article>
 
+    <article class="component-card" data-component="stackedArea">
+      <header>
+        <h2>Latency Percentile Stack</h2>
+        <p>Watch percentile bands of request latency to spot regressions across services.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Feed in more percentile bands to widen the latency ribbon.</footer>
+    </article>
+
+    <article class="component-card" data-component="stackedBar">
+      <header>
+        <h2>Stacked Incident Bars</h2>
+        <p>Stack severities to see daily alert load in one glance.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add more severities to highlight custom escalation policies.</footer>
+    </article>
+
+    <article class="component-card" data-component="dualAxis">
+      <header>
+        <h2>Throughput vs Error Rate</h2>
+        <p>Compare load and reliability by pairing request throughput with error budgets.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Mix additional axes to monitor saturation or queue depth.</footer>
+    </article>
+
+    <article class="component-card" data-component="themeRiver">
+      <header>
+        <h2>Theme River Streams</h2>
+        <p>Watch how service mix shifts across the timeline.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add or remove streams to reflect your platform slices.</footer>
+    </article>
+
+    <article class="component-card" data-component="radar">
+      <header>
+        <h2>Cluster Health Radar</h2>
+        <p>Benchmark environment health by comparing utilization and saturation metrics.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add more clusters to overlay competing environments.</footer>
+    </article>
+
+    <article class="component-card" data-component="boxplot">
+      <header>
+        <h2>Latency Boxplot</h2>
+        <p>Summarize request latency distributions with whiskers and outliers.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add outlier samples to highlight noisy services.</footer>
+    </article>
+
+    <article class="component-card" data-component="sankey">
+      <header>
+        <h2>Request Flow Sankey</h2>
+        <p>Trace how traffic traverses the platform from ingress to downstream systems.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Map additional nodes to surface new dependencies.</footer>
+    </article>
+
+    <article class="component-card" data-component="treemap">
+      <header>
+        <h2>Error Impact Treemap</h2>
+        <p>Quantify where incidents consume the error budget across services.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Extend branches to visualize subsystem depth.</footer>
+    </article>
+
+    <article class="component-card" data-component="sunburst">
+      <header>
+        <h2>Service Sunburst</h2>
+        <p>Explore ownership layers and subsystem footprint in a radial layout.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Nest additional children to chart deeper dependencies.</footer>
+    </article>
+
+    <article class="component-card" data-component="funnel">
+      <header>
+        <h2>Delivery Funnel</h2>
+        <p>Track build artifacts as they progress from commit to production.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Insert more stages to reflect your continuous delivery cadence.</footer>
+    </article>
+
     <article class="component-card" data-component="stat">
       <header>
         <h2>Stat Pulse</h2>
@@ -276,6 +430,20 @@
         <div class="chart-canvas"></div>
       </div>
       <footer class="component-notes">Rebalance the contributions to highlight different segments.</footer>
+    </article>
+
+    <article class="component-card" data-component="pictorialBar">
+      <header>
+        <h2>Pictorial SLO Gauge</h2>
+        <p>Compare actual vs target percentages with stacked neon tiles.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Tweak targets to visualize the gap your teams must close.</footer>
     </article>
   </main>
 </body>
