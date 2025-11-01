@@ -558,8 +558,8 @@ body {
 }
 
 .log-attr--string {
-  color: var(--accent-primary);
-  background: rgb(var(--accent-primary-rgb) / 0.14);
+  color: var(--accent-secondary);
+  background: rgb(var(--accent-secondary-rgb) / 0.16);
 }
 
 .log-attr--boolean {
@@ -568,8 +568,8 @@ body {
 }
 
 .log-attr--int {
-  color: var(--accent-quinary);
-  background: rgb(var(--accent-quinary-rgb) / 0.16);
+  color: var(--accent-error);
+  background: rgb(var(--accent-error-rgb) / 0.18);
 }
 
 .log-attr--double {
