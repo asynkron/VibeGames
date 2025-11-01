@@ -571,10 +571,6 @@ function renderSpanLogs(span) {
   const logsSection = document.createElement("section");
   logsSection.className = "trace-span-logs";
 
-  const heading = document.createElement("h4");
-  heading.textContent = `Logs (${sortedLogs.length})`;
-  logsSection.append(heading);
-
   const logsList = document.createElement("div");
   logsList.className = "trace-span-logs__list";
 
