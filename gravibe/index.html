@@ -16,6 +16,84 @@
       <select id="palette-select" class="palette-select"></select>
     </label>
   </header>
+  <section class="effect-panel">
+    <div>
+      <h2>Glow Lab</h2>
+      <p>Dial in a consistent glow treatment, adjust outlines, and keep the neon halo tucked behind each chart shell.</p>
+    </div>
+    <div class="effect-controls">
+      <label class="effect-control">
+        <span>Chart Glow Strength</span>
+        <input
+          id="effect-glow-strength"
+          type="range"
+          min="0"
+          max="2"
+          step="0.05"
+          value="1"
+          data-effect-control="glowIntensity"
+          data-precision="2"
+        />
+        <output id="effect-glow-strength-value">1.00×</output>
+      </label>
+      <label class="effect-control">
+        <span>Chart Glow Opacity</span>
+        <input
+          id="effect-glow-opacity"
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value="1"
+          data-effect-control="glowOpacity"
+          data-precision="2"
+        />
+        <output id="effect-glow-opacity-value">1.00</output>
+      </label>
+      <label class="effect-control">
+        <span>Outline Scale</span>
+        <input
+          id="effect-outline-scale"
+          type="range"
+          min="0"
+          max="2"
+          step="0.05"
+          value="1"
+          data-effect-control="outlineScale"
+          data-precision="2"
+        />
+        <output id="effect-outline-scale-value">1.00×</output>
+      </label>
+      <label class="effect-control">
+        <span>Halo Blur</span>
+        <input
+          id="effect-halo-blur"
+          type="range"
+          min="0"
+          max="60"
+          step="1"
+          value="28"
+          data-effect-control="haloBlur"
+          data-unit="px"
+        />
+        <output id="effect-halo-blur-value">28px</output>
+      </label>
+      <label class="effect-control">
+        <span>Halo Opacity</span>
+        <input
+          id="effect-halo-opacity"
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value="0.28"
+          data-effect-control="haloOpacity"
+          data-precision="2"
+        />
+        <output id="effect-halo-opacity-value">0.28</output>
+      </label>
+    </div>
+  </section>
   <main class="component-grid">
     <article class="component-card" data-component="timeSeries">
       <header>
