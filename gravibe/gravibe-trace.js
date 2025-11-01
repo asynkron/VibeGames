@@ -404,7 +404,7 @@ function renderValidationBanner(host, validation) {
  * @param {TraceModel} trace
  * @param {TraceSpan} span
  */
-export function computeSpanOffsets(trace, span) {
+export function computeSpanOffsets(trace, span, timeWindow = { start: 0, end: 100 }) {
   const totalDuration = trace.durationNano ||
     Math.max(
       toNumberTimestamp(trace.endTimeUnixNano) -
@@ -419,12 +419,34 @@ export function computeSpanOffsets(trace, span) {
 
   const startPercent = clamp(startOffset / totalDuration, 0, 1) * 100;
   const endPercent = clamp(endOffset / totalDuration, 0, 1) * 100;
-  const width = Math.max(endPercent - startPercent, 0.5);
+
+  // Apply time window filter - remap to window range
+  const windowStart = timeWindow.start || 0;
+  const windowEnd = timeWindow.end || 100;
+  const windowWidth = windowEnd - windowStart;
+
+  // If span is outside the window, return zero width
+  if (endPercent < windowStart || startPercent > windowEnd) {
+    return {
+      startPercent: 0,
+      widthPercent: 0,
+      endPercent: 0,
+    };
+  }
+
+  // Clamp span to window boundaries
+  const clampedStart = Math.max(startPercent, windowStart);
+  const clampedEnd = Math.min(endPercent, windowEnd);
+
+  // Remap to 0-100% relative to the window
+  const remappedStart = ((clampedStart - windowStart) / windowWidth) * 100;
+  const remappedEnd = ((clampedEnd - windowStart) / windowWidth) * 100;
+  const width = Math.max(remappedEnd - remappedStart, 0.5);
 
   return {
-    startPercent,
+    startPercent: remappedStart,
     widthPercent: width,
-    endPercent,
+    endPercent: remappedEnd,
   };
 }
 
@@ -531,7 +553,7 @@ function renderSpanDetails(span) {
   return details;
 }
 
-function renderSpanSummary(trace, node) {
+function renderSpanSummary(trace, node, timeWindow = { start: 0, end: 100 }) {
   const summary = document.createElement("div");
   summary.className = "trace-span__summary";
   summary.dataset.depth = String(node.depth);
@@ -575,7 +597,7 @@ function renderSpanSummary(trace, node) {
   timeline.type = "button";
   timeline.className = "trace-span__timeline";
   timeline.setAttribute("aria-label", "Toggle span details");
-  const offsets = computeSpanOffsets(trace, node.span);
+  const offsets = computeSpanOffsets(trace, node.span, timeWindow);
   timeline.style.setProperty("--span-start", `${offsets.startPercent}%`);
   timeline.style.setProperty("--span-width", `${offsets.widthPercent}%`);
 
@@ -650,9 +672,15 @@ function renderSpanNode(trace, node, state) {
     container.classList.add("trace-span--leaf");
   }
 
+  const timeWindow = {
+    start: state?.timeWindowStart ?? 0,
+    end: state?.timeWindowEnd ?? 100,
+  };
+
   const { summary, expander, service, timeline } = renderSpanSummary(
     trace,
-    node
+    node,
+    timeWindow
   );
   container.append(summary);
 
@@ -810,6 +838,8 @@ function createTraceViewState(trace) {
     expandedChildren: new Set(),
     expandedAttributes: new Set(),
     initializedChildren: false,
+    timeWindowStart: 0, // Percentage of trace (0-100)
+    timeWindowEnd: 100, // Percentage of trace (0-100)
   };
   ensureChildrenExpanded(trace, state);
   return state;
@@ -818,9 +848,11 @@ function createTraceViewState(trace) {
 /**
  * Renders a non-interactive SVG preview of the trace spans.
  * @param {TraceModel} trace
+ * @param {Function} onSelectionChange - Callback when selection changes (start, end) as percentages
+ * @param {Object} initialSelection - Initial selection state {start: 0-100, end: 0-100}
  * @returns {SVGSVGElement}
  */
-function renderTracePreview(trace) {
+function renderTracePreview(trace, onSelectionChange = null, initialSelection = null) {
   const SVG_HEIGHT = 150;
   const MIN_SPAN_WIDTH = 2; // Minimum width in pixels for visibility
   const MIN_SPAN_HEIGHT = 2; // Minimum height in pixels per span
@@ -892,9 +924,9 @@ function renderTracePreview(trace) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  // Render each span
+  // Render each span (preview always shows full range)
   allSpans.forEach((node, index) => {
-    const offsets = computeSpanOffsets(trace, node.span);
+    const offsets = computeSpanOffsets(trace, node.span, { start: 0, end: 100 });
     const serviceName = node.span.resource?.serviceName || "unknown-service";
     const color = getServiceColor(serviceName);
 
@@ -1017,6 +1049,16 @@ function renderTracePreview(trace) {
     rightMarker.setAttribute("x2", `${end}`);
   };
 
+  // Initialize selection from initialSelection or default to full range
+  if (initialSelection) {
+    selectionStart = initialSelection.start;
+    selectionEnd = initialSelection.end;
+  } else {
+    selectionStart = 0;
+    selectionEnd = 100;
+  }
+  updateSelection();
+
   // Show/hide markers
   const showMarkers = () => {
     leftMarker.style.opacity = "1";
@@ -1092,11 +1134,46 @@ function renderTracePreview(trace) {
       }
 
       updateSelection();
+
+      // Notify parent of selection change
+      if (onSelectionChange) {
+        const start = Math.min(selectionStart, selectionEnd);
+        const end = Math.max(selectionStart, selectionEnd);
+        onSelectionChange(start, end);
+      }
+
       isSelecting = false;
       svg.style.cursor = "";
     }
 
     if (isDraggingMarker) {
+      // Swap if end < start
+      if (draggingMarker === leftMarker && selectionStart > selectionEnd) {
+        [selectionStart, selectionEnd] = [selectionEnd, selectionStart];
+      } else if (draggingMarker === rightMarker && selectionEnd < selectionStart) {
+        [selectionStart, selectionEnd] = [selectionEnd, selectionStart];
+      }
+
+      // Check if selection is too small - if so, reset to full range
+      const selectionWidthPercent = Math.abs(selectionEnd - selectionStart);
+      const rect = svg.getBoundingClientRect();
+      const thresholdPercent = (5 / rect.width) * 100;
+
+      if (selectionWidthPercent < thresholdPercent) {
+        // Reset selection to full range
+        selectionStart = 0;
+        selectionEnd = 100;
+      }
+
+      updateSelection();
+
+      // Notify parent of selection change
+      if (onSelectionChange) {
+        const start = Math.min(selectionStart, selectionEnd);
+        const end = Math.max(selectionStart, selectionEnd);
+        onSelectionChange(start, end);
+      }
+
       isDraggingMarker = false;
       draggingMarker = null;
     }
@@ -1143,14 +1220,31 @@ export function renderTrace(host, trace, state) {
   host.append(header);
 
   // Add preview trace component
-  const preview = renderTracePreview(trace);
+  const preview = renderTracePreview(
+    trace,
+    (startPercent, endPercent) => {
+      // Update time window in view state
+      viewState.timeWindowStart = startPercent;
+      viewState.timeWindowEnd = endPercent;
+      // Re-render the trace with the new time window
+      renderTrace(host, trace, viewState);
+    },
+    {
+      start: viewState.timeWindowStart ?? 0,
+      end: viewState.timeWindowEnd ?? 100,
+    }
+  );
   host.append(preview);
 
   const list = document.createElement("div");
   list.className = "trace-span-list";
 
   // Create timeline markers (vertical lines) that span all timelines
-  const timelineMarkers = createTimelineMarkers(trace, 3);
+  const timeWindow = {
+    start: viewState.timeWindowStart ?? 0,
+    end: viewState.timeWindowEnd ?? 100,
+  };
+  const timelineMarkers = createTimelineMarkers(trace, 3, timeWindow);
   list.append(timelineMarkers);
 
   trace.roots.forEach((root) => {
@@ -1183,20 +1277,30 @@ function formatDurationMs(durationNano) {
  * @param {number} numberOfSwimlanes - Number of swimlanes (default 3)
  * @returns {HTMLElement} Container element with timeline markers
  */
-function createTimelineMarkers(trace, numberOfSwimlanes = 3) {
+function createTimelineMarkers(trace, numberOfSwimlanes = 3, timeWindow = { start: 0, end: 100 }) {
   const container = document.createElement("div");
   container.className = "trace-timeline-markers";
 
-  const interval = 100 / numberOfSwimlanes;
   const totalDuration = trace.durationNano || Math.max(
     toNumberTimestamp(trace.endTimeUnixNano) - toNumberTimestamp(trace.startTimeUnixNano),
     1
   );
 
-  // Create markers at 0%, then at each interval, and finally at 100%
+  // Calculate time window boundaries
+  const windowStart = timeWindow.start || 0;
+  const windowEnd = timeWindow.end || 100;
+  const windowWidth = windowEnd - windowStart;
+  const windowDuration = (totalDuration * windowWidth) / 100;
+  const windowStartTime = (totalDuration * windowStart) / 100;
+
+  // Create markers at intervals within the time window
+  const interval = 100 / numberOfSwimlanes;
   for (let i = 0; i <= numberOfSwimlanes; i++) {
+    // Position relative to window (0-100% within window)
     const position = i * interval;
-    const timeDelta = (totalDuration * i) / numberOfSwimlanes;
+
+    // Calculate time delta from window start
+    const timeDelta = (windowDuration * i) / numberOfSwimlanes;
 
     const marker = document.createElement("div");
     marker.className = "trace-timeline-marker";
