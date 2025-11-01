@@ -49,6 +49,133 @@ function rerenderAllComponents() {
   });
 }
 
+// Shared glow/outline state so every renderer reads the same tuning values.
+const effectDefaults = {
+  glowIntensity: 1,
+  glowOpacity: 1,
+  outlineScale: 1,
+  haloBlur: 28,
+  haloOpacity: 0.28,
+};
+
+const effectsState = { ...effectDefaults };
+
+// Keep the CSS custom properties in sync so purely visual halos stay configurable too.
+function applyEffectCssVariables() {
+  const root = document.documentElement;
+  root.style.setProperty("--chart-glow-scale", effectsState.glowIntensity.toFixed(2));
+  root.style.setProperty("--chart-glow-opacity", effectsState.glowOpacity.toFixed(2));
+  root.style.setProperty("--chart-outline-scale", effectsState.outlineScale.toFixed(2));
+  root.style.setProperty("--chart-halo-blur", `${effectsState.haloBlur}px`);
+  root.style.setProperty("--chart-halo-opacity", effectsState.haloOpacity.toFixed(2));
+}
+
+function withGlowBlur(base) {
+  if (!Number.isFinite(base)) {
+    return 0;
+  }
+  const scaled = base * effectsState.glowIntensity;
+  return scaled <= 0 ? 0 : scaled;
+}
+
+function withGlowColor(colorRef, baseAlpha = 0.45) {
+  const alpha = clamp(baseAlpha * effectsState.glowOpacity, 0, 1);
+  return colorWithAlpha(colorRef, alpha);
+}
+
+function withOutlineWidth(base) {
+  if (!Number.isFinite(base)) {
+    return base;
+  }
+  const scaled = base * effectsState.outlineScale;
+  return scaled < 0 ? 0 : scaled;
+}
+
+// Declarative description of each slider so wiring new controls stays concise.
+const effectControlSchema = [
+  {
+    selector: "#effect-glow-strength",
+    property: "glowIntensity",
+    output: "#effect-glow-strength-value",
+    parser: Number.parseFloat,
+    format: (value) => `${value.toFixed(2)}×`,
+  },
+  {
+    selector: "#effect-glow-opacity",
+    property: "glowOpacity",
+    output: "#effect-glow-opacity-value",
+    parser: Number.parseFloat,
+    format: (value) => value.toFixed(2),
+  },
+  {
+    selector: "#effect-outline-scale",
+    property: "outlineScale",
+    output: "#effect-outline-scale-value",
+    parser: Number.parseFloat,
+    format: (value) => `${value.toFixed(2)}×`,
+  },
+  {
+    selector: "#effect-halo-blur",
+    property: "haloBlur",
+    output: "#effect-halo-blur-value",
+    parser: Number.parseFloat,
+    format: (value) => `${Math.round(value)}px`,
+  },
+  {
+    selector: "#effect-halo-opacity",
+    property: "haloOpacity",
+    output: "#effect-halo-opacity-value",
+    parser: Number.parseFloat,
+    format: (value) => value.toFixed(2),
+  },
+];
+
+function applyEffectsState() {
+  applyEffectCssVariables();
+  rerenderAllComponents();
+}
+
+function registerEffectControls() {
+  applyEffectCssVariables();
+
+  effectControlSchema.forEach(({ selector, property, output, parser, format }) => {
+    const input = document.querySelector(selector);
+    if (!input) {
+      return;
+    }
+
+    const outputElement = output ? document.querySelector(output) : null;
+    const parseValue = typeof parser === "function" ? parser : Number.parseFloat;
+
+    const min = input.min !== "" ? Number.parseFloat(input.min) : undefined;
+    const max = input.max !== "" ? Number.parseFloat(input.max) : undefined;
+
+    const updateDisplay = () => {
+      if (outputElement && typeof format === "function") {
+        outputElement.textContent = format(effectsState[property]);
+      }
+    };
+
+    const initialValue = effectsState[property];
+    if (initialValue !== undefined) {
+      input.value = String(initialValue);
+    }
+    updateDisplay();
+
+    input.addEventListener("input", (event) => {
+      const raw = parseValue(event.target.value);
+      if (!Number.isFinite(raw)) {
+        return;
+      }
+      const clamped = clamp(raw, min, max);
+      effectsState[property] = property === "haloBlur" ? Math.max(0, clamped) : clamped;
+      input.value = String(effectsState[property]);
+      updateDisplay();
+      applyEffectsState();
+    });
+  });
+}
+
 function hexToRgb(hex) {
   const trimmed = hex.replace(/^#/, "");
   const bigint = parseInt(trimmed, 16);
@@ -1338,8 +1465,8 @@ function renderStateTimeline(dataset, container) {
             ),
             style: api.style({
               opacity: 0.9,
-              shadowBlur: 20,
-              shadowColor: api.style().fill,
+              shadowBlur: withGlowBlur(20),
+              shadowColor: withGlowColor(api.style().fill, 0.8),
             }),
           };
         },
@@ -1431,8 +1558,8 @@ function renderStatusHistory(dataset, container) {
         itemStyle: {
           color: resolveColor(series.colors[state] ?? "accentPrimary"),
           opacity: 0.9,
-          shadowBlur: 16,
-          shadowColor: resolveColor(series.colors[state] ?? "accentPrimary"),
+          shadowBlur: withGlowBlur(16),
+          shadowColor: withGlowColor(series.colors[state] ?? "accentPrimary", 0.65),
         },
       })),
     })),
@@ -1506,8 +1633,8 @@ function renderBarChart(dataset, container) {
       data: series.data,
       itemStyle: {
         borderRadius: [6, 6, 6, 6],
-        shadowBlur: 18,
-        shadowColor: colorWithAlpha(series.color, 0.53),
+        shadowBlur: withGlowBlur(18),
+        shadowColor: withGlowColor(series.color, 0.53),
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
           { offset: 0, color: resolveColor(series.color) },
           { offset: 1, color: colorWithAlpha(series.color, 0.47) },
@@ -1573,8 +1700,8 @@ function renderHistogram(dataset, container) {
         barWidth: "60%",
         itemStyle: {
           borderRadius: [10, 10, 10, 10],
-          shadowBlur: 20,
-          shadowColor: colorWithAlpha("accentPrimary", 0.35),
+          shadowBlur: withGlowBlur(20),
+          shadowColor: withGlowColor("accentPrimary", 0.35),
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: colorWithAlpha("accentPrimary", 0.9) },
             { offset: 1, color: colorWithAlpha("accentTertiary", 0.6) },
@@ -1666,8 +1793,8 @@ function renderHeatmap(dataset, container) {
         },
         emphasis: {
           itemStyle: {
-            shadowBlur: 20,
-            shadowColor: colorWithAlpha("accentPrimary", 0.45),
+            shadowBlur: withGlowBlur(20),
+            shadowColor: withGlowColor("accentPrimary", 0.45),
           },
         },
       },
@@ -1713,7 +1840,7 @@ function renderPieChart(dataset, container) {
         itemStyle: {
           borderRadius: 12,
           borderColor: "rgba(15, 23, 42, 0.95)",
-          borderWidth: 2,
+          borderWidth: withOutlineWidth(2),
         },
         label: {
           color: "rgba(226, 232, 240, 0.85)",
@@ -1729,8 +1856,8 @@ function renderPieChart(dataset, container) {
           name: slice.name,
           itemStyle: {
             color: resolveColor(slice.color),
-            shadowBlur: 25,
-            shadowColor: colorWithAlpha(slice.color, 0.53),
+            shadowBlur: withGlowBlur(25),
+            shadowColor: withGlowColor(slice.color, 0.53),
           },
         })),
       },
@@ -1803,8 +1930,8 @@ function renderCandlestick(dataset, container) {
           color0: colorWithAlpha("accentSecondary", 0.7),
           borderColor: colorWithAlpha("accentPrimary", 0.9),
           borderColor0: colorWithAlpha("accentSecondary", 0.9),
-          shadowBlur: 18,
-          shadowColor: colorWithAlpha("accentPrimary", 0.35),
+          shadowBlur: withGlowBlur(18),
+          shadowColor: withGlowColor("accentPrimary", 0.35),
         },
       },
     ],
@@ -1897,8 +2024,8 @@ function renderGauge(dataset, container) {
           width: 16,
           itemStyle: {
             color: colorWithAlpha("accentPrimary", 0.95),
-            shadowBlur: 20,
-            shadowColor: colorWithAlpha("accentPrimary", 0.45),
+            shadowBlur: withGlowBlur(20),
+            shadowColor: withGlowColor("accentPrimary", 0.45),
           },
         },
         axisLine: {
@@ -1973,7 +2100,7 @@ function renderGauge(dataset, container) {
           itemStyle: {
             color: colorWithAlpha("accentPrimary", 0.95),
             borderColor: "rgba(15, 23, 42, 0.95)",
-            borderWidth: 4,
+            borderWidth: withOutlineWidth(4),
           },
         },
         axisTick: {
@@ -2136,8 +2263,8 @@ function renderXYScatter(dataset, container) {
       symbolSize: (data) => data[2],
       itemStyle: {
         color: resolveColor(series.color),
-        shadowBlur: 15,
-        shadowColor: colorWithAlpha(series.color, 0.53),
+        shadowBlur: withGlowBlur(15),
+        shadowColor: withGlowColor(series.color, 0.53),
       },
       data: series.points,
     })),
@@ -2256,7 +2383,7 @@ function renderBarGauge(dataset, container) {
           color: "rgba(15, 23, 42, 0.65)",
           borderRadius: 999,
           borderColor: colorWithAlpha("accentPrimary", 0.2),
-          borderWidth: 1,
+          borderWidth: withOutlineWidth(1),
         },
         silent: true,
         z: 1,
@@ -2270,8 +2397,8 @@ function renderBarGauge(dataset, container) {
         itemStyle: {
           color: resolveColor(section.color),
           borderRadius: [999, 999, 999, 999],
-          shadowBlur: 25,
-          shadowColor: colorWithAlpha(section.color, 0.4),
+          shadowBlur: withGlowBlur(25),
+          shadowColor: withGlowColor(section.color, 0.4),
         },
         emphasis: {
           focus: "series",
@@ -2373,6 +2500,8 @@ function initGravibe() {
   if (defaultPalette) {
     applyPalette(defaultPalette);
   }
+
+  registerEffectControls();
 
   const paletteSelect = document.querySelector("#palette-select");
   if (paletteSelect) {
