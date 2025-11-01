@@ -441,6 +441,8 @@ body {
   display: grid;
   gap: 0.75rem;
   position: relative;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
 }
 
 .trace-viewer__splitter {
@@ -468,7 +470,8 @@ body {
 }
 
 .trace-span {
-  background: rgba(18, 22, 30, 0.85);
+  position: relative;
+  z-index: 1;
 }
 
 .trace-span--leaf {
@@ -483,6 +486,8 @@ body {
   grid-template-columns: 1.75rem var(--trace-span-service-width, 16rem) minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem;
+  position: relative;
+  z-index: 2;
 }
 
 .trace-span__expander,
@@ -568,14 +573,63 @@ body {
   opacity: 0.6;
 }
 
+.trace-timeline-markers {
+  position: absolute;
+  left: calc(1.75rem + 0.75rem + var(--trace-span-service-width, 16rem) + 0.75rem);
+  right: 0;
+  top: -1.5rem;
+  bottom: -1.5rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.trace-timeline-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.3);
+  transform: translateX(-50%);
+}
+
+.trace-timeline-marker__label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle);
+  white-space: nowrap;
+  background: rgba(31, 35, 41, 0.85);
+  padding: 0.25rem 0.4rem;
+  border-radius: 3px;
+  pointer-events: auto;
+}
+
+.trace-timeline-marker__label--top {
+  top: 0.80rem;
+}
+
+.trace-timeline-marker__label--bottom {
+  bottom: 0.80rem;
+}
+
 .trace-span__timeline {
   position: relative;
   inline-size: 100%;
-  block-size: 2.5rem;
-  background: rgba(12, 16, 24, 0.85);
+  block-size: 2.0rem;
   overflow: hidden;
   cursor: pointer;
   display: block;
+  z-index: 0;
+}
+
+.trace-span__timeline::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(12 16 24 / 50%);
+  z-index: 0;
 }
 
 .trace-span__timeline:disabled,
@@ -595,12 +649,13 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 0.75rem;
-  background: var(--service-color, hsl(180, 85%, 65%));
-  box-shadow: var(--service-shadow, 0 0 18px hsla(180, 85%, 65%, 0.35));
+  background: var(--service-color, rgba(97, 175, 239, 0.6));
+  box-shadow: var(--service-shadow, 0 0 18px rgba(97, 175, 239, 0.25));
   color: var(--text-strong);
-  border-radius: 6px;
+  border-radius: 3px;
   gap: 0.75rem;
   white-space: nowrap;
+  z-index: 2;
 }
 
 .trace-span__details {
@@ -608,6 +663,8 @@ body {
   padding: 0.85rem 1.1rem;
   background: rgba(18, 22, 30, 0.85);
   transition: box-shadow 0.2s ease;
+  position: relative;
+  z-index: 2;
 }
 
 .trace-span--details-open .trace-span__details {

@@ -112,7 +112,7 @@ function buildServiceNameMapping(spans) {
     const serviceName = span.resource?.serviceName || "unknown-service";
     serviceNames.add(serviceName);
   });
-  
+
   const serviceArray = Array.from(serviceNames).sort();
   const mapping = new Map();
   serviceArray.forEach((name, index) => {
@@ -236,7 +236,7 @@ export function buildTraceModel(spans) {
     traceId = span.traceId || traceId;
     spanNodes.set(span.spanId, { span, depth: 0, children: [] });
   });
-  
+
   const serviceNameMapping = buildServiceNameMapping(spans);
 
   const roots = [];
@@ -407,7 +407,7 @@ export function computeSpanOffsets(trace, span) {
   const totalDuration = trace.durationNano ||
     Math.max(
       toNumberTimestamp(trace.endTimeUnixNano) -
-        toNumberTimestamp(trace.startTimeUnixNano),
+      toNumberTimestamp(trace.startTimeUnixNano),
       1
     );
 
@@ -571,20 +571,21 @@ function renderSpanSummary(trace, node) {
   timeline.style.setProperty("--span-start", `${offsets.startPercent}%`);
   timeline.style.setProperty("--span-width", `${offsets.widthPercent}%`);
 
+  // Timeline markers are added at trace-span-list level, not per timeline
+
   const bar = document.createElement("div");
   bar.className = "trace-span__bar";
-  
+
   // Get palette color based on service name index
   const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
   const paletteColors = getPaletteColors();
   const paletteLength = paletteColors.length;
   const colorIndex = serviceIndex % paletteLength;
-  // Normalize color to fixed brightness for consistent intensity
-  // Lower lightness (35%) for better contrast with white text
+  // Normalize color to lighter shade with opacity for subtle effect
   const paletteColor = paletteColors[colorIndex];
-  const serviceColor = normalizeColorBrightness(paletteColor, 35);
-  
-  // Convert hex to RGB for box-shadow
+  const normalizedColor = normalizeColorBrightness(paletteColor, 50); // Lighter (50% instead of 35%)
+
+  // Convert hex to RGB for rgba with opacity
   const hexToRgb = (hex) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {
@@ -593,13 +594,14 @@ function renderSpanSummary(trace, node) {
       b: Number.parseInt(result[3], 16),
     } : null;
   };
-  
-  const rgb = hexToRgb(serviceColor);
+
+  const rgb = hexToRgb(normalizedColor);
   if (rgb) {
-    bar.style.setProperty("--service-color", serviceColor);
-    bar.style.setProperty("--service-shadow", `0 0 18px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.35)`);
+    // Use rgba with 0.6 opacity for less intense colors
+    bar.style.setProperty("--service-color", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`);
+    bar.style.setProperty("--service-shadow", `0 0 18px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`);
   }
-  
+
   const name = document.createElement("span");
   name.className = "trace-span__name";
   name.textContent = node.span.name;
@@ -609,7 +611,7 @@ function renderSpanSummary(trace, node) {
   duration.className = "trace-span__duration";
   duration.textContent = formatDurationNano(
     toNumberTimestamp(node.span.endTimeUnixNano) -
-      toNumberTimestamp(node.span.startTimeUnixNano)
+    toNumberTimestamp(node.span.startTimeUnixNano)
   );
 
   bar.append(duration);
@@ -833,9 +835,15 @@ export function renderTrace(host, trace, state) {
 
   const list = document.createElement("div");
   list.className = "trace-span-list";
+
+  // Create timeline markers (vertical lines) that span all timelines
+  const timelineMarkers = createTimelineMarkers(trace, 3);
+  list.append(timelineMarkers);
+
   trace.roots.forEach((root) => {
     list.append(renderSpanNode(trace, root, viewState));
   });
+
   host.append(list);
 
   // Create and add the splitter for resizing service column
@@ -844,6 +852,59 @@ export function renderTrace(host, trace, state) {
   list.append(splitter);
 
   return viewState;
+}
+
+/**
+ * Formats duration in nanoseconds to milliseconds string
+ * @param {number} durationNano - Duration in nanoseconds
+ * @returns {string} Formatted duration in ms
+ */
+function formatDurationMs(durationNano) {
+  const ms = durationNano / 1e6;
+  return `${ms.toFixed(2)} ms`;
+}
+
+/**
+ * Creates vertical timeline markers showing time divisions/swimlanes.
+ * @param {TraceModel} trace - The trace model
+ * @param {number} numberOfSwimlanes - Number of swimlanes (default 3)
+ * @returns {HTMLElement} Container element with timeline markers
+ */
+function createTimelineMarkers(trace, numberOfSwimlanes = 3) {
+  const container = document.createElement("div");
+  container.className = "trace-timeline-markers";
+
+  const interval = 100 / numberOfSwimlanes;
+  const totalDuration = trace.durationNano || Math.max(
+    toNumberTimestamp(trace.endTimeUnixNano) - toNumberTimestamp(trace.startTimeUnixNano),
+    1
+  );
+
+  // Create markers at 0%, then at each interval, and finally at 100%
+  for (let i = 0; i <= numberOfSwimlanes; i++) {
+    const position = i * interval;
+    const timeDelta = (totalDuration * i) / numberOfSwimlanes;
+
+    const marker = document.createElement("div");
+    marker.className = "trace-timeline-marker";
+    marker.style.left = `${position}%`;
+
+    // Add top label
+    const topLabel = document.createElement("div");
+    topLabel.className = "trace-timeline-marker__label trace-timeline-marker__label--top";
+    topLabel.textContent = formatDurationMs(timeDelta);
+    marker.append(topLabel);
+
+    // Add bottom label
+    const bottomLabel = document.createElement("div");
+    bottomLabel.className = "trace-timeline-marker__label trace-timeline-marker__label--bottom";
+    bottomLabel.textContent = formatDurationMs(timeDelta);
+    marker.append(bottomLabel);
+
+    container.append(marker);
+  }
+
+  return container;
 }
 
 /**
@@ -864,9 +925,9 @@ function createSplitter(container) {
     isDragging = true;
     startX = e.clientX || e.touches?.[0]?.clientX || 0;
     const root = document.documentElement;
-    const currentWidth = root.style.getPropertyValue("--trace-span-service-width") || 
-                         getComputedStyle(root).getPropertyValue("--trace-span-service-width") || 
-                         "16rem";
+    const currentWidth = root.style.getPropertyValue("--trace-span-service-width") ||
+      getComputedStyle(root).getPropertyValue("--trace-span-service-width") ||
+      "16rem";
     startWidth = parseFloat(currentWidth) || 16;
     // Make splitter visible when dragging
     splitter.style.opacity = "1";
@@ -913,7 +974,7 @@ function createSplitter(container) {
 
 export function initTraceViewer(host, spans) {
   if (!host) {
-    return () => {};
+    return () => { };
   }
   const trace = buildTraceModel(spans);
   let viewState = renderTrace(host, trace);
@@ -1024,7 +1085,7 @@ export const sampleTraceSpans = [
     resource: { serviceName: "edge-gateway" },
     attributes: [
       { key: "view.name", value: { string_value: "CheckoutPage" } },
-      { key: "feature.flags", value: { array_value: { values: [ { string_value: "express-pay" }, { string_value: "upsell-banner" } ] } } },
+      { key: "feature.flags", value: { array_value: { values: [{ string_value: "express-pay" }, { string_value: "upsell-banner" }] } } },
     ],
   }),
   createTraceSpan({
