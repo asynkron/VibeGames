@@ -1679,6 +1679,297 @@ function createLiveRadarDataset() {
   return dataset;
 }
 
+function createLiveBoxplotDataset() {
+  const boxConfigs = [
+    {
+      name: "Gateway",
+      color: "accentPrimary",
+      medianBase: 148,
+      medianRange: [120, 220],
+      medianVariance: 10,
+      innerSpread: [14, 26],
+      outerSpread: [8, 22],
+      min: 82,
+      max: 260,
+      outlierRange: [262, 296],
+      outlierChance: 0.55,
+    },
+    {
+      name: "Checkout",
+      color: "accentSecondary",
+      medianBase: 162,
+      medianRange: [130, 236],
+      medianVariance: 12,
+      innerSpread: [16, 28],
+      outerSpread: [10, 24],
+      min: 90,
+      max: 280,
+      outlierRange: [272, 312],
+      outlierChance: 0.6,
+    },
+    {
+      name: "Inventory",
+      color: "accentTertiary",
+      medianBase: 150,
+      medianRange: [112, 228],
+      medianVariance: 11,
+      innerSpread: [15, 26],
+      outerSpread: [10, 22],
+      min: 84,
+      max: 268,
+      outlierRange: [266, 302],
+      outlierChance: 0.5,
+    },
+    {
+      name: "Search",
+      color: "accentQuinary",
+      medianBase: 168,
+      medianRange: [126, 246],
+      medianVariance: 13,
+      innerSpread: [16, 30],
+      outerSpread: [12, 26],
+      min: 90,
+      max: 288,
+      outlierRange: [284, 328],
+      outlierChance: 0.62,
+    },
+  ];
+
+  const dataset = {
+    label: "Live Latency Distribution",
+    live: true,
+    categories: boxConfigs.map((config) => config.name),
+    boxes: boxConfigs.map((config) => ({
+      name: config.name,
+      color: config.color,
+      values: [],
+    })),
+    outliers: [],
+    interval: 5200,
+    reset,
+    next,
+  };
+
+  function synthesizeBox(config, previousValues) {
+    const last = Array.isArray(previousValues) && previousValues.length === 5 ? previousValues : null;
+    const medianBaseline = last?.[2] ?? config.medianBase;
+    const median = Math.round(
+      clamp(
+        jitterValue(medianBaseline, config.medianVariance, config.medianRange[0], config.medianRange[1]),
+        config.medianRange[0],
+        config.medianRange[1],
+      ),
+    );
+
+    const innerSpread = randomInt(config.innerSpread[0], config.innerSpread[1]);
+    const q1 = Math.round(
+      clamp(median - innerSpread, config.min, median - 2),
+    );
+    const q3 = Math.round(
+      clamp(median + innerSpread, median + 2, config.max),
+    );
+
+    const lowerExtension = randomInt(config.outerSpread[0], config.outerSpread[1]);
+    const upperExtension = randomInt(config.outerSpread[0], config.outerSpread[1]);
+    const min = Math.round(
+      clamp((last?.[0] ?? q1 - lowerExtension), config.min, q1),
+    );
+    const max = Math.round(
+      clamp((last?.[4] ?? q3 + upperExtension), q3, config.max),
+    );
+
+    return [min, q1, median, q3, max];
+  }
+
+  function rebuildBoxes(usePreviousValues = false) {
+    dataset.boxes.forEach((box, index) => {
+      const config = boxConfigs[index];
+      box.values = synthesizeBox(config, usePreviousValues ? box.values : null);
+    });
+  }
+
+  function rebuildOutliers() {
+    dataset.outliers = [];
+    boxConfigs.forEach((config, index) => {
+      if (Math.random() > config.outlierChance) {
+        return;
+      }
+      const value = randomInt(config.outlierRange[0], config.outlierRange[1]);
+      dataset.outliers.push({
+        name: `${config.name} spike`,
+        color: "accentSenary",
+        value: [index, value],
+      });
+    });
+  }
+
+  function reset() {
+    rebuildBoxes(false);
+    rebuildOutliers();
+  }
+
+  function next() {
+    rebuildBoxes(true);
+    rebuildOutliers();
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveSankeyDataset() {
+  const nodeBlueprint = [
+    { name: "Ingress", color: "accentPrimary" },
+    { name: "API Gateway", color: "accentSecondary" },
+    { name: "Auth", color: "accentTertiary" },
+    { name: "Checkout", color: "accentQuinary" },
+    { name: "Inventory", color: "accentQuaternary" },
+    { name: "Search", color: "accentPrimary" },
+    { name: "Payments", color: "accentSenary" },
+    { name: "Data Lake", color: "accentSecondary" },
+  ];
+
+  const linkConfigs = [
+    { source: "Ingress", target: "API Gateway", base: 820, variance: 42, min: 660, max: 900 },
+    { source: "API Gateway", target: "Auth", base: 640, variance: 38, min: 520, max: 740 },
+    { source: "API Gateway", target: "Search", base: 260, variance: 26, min: 180, max: 340 },
+    { source: "Auth", target: "Checkout", base: 380, variance: 30, min: 280, max: 460 },
+    { source: "Checkout", target: "Payments", base: 360, variance: 28, min: 260, max: 440 },
+    { source: "Checkout", target: "Inventory", base: 240, variance: 24, min: 160, max: 320 },
+    { source: "Inventory", target: "Data Lake", base: 160, variance: 20, min: 110, max: 230 },
+    { source: "Search", target: "Data Lake", base: 220, variance: 24, min: 150, max: 300 },
+  ];
+
+  const dataset = {
+    label: "Live Request Flow",
+    live: true,
+    nodes: [],
+    links: [],
+    interval: 4800,
+    reset,
+    next,
+  };
+
+  function rebuildNodes() {
+    dataset.nodes = nodeBlueprint.map((node) => ({ ...node }));
+  }
+
+  function rebuildLinks(useExisting = false) {
+    dataset.links = linkConfigs.map((config, index) => {
+      const previous = useExisting ? dataset.links[index]?.value : null;
+      const baseline = Number.isFinite(previous) ? previous : config.base;
+      const value = Math.round(jitterValue(baseline, config.variance, config.min, config.max));
+      return { source: config.source, target: config.target, value };
+    });
+  }
+
+  function reset() {
+    rebuildNodes();
+    rebuildLinks(false);
+  }
+
+  function next() {
+    if (dataset.nodes.length === 0 || dataset.links.length === 0) {
+      reset();
+      return;
+    }
+    rebuildLinks(true);
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveTreemapDataset() {
+  const treeBlueprint = [
+    {
+      name: "Client",
+      color: "accentPrimary",
+      children: [
+        { name: "Mobile", color: "accentPrimary", base: 28, variance: 4, min: 18, max: 42 },
+        { name: "Web", color: "accentSecondary", base: 34, variance: 5, min: 24, max: 48 },
+      ],
+    },
+    {
+      name: "Edge",
+      color: "accentTertiary",
+      children: [
+        { name: "CDN", color: "accentTertiary", base: 20, variance: 4, min: 12, max: 32 },
+        { name: "WAF", color: "accentQuinary", base: 14, variance: 3, min: 8, max: 24 },
+      ],
+    },
+    {
+      name: "Core",
+      color: "accentSecondary",
+      children: [
+        { name: "API", color: "accentSecondary", base: 38, variance: 6, min: 24, max: 54 },
+        { name: "Checkout", color: "accentQuaternary", base: 30, variance: 5, min: 20, max: 44 },
+        { name: "Search", color: "accentQuinary", base: 24, variance: 4, min: 16, max: 36 },
+      ],
+    },
+  ];
+
+  const dataset = {
+    label: "Live Error Budget Burn",
+    live: true,
+    tree: [],
+    interval: 5600,
+    reset,
+    next,
+  };
+
+  function cloneBlueprint(nodes) {
+    return nodes.map((node) => ({
+      name: node.name,
+      color: node.color,
+      ...(node.children ? { children: cloneBlueprint(node.children) } : {}),
+    }));
+  }
+
+  function applyValues(targetNodes, blueprintNodes, useExisting = false) {
+    targetNodes.forEach((target, index) => {
+      const blueprint = blueprintNodes[index];
+      if (!blueprint) {
+        return;
+      }
+
+      if (Array.isArray(blueprint.children) && blueprint.children.length > 0) {
+        if (!Array.isArray(target.children)) {
+          target.children = [];
+        }
+        applyValues(target.children, blueprint.children, useExisting);
+        target.value = target.children.reduce((sum, child) => sum + (child.value ?? 0), 0);
+        return;
+      }
+
+      const previousValue = useExisting && Number.isFinite(target.value) ? target.value : blueprint.base;
+      target.value = Math.round(
+        clamp(
+          jitterValue(previousValue, blueprint.variance, blueprint.min, blueprint.max),
+          blueprint.min,
+          blueprint.max,
+        ),
+      );
+    });
+  }
+
+  function reset() {
+    dataset.tree = cloneBlueprint(treeBlueprint);
+    applyValues(dataset.tree, treeBlueprint, false);
+  }
+
+  function next() {
+    if (!dataset.tree.length) {
+      reset();
+      return;
+    }
+    applyValues(dataset.tree, treeBlueprint, true);
+  }
+
+  reset();
+  return dataset;
+}
+
 function createLiveFunnelDataset() {
   const stepConfigs = [
     { name: "Commits", color: "accentPrimary", ratio: 1 },
@@ -1788,9 +2079,12 @@ function registerLiveDatasets() {
   neonDatasets.stackedArea.push(createLiveStackedAreaDataset());
   neonDatasets.dualAxis.push(createLiveDualAxisDataset());
   neonDatasets.radar.push(createLiveRadarDataset());
+  neonDatasets.boxplot.push(createLiveBoxplotDataset());
+  neonDatasets.sankey.push(createLiveSankeyDataset());
+  neonDatasets.treemap.push(createLiveTreemapDataset());
+  neonDatasets.funnel.push(createLiveFunnelDataset());
   neonDatasets.stat.push(createLiveStatDataset());
   neonDatasets.barGauge.push(createLiveBarGaugeDataset());
-  neonDatasets.funnel.push(createLiveFunnelDataset());
 }
 
 registerLiveDatasets();
