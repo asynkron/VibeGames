@@ -249,6 +249,104 @@
       <footer class="component-notes">Add more clusters to compare additional cohorts.</footer>
     </article>
 
+    <article class="component-card" data-component="stackedArea">
+      <header>
+        <h2>Latency Percentile Stack</h2>
+        <p>Watch percentile bands of request latency to spot regressions across services.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Feed in more percentile bands to widen the latency ribbon.</footer>
+    </article>
+
+    <article class="component-card" data-component="dualAxis">
+      <header>
+        <h2>Throughput vs Error Rate</h2>
+        <p>Compare load and reliability by pairing request throughput with error budgets.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Mix additional axes to monitor saturation or queue depth.</footer>
+    </article>
+
+    <article class="component-card" data-component="radar">
+      <header>
+        <h2>Cluster Health Radar</h2>
+        <p>Benchmark environment health by comparing utilization and saturation metrics.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add more clusters to overlay competing environments.</footer>
+    </article>
+
+    <article class="component-card" data-component="boxplot">
+      <header>
+        <h2>Latency Boxplot</h2>
+        <p>Summarize request latency distributions with whiskers and outliers.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Add outlier samples to highlight noisy services.</footer>
+    </article>
+
+    <article class="component-card" data-component="sankey">
+      <header>
+        <h2>Request Flow Sankey</h2>
+        <p>Trace how traffic traverses the platform from ingress to downstream systems.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Map additional nodes to surface new dependencies.</footer>
+    </article>
+
+    <article class="component-card" data-component="treemap">
+      <header>
+        <h2>Error Impact Treemap</h2>
+        <p>Quantify where incidents consume the error budget across services.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Extend branches to visualize subsystem depth.</footer>
+    </article>
+
+    <article class="component-card" data-component="funnel">
+      <header>
+        <h2>Delivery Funnel</h2>
+        <p>Track build artifacts as they progress from commit to production.</p>
+        <label>Dataset
+          <select class="dataset-select"></select>
+        </label>
+      </header>
+      <div class="chart-shell">
+        <div class="chart-canvas"></div>
+      </div>
+      <footer class="component-notes">Insert more stages to reflect your continuous delivery cadence.</footer>
+    </article>
+
     <article class="component-card" data-component="stat">
       <header>
         <h2>Stat Pulse</h2>
