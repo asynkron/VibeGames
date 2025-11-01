@@ -39,6 +39,12 @@ const paletteState = {
 // We keep a registry of renderer callbacks so palette swaps can re-render everything in place.
 const componentRegistry = new Set();
 
+// Track the current ECharts renderer so we can recreate instances when toggled.
+const rendererState = { mode: "canvas" };
+
+// Remember the chosen ambient background so the dropdown can stay in sync.
+const backgroundState = { effect: document.body?.dataset.backgroundEffect || "solid" };
+
 // Shared outline tone so every chart can render the same dark rim as the pie slices.
 const chartOutlineColor = "rgba(15, 23, 42, 0.95)";
 
@@ -55,7 +61,7 @@ function rerenderAllComponents() {
 // Shared glow/outline state so every renderer reads the same tuning values.
 const effectDefaults = {
   glowIntensity: 1,
-  glowOpacity: 1,
+  glowOpacity: 0.45,
   outlineScale: 1,
   haloBlur: 28,
   haloOpacity: 0.28,
@@ -176,6 +182,47 @@ function registerEffectControls() {
       updateDisplay();
       applyEffectsState();
     });
+  });
+}
+
+function registerRendererControl() {
+  const select = document.querySelector("#renderer-select");
+  if (!select) {
+    return;
+  }
+
+  select.value = rendererState.mode;
+
+  select.addEventListener("change", (event) => {
+    const desired = event.target.value === "svg" ? "svg" : "canvas";
+    if (rendererState.mode === desired) {
+      return;
+    }
+    rendererState.mode = desired;
+    rerenderAllComponents();
+  });
+}
+
+function applyBackgroundEffect(effect) {
+  const resolved = ["solid", "linear", "radial"].includes(effect) ? effect : "solid";
+  backgroundState.effect = resolved;
+  if (document.body) {
+    document.body.dataset.backgroundEffect = resolved;
+  }
+}
+
+function registerBackgroundControl() {
+  const select = document.querySelector("#background-effect-select");
+  if (!select) {
+    applyBackgroundEffect(backgroundState.effect);
+    return;
+  }
+
+  applyBackgroundEffect(select.value || backgroundState.effect);
+  select.value = backgroundState.effect;
+
+  select.addEventListener("change", (event) => {
+    applyBackgroundEffect(event.target.value);
   });
 }
 
@@ -1237,16 +1284,39 @@ function initDatasetSelector(article, datasetKey) {
   return { select, defaultIndex: liveIndex >= 0 ? liveIndex : 0 };
 }
 
+function disposeChartInstance(chart) {
+  if (!chart) {
+    return;
+  }
+
+  const resizeHandler = chartResizeHandlers.get(chart);
+  if (resizeHandler) {
+    window.removeEventListener("resize", resizeHandler);
+    chartResizeHandlers.delete(chart);
+  }
+
+  chart.dispose();
+}
+
 function createChartInstance(container) {
+  const desiredRenderer = rendererState.mode;
   const existing = echarts.getInstanceByDom(container);
-  if (existing) {
+  const currentRenderer = container.dataset.rendererMode;
+
+  if (existing && currentRenderer === desiredRenderer) {
+    container.dataset.rendererMode = desiredRenderer;
     return existing;
   }
 
-  const chart = echarts.init(container);
+  if (existing) {
+    disposeChartInstance(existing);
+  }
+
+  const chart = echarts.init(container, undefined, { renderer: desiredRenderer });
   const resizeHandler = () => chart.resize();
   chartResizeHandlers.set(chart, resizeHandler);
   window.addEventListener("resize", resizeHandler);
+  container.dataset.rendererMode = desiredRenderer;
   return chart;
 }
 
@@ -2587,6 +2657,8 @@ function initGravibe() {
   }
 
   registerEffectControls();
+  registerRendererControl();
+  registerBackgroundControl();
 
   const paletteSelect = document.querySelector("#palette-select");
   if (paletteSelect) {
