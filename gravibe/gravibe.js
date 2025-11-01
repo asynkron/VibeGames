@@ -39,6 +39,9 @@ const paletteState = {
 // We keep a registry of renderer callbacks so palette swaps can re-render everything in place.
 const componentRegistry = new Set();
 
+// Shared outline tone so every chart can render the same dark rim as the pie slices.
+const chartOutlineColor = "rgba(15, 23, 42, 0.95)";
+
 function rerenderAllComponents() {
   componentRegistry.forEach((rerender) => {
     try {
@@ -1475,6 +1478,8 @@ function renderStateTimeline(dataset, container) {
               opacity: 0.9,
               shadowBlur: withGlowBlur(20),
               shadowColor: withGlowColor(api.style().fill, 0.8),
+              stroke: chartOutlineColor,
+              lineWidth: withOutlineWidth(1),
             }),
           };
         },
@@ -1568,6 +1573,8 @@ function renderStatusHistory(dataset, container) {
           opacity: 0.9,
           shadowBlur: withGlowBlur(16),
           shadowColor: withGlowColor(series.colors[state] ?? "accentPrimary", 0.65),
+          borderColor: chartOutlineColor,
+          borderWidth: withOutlineWidth(1),
         },
       })),
     })),
@@ -1647,6 +1654,8 @@ function renderBarChart(dataset, container) {
           { offset: 0, color: resolveColor(series.color) },
           { offset: 1, color: colorWithAlpha(series.color, 0.47) },
         ]),
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
       },
     })),
   });
@@ -1714,6 +1723,8 @@ function renderHistogram(dataset, container) {
             { offset: 0, color: colorWithAlpha("accentPrimary", 0.9) },
             { offset: 1, color: colorWithAlpha("accentTertiary", 0.6) },
           ]),
+          borderColor: chartOutlineColor,
+          borderWidth: withOutlineWidth(1),
         },
       },
     ],
@@ -1796,6 +1807,10 @@ function renderHeatmap(dataset, container) {
         data: dataset.matrix.flatMap((row, rowIndex) =>
           row.map((value, columnIndex) => [columnIndex, rowIndex, value]),
         ),
+        itemStyle: {
+          borderColor: chartOutlineColor,
+          borderWidth: withOutlineWidth(1),
+        },
         label: {
           show: false,
         },
@@ -1847,7 +1862,7 @@ function renderPieChart(dataset, container) {
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 12,
-          borderColor: "rgba(15, 23, 42, 0.95)",
+          borderColor: chartOutlineColor,
           borderWidth: withOutlineWidth(2),
         },
         label: {
@@ -1973,6 +1988,47 @@ function renderGauge(dataset, container) {
     },
     series: [
       {
+        // Wide halo that pushes a bloom behind the active charge arc.
+        name: `${dataset.label} Halo`,
+        type: "gauge",
+        startAngle: 220,
+        endAngle: -40,
+        min: 0,
+        max: 100,
+        radius: "104%",
+        axisLine: {
+          lineStyle: {
+            width: 28,
+            color: [
+              [valueRatio, colorWithAlpha("accentPrimary", 0.18)],
+              [1, "rgba(15, 23, 42, 0)"],
+            ],
+            shadowBlur: withGlowBlur(45),
+            shadowColor: withGlowColor("accentPrimary", 0.6),
+          },
+        },
+        pointer: {
+          show: false,
+        },
+        axisTick: {
+          show: false,
+        },
+        splitLine: {
+          show: false,
+        },
+        axisLabel: {
+          show: false,
+        },
+        detail: {
+          show: false,
+        },
+        title: {
+          show: false,
+        },
+        silent: true,
+        z: 0,
+      },
+      {
         // Outer track that highlights the remaining distance to the target threshold.
         name: `${dataset.label} Track`,
         type: "gauge",
@@ -1988,6 +2044,8 @@ function renderGauge(dataset, container) {
               [targetRatio, colorWithAlpha("accentPrimary", 0.15)],
               [1, "rgba(15, 23, 42, 0.45)"],
             ],
+            shadowBlur: withGlowBlur(20),
+            shadowColor: withGlowColor("accentPrimary", 0.28),
           },
         },
         splitNumber: 5,
@@ -2032,8 +2090,10 @@ function renderGauge(dataset, container) {
           width: 16,
           itemStyle: {
             color: colorWithAlpha("accentPrimary", 0.95),
-            shadowBlur: withGlowBlur(20),
-            shadowColor: withGlowColor("accentPrimary", 0.45),
+            borderColor: chartOutlineColor,
+            borderWidth: withOutlineWidth(1),
+            shadowBlur: withGlowBlur(26),
+            shadowColor: withGlowColor("accentPrimary", 0.55),
           },
         },
         axisLine: {
@@ -2043,6 +2103,8 @@ function renderGauge(dataset, container) {
               [valueRatio, colorWithAlpha("accentPrimary", 0.95)],
               [1, "rgba(15, 23, 42, 0.05)"],
             ],
+            shadowBlur: withGlowBlur(32),
+            shadowColor: withGlowColor("accentPrimary", 0.45),
           },
         },
         pointer: {
@@ -2099,6 +2161,10 @@ function renderGauge(dataset, container) {
           length: "68%",
           itemStyle: {
             color: colorWithAlpha("accentSecondary", 0.95),
+            borderColor: chartOutlineColor,
+            borderWidth: withOutlineWidth(1),
+            shadowBlur: withGlowBlur(20),
+            shadowColor: withGlowColor("accentSecondary", 0.45),
           },
         },
         anchor: {
@@ -2107,8 +2173,10 @@ function renderGauge(dataset, container) {
           size: 16,
           itemStyle: {
             color: colorWithAlpha("accentPrimary", 0.95),
-            borderColor: "rgba(15, 23, 42, 0.95)",
+            borderColor: chartOutlineColor,
             borderWidth: withOutlineWidth(4),
+            shadowBlur: withGlowBlur(18),
+            shadowColor: withGlowColor("accentPrimary", 0.45),
           },
         },
         axisTick: {
@@ -2273,6 +2341,8 @@ function renderXYScatter(dataset, container) {
         color: resolveColor(series.color),
         shadowBlur: withGlowBlur(15),
         shadowColor: withGlowColor(series.color, 0.53),
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
       },
       data: series.points,
     })),
@@ -2390,7 +2460,7 @@ function renderBarGauge(dataset, container) {
         itemStyle: {
           color: "rgba(15, 23, 42, 0.65)",
           borderRadius: 999,
-          borderColor: colorWithAlpha("accentPrimary", 0.2),
+          borderColor: chartOutlineColor,
           borderWidth: withOutlineWidth(1),
         },
         silent: true,
@@ -2407,6 +2477,8 @@ function renderBarGauge(dataset, container) {
           borderRadius: [999, 999, 999, 999],
           shadowBlur: withGlowBlur(25),
           shadowColor: withGlowColor(section.color, 0.4),
+          borderColor: chartOutlineColor,
+          borderWidth: withOutlineWidth(1),
         },
         emphasis: {
           focus: "series",
