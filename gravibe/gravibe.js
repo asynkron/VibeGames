@@ -1002,23 +1002,59 @@ const neonDatasets = {
 };
 
 function createLiveTimeSeriesDataset() {
-  const axisLength = 12;
+  const axisLength = 14;
+  const axis = [];
   const baseSeries = [
-    { name: "Projected", color: "accentPrimary", base: 650, variance: 28, min: 520, max: 780 },
-    { name: "Actual", color: "accentSecondary", base: 610, variance: 32, min: 480, max: 760 },
-    { name: "Capacity", color: "accentTertiary", base: 720, variance: 18, min: 640, max: 820 },
+    { name: "Requests/min", color: "accentPrimary", base: 680, variance: 42, min: 520, max: 880 },
+    { name: "Max Capacity", color: "accentTertiary", base: 760, variance: 28, min: 640, max: 920 },
+    {
+      name: "Error Rate %",
+      color: "accentSenary",
+      base: 1.6,
+      variance: 0.6,
+      min: 0.2,
+      max: 5.2,
+      precision: 1,
+    },
   ];
 
-  const axis = [];
   const dataset = {
     label: "Live Flux Telemetry",
     live: true,
     axis,
     series: baseSeries.map(({ name, color }) => ({ name, color, data: [] })),
     interval: 2200,
-    next,
     reset,
+    next,
+    yAxes: [
+      { name: "Requests/min", min: 400, max: 960, suffix: "" },
+      { name: "Error Rate %", min: 0, max: 8, suffix: "%", decimals: 1 },
+    ],
   };
+
+  dataset.dualAxisSeries = [
+    {
+      name: baseSeries[0].name,
+      color: baseSeries[0].color,
+      type: "bar",
+      axisIndex: 0,
+      data: dataset.series[0].data,
+    },
+    {
+      name: baseSeries[1].name,
+      color: baseSeries[1].color,
+      type: "line",
+      axisIndex: 0,
+      data: dataset.series[1].data,
+    },
+    {
+      name: baseSeries[2].name,
+      color: baseSeries[2].color,
+      type: "line",
+      axisIndex: 1,
+      data: dataset.series[2].data,
+    },
+  ];
 
   let tick = 0;
 
@@ -1036,13 +1072,17 @@ function createLiveTimeSeriesDataset() {
       tick += 1;
     }
 
-    dataset.series.forEach((series, index) => {
-      const config = baseSeries[index];
+    dataset.series.forEach((series, seriesIndex) => {
+      const config = baseSeries[seriesIndex];
       series.data.length = 0;
       let value = config.base;
-      for (let i = 0; i < axisLength; i += 1) {
+      for (let i = 0; i < axis.length; i += 1) {
         value = jitterValue(value, config.variance, config.min, config.max);
-        series.data.push(Math.round(value));
+        const formatted =
+          typeof config.precision === "number"
+            ? parseFloat(value.toFixed(config.precision))
+            : Math.round(value);
+        series.data.push(formatted);
       }
     });
   }
@@ -1054,11 +1094,15 @@ function createLiveTimeSeriesDataset() {
       axis.shift();
     }
 
-    dataset.series.forEach((series, index) => {
-      const config = baseSeries[index];
+    dataset.series.forEach((series, seriesIndex) => {
+      const config = baseSeries[seriesIndex];
       const last = series.data[series.data.length - 1] ?? config.base;
       const value = jitterValue(last, config.variance, config.min, config.max);
-      series.data.push(Math.round(value));
+      const formatted =
+        typeof config.precision === "number"
+          ? parseFloat(value.toFixed(config.precision))
+          : Math.round(value);
+      series.data.push(formatted);
       if (series.data.length > axisLength) {
         series.data.shift();
       }
@@ -1176,36 +1220,6 @@ function createLiveStatusHistoryDataset() {
       states: randomStates(),
       colors: statusPalette,
     }));
-  }
-
-  reset();
-  return dataset;
-}
-
-function createLiveBarChartDataset() {
-  const dataset = {
-    label: "Live Signal Load",
-    live: true,
-    axis: ["Node A", "Node B", "Node C", "Node D"],
-    series: [
-      { name: "Inbound", color: "accentPrimary", data: [] },
-      { name: "Outbound", color: "accentSecondary", data: [] },
-    ],
-    interval: 2600,
-    reset,
-    next,
-  };
-
-  function reset() {
-    dataset.series.forEach((series) => {
-      series.data = dataset.axis.map(() => randomInt(32, 68));
-    });
-  }
-
-  function next() {
-    dataset.series.forEach((series) => {
-      series.data = series.data.map((value) => Math.round(jitterValue(value, 6, 20, 80)));
-    });
   }
 
   reset();
@@ -1379,49 +1393,6 @@ function createLiveGaugeDataset() {
   return dataset;
 }
 
-function createLiveTrendDataset() {
-  const axis = Array.from({ length: 18 }, (_, i) => `T+${i}`);
-  const baseSeries = [
-    { name: "Baseline", color: "accentPrimary", base: 38, variance: 6, min: 20, max: 80 },
-    { name: "Smoothed", color: "accentSecondary", base: 34, variance: 5, min: 18, max: 74 },
-  ];
-
-  const dataset = {
-    label: "Live Energy Trend",
-    live: true,
-    axis,
-    series: baseSeries.map(({ name, color }) => ({ name, color, data: [] })),
-    interval: 2500,
-    reset,
-    next,
-  };
-
-  function reset() {
-    dataset.series.forEach((series, index) => {
-      const config = baseSeries[index];
-      series.data.length = 0;
-      let value = config.base;
-      for (let i = 0; i < axis.length; i += 1) {
-        value = jitterValue(value, config.variance, config.min, config.max);
-        series.data.push(parseFloat(value.toFixed(1)));
-      }
-    });
-  }
-
-  function next() {
-    dataset.series.forEach((series, index) => {
-      const config = baseSeries[index];
-      const last = series.data[series.data.length - 1] ?? config.base;
-      const value = jitterValue(last, config.variance, config.min, config.max);
-      series.data.push(parseFloat(value.toFixed(1)));
-      series.data.shift();
-    });
-  }
-
-  reset();
-  return dataset;
-}
-
 function createLiveScatterDataset() {
   const dataset = {
     label: "Live Drone Swarms",
@@ -1452,178 +1423,6 @@ function createLiveScatterDataset() {
         Math.round(jitterValue(y, 6, 10, 70)),
         Math.round(jitterValue(z, 3, 6, 22)),
       ]);
-    });
-  }
-
-  reset();
-  return dataset;
-}
-
-function createLiveStackedAreaDataset() {
-  const axisLength = 12;
-  const axis = [];
-  const percentileSeries = [
-    { name: "P50", color: "accentPrimary", base: 130, variance: 8, min: 90, max: 180 },
-    { name: "P75", color: "accentSecondary", base: 170, variance: 10, min: 120, max: 230 },
-    { name: "P95", color: "accentTertiary", base: 230, variance: 12, min: 160, max: 320 },
-    { name: "P99", color: "accentSenary", base: 310, variance: 14, min: 200, max: 420 },
-  ];
-
-  const dataset = {
-    label: "Live Latency Bands",
-    live: true,
-    axis,
-    series: percentileSeries.map(({ name, color }) => ({ name, color, data: [] })),
-    interval: 2800,
-    reset,
-    next,
-  };
-
-  let tick = 0;
-
-  function formatTick(index) {
-    const minutes = index * 5;
-    const hour = Math.floor(minutes / 60);
-    const minute = minutes % 60;
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  }
-
-  function reset() {
-    axis.length = 0;
-    tick = 0;
-    for (let i = 0; i < axisLength; i += 1) {
-      axis.push(formatTick(tick));
-      tick += 1;
-    }
-
-    dataset.series.forEach((series, index) => {
-      const config = percentileSeries[index];
-      series.data.length = 0;
-      let value = config.base;
-      for (let i = 0; i < axis.length; i += 1) {
-        value = jitterValue(value, config.variance, config.min, config.max);
-        series.data.push(Math.round(value));
-      }
-    });
-  }
-
-  function next() {
-    axis.push(formatTick(tick));
-    tick += 1;
-    if (axis.length > axisLength) {
-      axis.shift();
-    }
-
-    dataset.series.forEach((series, index) => {
-      const config = percentileSeries[index];
-      const last = series.data[series.data.length - 1] ?? config.base;
-      const value = jitterValue(last, config.variance, config.min, config.max);
-      series.data.push(Math.round(value));
-      if (series.data.length > axisLength) {
-        series.data.shift();
-      }
-    });
-  }
-
-  reset();
-  return dataset;
-}
-
-function createLiveDualAxisDataset() {
-  const axisLength = 8;
-  const axis = [];
-  const baseSeries = [
-    {
-      name: "Requests/min",
-      type: "bar",
-      axisIndex: 0,
-      color: "accentPrimary",
-      base: 680,
-      variance: 60,
-      min: 420,
-      max: 940,
-    },
-    {
-      name: "Error Rate %",
-      type: "line",
-      axisIndex: 1,
-      color: "accentSenary",
-      base: 1.8,
-      variance: 0.9,
-      min: 0.2,
-      max: 5,
-      precision: 1,
-    },
-  ];
-
-  const dataset = {
-    label: "Live Throughput vs Errors",
-    live: true,
-    axis,
-    yAxes: [
-      { name: "Requests/min", min: 0, max: 960, suffix: "" },
-      { name: "Error Rate %", min: 0, max: 6, suffix: "%", decimals: 1 },
-    ],
-    series: baseSeries.map(({ name, type, axisIndex, color }) => ({
-      name,
-      type,
-      axisIndex,
-      color,
-      data: [],
-    })),
-    interval: 2600,
-    reset,
-    next,
-  };
-
-  let tick = 0;
-
-  function formatTick(index) {
-    return `${String(index * 2).padStart(2, "0")}:00`;
-  }
-
-  function reset() {
-    axis.length = 0;
-    tick = 0;
-    for (let i = 0; i < axisLength; i += 1) {
-      axis.push(formatTick(tick));
-      tick += 1;
-    }
-
-    dataset.series.forEach((series, index) => {
-      const config = baseSeries[index];
-      series.data.length = 0;
-      let value = config.base;
-      for (let i = 0; i < axis.length; i += 1) {
-        value = jitterValue(value, config.variance, config.min, config.max);
-        const formatted =
-          typeof config.precision === "number"
-            ? parseFloat(value.toFixed(config.precision))
-            : Math.round(value);
-        series.data.push(formatted);
-      }
-    });
-  }
-
-  function next() {
-    axis.push(formatTick(tick));
-    tick += 1;
-    if (axis.length > axisLength) {
-      axis.shift();
-    }
-
-    dataset.series.forEach((series, index) => {
-      const config = baseSeries[index];
-      const last = series.data[series.data.length - 1] ?? config.base;
-      const value = jitterValue(last, config.variance, config.min, config.max);
-      const formatted =
-        typeof config.precision === "number"
-          ? parseFloat(value.toFixed(config.precision))
-          : Math.round(value);
-      series.data.push(formatted);
-      if (series.data.length > axisLength) {
-        series.data.shift();
-      }
     });
   }
 
@@ -2065,19 +1864,22 @@ function createLiveBarGaugeDataset() {
 }
 
 function registerLiveDatasets() {
-  neonDatasets.timeSeries.push(createLiveTimeSeriesDataset());
+  // Feed a single telemetry stream into every axis-based chart so they animate in sync.
+  const sharedFluxDataset = createLiveTimeSeriesDataset();
+  neonDatasets.timeSeries.push(sharedFluxDataset);
+  neonDatasets.barChart.push(sharedFluxDataset);
+  neonDatasets.trend.push(sharedFluxDataset);
+  neonDatasets.stackedArea.push(sharedFluxDataset);
+  neonDatasets.dualAxis.push(sharedFluxDataset);
+
   neonDatasets.stateTimeline.push(createLiveStateTimelineDataset());
   neonDatasets.statusHistory.push(createLiveStatusHistoryDataset());
-  neonDatasets.barChart.push(createLiveBarChartDataset());
   neonDatasets.histogram.push(createLiveHistogramDataset());
   neonDatasets.heatmap.push(createLiveHeatmapDataset());
   neonDatasets.pieChart.push(createLivePieChartDataset());
   neonDatasets.candlestick.push(createLiveCandlestickDataset());
   neonDatasets.gauge.push(createLiveGaugeDataset());
-  neonDatasets.trend.push(createLiveTrendDataset());
   neonDatasets.xyScatter.push(createLiveScatterDataset());
-  neonDatasets.stackedArea.push(createLiveStackedAreaDataset());
-  neonDatasets.dualAxis.push(createLiveDualAxisDataset());
   neonDatasets.radar.push(createLiveRadarDataset());
   neonDatasets.boxplot.push(createLiveBoxplotDataset());
   neonDatasets.sankey.push(createLiveSankeyDataset());
@@ -2209,6 +2011,57 @@ function startLiveUpdater(callback, interval = LIVE_DEFAULT_INTERVAL) {
     stop() {
       window.clearInterval(timer);
     },
+  };
+}
+
+const liveDatasetControllers = new WeakMap();
+
+function getLiveDatasetController(dataset) {
+  let controller = liveDatasetControllers.get(dataset);
+  if (!controller) {
+    controller = { listeners: new Set(), updater: null };
+    liveDatasetControllers.set(dataset, controller);
+  }
+  return controller;
+}
+
+function notifyLiveDatasetListeners(dataset) {
+  const controller = liveDatasetControllers.get(dataset);
+  if (!controller) {
+    return;
+  }
+
+  controller.listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (error) {
+      console.error("Live dataset listener failed", error);
+    }
+  });
+}
+
+function subscribeToLiveDataset(dataset, listener) {
+  if (!dataset.live || typeof dataset.next !== "function") {
+    return () => {};
+  }
+
+  const controller = getLiveDatasetController(dataset);
+  controller.listeners.add(listener);
+
+  if (!controller.updater) {
+    const interval = dataset.interval ?? LIVE_DEFAULT_INTERVAL;
+    controller.updater = startLiveUpdater(() => {
+      dataset.next();
+      notifyLiveDatasetListeners(dataset);
+    }, interval);
+  }
+
+  return () => {
+    controller.listeners.delete(listener);
+    if (controller.listeners.size === 0 && controller.updater) {
+      controller.updater.stop();
+      controller.updater = null;
+    }
   };
 }
 
@@ -3334,8 +3187,9 @@ function renderDualAxis(dataset, container) {
   const chart = createChartInstance(container);
 
   const axisConfigs = dataset.yAxes ?? [];
+  const combinedSeries = dataset.dualAxisSeries ?? dataset.series ?? [];
   const axisColorMap = new Map();
-  (dataset.series ?? []).forEach((series) => {
+  combinedSeries.forEach((series) => {
     const index = series.axisIndex ?? 0;
     if (!axisColorMap.has(index)) {
       axisColorMap.set(index, resolveColor(series.color ?? "accentPrimary"));
@@ -3385,7 +3239,7 @@ function renderDualAxis(dataset, container) {
       containLabel: true,
     },
     legend: {
-      data: dataset.series.map((series) => series.name),
+      data: combinedSeries.map((series) => series.name),
       textStyle: {
         color: "rgba(226, 232, 240, 0.8)",
         fontFamily: "Space Grotesk, sans-serif",
@@ -3415,7 +3269,7 @@ function renderDualAxis(dataset, container) {
       },
     },
     yAxis,
-    series: (dataset.series ?? []).map((series) => {
+    series: combinedSeries.map((series) => {
       const isBar = (series.type ?? "bar") === "bar";
       const color = resolveColor(series.color);
       return {
@@ -4018,12 +3872,13 @@ function setupComponent(article) {
   }
 
   const { select: datasetSelect, defaultIndex } = initDatasetSelector(article, datasetKey);
-  let liveController = null;
+  let unsubscribeLive = null;
+  let activeDataset = null;
 
   function stopLiveMode() {
-    if (liveController) {
-      liveController.stop();
-      liveController = null;
+    if (unsubscribeLive) {
+      unsubscribeLive();
+      unsubscribeLive = null;
     }
   }
 
@@ -4038,28 +3893,33 @@ function setupComponent(article) {
 
   function runRender() {
     // Fall back to a live dataset index when the selector is absent (e.g. stat cards).
-    const fallbackIndex = defaultIndex ?? 0;
-    const rawValue = datasetSelect?.value ?? fallbackIndex.toString();
+    const defaultDatasetIndex = defaultIndex ?? 0;
+    const rawValue = datasetSelect?.value ?? defaultDatasetIndex.toString();
     const parsedIndex = Number.parseInt(rawValue, 10);
-    const selectedIndex = Number.isNaN(parsedIndex) ? fallbackIndex : parsedIndex;
+    const selectedIndex = Number.isNaN(parsedIndex) ? defaultDatasetIndex : parsedIndex;
     const dataset = neonDatasets[datasetKey]?.[selectedIndex];
 
     if (!dataset) {
+      stopLiveMode();
+      activeDataset = null;
       console.warn(`Dataset not found for ${datasetKey}`);
       return;
     }
 
+    if (dataset === activeDataset) {
+      renderIntoArticle(dataset);
+      return;
+    }
+
     stopLiveMode();
+    activeDataset = dataset;
 
     dataset.reset?.();
     renderIntoArticle(dataset);
 
     if (dataset.live && typeof dataset.next === "function") {
-      const interval = dataset.interval ?? LIVE_DEFAULT_INTERVAL;
-      liveController = startLiveUpdater(() => {
-        dataset.next();
-        renderIntoArticle(dataset);
-      }, interval);
+      notifyLiveDatasetListeners(dataset);
+      unsubscribeLive = subscribeToLiveDataset(dataset, () => renderIntoArticle(dataset));
     }
   }
 

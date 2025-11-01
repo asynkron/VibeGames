@@ -149,6 +149,36 @@ body {
   color: var(--text-muted);
 }
 
+.component-sections {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 5vw, 4rem);
+}
+
+.component-section {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.component-section__header {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 48rem;
+}
+
+.component-section__header h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 600;
+}
+
+.component-section__header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
 .component-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
