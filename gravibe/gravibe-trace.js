@@ -652,8 +652,17 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
     document.body.appendChild(tooltip);
     markerElement.dataset.tooltipId = `tooltip-${Date.now()}-${Math.random()}`;
 
+    // Store timeout reference for cleanup
+    let hideTimeout = null;
+
     // Add hover handlers
     markerElement.addEventListener("mouseenter", (e) => {
+      // Cancel any pending hide timeout
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+
       // Remove any existing tooltip
       if (currentTooltip && currentTooltip !== tooltip) {
         currentTooltip.classList.remove("show");
@@ -719,11 +728,9 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
       // Position first with transition disabled to set initial state
       updateTooltipPosition(e, true);
 
-      // Now trigger fade in animation
-      requestAnimationFrame(() => {
-        tooltip.classList.add("show");
-        updateTooltipPosition(e);
-      });
+      // Show immediately - don't wait for animation frame
+      tooltip.classList.add("show");
+      updateTooltipPosition(e);
 
       const moveHandler = (event) => {
         updateTooltipPosition(event);
@@ -734,19 +741,32 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
     });
 
     markerElement.addEventListener("mouseleave", () => {
+      // Only hide if mouse is actually leaving
       tooltip.classList.remove("show");
-      // Wait for fade out before hiding
-      setTimeout(() => {
-        tooltip.style.display = "none";
-      }, 300);
+
+      // Clear any existing timeout
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+      }
 
       if (markerElement._moveHandler) {
         markerElement.removeEventListener("mousemove", markerElement._moveHandler);
         markerElement._moveHandler = null;
       }
+
+      // Clear currentTooltip immediately if this is the current tooltip
       if (currentTooltip === tooltip) {
         currentTooltip = null;
       }
+
+      // Wait for fade out before hiding
+      hideTimeout = setTimeout(() => {
+        // Double-check that mouse is not on the element
+        if (!markerElement.matches(":hover")) {
+          tooltip.style.display = "none";
+        }
+        hideTimeout = null;
+      }, 300);
     });
 
     // Clean up tooltip when marker is removed
