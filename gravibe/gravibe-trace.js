@@ -933,18 +933,26 @@ function renderTracePreview(trace) {
     svg.appendChild(rect);
   });
 
-  // Selection overlay (shown on top)
-  const selectionOverlay = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-  selectionOverlay.setAttribute("class", "trace-preview__selection");
-  selectionOverlay.setAttribute("x", "0");
-  selectionOverlay.setAttribute("y", "0");
-  selectionOverlay.setAttribute("width", "0");
-  selectionOverlay.setAttribute("height", `${SVG_HEIGHT}`);
-  selectionOverlay.setAttribute("fill", "rgba(97, 175, 239, 0.2)");
-  selectionOverlay.setAttribute("stroke", "rgba(97, 175, 239, 0.6)");
-  selectionOverlay.setAttribute("stroke-width", "1");
-  selectionOverlay.style.pointerEvents = "none";
-  svg.appendChild(selectionOverlay);
+  // Inverted selection overlays (darken non-selected areas)
+  const leftOverlay = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  leftOverlay.setAttribute("class", "trace-preview__selection trace-preview__selection--left");
+  leftOverlay.setAttribute("x", "0");
+  leftOverlay.setAttribute("y", "0");
+  leftOverlay.setAttribute("width", "0");
+  leftOverlay.setAttribute("height", `${SVG_HEIGHT}`);
+  leftOverlay.setAttribute("fill", "rgba(0, 0, 0, 0.7)");
+  leftOverlay.style.pointerEvents = "none";
+  svg.appendChild(leftOverlay);
+
+  const rightOverlay = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  rightOverlay.setAttribute("class", "trace-preview__selection trace-preview__selection--right");
+  rightOverlay.setAttribute("x", "100");
+  rightOverlay.setAttribute("y", "0");
+  rightOverlay.setAttribute("width", "0");
+  rightOverlay.setAttribute("height", `${SVG_HEIGHT}`);
+  rightOverlay.setAttribute("fill", "rgba(0, 0, 0, 0.7)");
+  rightOverlay.style.pointerEvents = "none";
+  svg.appendChild(rightOverlay);
 
   // Left draggable marker
   const leftMarker = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -989,12 +997,20 @@ function renderTracePreview(trace) {
     return Math.max(0, Math.min(100, percent));
   };
 
-  // Helper to update selection overlay
+  // Helper to update selection overlays (inverted: darken non-selected areas)
   const updateSelection = () => {
     const start = Math.min(selectionStart, selectionEnd);
     const end = Math.max(selectionStart, selectionEnd);
-    selectionOverlay.setAttribute("x", `${start}`);
-    selectionOverlay.setAttribute("width", `${end - start}`);
+
+    // Left overlay: from 0 to start
+    leftOverlay.setAttribute("x", "0");
+    leftOverlay.setAttribute("width", `${start}`);
+
+    // Right overlay: from end to 100
+    rightOverlay.setAttribute("x", `${end}`);
+    rightOverlay.setAttribute("width", `${100 - end}`);
+
+    // Update marker positions
     leftMarker.setAttribute("x1", `${start}`);
     leftMarker.setAttribute("x2", `${start}`);
     rightMarker.setAttribute("x1", `${end}`);
@@ -1063,6 +1079,18 @@ function renderTracePreview(trace) {
       if (selectionEnd < selectionStart) {
         [selectionStart, selectionEnd] = [selectionEnd, selectionStart];
       }
+
+      // Check if selection is too small - if so, reset to full range
+      const selectionWidthPercent = Math.abs(selectionEnd - selectionStart);
+      const rect = svg.getBoundingClientRect();
+      const thresholdPercent = (5 / rect.width) * 100;
+
+      if (selectionWidthPercent < thresholdPercent) {
+        // Reset selection to full range
+        selectionStart = 0;
+        selectionEnd = 100;
+      }
+
       updateSelection();
       isSelecting = false;
       svg.style.cursor = "";
