@@ -358,20 +358,23 @@ function renderSpanDetails(span) {
 }
 
 function renderSpanSummary(trace, node) {
-  const summary = document.createElement("summary");
+  const summary = document.createElement("div");
   summary.className = "trace-span__summary";
   summary.dataset.depth = String(node.depth);
   summary.style.setProperty("--depth", String(node.depth));
 
-  const expander = document.createElement("span");
+  const expander = document.createElement("button");
+  expander.type = "button";
   expander.className = "trace-span__expander";
+  expander.setAttribute(
+    "aria-label",
+    node.children.length ? "Toggle child spans" : "No child spans"
+  );
+  expander.disabled = !node.children.length;
   summary.append(expander);
 
-  if (!node.children.length) {
-    summary.classList.add("trace-span__summary--leaf");
-  }
-
-  const service = document.createElement("div");
+  const service = document.createElement("button");
+  service.type = "button";
   service.className = "trace-span__service";
   const serviceName = node.span.resource?.serviceName || "unknown-service";
   const namespace = node.span.resource?.serviceNamespace;
@@ -381,10 +384,16 @@ function renderSpanSummary(trace, node) {
     ${namespace ? `<span class="trace-span__service-namespace">${namespace}</span>` : ""}
     ${scope ? `<span class="trace-span__scope">${scope}</span>` : ""}
   `;
+  if (!node.children.length) {
+    service.disabled = true;
+    service.setAttribute("aria-disabled", "true");
+  }
   summary.append(service);
 
-  const timeline = document.createElement("div");
+  const timeline = document.createElement("button");
+  timeline.type = "button";
   timeline.className = "trace-span__timeline";
+  timeline.setAttribute("aria-label", "Toggle span details");
   const offsets = computeSpanOffsets(trace, node.span);
   timeline.style.setProperty("--span-start", `${offsets.startPercent}%`);
   timeline.style.setProperty("--span-width", `${offsets.widthPercent}%`);
@@ -407,31 +416,39 @@ function renderSpanSummary(trace, node) {
   timeline.append(bar);
   summary.append(timeline);
 
-  return summary;
+  return { summary, expander, service, timeline };
 }
 
 function renderSpanNode(trace, node) {
-  const details = document.createElement("details");
-  details.className = "trace-span";
-  details.open = node.depth === 0;
-  if (!node.children.length) {
-    details.classList.add("trace-span--leaf");
+  const container = document.createElement("div");
+  container.className = "trace-span";
+  const hasChildren = node.children.length > 0;
+  if (!hasChildren) {
+    container.classList.add("trace-span--leaf");
   }
 
-  const summary = renderSpanSummary(trace, node);
-  details.append(summary);
+  const { summary, expander, service, timeline } = renderSpanSummary(
+    trace,
+    node
+  );
+  container.append(summary);
 
   const body = document.createElement("div");
   body.className = "trace-span__body";
 
   const detailSections = renderSpanDetails(node.span);
-  if (detailSections.childElementCount > 0) {
+  const hasDetails = detailSections.childElementCount > 0;
+  if (hasDetails) {
+    detailSections.hidden = true;
+    detailSections.id = `trace-span-details-${node.span.spanId}`;
     body.append(detailSections);
   }
 
-  if (node.children.length) {
-    const childrenContainer = document.createElement("div");
+  let childrenContainer = null;
+  if (hasChildren) {
+    childrenContainer = document.createElement("div");
     childrenContainer.className = "trace-span__children";
+    childrenContainer.id = `trace-span-children-${node.span.spanId}`;
     node.children.forEach((child) => {
       childrenContainer.append(renderSpanNode(trace, child));
     });
@@ -439,9 +456,69 @@ function renderSpanNode(trace, node) {
   }
 
   if (body.childElementCount > 0) {
-    details.append(body);
+    container.append(body);
   }
-  return details;
+
+  const defaultChildrenOpen = hasChildren && node.depth === 0;
+  if (childrenContainer) {
+    childrenContainer.hidden = !defaultChildrenOpen;
+    if (defaultChildrenOpen) {
+      container.classList.add("trace-span--children-open");
+    }
+    expander.setAttribute("aria-controls", childrenContainer.id);
+    expander.setAttribute("aria-expanded", String(defaultChildrenOpen));
+    service.setAttribute("aria-controls", childrenContainer.id);
+    service.setAttribute("aria-expanded", String(defaultChildrenOpen));
+  } else {
+    expander.setAttribute("aria-expanded", "false");
+    service.setAttribute("aria-expanded", "false");
+  }
+
+  let detailsOpen = false;
+  if (hasDetails) {
+    timeline.setAttribute("aria-controls", detailSections.id);
+    timeline.setAttribute("aria-expanded", "false");
+  } else {
+    timeline.disabled = true;
+    timeline.setAttribute("aria-disabled", "true");
+  }
+
+  const toggleChildren = () => {
+    if (!childrenContainer) {
+      return;
+    }
+    const next = !container.classList.contains("trace-span--children-open");
+    container.classList.toggle("trace-span--children-open", next);
+    childrenContainer.hidden = !next;
+    expander.setAttribute("aria-expanded", String(next));
+    service.setAttribute("aria-expanded", String(next));
+  };
+
+  expander.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleChildren();
+  });
+
+  service.addEventListener("click", (event) => {
+    if (service.disabled) {
+      return;
+    }
+    event.stopPropagation();
+    toggleChildren();
+  });
+
+  timeline.addEventListener("click", (event) => {
+    if (!hasDetails || timeline.disabled) {
+      return;
+    }
+    event.stopPropagation();
+    detailsOpen = !detailsOpen;
+    container.classList.toggle("trace-span--details-open", detailsOpen);
+    detailSections.hidden = !detailsOpen;
+    timeline.setAttribute("aria-expanded", String(detailsOpen));
+  });
+
+  return container;
 }
 
 export function renderTrace(host, trace) {
