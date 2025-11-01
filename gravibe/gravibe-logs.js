@@ -1253,12 +1253,14 @@ function createVirtualSpanLogs(span) {
     const statusText = span.status.message
       ? `${span.status.code.replace("STATUS_CODE_", "")}: ${span.status.message}`
       : span.status.code.replace("STATUS_CODE_", "");
+    // Use "error" severity for spans with error status, otherwise "span"
+    const severityText = span.status.code === "STATUS_CODE_ERROR" ? "error" : "span";
     const spanEndLog = {
       id: `span-end-${span.spanId}`,
       template: `Span ended : ${span.name}, status: ${statusText}`,
       timeUnixNano: span.endTimeUnixNano,
       severityNumber: undefined,
-      severityText: "span",
+      severityText: severityText,
       body: undefined,
       attributes: [],
       droppedAttributesCount: undefined,
