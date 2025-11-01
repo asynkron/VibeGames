@@ -419,7 +419,20 @@ function renderSpanSummary(trace, node) {
   return { summary, expander, service, timeline };
 }
 
-function renderSpanNode(trace, node) {
+// Ensure collapsing a span clears state for all nested spans so we do not
+// accidentally reopen them on the next render.
+function pruneDescendantState(node, state) {
+  if (!state) {
+    return;
+  }
+  node.children.forEach((child) => {
+    state.expandedChildren.delete(child.span.spanId);
+    state.expandedAttributes.delete(child.span.spanId);
+    pruneDescendantState(child, state);
+  });
+}
+
+function renderSpanNode(trace, node, state) {
   const container = document.createElement("div");
   container.className = "trace-span";
   const hasChildren = node.children.length > 0;
@@ -433,13 +446,17 @@ function renderSpanNode(trace, node) {
   );
   container.append(summary);
 
+  const spanState = state ?? {
+    expandedChildren: new Set(),
+    expandedAttributes: new Set(),
+  };
+
   const body = document.createElement("div");
   body.className = "trace-span__body";
 
   const detailSections = renderSpanDetails(node.span);
   const hasDetails = detailSections.childElementCount > 0;
   if (hasDetails) {
-    detailSections.hidden = true;
     detailSections.id = `trace-span-details-${node.span.spanId}`;
     body.append(detailSections);
   }
@@ -450,7 +467,7 @@ function renderSpanNode(trace, node) {
     childrenContainer.className = "trace-span__children";
     childrenContainer.id = `trace-span-children-${node.span.spanId}`;
     node.children.forEach((child) => {
-      childrenContainer.append(renderSpanNode(trace, child));
+      childrenContainer.append(renderSpanNode(trace, child, spanState));
     });
     body.append(childrenContainer);
   }
@@ -459,28 +476,30 @@ function renderSpanNode(trace, node) {
     container.append(body);
   }
 
-  const defaultChildrenOpen = hasChildren && node.depth === 0;
+  const spanId = node.span.spanId;
+  const childrenOpen = hasChildren && spanState.expandedChildren.has(spanId);
   if (childrenContainer) {
-    childrenContainer.hidden = !defaultChildrenOpen;
-    if (defaultChildrenOpen) {
-      container.classList.add("trace-span--children-open");
-    }
+    container.classList.toggle("trace-span--children-open", childrenOpen);
+    childrenContainer.hidden = !childrenOpen;
     expander.setAttribute("aria-controls", childrenContainer.id);
-    expander.setAttribute("aria-expanded", String(defaultChildrenOpen));
+    expander.setAttribute("aria-expanded", String(childrenOpen));
     service.setAttribute("aria-controls", childrenContainer.id);
-    service.setAttribute("aria-expanded", String(defaultChildrenOpen));
+    service.setAttribute("aria-expanded", String(childrenOpen));
   } else {
     expander.setAttribute("aria-expanded", "false");
     service.setAttribute("aria-expanded", "false");
   }
 
-  let detailsOpen = false;
+  let detailsOpen = hasDetails && spanState.expandedAttributes.has(spanId);
   if (hasDetails) {
     timeline.setAttribute("aria-controls", detailSections.id);
-    timeline.setAttribute("aria-expanded", "false");
+    detailSections.hidden = !detailsOpen;
+    timeline.setAttribute("aria-expanded", String(detailsOpen));
+    container.classList.toggle("trace-span--details-open", detailsOpen);
   } else {
     timeline.disabled = true;
     timeline.setAttribute("aria-disabled", "true");
+    timeline.setAttribute("aria-expanded", "false");
   }
 
   const toggleChildren = () => {
@@ -492,6 +511,12 @@ function renderSpanNode(trace, node) {
     childrenContainer.hidden = !next;
     expander.setAttribute("aria-expanded", String(next));
     service.setAttribute("aria-expanded", String(next));
+    if (next) {
+      spanState.expandedChildren.add(spanId);
+    } else {
+      spanState.expandedChildren.delete(spanId);
+      pruneDescendantState(node, spanState);
+    }
   };
 
   expander.addEventListener("click", (event) => {
@@ -516,15 +541,72 @@ function renderSpanNode(trace, node) {
     container.classList.toggle("trace-span--details-open", detailsOpen);
     detailSections.hidden = !detailsOpen;
     timeline.setAttribute("aria-expanded", String(detailsOpen));
+    if (detailsOpen) {
+      spanState.expandedAttributes.add(spanId);
+    } else {
+      spanState.expandedAttributes.delete(spanId);
+    }
   });
 
   return container;
 }
 
-export function renderTrace(host, trace) {
-  if (!host) {
+function collectSpanIds(nodes, bucket = new Set()) {
+  nodes.forEach((node) => {
+    bucket.add(node.span.spanId);
+    collectSpanIds(node.children, bucket);
+  });
+  return bucket;
+}
+
+function pruneInvalidState(trace, state) {
+  if (!state) {
     return;
   }
+  const validIds = collectSpanIds(trace.roots);
+  Array.from(state.expandedChildren).forEach((id) => {
+    if (!validIds.has(id)) {
+      state.expandedChildren.delete(id);
+    }
+  });
+  Array.from(state.expandedAttributes).forEach((id) => {
+    if (!validIds.has(id)) {
+      state.expandedAttributes.delete(id);
+    }
+  });
+}
+
+// The top-level spans start expanded the first time we render the view.
+function ensureRootChildrenExpanded(trace, state) {
+  if (!state || state.initializedRoots) {
+    return;
+  }
+  trace.roots.forEach((root) => {
+    if (root.children.length) {
+      state.expandedChildren.add(root.span.spanId);
+    }
+  });
+  state.initializedRoots = true;
+}
+
+function createTraceViewState(trace) {
+  const state = {
+    expandedChildren: new Set(),
+    expandedAttributes: new Set(),
+    initializedRoots: false,
+  };
+  ensureRootChildrenExpanded(trace, state);
+  return state;
+}
+
+export function renderTrace(host, trace, state) {
+  const viewState = state ?? createTraceViewState(trace);
+  if (!host) {
+    return viewState;
+  }
+  pruneInvalidState(trace, viewState);
+  ensureRootChildrenExpanded(trace, viewState);
+
   host.innerHTML = "";
 
   const header = document.createElement("header");
@@ -546,9 +628,11 @@ export function renderTrace(host, trace) {
   const list = document.createElement("div");
   list.className = "trace-span-list";
   trace.roots.forEach((root) => {
-    list.append(renderSpanNode(trace, root));
+    list.append(renderSpanNode(trace, root, viewState));
   });
   host.append(list);
+
+  return viewState;
 }
 
 export function initTraceViewer(host, spans) {
@@ -556,8 +640,10 @@ export function initTraceViewer(host, spans) {
     return () => {};
   }
   const trace = buildTraceModel(spans);
-  renderTrace(host, trace);
-  return () => renderTrace(host, trace);
+  let viewState = renderTrace(host, trace);
+  return () => {
+    viewState = renderTrace(host, trace, viewState);
+  };
 }
 
 const ns = 1e6;
