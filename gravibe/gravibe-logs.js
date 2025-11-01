@@ -1206,11 +1206,85 @@ export const sampleLogRows = [
 ];
 
 /**
+ * Creates virtual log entries for a span (span start, span end, events).
+ * These entries are added to the log array so they can be filtered by span ID.
+ */
+function createVirtualSpanLogs(span) {
+  const virtualLogs = [];
+
+  // Convert the span start to a log row format
+  const spanStartLog = {
+    id: `span-start-${span.spanId}`,
+    template: `Span start : ${span.name}`,
+    timeUnixNano: span.startTimeUnixNano,
+    severityNumber: undefined,
+    severityText: "span",
+    body: undefined,
+    attributes: span.attributes || [],
+    droppedAttributesCount: undefined,
+    flags: undefined,
+    traceId: span.traceId,
+    spanId: span.spanId,
+    observedTimeUnixNano: undefined,
+  };
+  virtualLogs.push(spanStartLog);
+
+  // Convert span events to log row format
+  const eventLogs = (span.events || []).map((event, index) => {
+    return {
+      id: `event-${span.spanId}-${index}`,
+      template: event.name,
+      timeUnixNano: event.timeUnixNano,
+      severityNumber: undefined,
+      severityText: "event",
+      body: undefined,
+      attributes: event.attributes || [],
+      droppedAttributesCount: undefined,
+      flags: undefined,
+      traceId: span.traceId,
+      spanId: span.spanId,
+      observedTimeUnixNano: undefined,
+    };
+  });
+  virtualLogs.push(...eventLogs);
+
+  // Convert the span end to a log row format (if span has status)
+  if (span.status?.code && span.status.code !== "STATUS_CODE_UNSET") {
+    const statusText = span.status.message
+      ? `${span.status.code.replace("STATUS_CODE_", "")}: ${span.status.message}`
+      : span.status.code.replace("STATUS_CODE_", "");
+    const spanEndLog = {
+      id: `span-end-${span.spanId}`,
+      template: `Span ended : ${span.name}, status: ${statusText}`,
+      timeUnixNano: span.endTimeUnixNano,
+      severityNumber: undefined,
+      severityText: "span",
+      body: undefined,
+      attributes: [],
+      droppedAttributesCount: undefined,
+      flags: undefined,
+      traceId: span.traceId,
+      spanId: span.spanId,
+      observedTimeUnixNano: undefined,
+    };
+    virtualLogs.push(spanEndLog);
+  }
+
+  return virtualLogs;
+}
+
+/**
  * Generates log rows from trace spans and appends them to the sample log rows.
  * This is called after both modules are loaded to avoid circular dependencies.
  */
 export function appendLogsFromSpans(spans) {
+  // Generate realistic logs for each span
   const spanLogs = spans.flatMap(span => generateLogsForSpan(span));
   sampleLogRows.push(...spanLogs);
+
+  // Add virtual log entries (span start, events, span end) for each span
+  const virtualLogs = spans.flatMap(span => createVirtualSpanLogs(span));
+  sampleLogRows.push(...virtualLogs);
+
   return sampleLogRows;
 }

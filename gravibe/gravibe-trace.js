@@ -763,71 +763,8 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
 }
 
 function renderSpanLogs(span) {
-  // Filter logs by span ID
-  const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === span.spanId);
-
-  // Convert the span start to a log row format
-  const spanStartLog = {
-    id: `span-start-${span.spanId}`,
-    template: `Span start : ${span.name}`,
-    timeUnixNano: span.startTimeUnixNano,
-    severityNumber: undefined,
-    severityText: "span",
-    body: undefined,
-    attributes: span.attributes || [],
-    droppedAttributesCount: undefined,
-    flags: undefined,
-    traceId: span.traceId,
-    spanId: span.spanId,
-  };
-
-  // Convert the span end to a log row format (if span has status)
-  let spanEndLog = null;
-  if (span.status?.code && span.status.code !== "STATUS_CODE_UNSET") {
-    const statusText = span.status.message
-      ? `${span.status.code.replace("STATUS_CODE_", "")}: ${span.status.message}`
-      : span.status.code.replace("STATUS_CODE_", "");
-    spanEndLog = {
-      id: `span-end-${span.spanId}`,
-      template: `Span ended : ${span.name}, status: ${statusText}`,
-      timeUnixNano: span.endTimeUnixNano,
-      severityNumber: undefined,
-      severityText: "span",
-      body: undefined,
-      attributes: [],
-      droppedAttributesCount: undefined,
-      flags: undefined,
-      traceId: span.traceId,
-      spanId: span.spanId,
-    };
-  }
-
-  // Convert span events to log row format
-  const eventLogs = (span.events || []).map((event, index) => {
-    // Build a template from event name
-    const template = event.name;
-    return {
-      id: `event-${span.spanId}-${index}`,
-      template,
-      timeUnixNano: event.timeUnixNano,
-      severityNumber: undefined,
-      severityText: "event",
-      body: undefined,
-      attributes: event.attributes || [],
-      droppedAttributesCount: undefined,
-      flags: undefined,
-      traceId: undefined,
-      spanId: span.spanId,
-    };
-  });
-
-  // Combine span start, logs, events, and span end
-  const allLogs = [
-    spanStartLog,
-    ...spanLogs,
-    ...eventLogs,
-    ...(spanEndLog ? [spanEndLog] : []),
-  ];
+  // Filter logs by span ID - virtual entries (span start, events, span end) are already in the array
+  const allLogs = sampleLogRows.filter((logRow) => logRow.spanId === span.spanId);
 
   if (allLogs.length === 0) {
     return null;
