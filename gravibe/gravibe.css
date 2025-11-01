@@ -1069,45 +1069,37 @@ body {
 
 .log-attr {
   font-family: var(--font-mono);
-  background: rgba(54, 60, 74, 0.55);
   color: var(--accent-primary);
   line-height: 1;
 }
 
 .log-attr--string {
   color: var(--accent-secondary);
-  background: rgb(var(--accent-secondary-rgb) / 0.16);
 }
 
 .log-attr--boolean {
   color: var(--accent-secondary);
-  background: rgb(var(--accent-secondary-rgb) / 0.16);
 }
 
 .log-attr--int {
   color: var(--accent-error);
-  background: rgb(var(--accent-error-rgb) / 0.18);
 }
 
 .log-attr--double {
   color: var(--accent-tertiary);
-  background: rgb(var(--accent-tertiary-rgb) / 0.16);
 }
 
 .log-attr--bytes {
   color: var(--accent-quaternary);
-  background: rgb(var(--accent-quaternary-rgb) / 0.16);
 }
 
 .log-attr--array,
 .log-attr--kvlist {
   color: var(--accent-senary);
-  background: rgb(var(--accent-senary-rgb) / 0.18);
 }
 
 .log-attr--empty {
   color: var(--text-muted);
-  background: rgba(82, 90, 104, 0.25);
 }
 
 .log-row--severity-debug .log-row-severity {
