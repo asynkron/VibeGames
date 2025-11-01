@@ -437,7 +437,6 @@ body {
 
 .trace-preview__marker:hover {
   stroke: rgba(148, 163, 184, 0.9);
-  stroke-width: 3;
 }
 
 .trace-header h2 {
@@ -671,7 +670,7 @@ body {
   position: absolute;
   left: var(--span-start);
   width: var(--span-width);
-  min-width: 0.5%;
+  min-width: 0;
   inset-block: 0;
   margin-block: 4px;
   display: flex;

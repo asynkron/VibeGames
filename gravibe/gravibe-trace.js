@@ -441,7 +441,7 @@ export function computeSpanOffsets(trace, span, timeWindow = { start: 0, end: 10
   // Remap to 0-100% relative to the window
   const remappedStart = ((clampedStart - windowStart) / windowWidth) * 100;
   const remappedEnd = ((clampedEnd - windowStart) / windowWidth) * 100;
-  const width = Math.max(remappedEnd - remappedStart, 0.5);
+  const width = Math.max(remappedEnd - remappedStart, 0);
 
   return {
     startPercent: remappedStart,
@@ -605,6 +605,11 @@ function renderSpanSummary(trace, node, timeWindow = { start: 0, end: 100 }) {
 
   const bar = document.createElement("div");
   bar.className = "trace-span__bar";
+
+  // Hide the bar if span is fully outside the time window
+  if (offsets.widthPercent === 0) {
+    bar.style.display = "none";
+  }
 
   // Get palette color based on service name index
   const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
@@ -993,8 +998,18 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
   leftMarker.setAttribute("y1", "0");
   leftMarker.setAttribute("x2", "0");
   leftMarker.setAttribute("y2", `${SVG_HEIGHT}`);
+  // Calculate stroke width in viewBox units to maintain fixed 8px width
+  // SVG viewBox is "0 0 100 ${SVG_HEIGHT}", so we need to convert 8px to viewBox units
+  const updateStrokeWidth = () => {
+    const rect = svg.getBoundingClientRect();
+    const viewBoxWidth = 100; // viewBox width in units
+    const pixelsPerUnit = rect.width / viewBoxWidth;
+    const strokeWidthUnits = 8 / pixelsPerUnit;
+    leftMarker.setAttribute("stroke-width", String(strokeWidthUnits));
+    rightMarker.setAttribute("stroke-width", String(strokeWidthUnits));
+  };
+
   leftMarker.setAttribute("stroke", "rgba(148, 163, 184, 0.6)");
-  leftMarker.setAttribute("stroke-width", "2");
   leftMarker.style.cursor = "col-resize";
   leftMarker.style.opacity = "0";
   leftMarker.style.transition = "opacity 0.2s ease";
@@ -1008,11 +1023,19 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
   rightMarker.setAttribute("x2", "100");
   rightMarker.setAttribute("y2", `${SVG_HEIGHT}`);
   rightMarker.setAttribute("stroke", "rgba(148, 163, 184, 0.6)");
-  rightMarker.setAttribute("stroke-width", "2");
   rightMarker.style.cursor = "col-resize";
   rightMarker.style.opacity = "0";
   rightMarker.style.transition = "opacity 0.2s ease";
   svg.appendChild(rightMarker);
+
+  // Initialize stroke width
+  updateStrokeWidth();
+
+  // Update stroke width on resize
+  const resizeObserver = new ResizeObserver(() => {
+    updateStrokeWidth();
+  });
+  resizeObserver.observe(svg);
 
   // Selection state
   let isSelecting = false;
