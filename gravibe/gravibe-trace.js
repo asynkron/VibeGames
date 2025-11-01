@@ -815,6 +815,123 @@ function createTraceViewState(trace) {
   return state;
 }
 
+/**
+ * Renders a non-interactive SVG preview of the trace spans.
+ * @param {TraceModel} trace
+ * @returns {SVGSVGElement}
+ */
+function renderTracePreview(trace) {
+  const SVG_HEIGHT = 150;
+  const MIN_SPAN_WIDTH = 2; // Minimum width in pixels for visibility
+  const SPAN_HEIGHT = 8; // Height of each span bar
+  const SPAN_GAP = 2; // Gap between span rows
+
+  // Flatten all spans from the tree structure
+  const allSpans = [];
+  const flattenSpans = (nodes) => {
+    nodes.forEach((node) => {
+      allSpans.push(node);
+      if (node.children.length > 0) {
+        flattenSpans(node.children);
+      }
+    });
+  };
+  flattenSpans(trace.roots);
+
+  // Calculate row count (one row per span)
+  const rowCount = Math.max(allSpans.length, 1);
+  const totalRowHeight = rowCount * (SPAN_HEIGHT + SPAN_GAP);
+
+  // Create SVG element
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "trace-preview");
+  svg.setAttribute("viewBox", `0 0 100 ${SVG_HEIGHT}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.style.width = "100%";
+  svg.style.height = `${SVG_HEIGHT}px`;
+
+  // Background
+  const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  background.setAttribute("x", "0");
+  background.setAttribute("y", "0");
+  background.setAttribute("width", "100");
+  background.setAttribute("height", `${SVG_HEIGHT}`);
+  background.setAttribute("fill", "rgb(12 16 24 / 50%)");
+  svg.appendChild(background);
+
+  // Get palette colors for service coloring
+  const paletteColors = getPaletteColors();
+  const paletteLength = paletteColors.length;
+
+  // Helper to get color for a service
+  const getServiceColor = (serviceName) => {
+    const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
+    const colorIndex = serviceIndex % paletteLength;
+    const paletteColor = paletteColors[colorIndex];
+    const normalizedColor = normalizeColorBrightness(paletteColor, 50);
+    return normalizedColor;
+  };
+
+  // Helper to convert hex to RGBA
+  const hexToRgba = (hex, alpha = 0.6) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!result) {
+      return `rgba(97, 175, 239, ${alpha})`;
+    }
+    const r = Number.parseInt(result[1], 16);
+    const g = Number.parseInt(result[2], 16);
+    const b = Number.parseInt(result[3], 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  // Render each span
+  allSpans.forEach((node, index) => {
+    const offsets = computeSpanOffsets(trace, node.span);
+    const serviceName = node.span.resource?.serviceName || "unknown-service";
+    const color = getServiceColor(serviceName);
+
+    // Calculate Y position (centered vertically if we have fewer spans than can fit)
+    const yScale = Math.min(1, SVG_HEIGHT / totalRowHeight);
+    const y = (index * (SPAN_HEIGHT + SPAN_GAP) + SPAN_GAP) * yScale;
+    const height = SPAN_HEIGHT * yScale;
+
+    // Calculate X position and width (percentage to viewBox units)
+    let x = offsets.startPercent;
+    let width = offsets.widthPercent;
+
+    // Ensure minimum width in viewBox units (viewBox is 0 0 100 150)
+    // For 100 viewBox units wide, 2px min = (2 / actualSVGWidth) * 100
+    // Since viewBox is percentage-based, minWidthPercent should be small
+    // Assuming typical SVG width of ~800px, 2px = 0.25% of viewBox
+    const minWidthPercent = 0.25; // Minimum 2px when SVG is ~800px wide
+    if (width < minWidthPercent) {
+      width = minWidthPercent;
+      // Adjust x to keep span centered if possible
+      const originalCenter = x + offsets.widthPercent / 2;
+      x = Math.max(0, originalCenter - width / 2);
+      // Ensure we don't go past 100%
+      if (x + width > 100) {
+        x = 100 - width;
+      }
+    }
+
+    // Create span rectangle
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", `${x}`);
+    rect.setAttribute("y", `${y}`);
+    rect.setAttribute("width", `${width}`);
+    rect.setAttribute("height", `${height}`);
+    rect.setAttribute("fill", hexToRgba(color, 0.6));
+    rect.setAttribute("rx", "1.5"); // Rounded corners
+    svg.appendChild(rect);
+
+    // Add subtle glow effect using a filter (optional)
+    // For simplicity, we'll skip the filter but can add it if needed
+  });
+
+  return svg;
+}
+
 export function renderTrace(host, trace, state) {
   const viewState = state ?? createTraceViewState(trace);
   if (!host) {
@@ -840,6 +957,10 @@ export function renderTrace(host, trace, state) {
   header.append(meta);
 
   host.append(header);
+
+  // Add preview trace component
+  const preview = renderTracePreview(trace);
+  host.append(preview);
 
   const list = document.createElement("div");
   list.className = "trace-span-list";
