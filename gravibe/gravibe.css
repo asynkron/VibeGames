@@ -435,6 +435,25 @@ body {
 .trace-viewer {
   display: grid;
   gap: 1.5rem;
+  position: relative;
+}
+
+.trace-viewer__splitter {
+  position: absolute;
+  left: calc(1.75rem + var(--trace-span-service-width, 16rem) + 0.375rem);
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  margin-left: -2px;
+  background: rgba(148, 163, 184, 0.2);
+  cursor: col-resize;
+  z-index: 10;
+  transition: background 0.2s ease;
+}
+
+.trace-viewer__splitter:hover,
+.trace-viewer__splitter:active {
+  background: rgba(148, 163, 184, 0.5);
 }
 
 .trace-span-list {

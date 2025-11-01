@@ -133,6 +133,78 @@ function getPaletteColors() {
 }
 
 /**
+ * Converts hex color to HSL
+ * @param {string} hex - Hex color string (e.g., "#00c0ff")
+ * @returns {{h: number, s: number, l: number}} HSL values (h: 0-360, s: 0-100, l: 0-100)
+ */
+function hexToHsl(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) {
+    return { h: 0, s: 0, l: 50 };
+  }
+
+  let r = Number.parseInt(result[1], 16) / 255;
+  let g = Number.parseInt(result[2], 16) / 255;
+  let b = Number.parseInt(result[3], 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+
+  if (max === min) {
+    h = s = 0; // achromatic
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+      default: h = 0;
+    }
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100),
+  };
+}
+
+/**
+ * Converts HSL to hex color
+ * @param {number} h - Hue (0-360)
+ * @param {number} s - Saturation (0-100)
+ * @param {number} l - Lightness (0-100)
+ * @returns {string} Hex color string
+ */
+function hslToHex(h, s, l) {
+  l /= 100;
+  const a = (s * Math.min(l, 1 - l)) / 100;
+  const f = (n) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/**
+ * Normalizes a hex color to a specific brightness/intensity.
+ * Keeps the hue and saturation but sets a fixed lightness.
+ * @param {string} hex - Hex color string
+ * @param {number} lightness - Target lightness (0-100), default 65 for neon effect
+ * @returns {string} Normalized hex color string
+ */
+function normalizeColorBrightness(hex, lightness = 65) {
+  const hsl = hexToHsl(hex);
+  // Keep hue and saturation, set fixed lightness for consistent brightness
+  return hslToHex(hsl.h, hsl.s, lightness);
+}
+
+/**
  * Builds a hierarchical trace model so spans become aware of their children
  * without mutating the original span definitions.
  * @param {TraceSpan[]} spans
@@ -507,7 +579,10 @@ function renderSpanSummary(trace, node) {
   const paletteColors = getPaletteColors();
   const paletteLength = paletteColors.length;
   const colorIndex = serviceIndex % paletteLength;
-  const serviceColor = paletteColors[colorIndex];
+  // Normalize color to fixed brightness for consistent intensity
+  // Lower lightness (35%) for better contrast with white text
+  const paletteColor = paletteColors[colorIndex];
+  const serviceColor = normalizeColorBrightness(paletteColor, 35);
   
   // Convert hex to RGB for box-shadow
   const hexToRgb = (hex) => {
@@ -763,7 +838,66 @@ export function renderTrace(host, trace, state) {
   });
   host.append(list);
 
+  // Create and add the splitter for resizing service column
+  const splitter = createSplitter(host);
+  host.append(splitter);
+
   return viewState;
+}
+
+/**
+ * Creates a resizable splitter element for adjusting service column width.
+ * @param {HTMLElement} container - The trace-viewer container
+ * @returns {HTMLElement} The splitter element
+ */
+function createSplitter(container) {
+  const splitter = document.createElement("div");
+  splitter.className = "trace-viewer__splitter";
+  splitter.setAttribute("aria-label", "Resize service column");
+
+  let isDragging = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  const startDrag = (e) => {
+    isDragging = true;
+    startX = e.clientX || e.touches?.[0]?.clientX || 0;
+    const root = document.documentElement;
+    const currentWidth = root.style.getPropertyValue("--trace-span-service-width") || 
+                         getComputedStyle(root).getPropertyValue("--trace-span-service-width") || 
+                         "16rem";
+    startWidth = parseFloat(currentWidth) || 16;
+    document.addEventListener("mousemove", doDrag);
+    document.addEventListener("mouseup", stopDrag);
+    document.addEventListener("touchmove", doDrag);
+    document.addEventListener("touchend", stopDrag);
+    e.preventDefault();
+  };
+
+  const doDrag = (e) => {
+    if (!isDragging) return;
+    const currentX = e.clientX || e.touches?.[0]?.clientX || 0;
+    const diff = currentX - startX;
+    // Convert pixels to rem (assuming 1rem = 16px)
+    const diffRem = diff / 16;
+    const newWidth = Math.max(8, Math.min(40, startWidth + diffRem)); // Min 8rem, max 40rem
+    const root = document.documentElement;
+    root.style.setProperty("--trace-span-service-width", `${newWidth}rem`);
+    e.preventDefault();
+  };
+
+  const stopDrag = () => {
+    isDragging = false;
+    document.removeEventListener("mousemove", doDrag);
+    document.removeEventListener("mouseup", stopDrag);
+    document.removeEventListener("touchmove", doDrag);
+    document.removeEventListener("touchend", stopDrag);
+  };
+
+  splitter.addEventListener("mousedown", startDrag);
+  splitter.addEventListener("touchstart", startDrag);
+
+  return splitter;
 }
 
 export function initTraceViewer(host, spans) {
