@@ -727,12 +727,15 @@ body {
   pointer-events: none;
   max-width: 500px;
   min-width: 300px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .trace-span__marker-tooltip .log-card {
   max-width: 100%;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   border: 1px solid rgb(var(--accent-secondary-rgb) / 0.45);
+  background: rgba(18, 22, 30, 0.95);
 }
 
 .trace-span__details {

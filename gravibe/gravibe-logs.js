@@ -493,35 +493,7 @@ export function createMetaSection(logRow) {
   const wrapper = document.createElement("div");
   wrapper.className = "log-row-details";
 
-  const metaList = document.createElement("dl");
-  metaList.className = "log-row-meta";
-
-  const entries = [
-    ["Event Time", formatNanoseconds(logRow.timeUnixNano)],
-    [
-      "Observed",
-      logRow.observedTimeUnixNano ? formatNanoseconds(logRow.observedTimeUnixNano) : "—",
-    ],
-    ["Trace Id", logRow.traceId ?? "—"],
-    ["Span Id", logRow.spanId ?? "—"],
-    ["Flags", typeof logRow.flags === "number" ? `0x${logRow.flags.toString(16)}` : "—"],
-    [
-      "Dropped Attributes",
-      typeof logRow.droppedAttributesCount === "number"
-        ? String(logRow.droppedAttributesCount)
-        : "0",
-    ],
-  ];
-
-  entries.forEach(([label, value]) => {
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    dd.textContent = value;
-    metaList.append(dt, dd);
-  });
-
-  wrapper.appendChild(metaList);
+  // Remove meta list entirely since we're not showing trace/span IDs there anymore
 
   if (logRow.body && logRow.body.kind !== LogAnyValueKind.EMPTY) {
     const bodySection = document.createElement("section");
@@ -534,12 +506,34 @@ export function createMetaSection(logRow) {
     wrapper.appendChild(bodySection);
   }
 
-  if (logRow.attributes.length) {
+  // Build combined attributes list with virtual trace/span ID attributes first
+  const allAttributes = [];
+
+  // Add trace ID as first virtual attribute if present
+  if (logRow.traceId && typeof logRow.traceId === "string" && logRow.traceId.length > 0) {
+    allAttributes.push({
+      key: "trace.id",
+      value: { kind: LogAnyValueKind.STRING, value: logRow.traceId },
+    });
+  }
+
+  // Add span ID as second virtual attribute if present
+  if (logRow.spanId && typeof logRow.spanId === "string" && logRow.spanId.length > 0) {
+    allAttributes.push({
+      key: "span.id",
+      value: { kind: LogAnyValueKind.STRING, value: logRow.spanId },
+    });
+  }
+
+  // Add actual attributes after virtual ones
+  allAttributes.push(...logRow.attributes);
+
+  if (allAttributes.length > 0) {
     const attributesSection = document.createElement("section");
     attributesSection.className = "log-row-attributes";
     const attrTitle = document.createElement("h4");
     attrTitle.textContent = "Attributes";
-    attributesSection.append(attrTitle, createAttributeTable(logRow.attributes));
+    attributesSection.append(attrTitle, createAttributeTable(allAttributes));
     wrapper.appendChild(attributesSection);
   }
 
