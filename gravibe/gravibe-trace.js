@@ -646,6 +646,9 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
     // Create tooltip for this marker and append to document.body instead
     const tooltip = createMarkerTooltip(marker);
     tooltip.style.display = "none";
+    tooltip.style.left = "0px";
+    tooltip.style.top = "0px";
+    tooltip.style.transform = "translateX(-50%) translateY(-4px)";
     document.body.appendChild(tooltip);
     markerElement.dataset.tooltipId = `tooltip-${Date.now()}-${Math.random()}`;
 
@@ -653,21 +656,25 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
     markerElement.addEventListener("mouseenter", (e) => {
       // Remove any existing tooltip
       if (currentTooltip && currentTooltip !== tooltip) {
-        currentTooltip.style.display = "none";
+        currentTooltip.classList.remove("show");
+        // Wait for fade out before hiding
+        setTimeout(() => {
+          currentTooltip.style.display = "none";
+        }, 300);
       }
 
+      // Set display first so we can measure
       tooltip.style.display = "block";
       currentTooltip = tooltip;
 
       // Position tooltip relative to cursor
-      const updateTooltipPosition = (event) => {
+      const updateTooltipPosition = (event, skipTransition = false) => {
         const mouseX = event.clientX;
         const mouseY = event.clientY;
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
 
-        // Get tooltip dimensions (force display to measure)
-        tooltip.style.display = "block";
+        // Get tooltip dimensions
         const tooltipRect = tooltip.getBoundingClientRect();
 
         // Position tooltip below and slightly offset from cursor
@@ -690,12 +697,33 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
           top = mouseY - tooltipRect.height - 12;
         }
 
+        // Set position
         tooltip.style.left = `${left}px`;
         tooltip.style.top = `${top}px`;
-        tooltip.style.transform = "translateX(-50%)";
+
+        // Apply transform - if skipping transition, set directly without animation
+        if (skipTransition) {
+          tooltip.style.transition = "none";
+        }
+        const isShowing = tooltip.classList.contains("show");
+        tooltip.style.transform = `translateX(-50%) translateY(${isShowing ? "0" : "-4px"})`;
+
+        // Re-enable transition after setting initial position
+        if (skipTransition) {
+          requestAnimationFrame(() => {
+            tooltip.style.transition = "";
+          });
+        }
       };
 
-      updateTooltipPosition(e);
+      // Position first with transition disabled to set initial state
+      updateTooltipPosition(e, true);
+
+      // Now trigger fade in animation
+      requestAnimationFrame(() => {
+        tooltip.classList.add("show");
+        updateTooltipPosition(e);
+      });
 
       const moveHandler = (event) => {
         updateTooltipPosition(event);
@@ -706,7 +734,12 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
     });
 
     markerElement.addEventListener("mouseleave", () => {
-      tooltip.style.display = "none";
+      tooltip.classList.remove("show");
+      // Wait for fade out before hiding
+      setTimeout(() => {
+        tooltip.style.display = "none";
+      }, 300);
+
       if (markerElement._moveHandler) {
         markerElement.removeEventListener("mousemove", markerElement._moveHandler);
         markerElement._moveHandler = null;

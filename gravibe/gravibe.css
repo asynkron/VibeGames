@@ -745,11 +745,19 @@ body {
   min-width: 300px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.trace-span__marker-tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .trace-span__marker-tooltip .log-card {
   max-width: 100%;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   border: 1px solid rgb(var(--accent-secondary-rgb) / 0.45);
   background: rgba(18, 22, 30, 0.95);
 }
