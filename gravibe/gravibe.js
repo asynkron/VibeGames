@@ -3,6 +3,132 @@
  * Each component exposes multiple datasets and detailed comments so AI agents can remix the visuals quickly.
  */
 
+const colorRoles = [
+  "accentPrimary",
+  "accentSecondary",
+  "accentTertiary",
+  "accentQuaternary",
+  "accentQuinary",
+  "accentSenary",
+];
+
+// Each entry describes a selectable base palette so designers can add new themes quickly.
+const colorPalettes = [
+  {
+    id: "palette-1",
+    label: "Palette 1 — Gravibe Sunrise",
+    colors: ["#ef476f", "#ffd166", "#06d6a0", "#118ab2", "#073b4c"],
+  },
+  {
+    id: "palette-2",
+    label: "Palette 2 — Cosmic Magenta",
+    colors: ["#390099", "#9e0059", "#ff0054", "#ff5400", "#ffbd00"],
+  },
+  {
+    id: "palette-3",
+    label: "Palette 3 — Retro Pop",
+    colors: ["#ff595e", "#ffca3a", "#8ac926", "#1982c4", "#6a4c93"],
+  },
+];
+
+const paletteState = {
+  activeMapping: {},
+  activeId: colorPalettes[0]?.id ?? "",
+};
+
+// We keep a registry of renderer callbacks so palette swaps can re-render everything in place.
+const componentRegistry = new Set();
+
+function rerenderAllComponents() {
+  componentRegistry.forEach((rerender) => {
+    try {
+      rerender();
+    } catch (error) {
+      console.error("Failed to re-render component", error);
+    }
+  });
+}
+
+function hexToRgb(hex) {
+  const trimmed = hex.replace(/^#/, "");
+  const bigint = parseInt(trimmed, 16);
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255,
+  };
+}
+
+function toCssVar(role) {
+  return `--${role.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
+}
+
+function resolveColor(colorRef) {
+  if (!colorRef) {
+    return colorRef;
+  }
+
+  if (paletteState.activeMapping[colorRef]) {
+    return paletteState.activeMapping[colorRef];
+  }
+
+  return colorRef;
+}
+
+function colorWithAlpha(colorRef, alpha) {
+  const color = resolveColor(colorRef);
+  if (!color) {
+    return color;
+  }
+
+  if (color.startsWith("#")) {
+    const { r, g, b } = hexToRgb(color);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  const rgbaMatch = color.match(/rgba?\(([^)]+)\)/);
+  if (rgbaMatch) {
+    const [r, g, b] = rgbaMatch[1]
+      .split(",")
+      .map((part) => parseFloat(part.trim()))
+      .slice(0, 3);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  return color;
+}
+
+function buildPaletteMapping(palette) {
+  const mapping = {};
+  colorRoles.forEach((role, index) => {
+    const color = palette.colors[index % palette.colors.length];
+    mapping[role] = color;
+  });
+  return mapping;
+}
+
+if (colorPalettes[0]) {
+  paletteState.activeMapping = buildPaletteMapping(colorPalettes[0]);
+}
+
+function applyPalette(palette) {
+  const mapping = buildPaletteMapping(palette);
+  paletteState.activeMapping = mapping;
+  paletteState.activeId = palette.id;
+
+  const root = document.documentElement;
+  colorRoles.forEach((role) => {
+    const cssVar = toCssVar(role);
+    const rgbVar = `${cssVar}-rgb`;
+    const color = mapping[role];
+    const { r, g, b } = hexToRgb(color);
+    root.style.setProperty(cssVar, color);
+    root.style.setProperty(rgbVar, `${r} ${g} ${b}`);
+  });
+
+  rerenderAllComponents();
+}
+
 const neonDatasets = {
   timeSeries: [
     {
@@ -11,17 +137,17 @@ const neonDatasets = {
       series: [
         {
           name: "Projected",
-          color: "#38f2ff",
+          color: "accentPrimary",
           data: [420, 460, 520, 580, 610, 640, 700, 760],
         },
         {
           name: "Actual",
-          color: "#f472b6",
+          color: "accentSecondary",
           data: [400, 455, 540, 560, 630, 655, 690, 720],
         },
         {
           name: "Capacity",
-          color: "#a855f7",
+          color: "accentTertiary",
           data: [480, 480, 640, 640, 720, 720, 780, 780],
         },
       ],
@@ -32,12 +158,12 @@ const neonDatasets = {
       series: [
         {
           name: "Listeners",
-          color: "#34d399",
+          color: "accentQuinary",
           data: [220, 260, 320, 420, 610, 580, 500],
         },
         {
           name: "Chat Bots",
-          color: "#38bdf8",
+          color: "accentQuaternary",
           data: [120, 140, 180, 260, 400, 360, 330],
         },
       ],
@@ -69,14 +195,14 @@ const neonDatasets = {
         },
       ],
       palette: {
-        Idle: "#38bdf8",
-        Warmup: "#22d3ee",
-        Online: "#38f2ff",
-        Alert: "#f97316",
-        Cooldown: "#a855f7",
+        Idle: "accentQuaternary",
+        Warmup: "accentQuaternary",
+        Online: "accentPrimary",
+        Alert: "accentSenary",
+        Cooldown: "accentTertiary",
         Offline: "#475569",
-        Calibration: "#f472b6",
-        Maintenance: "#fb7185",
+        Calibration: "accentSecondary",
+        Maintenance: "accentSecondary",
       },
     },
     {
@@ -105,13 +231,13 @@ const neonDatasets = {
         },
       ],
       palette: {
-        Idle: "#38bdf8",
-        Warmup: "#22d3ee",
-        Online: "#38f2ff",
-        Alert: "#f97316",
-        Cooldown: "#a855f7",
-        Calibration: "#f472b6",
-        Maintenance: "#fb7185",
+        Idle: "accentQuaternary",
+        Warmup: "accentQuaternary",
+        Online: "accentPrimary",
+        Alert: "accentSenary",
+        Cooldown: "accentTertiary",
+        Calibration: "accentSecondary",
+        Maintenance: "accentSecondary",
       },
     },
   ],
@@ -124,9 +250,9 @@ const neonDatasets = {
           name: "Relay One",
           states: ["Online", "Online", "Alert", "Online", "Maintenance", "Online"],
           colors: {
-            Online: "#38f2ff",
-            Alert: "#f97316",
-            Maintenance: "#f472b6",
+            Online: "accentPrimary",
+            Alert: "accentSenary",
+            Maintenance: "accentSecondary",
           },
         },
         {
@@ -134,7 +260,7 @@ const neonDatasets = {
           states: ["Idle", "Online", "Online", "Offline", "Online", "Online"],
           colors: {
             Idle: "#1f2937",
-            Online: "#38f2ff",
+            Online: "accentPrimary",
             Offline: "#0f172a",
           },
         },
@@ -148,9 +274,9 @@ const neonDatasets = {
           name: "Alpha",
           states: ["Online", "Alert", "Online", "Online", "Online", "Maintenance"],
           colors: {
-            Online: "#38f2ff",
-            Alert: "#f97316",
-            Maintenance: "#a855f7",
+            Online: "accentPrimary",
+            Alert: "accentSenary",
+            Maintenance: "accentTertiary",
           },
         },
         {
@@ -158,8 +284,8 @@ const neonDatasets = {
           states: ["Idle", "Online", "Online", "Alert", "Online", "Offline"],
           colors: {
             Idle: "#1f2937",
-            Online: "#38f2ff",
-            Alert: "#f97316",
+            Online: "accentPrimary",
+            Alert: "accentSenary",
             Offline: "#0f172a",
           },
         },
@@ -173,12 +299,12 @@ const neonDatasets = {
       series: [
         {
           name: "Inbound",
-          color: "#38f2ff",
+          color: "accentPrimary",
           data: [46, 52, 48, 60],
         },
         {
           name: "Outbound",
-          color: "#f472b6",
+          color: "accentSecondary",
           data: [34, 46, 42, 54],
         },
       ],
@@ -189,12 +315,12 @@ const neonDatasets = {
       series: [
         {
           name: "Baseline",
-          color: "#38bdf8",
+          color: "accentQuaternary",
           data: [28, 32, 30, 34],
         },
         {
           name: "Boosted",
-          color: "#a855f7",
+          color: "accentTertiary",
           data: [36, 42, 40, 46],
         },
       ],
@@ -238,19 +364,19 @@ const neonDatasets = {
     {
       label: "Signal Share",
       slices: [
-        { name: "Beacon", value: 32, color: "#38f2ff" },
-        { name: "Relay", value: 24, color: "#f472b6" },
-        { name: "Drone", value: 18, color: "#a855f7" },
-        { name: "Reserve", value: 12, color: "#34d399" },
+        { name: "Beacon", value: 32, color: "accentPrimary" },
+        { name: "Relay", value: 24, color: "accentSecondary" },
+        { name: "Drone", value: 18, color: "accentTertiary" },
+        { name: "Reserve", value: 12, color: "accentQuinary" },
       ],
     },
     {
       label: "Ops Channel",
       slices: [
-        { name: "Command", value: 28, color: "#38f2ff" },
-        { name: "Telemetry", value: 22, color: "#f472b6" },
-        { name: "Logistics", value: 20, color: "#a855f7" },
-        { name: "Maintenance", value: 18, color: "#38bdf8" },
+        { name: "Command", value: 28, color: "accentPrimary" },
+        { name: "Telemetry", value: 22, color: "accentSecondary" },
+        { name: "Logistics", value: 20, color: "accentTertiary" },
+        { name: "Maintenance", value: 18, color: "accentQuaternary" },
       ],
     },
   ],
@@ -298,7 +424,7 @@ const neonDatasets = {
       series: [
         {
           name: "Baseline",
-          color: "#38f2ff",
+          color: "accentPrimary",
           data: [
             32, 34, 36, 33, 31, 29, 28, 32, 38, 42, 48, 52, 56, 61, 65, 63, 58, 54,
             50, 48, 45, 40, 36, 34,
@@ -306,7 +432,7 @@ const neonDatasets = {
         },
         {
           name: "Smoothed",
-          color: "#f472b6",
+          color: "accentSecondary",
           data: [
             31, 33, 35, 34, 32, 31, 30, 33, 37, 41, 47, 51, 55, 60, 63, 61, 57, 53,
             49, 47, 44, 41, 37, 35,
@@ -320,12 +446,12 @@ const neonDatasets = {
       series: [
         {
           name: "Campaign A",
-          color: "#34d399",
+          color: "accentQuinary",
           data: [60, 68, 75, 72, 78, 82],
         },
         {
           name: "Campaign B",
-          color: "#f97316",
+          color: "accentSenary",
           data: [54, 57, 62, 65, 70, 74],
         },
       ],
@@ -337,7 +463,7 @@ const neonDatasets = {
       series: [
         {
           name: "Squad A",
-          color: "#38f2ff",
+          color: "accentPrimary",
           points: [
             [24, 32, 12],
             [28, 36, 14],
@@ -347,7 +473,7 @@ const neonDatasets = {
         },
         {
           name: "Squad B",
-          color: "#f472b6",
+          color: "accentSecondary",
           points: [
             [14, 22, 10],
             [18, 26, 12],
@@ -362,7 +488,7 @@ const neonDatasets = {
       series: [
         {
           name: "North Arc",
-          color: "#a855f7",
+          color: "accentTertiary",
           points: [
             [12, 42, 10],
             [16, 48, 12],
@@ -372,7 +498,7 @@ const neonDatasets = {
         },
         {
           name: "South Arc",
-          color: "#38bdf8",
+          color: "accentQuaternary",
           points: [
             [8, 20, 9],
             [10, 24, 11],
@@ -404,19 +530,19 @@ const neonDatasets = {
     {
       label: "Resource Allocation",
       sections: [
-        { name: "Ops", value: 0.32, color: "#38f2ff" },
-        { name: "Defense", value: 0.26, color: "#f472b6" },
-        { name: "Support", value: 0.18, color: "#a855f7" },
-        { name: "Reserve", value: 0.14, color: "#38bdf8" },
+        { name: "Ops", value: 0.32, color: "accentPrimary" },
+        { name: "Defense", value: 0.26, color: "accentSecondary" },
+        { name: "Support", value: 0.18, color: "accentTertiary" },
+        { name: "Reserve", value: 0.14, color: "accentQuaternary" },
       ],
     },
     {
       label: "Squad Contribution",
       sections: [
-        { name: "Alpha", value: 0.28, color: "#38f2ff" },
-        { name: "Beta", value: 0.24, color: "#f472b6" },
-        { name: "Gamma", value: 0.22, color: "#a855f7" },
-        { name: "Delta", value: 0.18, color: "#38bdf8" },
+        { name: "Alpha", value: 0.28, color: "accentPrimary" },
+        { name: "Beta", value: 0.24, color: "accentSecondary" },
+        { name: "Gamma", value: 0.22, color: "accentTertiary" },
+        { name: "Delta", value: 0.18, color: "accentQuaternary" },
       ],
     },
   ],
@@ -425,9 +551,9 @@ const neonDatasets = {
 function createLiveTimeSeriesDataset() {
   const axisLength = 12;
   const baseSeries = [
-    { name: "Projected", color: "#38f2ff", base: 650, variance: 28, min: 520, max: 780 },
-    { name: "Actual", color: "#f472b6", base: 610, variance: 32, min: 480, max: 760 },
-    { name: "Capacity", color: "#a855f7", base: 720, variance: 18, min: 640, max: 820 },
+    { name: "Projected", color: "accentPrimary", base: 650, variance: 28, min: 520, max: 780 },
+    { name: "Actual", color: "accentSecondary", base: 610, variance: 32, min: 480, max: 760 },
+    { name: "Capacity", color: "accentTertiary", base: 720, variance: 18, min: 640, max: 820 },
   ];
 
   const axis = [];
@@ -492,14 +618,14 @@ function createLiveTimeSeriesDataset() {
 
 function createLiveStateTimelineDataset() {
   const palette = {
-    Idle: "#38bdf8",
-    Warmup: "#22d3ee",
-    Online: "#38f2ff",
-    Alert: "#f97316",
-    Cooldown: "#a855f7",
+    Idle: "accentQuaternary",
+    Warmup: "accentQuaternary",
+    Online: "accentPrimary",
+    Alert: "accentSenary",
+    Cooldown: "accentTertiary",
     Offline: "#475569",
-    Calibration: "#f472b6",
-    Maintenance: "#fb7185",
+    Calibration: "accentSecondary",
+    Maintenance: "accentSecondary",
   };
 
   const dataset = {
@@ -550,11 +676,11 @@ function createLiveStateTimelineDataset() {
 function createLiveStatusHistoryDataset() {
   const statusPalette = {
     Idle: "#1f2937",
-    Online: "#38f2ff",
-    Alert: "#f97316",
-    Maintenance: "#f472b6",
+    Online: "accentPrimary",
+    Alert: "accentSenary",
+    Maintenance: "accentSecondary",
     Offline: "#0f172a",
-    Standby: "#a855f7",
+    Standby: "accentTertiary",
   };
 
   const categoryCount = 6;
@@ -609,8 +735,8 @@ function createLiveBarChartDataset() {
     live: true,
     axis: ["Node A", "Node B", "Node C", "Node D"],
     series: [
-      { name: "Inbound", color: "#38f2ff", data: [] },
-      { name: "Outbound", color: "#f472b6", data: [] },
+      { name: "Inbound", color: "accentPrimary", data: [] },
+      { name: "Outbound", color: "accentSecondary", data: [] },
     ],
     interval: 2600,
     reset,
@@ -688,10 +814,10 @@ function createLiveHeatmapDataset() {
 
 function createLivePieChartDataset() {
   const slices = [
-    { name: "Beacon", color: "#38f2ff" },
-    { name: "Relay", color: "#f472b6" },
-    { name: "Drone", color: "#a855f7" },
-    { name: "Reserve", color: "#34d399" },
+    { name: "Beacon", color: "accentPrimary" },
+    { name: "Relay", color: "accentSecondary" },
+    { name: "Drone", color: "accentTertiary" },
+    { name: "Reserve", color: "accentQuinary" },
   ];
 
   const dataset = {
@@ -803,8 +929,8 @@ function createLiveGaugeDataset() {
 function createLiveTrendDataset() {
   const axis = Array.from({ length: 18 }, (_, i) => `T+${i}`);
   const baseSeries = [
-    { name: "Baseline", color: "#38f2ff", base: 38, variance: 6, min: 20, max: 80 },
-    { name: "Smoothed", color: "#f472b6", base: 34, variance: 5, min: 18, max: 74 },
+    { name: "Baseline", color: "accentPrimary", base: 38, variance: 6, min: 20, max: 80 },
+    { name: "Smoothed", color: "accentSecondary", base: 34, variance: 5, min: 18, max: 74 },
   ];
 
   const dataset = {
@@ -848,8 +974,8 @@ function createLiveScatterDataset() {
     label: "Live Drone Swarms",
     live: true,
     series: [
-      { name: "Squad A", color: "#38f2ff", points: [] },
-      { name: "Squad B", color: "#f472b6", points: [] },
+      { name: "Squad A", color: "accentPrimary", points: [] },
+      { name: "Squad B", color: "accentSecondary", points: [] },
     ],
     interval: 3000,
     reset,
@@ -910,10 +1036,10 @@ function createLiveStatDataset() {
 
 function createLiveBarGaugeDataset() {
   const sections = [
-    { name: "Ops", color: "#38f2ff" },
-    { name: "Defense", color: "#f472b6" },
-    { name: "Support", color: "#a855f7" },
-    { name: "Reserve", color: "#38bdf8" },
+    { name: "Ops", color: "accentPrimary" },
+    { name: "Defense", color: "accentSecondary" },
+    { name: "Support", color: "accentTertiary" },
+    { name: "Reserve", color: "accentQuaternary" },
   ];
 
   const dataset = {
@@ -1063,7 +1189,7 @@ function renderTimeSeries(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
@@ -1071,7 +1197,7 @@ function renderTimeSeries(dataset, container) {
       type: "value",
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
       axisLabel: {
@@ -1082,7 +1208,7 @@ function renderTimeSeries(dataset, container) {
     tooltip: {
       trigger: "axis",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1104,11 +1230,11 @@ function renderTimeSeries(dataset, container) {
       showSymbol: false,
       lineStyle: {
         width: 3,
-        color: series.color,
+        color: resolveColor(series.color),
       },
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: `${series.color}88` },
+          { offset: 0, color: colorWithAlpha(series.color, 0.53) },
           { offset: 1, color: "rgba(15, 23, 42, 0)" },
         ]),
       },
@@ -1122,13 +1248,16 @@ function renderStateTimeline(dataset, container) {
   const chart = createChartInstance(container);
 
   const timelineSeries = dataset.tracks.flatMap((track, index) =>
-    track.spans.map((span) => ({
-      name: track.name,
-      value: [index, span.start, span.end, span.state],
-      itemStyle: {
-        color: dataset.palette[span.state] ?? "#38f2ff",
-      },
-    })),
+    track.spans.map((span) => {
+      const colorRef = dataset.palette[span.state] ?? "accentPrimary";
+      return {
+        name: track.name,
+        value: [index, span.start, span.end, span.state],
+        itemStyle: {
+          color: resolveColor(colorRef),
+        },
+      };
+    }),
   );
 
   chart.clear();
@@ -1151,7 +1280,7 @@ function renderStateTimeline(dataset, container) {
       },
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
     },
@@ -1164,14 +1293,14 @@ function renderStateTimeline(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
     tooltip: {
       trigger: "item",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1251,7 +1380,7 @@ function renderStatusHistory(dataset, container) {
         type: "shadow",
       },
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1273,7 +1402,7 @@ function renderStatusHistory(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
@@ -1285,7 +1414,7 @@ function renderStatusHistory(dataset, container) {
       },
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
     },
@@ -1300,10 +1429,10 @@ function renderStatusHistory(dataset, container) {
         value: 1,
         status: state,
         itemStyle: {
-          color: series.colors[state] ?? "#38f2ff",
+          color: resolveColor(series.colors[state] ?? "accentPrimary"),
           opacity: 0.9,
           shadowBlur: 16,
-          shadowColor: series.colors[state] ?? "#38f2ff",
+          shadowColor: resolveColor(series.colors[state] ?? "accentPrimary"),
         },
       })),
     })),
@@ -1332,7 +1461,7 @@ function renderBarChart(dataset, container) {
         type: "shadow",
       },
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1354,7 +1483,7 @@ function renderBarChart(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
@@ -1366,7 +1495,7 @@ function renderBarChart(dataset, container) {
       },
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
     },
@@ -1378,10 +1507,10 @@ function renderBarChart(dataset, container) {
       itemStyle: {
         borderRadius: [6, 6, 6, 6],
         shadowBlur: 18,
-        shadowColor: `${series.color}88`,
+        shadowColor: colorWithAlpha(series.color, 0.53),
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: `${series.color}` },
-          { offset: 1, color: `${series.color}77` },
+          { offset: 0, color: resolveColor(series.color) },
+          { offset: 1, color: colorWithAlpha(series.color, 0.47) },
         ]),
       },
     })),
@@ -1412,7 +1541,7 @@ function renderHistogram(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
@@ -1424,14 +1553,14 @@ function renderHistogram(dataset, container) {
       },
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
     },
     tooltip: {
       trigger: "axis",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1445,10 +1574,10 @@ function renderHistogram(dataset, container) {
         itemStyle: {
           borderRadius: [10, 10, 10, 10],
           shadowBlur: 20,
-          shadowColor: "rgba(56, 242, 255, 0.35)",
+          shadowColor: colorWithAlpha("accentPrimary", 0.35),
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: "rgba(56, 242, 255, 0.9)" },
-            { offset: 1, color: "rgba(168, 85, 247, 0.6)" },
+            { offset: 0, color: colorWithAlpha("accentPrimary", 0.9) },
+            { offset: 1, color: colorWithAlpha("accentTertiary", 0.6) },
           ]),
         },
       },
@@ -1484,7 +1613,7 @@ function renderHeatmap(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
@@ -1497,7 +1626,7 @@ function renderHeatmap(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
@@ -1512,13 +1641,13 @@ function renderHeatmap(dataset, container) {
         color: "rgba(226, 232, 240, 0.7)",
       },
       inRange: {
-        color: ["#1e293b", "#38f2ff"],
+        color: ["#1e293b", resolveColor("accentPrimary")],
       },
     },
     tooltip: {
       position: "top",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1538,7 +1667,7 @@ function renderHeatmap(dataset, container) {
         emphasis: {
           itemStyle: {
             shadowBlur: 20,
-            shadowColor: "rgba(56, 242, 255, 0.45)",
+            shadowColor: colorWithAlpha("accentPrimary", 0.45),
           },
         },
       },
@@ -1557,7 +1686,7 @@ function renderPieChart(dataset, container) {
     tooltip: {
       trigger: "item",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1599,9 +1728,9 @@ function renderPieChart(dataset, container) {
           value: slice.value,
           name: slice.name,
           itemStyle: {
-            color: slice.color,
+            color: resolveColor(slice.color),
             shadowBlur: 25,
-            shadowColor: `${slice.color}88`,
+            shadowColor: colorWithAlpha(slice.color, 0.53),
           },
         })),
       },
@@ -1632,7 +1761,7 @@ function renderCandlestick(dataset, container) {
       boundaryGap: true,
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
       axisLabel: {
@@ -1644,7 +1773,7 @@ function renderCandlestick(dataset, container) {
       scale: true,
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
       axisLabel: {
@@ -1658,7 +1787,7 @@ function renderCandlestick(dataset, container) {
         type: "cross",
       },
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1670,12 +1799,12 @@ function renderCandlestick(dataset, container) {
         type: "candlestick",
         data: dataset.candles,
         itemStyle: {
-          color: "rgba(56, 242, 255, 0.7)",
-          color0: "rgba(244, 114, 182, 0.7)",
-          borderColor: "rgba(56, 242, 255, 0.9)",
-          borderColor0: "rgba(244, 114, 182, 0.9)",
+          color: colorWithAlpha("accentPrimary", 0.7),
+          color0: colorWithAlpha("accentSecondary", 0.7),
+          borderColor: colorWithAlpha("accentPrimary", 0.9),
+          borderColor0: colorWithAlpha("accentSecondary", 0.9),
           shadowBlur: 18,
-          shadowColor: "rgba(56, 242, 255, 0.35)",
+          shadowColor: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     ],
@@ -1699,7 +1828,7 @@ function renderGauge(dataset, container) {
     tooltip: {
       trigger: "item",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1721,7 +1850,7 @@ function renderGauge(dataset, container) {
           lineStyle: {
             width: 20,
             color: [
-              [targetRatio, "rgba(56, 242, 255, 0.15)"],
+              [targetRatio, colorWithAlpha("accentPrimary", 0.15)],
               [1, "rgba(15, 23, 42, 0.45)"],
             ],
           },
@@ -1731,7 +1860,7 @@ function renderGauge(dataset, container) {
           distance: -4,
           length: 12,
           lineStyle: {
-            color: "rgba(56, 242, 255, 0.25)",
+            color: colorWithAlpha("accentPrimary", 0.25),
           },
         },
         axisLabel: {
@@ -1767,16 +1896,16 @@ function renderGauge(dataset, container) {
           roundCap: true,
           width: 16,
           itemStyle: {
-            color: "rgba(56, 242, 255, 0.95)",
+            color: colorWithAlpha("accentPrimary", 0.95),
             shadowBlur: 20,
-            shadowColor: "rgba(56, 242, 255, 0.45)",
+            shadowColor: colorWithAlpha("accentPrimary", 0.45),
           },
         },
         axisLine: {
           lineStyle: {
             width: 16,
             color: [
-              [valueRatio, "rgba(56, 242, 255, 0.95)"],
+              [valueRatio, colorWithAlpha("accentPrimary", 0.95)],
               [1, "rgba(15, 23, 42, 0.05)"],
             ],
           },
@@ -1834,7 +1963,7 @@ function renderGauge(dataset, container) {
           width: 6,
           length: "68%",
           itemStyle: {
-            color: "rgba(250, 204, 21, 0.95)",
+            color: colorWithAlpha("accentSecondary", 0.95),
           },
         },
         anchor: {
@@ -1842,7 +1971,7 @@ function renderGauge(dataset, container) {
           showAbove: true,
           size: 16,
           itemStyle: {
-            color: "rgba(56, 242, 255, 0.95)",
+            color: colorWithAlpha("accentPrimary", 0.95),
             borderColor: "rgba(15, 23, 42, 0.95)",
             borderWidth: 4,
           },
@@ -1897,7 +2026,7 @@ function renderTrend(dataset, container) {
       },
       axisLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.35)",
+          color: colorWithAlpha("accentPrimary", 0.35),
         },
       },
     },
@@ -1905,7 +2034,7 @@ function renderTrend(dataset, container) {
       type: "value",
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
       axisLabel: {
@@ -1916,7 +2045,7 @@ function renderTrend(dataset, container) {
     tooltip: {
       trigger: "axis",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1937,11 +2066,11 @@ function renderTrend(dataset, container) {
       symbol: "none",
       lineStyle: {
         width: 2,
-        color: series.color,
+        color: resolveColor(series.color),
       },
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: `${series.color}99` },
+          { offset: 0, color: colorWithAlpha(series.color, 0.6) },
           { offset: 1, color: "rgba(15, 23, 42, 0)" },
         ]),
       },
@@ -1969,7 +2098,7 @@ function renderXYScatter(dataset, container) {
     tooltip: {
       trigger: "item",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -1985,7 +2114,7 @@ function renderXYScatter(dataset, container) {
       },
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
     },
@@ -1997,7 +2126,7 @@ function renderXYScatter(dataset, container) {
       },
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
     },
@@ -2006,9 +2135,9 @@ function renderXYScatter(dataset, container) {
       type: "scatter",
       symbolSize: (data) => data[2],
       itemStyle: {
-        color: series.color,
+        color: resolveColor(series.color),
         shadowBlur: 15,
-        shadowColor: `${series.color}88`,
+        shadowColor: colorWithAlpha(series.color, 0.53),
       },
       data: series.points,
     })),
@@ -2036,7 +2165,8 @@ function renderStat(dataset, article) {
     </span>
   `;
 
-  metaElement.querySelector(".stat-delta").style.color = delta >= 0 ? "#34d399" : "#f97316";
+  metaElement.querySelector(".stat-delta").style.color =
+    delta >= 0 ? resolveColor("accentQuinary") : resolveColor("accentSenary");
 }
 
 function renderBarGauge(dataset, container) {
@@ -2069,7 +2199,7 @@ function renderBarGauge(dataset, container) {
     tooltip: {
       trigger: "item",
       backgroundColor: "rgba(15, 23, 42, 0.95)",
-      borderColor: "rgba(56, 242, 255, 0.3)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
       textStyle: {
         fontFamily: "Space Grotesk, sans-serif",
         color: "#f8fafc",
@@ -2097,7 +2227,7 @@ function renderBarGauge(dataset, container) {
       },
       splitLine: {
         lineStyle: {
-          color: "rgba(56, 242, 255, 0.08)",
+          color: colorWithAlpha("accentPrimary", 0.08),
         },
       },
     },
@@ -2125,7 +2255,7 @@ function renderBarGauge(dataset, container) {
         itemStyle: {
           color: "rgba(15, 23, 42, 0.65)",
           borderRadius: 999,
-          borderColor: "rgba(56, 242, 255, 0.2)",
+          borderColor: colorWithAlpha("accentPrimary", 0.2),
           borderWidth: 1,
         },
         silent: true,
@@ -2138,10 +2268,10 @@ function renderBarGauge(dataset, container) {
         barWidth: 18,
         data: [section.ratio],
         itemStyle: {
-          color: section.color,
+          color: resolveColor(section.color),
           borderRadius: [999, 999, 999, 999],
           shadowBlur: 25,
-          shadowColor: `${section.color}66`,
+          shadowColor: colorWithAlpha(section.color, 0.4),
         },
         emphasis: {
           focus: "series",
@@ -2232,9 +2362,40 @@ function setupComponent(article) {
   datasetSelect.addEventListener("change", runRender);
   datasetSelect.value = "0";
   runRender();
+
+  componentRegistry.add(runRender);
 }
 
 function initGravibe() {
+  const defaultPalette =
+    colorPalettes.find((palette) => palette.id === paletteState.activeId) ?? colorPalettes[0];
+
+  if (defaultPalette) {
+    applyPalette(defaultPalette);
+  }
+
+  const paletteSelect = document.querySelector("#palette-select");
+  if (paletteSelect) {
+    paletteSelect.innerHTML = "";
+    colorPalettes.forEach((palette) => {
+      const option = document.createElement("option");
+      option.value = palette.id;
+      option.textContent = palette.label;
+      paletteSelect.append(option);
+    });
+
+    if (paletteState.activeId) {
+      paletteSelect.value = paletteState.activeId;
+    }
+
+    paletteSelect.addEventListener("change", (event) => {
+      const selected = colorPalettes.find((palette) => palette.id === event.target.value);
+      if (selected) {
+        applyPalette(selected);
+      }
+    });
+  }
+
   const components = document.querySelectorAll(".component-card");
   components.forEach((component) => setupComponent(component));
 }
