@@ -516,6 +516,94 @@ function renderSpanEvents(events) {
   return wrapper;
 }
 
+function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
+  // Collect all timestamps: logs and events
+  const markers = [];
+
+  // Get logs for this span
+  const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === span.spanId);
+  spanLogs.forEach((logRow) => {
+    markers.push({
+      timestamp: logRow.timeUnixNano,
+      type: 'log',
+    });
+  });
+
+  // Get events for this span
+  if (span.events && span.events.length > 0) {
+    span.events.forEach((event) => {
+      markers.push({
+        timestamp: event.timeUnixNano,
+        type: 'event',
+      });
+    });
+  }
+
+  if (markers.length === 0) {
+    return null;
+  }
+
+  // Calculate span duration and offsets
+  const spanStart = toNumberTimestamp(span.startTimeUnixNano);
+  const spanEnd = toNumberTimestamp(span.endTimeUnixNano);
+  const spanDuration = spanEnd - spanStart;
+
+  if (spanDuration <= 0) {
+    return null;
+  }
+
+  // Apply time window to calculate visible span range
+  const offsets = computeSpanOffsets(trace, span, timeWindow);
+  if (offsets.widthPercent === 0) {
+    return null;
+  }
+
+  const container = document.createElement("div");
+  container.className = "trace-span__markers";
+
+  // Calculate the visible span window boundaries
+  const totalDuration = trace.durationNano || Math.max(
+    toNumberTimestamp(trace.endTimeUnixNano) - toNumberTimestamp(trace.startTimeUnixNano),
+    1
+  );
+  const windowStart = timeWindow.start || 0;
+  const windowEnd = timeWindow.end || 100;
+  const windowWidth = windowEnd - windowStart;
+  const traceStart = toNumberTimestamp(trace.startTimeUnixNano);
+  const windowStartTime = traceStart + (totalDuration * windowStart / 100);
+  const visibleSpanStart = Math.max(spanStart, windowStartTime);
+  const visibleSpanEnd = Math.min(spanEnd, traceStart + (totalDuration * windowEnd / 100));
+  const visibleSpanDuration = visibleSpanEnd - visibleSpanStart;
+
+  // Create markers for each timestamp
+  markers.forEach((marker) => {
+    const markerTimestamp = toNumberTimestamp(marker.timestamp);
+
+    // Skip markers outside the span's time range
+    if (markerTimestamp < spanStart || markerTimestamp > spanEnd) {
+      return;
+    }
+
+    // Skip markers outside the visible window
+    if (markerTimestamp < visibleSpanStart || markerTimestamp > visibleSpanEnd) {
+      return;
+    }
+
+    // Calculate position within the visible span (0-100% of visible span duration)
+    const positionWithinVisibleSpan = visibleSpanDuration > 0
+      ? ((markerTimestamp - visibleSpanStart) / visibleSpanDuration) * 100
+      : 50; // Fallback to center if span has no visible duration
+
+    const markerElement = document.createElement("div");
+    markerElement.className = `trace-span__marker trace-span__marker--${marker.type}`;
+    markerElement.style.left = `${positionWithinVisibleSpan}%`;
+
+    container.append(markerElement);
+  });
+
+  return container.childElementCount > 0 ? container : null;
+}
+
 function renderSpanLogs(span) {
   // Filter logs by span ID
   const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === span.spanId);
@@ -759,6 +847,13 @@ function renderSpanSummary(trace, node, timeWindow = { start: 0, end: 100 }) {
   );
 
   bar.append(duration);
+
+  // Add markers for logs and events
+  const markers = renderSpanMarkers(node.span, trace, timeWindow);
+  if (markers) {
+    bar.append(markers);
+  }
+
   timeline.append(bar);
   summary.append(timeline);
 

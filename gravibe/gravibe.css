@@ -686,6 +686,30 @@ body {
   z-index: 2;
 }
 
+.trace-span__markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.trace-span__marker {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-strong);
+  transform: translate(-50%, -50%);
+  top: 0;
+}
+
+.trace-span__marker--log {
+  background: var(--accent-tertiary);
+}
+
+.trace-span__marker--event {
+  background: var(--accent-quaternary);
+}
+
 .trace-span__details {
   margin-left: 40px;
   padding: 0.85rem 1.1rem;
