@@ -823,7 +823,7 @@ function createTraceViewState(trace) {
 function renderTracePreview(trace) {
   const SVG_HEIGHT = 150;
   const MIN_SPAN_WIDTH = 2; // Minimum width in pixels for visibility
-  const SPAN_HEIGHT = 8; // Height of each span bar
+  const MIN_SPAN_HEIGHT = 2; // Minimum height in pixels per span
   const SPAN_GAP = 2; // Gap between span rows
 
   // Flatten all spans from the tree structure
@@ -840,7 +840,15 @@ function renderTracePreview(trace) {
 
   // Calculate row count (one row per span)
   const rowCount = Math.max(allSpans.length, 1);
-  const totalRowHeight = rowCount * (SPAN_HEIGHT + SPAN_GAP);
+
+  // Calculate span height to fill the SVG height
+  // Total gap space = (rowCount + 1) * SPAN_GAP (gap before first, between, and after last)
+  const totalGapSpace = (rowCount + 1) * SPAN_GAP;
+  const availableHeight = SVG_HEIGHT - totalGapSpace;
+  const calculatedSpanHeight = availableHeight / rowCount;
+
+  // Use minimum height if calculated height is too small
+  const spanHeight = Math.max(calculatedSpanHeight, MIN_SPAN_HEIGHT);
 
   // Create SVG element
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -890,10 +898,9 @@ function renderTracePreview(trace) {
     const serviceName = node.span.resource?.serviceName || "unknown-service";
     const color = getServiceColor(serviceName);
 
-    // Calculate Y position (centered vertically if we have fewer spans than can fit)
-    const yScale = Math.min(1, SVG_HEIGHT / totalRowHeight);
-    const y = (index * (SPAN_HEIGHT + SPAN_GAP) + SPAN_GAP) * yScale;
-    const height = SPAN_HEIGHT * yScale;
+    // Calculate Y position: SPAN_GAP + index * (spanHeight + SPAN_GAP)
+    const y = SPAN_GAP + index * (spanHeight + SPAN_GAP);
+    const height = spanHeight;
 
     // Calculate X position and width (percentage to viewBox units)
     let x = offsets.startPercent;

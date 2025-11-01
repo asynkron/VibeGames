@@ -6,6 +6,7 @@
   --surface-0: #1f2329;
   --surface-1: #242933;
   --surface-2: #1e2129;
+  --surface-3: #12161e;
   --surface-border: #3a404c;
   --surface-border-subtle: rgba(88, 96, 109, 0.6);
   --text-strong: #d7dce3;
@@ -674,7 +675,7 @@ body {
 .trace-span__details {
   margin-left: 40px;
   padding: 0.85rem 1.1rem;
-  background: rgba(18, 22, 30, 0.85);
+  background: var(--surface-3);
   transition: box-shadow 0.2s ease;
   position: relative;
   z-index: 2;
@@ -946,6 +947,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
+  table-layout: fixed;
 }
 
 .log-attributes-table thead {
@@ -959,12 +961,14 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-subtle);
+  width: 33.33%;
 }
 
 .log-attributes-table td {
   padding: 0.6rem 0.75rem;
   vertical-align: top;
   border-top: 1px solid rgba(80, 92, 110, 0.35);
+  width: 33.33%;
 }
 
 .log-attr {
