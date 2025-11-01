@@ -668,7 +668,382 @@ function fakeSpanId(seed) {
 }
 
 /**
- * Semi-realistic sample rows so the gallery has something to showcase.
+ * Generates realistic log entries for a given trace span
+ */
+function generateLogsForSpan(span) {
+  const logs = [];
+  // Handle both number and BigInt timestamps
+  const startTime = typeof span.startTimeUnixNano === 'bigint' ? Number(span.startTimeUnixNano) : span.startTimeUnixNano;
+  const endTime = typeof span.endTimeUnixNano === 'bigint' ? Number(span.endTimeUnixNano) : span.endTimeUnixNano;
+  const spanDuration = endTime - startTime;
+  const serviceName = span.resource?.serviceName || "unknown";
+  const spanName = span.name;
+  const isError = span.status?.code === "STATUS_CODE_ERROR";
+  const instrumentationScope = span.instrumentationScope?.name || serviceName;
+
+  // Helper to get attribute value
+  const getAttr = (key) => span.attributes?.find(a => a.key === key)?.value?.string_value || span.attributes?.find(a => a.key === key)?.value?.int_value;
+
+  // Generate logs based on span type
+  if (spanName.includes("HTTP") || spanName.includes("GET") || spanName.includes("POST")) {
+    const method = getAttr("http.method") || "GET";
+    const target = getAttr("http.target") || "/";
+    const userId = getAttr("user.id");
+    
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-request`,
+      template: `HTTP {{http.method}} request received for {{http.target}}`,
+      timeUnixNano: startTime + Math.floor(spanDuration * 0.05),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("http.method", anyValues.string(method)),
+        createLogAttribute("http.target", anyValues.string(target)),
+        createLogAttribute("http.status_code", anyValues.int(isError ? 500 : 200)),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+        ...(userId ? [createLogAttribute("user.id", anyValues.string(userId))] : []),
+      ],
+      body: anyValues.string(`${method} ${target} - Processing request`),
+    }));
+
+    if (span.events && span.events.length > 0) {
+      const headerEvent = span.events.find(e => e.name.includes("header"));
+      if (headerEvent) {
+        logs.push(createLogRow({
+          id: `log-${span.spanId}-headers`,
+          template: `Request headers received: {{user.agent}}`,
+          timeUnixNano: typeof headerEvent.timeUnixNano === 'bigint' ? Number(headerEvent.timeUnixNano) : headerEvent.timeUnixNano,
+          severityNumber: 9,
+          severityText: "INFO",
+          traceId: span.traceId,
+          spanId: span.spanId,
+          attributes: [
+            createLogAttribute("http.method", anyValues.string(method)),
+            createLogAttribute("http.target", anyValues.string(target)),
+            createLogAttribute("service.name", anyValues.string(serviceName)),
+          ],
+          body: anyValues.string("Request headers parsed"),
+        }));
+      }
+    }
+
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-response`,
+      template: `HTTP {{http.method}} {{http.target}} completed with status {{http.status_code}}`,
+      timeUnixNano: endTime - Math.floor(spanDuration * 0.1),
+      severityNumber: isError ? 17 : 9,
+      severityText: isError ? "ERROR" : "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("http.method", anyValues.string(method)),
+        createLogAttribute("http.target", anyValues.string(target)),
+        createLogAttribute("http.status_code", anyValues.int(isError ? 500 : 200)),
+        createLogAttribute("duration_ms", anyValues.double(Number(spanDuration) / 1e6)),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string(isError ? "Request failed" : "Request completed successfully"),
+    }));
+  } else if (spanName.includes("Authorize") || spanName.includes("Authz")) {
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-auth-start`,
+      template: `Authorization request received for {{rpc.service}}`,
+      timeUnixNano: startTime + Math.floor(spanDuration * 0.1),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("rpc.system", anyValues.string(getAttr("rpc.system") || "grpc")),
+        createLogAttribute("rpc.service", anyValues.string(getAttr("rpc.service") || "AuthzService")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string("Processing authorization request"),
+    }));
+
+    const dbSystem = getAttr("db.system");
+    if (dbSystem === "redis") {
+      const cacheKey = span.events?.find(e => e.name.includes("cache"))?.attributes?.find(a => a.key.includes("key"))?.value?.string_value;
+      logs.push(createLogRow({
+        id: `log-${span.spanId}-cache`,
+        template: `Cache {{cache.result}} for key {{cache.key}}`,
+        timeUnixNano: startTime + Math.floor(spanDuration * 0.3),
+        severityNumber: 9,
+        severityText: "INFO",
+        traceId: span.traceId,
+        spanId: span.spanId,
+        attributes: [
+          createLogAttribute("cache.result", anyValues.string("miss")),
+          createLogAttribute("cache.key", anyValues.string(cacheKey || "unknown")),
+          createLogAttribute("db.system", anyValues.string("redis")),
+          createLogAttribute("service.name", anyValues.string(serviceName)),
+        ],
+        body: anyValues.string("Cache lookup performed"),
+      }));
+    }
+
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-auth-complete`,
+      template: `Authorization {{auth.result}} for {{rpc.service}}`,
+      timeUnixNano: endTime - Math.floor(spanDuration * 0.1),
+      severityNumber: isError ? 17 : 9,
+      severityText: isError ? "ERROR" : "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("auth.result", anyValues.string(isError ? "denied" : "granted")),
+        createLogAttribute("rpc.service", anyValues.string(getAttr("rpc.service") || "AuthzService")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string(isError ? "Authorization failed" : "Authorization successful"),
+    }));
+  } else if (spanName.includes("Lookup") || spanName.includes("Session")) {
+    const dbStatement = getAttr("db.statement");
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-db-query`,
+      template: `Database query executed: {{db.statement}}`,
+      timeUnixNano: startTime + Math.floor(spanDuration * 0.2),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("db.system", anyValues.string(getAttr("db.system") || "postgresql")),
+        createLogAttribute("db.statement", anyValues.string(dbStatement || "SELECT")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string("Executing database query"),
+    }));
+
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-db-result`,
+      template: `Query completed in {{duration.ms}} ms`,
+      timeUnixNano: endTime - Math.floor(spanDuration * 0.1),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("duration.ms", anyValues.double(Number(spanDuration) / 1e6)),
+        createLogAttribute("db.system", anyValues.string(getAttr("db.system") || "postgresql")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string("Database query completed"),
+    }));
+  } else if (spanName.includes("Render")) {
+    const viewName = getAttr("view.name");
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-render-start`,
+      template: `Rendering {{view.name}} page`,
+      timeUnixNano: startTime + Math.floor(spanDuration * 0.1),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("view.name", anyValues.string(viewName || "Unknown")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string("Starting page render"),
+    }));
+
+    if (getAttr("feature.flags")) {
+      logs.push(createLogRow({
+        id: `log-${span.spanId}-features`,
+        template: `Feature flags enabled: {{feature.flags}}`,
+        timeUnixNano: startTime + Math.floor(spanDuration * 0.3),
+        severityNumber: 9,
+        severityText: "INFO",
+        traceId: span.traceId,
+        spanId: span.spanId,
+        attributes: [
+          createLogAttribute("view.name", anyValues.string(viewName || "Unknown")),
+          createLogAttribute("service.name", anyValues.string(serviceName)),
+        ],
+        body: anyValues.string("Applying feature flags"),
+      }));
+    }
+
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-render-complete`,
+      template: `{{view.name}} rendered successfully`,
+      timeUnixNano: endTime - Math.floor(spanDuration * 0.1),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("view.name", anyValues.string(viewName || "Unknown")),
+        createLogAttribute("duration.ms", anyValues.double(Number(spanDuration) / 1e6)),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string("Page render completed"),
+    }));
+  } else if (spanName.includes("Inventory") || spanName.includes("Reserve")) {
+    const items = getAttr("inventory.items") || span.attributes?.find(a => a.key.includes("items"))?.value?.int_value;
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-inventory-start`,
+      template: `Reserving {{inventory.items}} items from inventory`,
+      timeUnixNano: startTime + Math.floor(spanDuration * 0.1),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("inventory.items", anyValues.int(items || 0)),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string("Starting inventory reservation"),
+    }));
+
+    if (getAttr("db.system") === "mongodb") {
+      const region = getAttr("region");
+      logs.push(createLogRow({
+        id: `log-${span.spanId}-db-query`,
+        template: `MongoDB query executed in {{region}} region`,
+        timeUnixNano: startTime + Math.floor(spanDuration * 0.5),
+        severityNumber: 9,
+        severityText: "INFO",
+        traceId: span.traceId,
+        spanId: span.spanId,
+        attributes: [
+          createLogAttribute("db.system", anyValues.string("mongodb")),
+          createLogAttribute("region", anyValues.string(region || "us-east-1")),
+          createLogAttribute("collection", anyValues.string("inventory")),
+          createLogAttribute("service.name", anyValues.string(serviceName)),
+        ],
+        body: anyValues.string("Database query executed"),
+      }));
+    }
+
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-inventory-complete`,
+      template: `Inventory reservation {{result}} for {{inventory.items}} items`,
+      timeUnixNano: endTime - Math.floor(spanDuration * 0.1),
+      severityNumber: isError ? 17 : 9,
+      severityText: isError ? "ERROR" : "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("inventory.items", anyValues.int(items || 0)),
+        createLogAttribute("result", anyValues.string(isError ? "failed" : "succeeded")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string(isError ? "Inventory reservation failed" : "Inventory reserved successfully"),
+    }));
+  } else if (spanName.includes("Payment")) {
+    const provider = getAttr("payment.provider");
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-payment-start`,
+      template: `Processing payment authorization via {{payment.provider}}`,
+      timeUnixNano: startTime + Math.floor(spanDuration * 0.1),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("payment.provider", anyValues.string(provider || "unknown")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string("Starting payment authorization"),
+    }));
+
+    if (span.events && span.events.find(e => e.name.includes("fraud"))) {
+      const fraudEvent = span.events.find(e => e.name.includes("fraud"));
+      const fraudResult = fraudEvent?.attributes?.find(a => a.key === "result")?.value?.string_value;
+      logs.push(createLogRow({
+        id: `log-${span.spanId}-fraud-check`,
+        template: `Fraud check completed with result: {{fraud.result}}`,
+        timeUnixNano: typeof fraudEvent.timeUnixNano === 'bigint' ? Number(fraudEvent.timeUnixNano) : fraudEvent.timeUnixNano,
+        severityNumber: fraudResult === "pending_review" ? 13 : 9,
+        severityText: fraudResult === "pending_review" ? "WARN" : "INFO",
+        traceId: span.traceId,
+        spanId: span.spanId,
+        attributes: [
+          createLogAttribute("fraud.result", anyValues.string(fraudResult || "unknown")),
+          createLogAttribute("payment.provider", anyValues.string(provider || "unknown")),
+          createLogAttribute("service.name", anyValues.string(serviceName)),
+        ],
+        body: anyValues.string("Fraud check performed"),
+      }));
+    }
+
+    const retryCount = getAttr("retry.count");
+    if (retryCount) {
+      logs.push(createLogRow({
+        id: `log-${span.spanId}-retry`,
+        template: `Payment retry attempt {{retry.count}}`,
+        timeUnixNano: startTime + Math.floor(spanDuration * 0.3),
+        severityNumber: 13,
+        severityText: "WARN",
+        traceId: span.traceId,
+        spanId: span.spanId,
+        attributes: [
+          createLogAttribute("retry.count", anyValues.int(retryCount)),
+          createLogAttribute("payment.provider", anyValues.string(provider || "unknown")),
+          createLogAttribute("service.name", anyValues.string(serviceName)),
+        ],
+        body: anyValues.string("Retrying payment authorization"),
+      }));
+    }
+
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-payment-complete`,
+      template: `Payment authorization {{result}}: {{error.message}}`,
+      timeUnixNano: endTime - Math.floor(spanDuration * 0.1),
+      severityNumber: isError ? 17 : 9,
+      severityText: isError ? "ERROR" : "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("result", anyValues.string(isError ? "failed" : "succeeded")),
+        createLogAttribute("error.message", anyValues.string(span.status?.message || (isError ? "Payment failed" : ""))),
+        createLogAttribute("payment.provider", anyValues.string(provider || "unknown")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string(isError ? "Payment authorization failed" : "Payment authorized successfully"),
+    }));
+  } else {
+    // Generic span log
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-start`,
+      template: `{{operation.name}} started`,
+      timeUnixNano: startTime + Math.floor(spanDuration * 0.1),
+      severityNumber: 9,
+      severityText: "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("operation.name", anyValues.string(spanName)),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string(`Starting ${spanName}`),
+    }));
+
+    logs.push(createLogRow({
+      id: `log-${span.spanId}-complete`,
+      template: `{{operation.name}} {{result}}`,
+      timeUnixNano: endTime - Math.floor(spanDuration * 0.1),
+      severityNumber: isError ? 17 : 9,
+      severityText: isError ? "ERROR" : "INFO",
+      traceId: span.traceId,
+      spanId: span.spanId,
+      attributes: [
+        createLogAttribute("operation.name", anyValues.string(spanName)),
+        createLogAttribute("result", anyValues.string(isError ? "failed" : "completed")),
+        createLogAttribute("service.name", anyValues.string(serviceName)),
+      ],
+      body: anyValues.string(isError ? "Operation failed" : "Operation completed"),
+    }));
+  }
+
+  return logs;
+}
+
+/**
+ * Semi-realistic sample rows generated from trace spans.
  */
 export const sampleLogRows = [
   createLogRow({
@@ -800,3 +1175,13 @@ export const sampleLogRows = [
     body: anyValues.string("Pipeline entered crash loop"),
   }),
 ];
+
+/**
+ * Generates log rows from trace spans and appends them to the sample log rows.
+ * This is called after both modules are loaded to avoid circular dependencies.
+ */
+export function appendLogsFromSpans(spans) {
+  const spanLogs = spans.flatMap(span => generateLogsForSpan(span));
+  sampleLogRows.push(...spanLogs);
+  return sampleLogRows;
+}

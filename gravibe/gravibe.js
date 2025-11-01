@@ -3,7 +3,7 @@
  * Each component exposes multiple datasets and detailed comments so AI agents can remix the visuals quickly.
  */
 
-import { initLogConsole, sampleLogRows } from "./gravibe-logs.js";
+import { initLogConsole, sampleLogRows, appendLogsFromSpans } from "./gravibe-logs.js";
 import { initTraceViewer, sampleTraceSpans } from "./gravibe-trace.js";
 
 const colorRoles = [
@@ -3975,7 +3975,9 @@ function initGravibe() {
 
   const logConsoleHost = document.querySelector('[data-component="logConsole"]');
   if (logConsoleHost) {
-    const rerenderLogConsole = initLogConsole(logConsoleHost, sampleLogRows);
+    // Append logs generated from trace spans
+    const allLogRows = appendLogsFromSpans(sampleTraceSpans);
+    const rerenderLogConsole = initLogConsole(logConsoleHost, allLogRows);
     componentRegistry.add(rerenderLogConsole);
   }
 
