@@ -634,7 +634,7 @@ class LogConsoleView {
  */
 export function initLogConsole(hostElement, rows) {
   if (!hostElement) {
-    return () => {};
+    return () => { };
   }
   const view = new LogConsoleView(hostElement, rows);
   view.render();
@@ -689,7 +689,7 @@ function generateLogsForSpan(span) {
     const method = getAttr("http.method") || "GET";
     const target = getAttr("http.target") || "/";
     const userId = getAttr("user.id");
-    
+
     logs.push(createLogRow({
       id: `log-${span.spanId}-request`,
       template: `HTTP {{http.method}} request received for {{http.target}}`,
