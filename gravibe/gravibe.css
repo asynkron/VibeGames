@@ -533,8 +533,6 @@ body {
   inline-size: 100%;
   block-size: 2.5rem;
   background: rgba(12, 16, 24, 0.85);
-  border-radius: 6px;
-  border: 1px solid rgba(70, 82, 104, 0.35);
   overflow: hidden;
   cursor: pointer;
   display: block;
@@ -590,7 +588,6 @@ body {
 
 .trace-span__children {
   display: grid;
-  gap: 0.5rem;
 }
 
 .trace-span__children[hidden] {
