@@ -411,7 +411,7 @@ const severityGroups = [
   },
 ];
 
-function resolveSeverityGroup(logRow) {
+export function resolveSeverityGroup(logRow) {
   const { severityNumber, severityText } = logRow;
   if (typeof severityNumber === "number") {
     for (const group of severityGroups) {
@@ -429,7 +429,7 @@ function resolveSeverityGroup(logRow) {
   return "info";
 }
 
-function createAttributeBadge(attribute) {
+export function createAttributeBadge(attribute) {
   const badge = document.createElement("span");
   badge.className = `log-attr log-attr--${attribute.value.kind}`;
   badge.dataset.attrKey = attribute.key;
@@ -437,7 +437,7 @@ function createAttributeBadge(attribute) {
   return badge;
 }
 
-function buildTemplateFragment(logRow) {
+export function buildTemplateFragment(logRow) {
   const fragment = document.createDocumentFragment();
   const template = logRow.template ?? "";
   const regex = /\{\{([^}]+)\}\}/g;
@@ -467,7 +467,7 @@ function buildTemplateFragment(logRow) {
   return fragment;
 }
 
-function formatNanoseconds(value) {
+export function formatNanoseconds(value) {
   if (typeof value === "bigint") {
     const ms = Number(value / 1000000n);
     return new Date(ms).toLocaleString();
@@ -482,7 +482,7 @@ function formatNanoseconds(value) {
 // Re-export for external consumers
 export { formatAnyValueInline, formatAnyValueMultiline, createAttributeTable } from "./gravibe-attributes.js";
 
-function createMetaSection(logRow) {
+export function createMetaSection(logRow) {
   const wrapper = document.createElement("div");
   wrapper.className = "log-row-details";
 

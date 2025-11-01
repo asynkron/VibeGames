@@ -5,7 +5,7 @@
  * definitions.
  */
 
-import { normalizeAnyValue, createLogAttribute } from "./gravibe-logs.js";
+import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, buildTemplateFragment, createMetaSection } from "./gravibe-logs.js";
 import { createAttributeTable } from "./gravibe-attributes.js";
 
 /**
@@ -516,6 +516,80 @@ function renderSpanEvents(events) {
   return wrapper;
 }
 
+function renderSpanLogs(spanId) {
+  // Filter logs by span ID
+  const spanLogs = sampleLogRows.filter((logRow) => logRow.spanId === spanId);
+
+  if (spanLogs.length === 0) {
+    return null;
+  }
+
+  // Sort logs by time
+  const sortedLogs = [...spanLogs].sort((a, b) => {
+    const timeA = typeof a.timeUnixNano === "bigint" ? Number(a.timeUnixNano) : a.timeUnixNano;
+    const timeB = typeof b.timeUnixNano === "bigint" ? Number(b.timeUnixNano) : b.timeUnixNano;
+    return timeA - timeB;
+  });
+
+  const logsSection = document.createElement("section");
+  logsSection.className = "trace-span-logs";
+
+  const heading = document.createElement("h4");
+  heading.textContent = `Logs (${sortedLogs.length})`;
+  logsSection.append(heading);
+
+  const logsList = document.createElement("div");
+  logsList.className = "trace-span-logs__list";
+
+  // Create a Set to track expanded log IDs
+  const expandedLogIds = new Set();
+
+  sortedLogs.forEach((logRow) => {
+    const logElement = document.createElement("details");
+    logElement.className = `log-row log-row--severity-${resolveSeverityGroup(logRow)}`;
+    logElement.dataset.rowId = logRow.id;
+    if (expandedLogIds.has(logRow.id)) {
+      logElement.open = true;
+    }
+
+    const summary = document.createElement("summary");
+    summary.className = "log-row-summary";
+
+    const severity = document.createElement("span");
+    severity.className = "log-row-severity";
+    severity.textContent = logRow.severityText ?? resolveSeverityGroup(logRow).toUpperCase();
+
+    const timestamp = document.createElement("time");
+    timestamp.className = "log-row-timestamp";
+    timestamp.dateTime =
+      typeof logRow.timeUnixNano === "bigint"
+        ? new Date(Number(logRow.timeUnixNano / 1000000n)).toISOString()
+        : new Date((logRow.timeUnixNano ?? 0) / 1e6).toISOString();
+    timestamp.textContent = formatNanoseconds(logRow.timeUnixNano);
+
+    const message = document.createElement("span");
+    message.className = "log-row-message";
+    message.appendChild(buildTemplateFragment(logRow));
+
+    summary.append(timestamp, severity, message);
+    logElement.appendChild(summary);
+    logElement.appendChild(createMetaSection(logRow));
+
+    logElement.addEventListener("toggle", () => {
+      if (logElement.open) {
+        expandedLogIds.add(logRow.id);
+      } else {
+        expandedLogIds.delete(logRow.id);
+      }
+    });
+
+    logsList.append(logElement);
+  });
+
+  logsSection.append(logsList);
+  return logsSection;
+}
+
 function renderSpanDetails(span) {
   const details = document.createElement("div");
   details.className = "trace-span__details";
@@ -535,6 +609,12 @@ function renderSpanDetails(span) {
     if (eventsSection) {
       details.append(eventsSection);
     }
+  }
+
+  // Add logs section filtered by span ID
+  const logsSection = renderSpanLogs(span.spanId);
+  if (logsSection) {
+    details.append(logsSection);
   }
 
   if (span.status?.code && span.status.code !== "STATUS_CODE_UNSET") {
