@@ -259,6 +259,65 @@ function applyPalette(palette) {
   rerenderAllComponents();
 }
 
+function generateCalendarHeatmapValues(
+  year,
+  { base = 2.5, variance = 4.5, spikes = [] } = {},
+) {
+  const values = [];
+  const start = Date.UTC(year, 0, 1);
+  const end = Date.UTC(year + 1, 0, 1);
+
+  let index = 0;
+  for (let timestamp = start; timestamp < end; timestamp += 86_400_000) {
+    const date = new Date(timestamp);
+    const isoDate = date.toISOString().slice(0, 10);
+    const weekday = date.getUTCDay();
+    const weekendBoost = weekday === 0 || weekday === 6 ? 1.2 : 0;
+    const seasonal = Math.sin(index / 9) * variance * 0.55 + Math.cos(index / 37) * variance * 0.35;
+    const monthlyDrift = ((date.getUTCDate() - 1) / 31) * 0.9;
+    const baseValue = base + seasonal + monthlyDrift + weekendBoost;
+    values.push([isoDate, Math.max(0, Math.round(baseValue))]);
+    index += 1;
+  }
+
+  spikes.forEach(({ date, value, boost }) => {
+    const targetIndex = values.findIndex(([iso]) => iso === date);
+    if (targetIndex >= 0) {
+      const current = values[targetIndex][1];
+      const override = typeof value === "number" ? value : current;
+      const adjusted = override + (boost ?? 0);
+      values[targetIndex][1] = Math.max(0, Math.round(adjusted));
+    }
+  });
+
+  return values;
+}
+
+const calendarIncidents2024 = generateCalendarHeatmapValues(2024, {
+  base: 2.8,
+  variance: 5.8,
+  spikes: [
+    { date: "2024-02-18", value: 14 },
+    { date: "2024-03-22", value: 16 },
+    { date: "2024-05-04", value: 18 },
+    { date: "2024-07-15", value: 19 },
+    { date: "2024-09-02", value: 15 },
+    { date: "2024-11-11", value: 13 },
+  ],
+});
+
+const calendarDeploys2023 = generateCalendarHeatmapValues(2023, {
+  base: 3.4,
+  variance: 4.2,
+  spikes: [
+    { date: "2023-01-24", boost: 6 },
+    { date: "2023-04-03", value: 15 },
+    { date: "2023-06-19", value: 18 },
+    { date: "2023-09-12", value: 17 },
+    { date: "2023-11-27", boost: 8 },
+  ],
+});
+
 const neonDatasets = {
   timeSeries: [
     {
@@ -297,6 +356,71 @@ const neonDatasets = {
           data: [120, 140, 180, 260, 400, 360, 330],
         },
       ],
+    },
+  ],
+  areaStack: [
+    {
+      label: "Platform Resource Mix",
+      axis: ["00:00", "02:00", "04:00", "06:00", "08:00", "10:00", "12:00", "14:00"],
+      series: [
+        {
+          name: "API Pods",
+          color: "accentPrimary",
+          data: [32, 38, 54, 68, 74, 70, 62, 58],
+        },
+        {
+          name: "Worker Pool",
+          color: "accentSecondary",
+          data: [18, 22, 26, 34, 38, 36, 32, 28],
+        },
+        {
+          name: "Batch Jobs",
+          color: "accentTertiary",
+          data: [12, 14, 18, 22, 28, 26, 24, 20],
+        },
+        {
+          name: "Cache",
+          color: "accentQuinary",
+          data: [8, 9, 10, 12, 14, 13, 12, 10],
+        },
+      ],
+      unit: "k req/min",
+    },
+    {
+      label: "Weekend Utilization",
+      axis: [
+        "Sat 00",
+        "Sat 06",
+        "Sat 12",
+        "Sat 18",
+        "Sun 00",
+        "Sun 06",
+        "Sun 12",
+        "Sun 18",
+      ],
+      series: [
+        {
+          name: "Ingress",
+          color: "accentPrimary",
+          data: [20, 24, 32, 46, 34, 28, 36, 42],
+        },
+        {
+          name: "Jobs",
+          color: "accentSecondary",
+          data: [14, 16, 18, 22, 20, 18, 22, 24],
+        },
+        {
+          name: "Analytics",
+          color: "accentTertiary",
+          data: [10, 12, 14, 16, 18, 16, 18, 20],
+        },
+        {
+          name: "Cache",
+          color: "accentQuaternary",
+          data: [6, 7, 8, 9, 8, 7, 8, 9],
+        },
+      ],
+      unit: "% capacity",
     },
   ],
   stateTimeline: [
@@ -466,6 +590,32 @@ const neonDatasets = {
       bins: [6, 11, 18, 14, 9, 6, 3, 1],
     },
   ],
+  boxplot: [
+    {
+      label: "Service Latency (ms)",
+      unit: "ms",
+      categories: ["Edge Cache", "API Gateway", "App Service", "Worker", "Analytics"],
+      boxes: [
+        { name: "Edge Cache", color: "accentPrimary", values: [12, 24, 38, 54, 80], outliers: [108, 126] },
+        { name: "API Gateway", color: "accentSecondary", values: [28, 44, 60, 84, 110], outliers: [140] },
+        { name: "App Service", color: "accentTertiary", values: [34, 52, 72, 96, 130], outliers: [158, 172] },
+        { name: "Worker", color: "accentQuinary", values: [24, 38, 56, 78, 102] },
+        { name: "Analytics", color: "accentQuaternary", values: [48, 66, 88, 118, 150], outliers: [180] },
+      ],
+    },
+    {
+      label: "Queue Wait (s)",
+      unit: "s",
+      categories: ["Deploy", "ETL", "Batch", "Alerts", "Backups"],
+      boxes: [
+        { name: "Deploy", color: "accentPrimary", values: [4, 8, 12, 18, 26], outliers: [34] },
+        { name: "ETL", color: "accentSecondary", values: [6, 10, 16, 24, 32], outliers: [40, 44] },
+        { name: "Batch", color: "accentTertiary", values: [3, 6, 10, 16, 22], outliers: [30] },
+        { name: "Alerts", color: "accentQuinary", values: [2, 4, 8, 14, 20], outliers: [26] },
+        { name: "Backups", color: "accentQuaternary", values: [5, 9, 13, 19, 28] },
+      ],
+    },
+  ],
   heatmap: [
     {
       label: "Command Grid",
@@ -490,6 +640,55 @@ const neonDatasets = {
       ],
     },
   ],
+  sankey: [
+    {
+      label: "Request Fan-out",
+      unit: "req/s",
+      nodes: [
+        { name: "Ingress", color: "accentPrimary" },
+        { name: "API Gateway", color: "accentSecondary" },
+        { name: "Auth Service", color: "accentTertiary" },
+        { name: "Catalog", color: "accentQuinary" },
+        { name: "Billing", color: "accentQuaternary" },
+        { name: "Analytics", color: "accentSenary" },
+        { name: "Cache", color: "accentPrimary" },
+      ],
+      links: [
+        { source: "Ingress", target: "API Gateway", value: 620 },
+        { source: "API Gateway", target: "Auth Service", value: 220 },
+        { source: "API Gateway", target: "Catalog", value: 260 },
+        { source: "API Gateway", target: "Billing", value: 90 },
+        { source: "API Gateway", target: "Analytics", value: 50 },
+        { source: "Auth Service", target: "Catalog", value: 140 },
+        { source: "Auth Service", target: "Billing", value: 60 },
+        { source: "Catalog", target: "Cache", value: 110 },
+        { source: "Catalog", target: "Analytics", value: 120 },
+        { source: "Billing", target: "Analytics", value: 70 },
+      ],
+    },
+    {
+      label: "Pipeline Flow",
+      unit: "runs",
+      nodes: [
+        { name: "Commit", color: "accentPrimary" },
+        { name: "CI Build", color: "accentSecondary" },
+        { name: "Unit Tests", color: "accentTertiary" },
+        { name: "Integration", color: "accentQuinary" },
+        { name: "Staging", color: "accentQuaternary" },
+        { name: "Production", color: "accentPrimary" },
+        { name: "Rollback", color: "accentSenary" },
+      ],
+      links: [
+        { source: "Commit", target: "CI Build", value: 180 },
+        { source: "CI Build", target: "Unit Tests", value: 170 },
+        { source: "Unit Tests", target: "Integration", value: 150 },
+        { source: "Integration", target: "Staging", value: 130 },
+        { source: "Staging", target: "Production", value: 110 },
+        { source: "Staging", target: "Rollback", value: 14 },
+        { source: "Integration", target: "Rollback", value: 18 },
+      ],
+    },
+  ],
   pieChart: [
     {
       label: "Signal Share",
@@ -507,6 +706,30 @@ const neonDatasets = {
         { name: "Telemetry", value: 22, color: "accentSecondary" },
         { name: "Logistics", value: 20, color: "accentTertiary" },
         { name: "Maintenance", value: 18, color: "accentQuaternary" },
+      ],
+    },
+  ],
+  funnel: [
+    {
+      label: "Release Promotion",
+      unit: "builds",
+      steps: [
+        { name: "Build", value: 340, color: "accentPrimary" },
+        { name: "Unit Tests", value: 300, color: "accentSecondary" },
+        { name: "Integration", value: 240, color: "accentTertiary" },
+        { name: "Staging", value: 190, color: "accentQuinary" },
+        { name: "Production", value: 150, color: "accentQuaternary" },
+      ],
+    },
+    {
+      label: "Alert Triage",
+      unit: "alerts",
+      steps: [
+        { name: "Detected", value: 420, color: "accentPrimary" },
+        { name: "Queued", value: 360, color: "accentSecondary" },
+        { name: "Acknowledged", value: 250, color: "accentTertiary" },
+        { name: "Mitigated", value: 180, color: "accentQuinary" },
+        { name: "Resolved", value: 150, color: "accentQuaternary" },
       ],
     },
   ],
@@ -585,6 +808,20 @@ const neonDatasets = {
           data: [54, 57, 62, 65, 70, 74],
         },
       ],
+    },
+  ],
+  calendarHeatmap: [
+    {
+      label: "2024 Incident Density",
+      year: 2024,
+      values: calendarIncidents2024,
+      unit: "incidents/day",
+    },
+    {
+      label: "2023 Deployment Cadence",
+      year: 2023,
+      values: calendarDeploys2023,
+      unit: "deploys/day",
     },
   ],
   xyScatter: [
@@ -736,6 +973,76 @@ function createLiveTimeSeriesDataset() {
       const last = series.data[series.data.length - 1] ?? config.base;
       const value = jitterValue(last, config.variance, config.min, config.max);
       series.data.push(Math.round(value));
+      if (series.data.length > axisLength) {
+        series.data.shift();
+      }
+    });
+  }
+
+  reset();
+  return dataset;
+}
+
+function createLiveAreaStackDataset() {
+  const axisLength = 8;
+  const baseSeries = [
+    { name: "API Pods", color: "accentPrimary", base: 48, variance: 5, min: 26, max: 78 },
+    { name: "Worker Pool", color: "accentSecondary", base: 30, variance: 4, min: 18, max: 52 },
+    { name: "Batch Jobs", color: "accentTertiary", base: 20, variance: 3, min: 10, max: 36 },
+    { name: "Cache", color: "accentQuinary", base: 12, variance: 2, min: 6, max: 22 },
+  ];
+
+  const axis = [];
+  const dataset = {
+    label: "Live Resource Stack",
+    live: true,
+    axis,
+    unit: "% capacity",
+    series: baseSeries.map(({ name, color }) => ({ name, color, data: [] })),
+    interval: 2400,
+    next,
+    reset,
+  };
+
+  let tick = 0;
+
+  function formatTick(index) {
+    const totalMinutes = index * 15;
+    const hour = String(Math.floor(totalMinutes / 60) % 24).padStart(2, "0");
+    const minute = String(totalMinutes % 60).padStart(2, "0");
+    return `${hour}:${minute}`;
+  }
+
+  function reset() {
+    axis.length = 0;
+    tick = axisLength;
+    for (let i = 0; i < axisLength; i += 1) {
+      axis.push(formatTick(i));
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      series.data.length = 0;
+      let value = config.base;
+      for (let i = 0; i < axisLength; i += 1) {
+        value = jitterValue(value, config.variance, config.min, config.max);
+        series.data.push(parseFloat(value.toFixed(1)));
+      }
+    });
+  }
+
+  function next() {
+    axis.push(formatTick(tick));
+    tick += 1;
+    if (axis.length > axisLength) {
+      axis.shift();
+    }
+
+    dataset.series.forEach((series, index) => {
+      const config = baseSeries[index];
+      const last = series.data[series.data.length - 1] ?? config.base;
+      const value = jitterValue(last, config.variance, config.min, config.max);
+      series.data.push(parseFloat(value.toFixed(1)));
       if (series.data.length > axisLength) {
         series.data.shift();
       }
@@ -1164,6 +1471,60 @@ function createLiveStatDataset() {
   return dataset;
 }
 
+function createLiveFunnelDataset() {
+  const stepShape = [
+    { name: "Build", color: "accentPrimary", retention: 1, variance: 26 },
+    { name: "Unit Tests", color: "accentSecondary", retention: 0.88, variance: 20 },
+    { name: "Integration", color: "accentTertiary", retention: 0.82, variance: 18 },
+    { name: "Staging", color: "accentQuinary", retention: 0.78, variance: 16 },
+    { name: "Production", color: "accentQuaternary", retention: 0.74, variance: 14 },
+  ];
+
+  const dataset = {
+    label: "Live Deployment Funnel",
+    live: true,
+    unit: "builds",
+    steps: [],
+    interval: 4800,
+    reset,
+    next,
+  };
+
+  function buildSteps() {
+    const startingVolume = randomInt(320, 420);
+    let previous = startingVolume;
+
+    return stepShape.map((step, index) => {
+      if (index === 0) {
+        previous = Math.round(jitterValue(startingVolume, step.variance, 260, 460));
+      } else {
+        const baseline = previous * step.retention;
+        previous = Math.max(
+          0,
+          Math.round(jitterValue(baseline, step.variance, baseline * 0.6, startingVolume)),
+        );
+      }
+
+      return {
+        name: step.name,
+        color: step.color,
+        value: previous,
+      };
+    });
+  }
+
+  function reset() {
+    dataset.steps = buildSteps();
+  }
+
+  function next() {
+    dataset.steps = buildSteps();
+  }
+
+  reset();
+  return dataset;
+}
+
 function createLiveBarGaugeDataset() {
   const sections = [
     { name: "Ops", color: "accentPrimary" },
@@ -1196,12 +1557,14 @@ function createLiveBarGaugeDataset() {
 
 function registerLiveDatasets() {
   neonDatasets.timeSeries.push(createLiveTimeSeriesDataset());
+  neonDatasets.areaStack.push(createLiveAreaStackDataset());
   neonDatasets.stateTimeline.push(createLiveStateTimelineDataset());
   neonDatasets.statusHistory.push(createLiveStatusHistoryDataset());
   neonDatasets.barChart.push(createLiveBarChartDataset());
   neonDatasets.histogram.push(createLiveHistogramDataset());
   neonDatasets.heatmap.push(createLiveHeatmapDataset());
   neonDatasets.pieChart.push(createLivePieChartDataset());
+  neonDatasets.funnel.push(createLiveFunnelDataset());
   neonDatasets.candlestick.push(createLiveCandlestickDataset());
   neonDatasets.gauge.push(createLiveGaugeDataset());
   neonDatasets.trend.push(createLiveTrendDataset());
@@ -1384,6 +1747,114 @@ function renderTimeSeries(dataset, container) {
           { offset: 1, color: "rgba(15, 23, 42, 0)" },
         ]),
       },
+    })),
+  });
+
+  return chart;
+}
+
+function renderAreaStack(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const unitLabel = dataset.unit ? ` ${dataset.unit}` : "";
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    animationDuration: 700,
+    legend: {
+      data: dataset.series.map((series) => series.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.8)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: {
+        type: "cross",
+        label: {
+          backgroundColor: "rgba(15, 23, 42, 0.85)",
+        },
+      },
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        const header = params?.[0]?.axisValueLabel ?? "";
+        const lines = [header];
+        params.forEach((item) => {
+          lines.push(`${item.seriesName}: ${item.data}${unitLabel}`);
+        });
+        return lines.join("<br/>");
+      },
+    },
+    grid: {
+      left: "6%",
+      right: "4%",
+      top: "16%",
+      bottom: "12%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: false,
+      data: dataset.axis,
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.82)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.8)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    },
+    series: dataset.series.map((series) => ({
+      name: series.name,
+      type: "line",
+      smooth: true,
+      stack: dataset.stack ?? "total",
+      showSymbol: false,
+      symbol: "circle",
+      symbolSize: 6,
+      lineStyle: {
+        width: 2,
+        color: resolveColor(series.color),
+      },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: colorWithAlpha(series.color, 0.68) },
+          { offset: 1, color: colorWithAlpha(series.color, 0.08) },
+        ]),
+        opacity: 0.9,
+      },
+      itemStyle: {
+        color: resolveColor(series.color),
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
+        shadowBlur: withGlowBlur(20),
+        shadowColor: withGlowColor(series.color, 0.42),
+      },
+      emphasis: {
+        focus: "series",
+      },
+      data: series.data,
     })),
   });
 
@@ -1737,6 +2208,148 @@ function renderHistogram(dataset, container) {
   return chart;
 }
 
+function renderBoxplot(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const categories = dataset.categories?.length
+    ? dataset.categories
+    : dataset.boxes.map((box) => box.name);
+  const unitLabel = dataset.unit ? ` ${dataset.unit}` : "";
+
+  const boxSeries = dataset.boxes.map((box) => ({
+    value: box.values,
+    name: box.name,
+    itemStyle: {
+      color: colorWithAlpha(box.color ?? "accentPrimary", 0.2),
+      borderColor: resolveColor(box.color ?? "accentPrimary"),
+      borderWidth: withOutlineWidth(1.4),
+      shadowBlur: withGlowBlur(16),
+      shadowColor: withGlowColor(box.color ?? "accentPrimary", 0.38),
+    },
+  }));
+
+  const outliers = dataset.boxes.flatMap((box, index) => {
+    const values = Array.isArray(box.outliers) ? box.outliers : [];
+    return values.map((value) => ({
+      name: box.name,
+      value: [index, value],
+      itemStyle: {
+        color: resolveColor(box.outlierColor ?? box.color ?? "accentSenary"),
+        shadowBlur: withGlowBlur(12),
+        shadowColor: withGlowColor(box.outlierColor ?? box.color ?? "accentSenary", 0.55),
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
+      },
+    }));
+  });
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    animationDuration: 700,
+    legend: {
+      data: [dataset.label, ...(outliers.length ? ["Outliers"] : [])],
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.8)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (param) => {
+        if (param.componentSubType === "boxplot") {
+          const values = param.data?.value ?? param.data ?? [];
+          const name = dataset.boxes[param.dataIndex]?.name ?? param.name;
+          return [
+            name,
+            `Min: ${values[0]}${unitLabel}`,
+            `Q1: ${values[1]}${unitLabel}`,
+            `Median: ${values[2]}${unitLabel}`,
+            `Q3: ${values[3]}${unitLabel}`,
+            `Max: ${values[4]}${unitLabel}`,
+          ].join("<br/>");
+        }
+
+        if (param.componentSubType === "scatter") {
+          const categoryIndex = Array.isArray(param.data?.value)
+            ? param.data.value[0]
+            : param.data?.[0];
+          const category = categories[categoryIndex] ?? param.name;
+          const value = Array.isArray(param.data?.value)
+            ? param.data.value[1]
+            : param.data?.[1];
+          return `${category}<br/>Outlier: ${value}${unitLabel}`;
+        }
+
+        return param.name;
+      },
+    },
+    grid: {
+      left: "6%",
+      right: "4%",
+      top: "16%",
+      bottom: "12%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      data: categories,
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.85)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      axisLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.35),
+        },
+      },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: "rgba(148, 163, 184, 0.82)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.08),
+        },
+      },
+    },
+    series: [
+      {
+        name: dataset.label,
+        type: "boxplot",
+        data: boxSeries,
+        itemStyle: {
+          borderWidth: withOutlineWidth(1.4),
+        },
+        emphasis: {
+          focus: "series",
+        },
+      },
+      ...(outliers.length
+        ? [
+            {
+              name: "Outliers",
+              type: "scatter",
+              symbolSize: 9,
+              data: outliers,
+            },
+          ]
+        : []),
+    ],
+  });
+
+  return chart;
+}
+
 function renderHeatmap(dataset, container) {
   const chart = createChartInstance(container);
 
@@ -1830,6 +2443,88 @@ function renderHeatmap(dataset, container) {
   return chart;
 }
 
+function renderSankey(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const unitLabel = dataset.unit ? ` ${dataset.unit}` : "";
+  const nodeColorRefs = new Map();
+
+  const nodes = dataset.nodes.map((node) => {
+    const colorRef = node.color ?? "accentPrimary";
+    nodeColorRefs.set(node.name, colorRef);
+    const resolved = resolveColor(colorRef);
+    return {
+      name: node.name,
+      itemStyle: {
+        color: resolved,
+        borderColor: chartOutlineColor,
+        borderWidth: withOutlineWidth(1),
+        shadowBlur: withGlowBlur(18),
+        shadowColor: withGlowColor(colorRef, 0.5),
+      },
+    };
+  });
+
+  const links = dataset.links.map((link) => {
+    const colorRef =
+      link.color ?? nodeColorRefs.get(link.source) ?? nodeColorRefs.get(link.target) ?? "accentPrimary";
+    return {
+      ...link,
+      lineStyle: {
+        color: colorWithAlpha(colorRef, 0.62),
+        opacity: 0.7,
+        curveness: link.curveness ?? 0.5,
+      },
+    };
+  });
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        if (params.dataType === "edge") {
+          return `${params.data.source} → ${params.data.target}<br/>${params.data.value}${unitLabel}`;
+        }
+        const value = params.data?.value ?? params.value ?? 0;
+        return `${params.name}<br/>${value}${unitLabel}`;
+      },
+    },
+    series: [
+      {
+        type: "sankey",
+        layout: "none",
+        top: "10%",
+        bottom: "12%",
+        left: "6%",
+        right: "6%",
+        nodeAlign: "justify",
+        data: nodes,
+        links,
+        emphasis: {
+          focus: "adjacency",
+        },
+        lineStyle: {
+          opacity: 0.6,
+          curveness: 0.5,
+        },
+        label: {
+          color: "rgba(226, 232, 240, 0.85)",
+          fontFamily: "Space Grotesk, sans-serif",
+        },
+      },
+    ],
+  });
+
+  return chart;
+}
+
 function renderPieChart(dataset, container) {
   const chart = createChartInstance(container);
 
@@ -1883,6 +2578,83 @@ function renderPieChart(dataset, container) {
             color: resolveColor(slice.color),
             shadowBlur: withGlowBlur(25),
             shadowColor: withGlowColor(slice.color, 0.53),
+          },
+        })),
+      },
+    ],
+  });
+
+  return chart;
+}
+
+function renderFunnel(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const unitLabel = dataset.unit ? ` ${dataset.unit}` : "";
+  const steps = dataset.steps ?? [];
+  const maxValue = steps.reduce((max, step) => Math.max(max, step.value ?? 0), 0) || 1;
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    legend: {
+      data: steps.map((step) => step.name),
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.8)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      top: 0,
+    },
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: (params) => {
+        const percent = params.percent ?? Math.round((params.data.value / maxValue) * 100);
+        return `${params.name}<br/>${params.data.value}${unitLabel}<br/>${percent}% of start`;
+      },
+    },
+    series: [
+      {
+        name: dataset.label,
+        type: "funnel",
+        sort: "descending",
+        gap: 4,
+        left: "12%",
+        right: "10%",
+        top: "12%",
+        bottom: "14%",
+        min: 0,
+        max: maxValue,
+        label: {
+          color: "rgba(226, 232, 240, 0.85)",
+          fontFamily: "Space Grotesk, sans-serif",
+          formatter: ({ name, percent }) => `${name}\n${Math.round(percent)}%`,
+        },
+        labelLine: {
+          lineStyle: {
+            color: "rgba(148, 163, 184, 0.55)",
+          },
+        },
+        itemStyle: {
+          borderColor: chartOutlineColor,
+          borderWidth: withOutlineWidth(1),
+        },
+        emphasis: {
+          label: {
+            color: "#f8fafc",
+          },
+        },
+        data: steps.map((step) => ({
+          name: step.name,
+          value: step.value,
+          itemStyle: {
+            color: resolveColor(step.color ?? "accentPrimary"),
+            shadowBlur: withGlowBlur(24),
+            shadowColor: withGlowColor(step.color ?? "accentPrimary", 0.5),
           },
         })),
       },
@@ -2283,6 +3055,102 @@ function renderTrend(dataset, container) {
   return chart;
 }
 
+function renderCalendarHeatmap(dataset, container) {
+  const chart = createChartInstance(container);
+
+  const values = Array.isArray(dataset.values) ? dataset.values : [];
+  const maxValue = values.reduce((max, [, value]) => Math.max(max, value ?? 0), 0) || 1;
+  const unitLabel = dataset.unit ? ` ${dataset.unit}` : "";
+  const inferredYear = values[0]?.[0]?.slice(0, 4) ?? new Date().getFullYear().toString();
+  const range = dataset.year ?? inferredYear;
+
+  applyChartOption(chart, {
+    backgroundColor: "transparent",
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(15, 23, 42, 0.95)",
+      borderColor: colorWithAlpha("accentPrimary", 0.3),
+      textStyle: {
+        fontFamily: "Space Grotesk, sans-serif",
+        color: "#f8fafc",
+      },
+      formatter: ({ value }) => {
+        if (!value) {
+          return dataset.label;
+        }
+        const [date, count] = value;
+        return `${date}: ${count}${unitLabel}`;
+      },
+    },
+    visualMap: {
+      min: 0,
+      max: maxValue,
+      calculable: true,
+      orient: "horizontal",
+      left: "center",
+      bottom: 20,
+      textStyle: {
+        color: "rgba(226, 232, 240, 0.7)",
+      },
+      inRange: {
+        color: [colorWithAlpha("accentPrimary", 0.1), colorWithAlpha("accentTertiary", 0.9)],
+      },
+    },
+    calendar: {
+      range: String(range),
+      top: 70,
+      left: "center",
+      cellSize: [18, 18],
+      orient: "horizontal",
+      splitLine: {
+        show: true,
+        lineStyle: {
+          color: colorWithAlpha("accentPrimary", 0.12),
+          width: withOutlineWidth(1),
+        },
+      },
+      itemStyle: {
+        borderColor: colorWithAlpha("accentPrimary", 0.08),
+        borderWidth: withOutlineWidth(1),
+        color: "rgba(15, 23, 42, 0.85)",
+        shadowBlur: withGlowBlur(14),
+        shadowColor: colorWithAlpha("accentPrimary", 0.18),
+      },
+      yearLabel: {
+        color: "rgba(226, 232, 240, 0.7)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      monthLabel: {
+        color: "rgba(226, 232, 240, 0.85)",
+        fontFamily: "Space Grotesk, sans-serif",
+      },
+      dayLabel: {
+        color: "rgba(148, 163, 184, 0.7)",
+        fontFamily: "Share Tech Mono, monospace",
+      },
+    },
+    series: [
+      {
+        name: dataset.label,
+        type: "heatmap",
+        coordinateSystem: "calendar",
+        data: values,
+        itemStyle: {
+          borderRadius: 4,
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: withGlowBlur(18),
+            shadowColor: withGlowColor("accentPrimary", 0.5),
+          },
+        },
+      },
+    ],
+  });
+
+  return chart;
+}
+
 function renderXYScatter(dataset, container) {
   const chart = createChartInstance(container);
 
@@ -2499,15 +3367,20 @@ function renderBarGauge(dataset, container) {
 
 const componentRenderers = {
   timeSeries: renderTimeSeries,
+  areaStack: renderAreaStack,
   stateTimeline: renderStateTimeline,
   statusHistory: renderStatusHistory,
   barChart: renderBarChart,
   histogram: renderHistogram,
+  boxplot: renderBoxplot,
   heatmap: renderHeatmap,
+  sankey: renderSankey,
   pieChart: renderPieChart,
+  funnel: renderFunnel,
   candlestick: renderCandlestick,
   gauge: renderGauge,
   trend: renderTrend,
+  calendarHeatmap: renderCalendarHeatmap,
   xyScatter: renderXYScatter,
   stat: renderStat,
   barGauge: renderBarGauge,

@@ -248,6 +248,11 @@ body {
   height: clamp(220px, 30vh, 320px);
 }
 
+.component-card[data-component="sankey"] .chart-canvas,
+.component-card[data-component="calendarHeatmap"] .chart-canvas {
+  height: clamp(300px, 40vh, 460px);
+}
+
 .stat-shell {
   display: grid;
   gap: 0.85rem;
