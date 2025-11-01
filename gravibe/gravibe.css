@@ -479,11 +479,19 @@ body {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: 1.75rem var(--trace-span-service-width, 16rem) minmax(0, 1fr);
+  grid-template-columns: calc(1.75rem + var(--trace-span-service-width, 16rem) + 0.75rem) minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem;
   position: relative;
   z-index: 2;
+}
+
+.trace-span__left {
+  display: grid;
+  grid-template-columns: 1.75rem var(--trace-span-service-width, 16rem);
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
 }
 
 .trace-span__expander,

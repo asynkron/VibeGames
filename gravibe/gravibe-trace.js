@@ -537,6 +537,11 @@ function renderSpanSummary(trace, node) {
   summary.dataset.depth = String(node.depth);
   summary.style.setProperty("--depth", String(node.depth));
 
+  // Create wrapper for expander and service that can be indented
+  const leftSection = document.createElement("div");
+  leftSection.className = "trace-span__left";
+  leftSection.style.paddingLeft = `calc(var(--depth) * var(--trace-indent-width, 1rem))`;
+
   const expander = document.createElement("button");
   expander.type = "button";
   expander.className = "trace-span__expander";
@@ -545,7 +550,7 @@ function renderSpanSummary(trace, node) {
     node.children.length ? "Toggle child spans" : "No child spans"
   );
   expander.disabled = !node.children.length;
-  summary.append(expander);
+  leftSection.append(expander);
 
   const service = document.createElement("button");
   service.type = "button";
@@ -562,7 +567,9 @@ function renderSpanSummary(trace, node) {
     service.disabled = true;
     service.setAttribute("aria-disabled", "true");
   }
-  summary.append(service);
+  leftSection.append(service);
+
+  summary.append(leftSection);
 
   const timeline = document.createElement("button");
   timeline.type = "button";
