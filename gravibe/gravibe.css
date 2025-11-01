@@ -694,45 +694,56 @@ body {
 
 .trace-span__marker {
   position: absolute;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  top: 0;
+  transition: border 0.15s ease, box-shadow 0.15s ease;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 10;
+  /* Center the visual circle */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trace-span__marker::before {
+  content: "";
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--text-strong);
-  transform: translateX(-50%);
-  top: -4px;
-  transition: border 0.15s ease, box-shadow 0.15s ease;
-  pointer-events: auto;
-  cursor: pointer;
   border: 2px solid transparent;
   box-sizing: border-box;
-  z-index: 10;
+  transition: border 0.15s ease, box-shadow 0.15s ease;
 }
 
-.trace-span__marker--log {
+.trace-span__marker--log::before {
   background: var(--accent-tertiary);
 }
 
-.trace-span__marker--severity-debug {
+.trace-span__marker--severity-debug::before {
   background: var(--text-muted);
 }
 
-.trace-span__marker--severity-info {
+.trace-span__marker--severity-info::before {
   background: var(--accent-tertiary);
 }
 
-.trace-span__marker--severity-warn {
+.trace-span__marker--severity-warn::before {
   background: var(--accent-secondary);
 }
 
-.trace-span__marker--severity-error {
+.trace-span__marker--severity-error::before {
   background: var(--accent-error);
 }
 
-.trace-span__marker--event {
+.trace-span__marker--event::before {
   background: var(--accent-quaternary);
 }
 
-.trace-span__marker:hover {
+.trace-span__marker:hover::before {
   border: 2px solid white;
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
 }
