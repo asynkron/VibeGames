@@ -494,6 +494,55 @@ body {
   z-index: 1;
 }
 
+/* Tree lines - positioned on the summary to align with indented content */
+.trace-span__summary {
+  position: relative;
+}
+
+/* Tree lines - vertical line from top through middle (connects parent to this node)
+   Position at parent's depth level: (depth - 1) * indent-width + indent-width/2 */
+.trace-span--has-parent>.trace-span__summary::before {
+  content: "";
+  position: absolute;
+  left: calc((var(--depth) - 1) * var(--trace-indent-width, 1rem) + var(--trace-indent-width, 1rem) / 2);
+  top: 0;
+  width: 1px;
+  height: 50%;
+  background: rgba(148, 163, 184, 0.25);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Tree lines - horizontal line connecting to the node
+   Position at parent's depth level, extending to current level */
+.trace-span--has-parent>.trace-span__summary::after {
+  content: "";
+  position: absolute;
+  left: calc((var(--depth) - 1) * var(--trace-indent-width, 1rem) + var(--trace-indent-width, 1rem) / 2);
+  top: 50%;
+  width: calc(var(--trace-indent-width, 1rem) / 2);
+  height: 1px;
+  background: rgba(148, 163, 184, 0.25);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Tree lines - vertical continuation from current node to next sibling
+   This line extends through all children to reach the next sibling
+   Positioned on the container so it spans the entire height including all descendants
+   Position at current node's depth level: depth * indent-width - indent-width/2 */
+.trace-span:not(.trace-span--last-child).trace-span--has-parent::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--depth) * var(--trace-indent-width, 1rem) - (var(--trace-indent-width, 1rem) / 2));
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.25);
+  pointer-events: none;
+  z-index: 0;
+}
+
 .trace-span--leaf {
   border-color: rgba(86, 98, 122, 0.2);
 }

@@ -1017,12 +1017,25 @@ function pruneDescendantState(node, state) {
   });
 }
 
-function renderSpanNode(trace, node, state) {
+function renderSpanNode(trace, node, state, isLastChild = false, parentDepth = -1) {
   const container = document.createElement("div");
   container.className = "trace-span";
   const hasChildren = node.children.length > 0;
   if (!hasChildren) {
     container.classList.add("trace-span--leaf");
+  }
+
+  // Set depth as CSS variable for tree line positioning
+  container.style.setProperty("--depth", node.depth);
+
+  // Mark if this is the last child for tree line styling
+  if (isLastChild) {
+    container.classList.add("trace-span--last-child");
+  }
+
+  // Mark if this has a parent (depth > 0) for tree line continuation
+  if (node.depth > 0) {
+    container.classList.add("trace-span--has-parent");
   }
 
   const timeWindow = {
@@ -1056,8 +1069,9 @@ function renderSpanNode(trace, node, state) {
     childrenContainer = document.createElement("div");
     childrenContainer.className = "trace-span__children";
     childrenContainer.id = `trace-span-children-${node.span.spanId}`;
-    node.children.forEach((child) => {
-      childrenContainer.append(renderSpanNode(trace, child, spanState));
+    node.children.forEach((child, index) => {
+      const isLast = index === node.children.length - 1;
+      childrenContainer.append(renderSpanNode(trace, child, spanState, isLast, node.depth));
     });
     body.append(childrenContainer);
     container.append(body);
@@ -1618,8 +1632,9 @@ export function renderTrace(host, trace, state) {
   const timelineMarkers = createTimelineMarkers(trace, 3, timeWindow);
   list.append(timelineMarkers);
 
-  trace.roots.forEach((root) => {
-    list.append(renderSpanNode(trace, root, viewState));
+  trace.roots.forEach((root, index) => {
+    const isLast = index === trace.roots.length - 1;
+    list.append(renderSpanNode(trace, root, viewState, isLast, -1));
   });
 
   host.append(list);
