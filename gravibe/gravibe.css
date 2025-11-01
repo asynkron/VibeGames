@@ -712,6 +712,22 @@ body {
   background: var(--accent-tertiary);
 }
 
+.trace-span__marker--severity-debug {
+  background: var(--text-muted);
+}
+
+.trace-span__marker--severity-info {
+  background: var(--accent-tertiary);
+}
+
+.trace-span__marker--severity-warn {
+  background: var(--accent-secondary);
+}
+
+.trace-span__marker--severity-error {
+  background: var(--accent-error);
+}
+
 .trace-span__marker--event {
   background: var(--accent-quaternary);
 }

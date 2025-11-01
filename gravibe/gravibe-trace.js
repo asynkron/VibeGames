@@ -632,7 +632,15 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
       : 50; // Fallback to center if span has no visible duration
 
     const markerElement = document.createElement("div");
-    markerElement.className = `trace-span__marker trace-span__marker--${marker.type}`;
+
+    // For log markers, determine severity and apply color class
+    if (marker.type === 'log') {
+      const severityGroup = resolveSeverityGroup(marker.logRow);
+      markerElement.className = `trace-span__marker trace-span__marker--log trace-span__marker--severity-${severityGroup}`;
+    } else {
+      markerElement.className = `trace-span__marker trace-span__marker--${marker.type}`;
+    }
+
     markerElement.style.left = `${positionWithinVisibleSpan}%`;
 
     // Create tooltip for this marker and append to document.body instead
