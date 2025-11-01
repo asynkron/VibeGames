@@ -500,15 +500,15 @@ body {
 }
 
 /* Tree lines - vertical line from top through middle (connects parent to this node)
-   Position at parent's depth level: (depth - 1) * indent-width + indent-width/2 */
+   Position at parent's depth level: (depth - 1) * indent-width + indent-width/2 + 8px */
 .trace-span--has-parent>.trace-span__summary::before {
   content: "";
   position: absolute;
-  left: calc((var(--depth) - 1) * var(--trace-indent-width, 1rem) + var(--trace-indent-width, 1rem) / 2);
+  left: calc((var(--depth) - 1) * var(--trace-indent-width, 1rem) + var(--trace-indent-width, 1rem) / 2 + 8px);
   top: 0;
   width: 1px;
   height: 50%;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgb(55, 60, 68);
   pointer-events: none;
   z-index: 0;
 }
@@ -518,11 +518,11 @@ body {
 .trace-span--has-parent>.trace-span__summary::after {
   content: "";
   position: absolute;
-  left: calc((var(--depth) - 1) * var(--trace-indent-width, 1rem) + var(--trace-indent-width, 1rem) / 2);
+  left: calc((var(--depth) - 1) * var(--trace-indent-width, 1rem) + var(--trace-indent-width, 1rem) / 2 + 8px);
   top: 50%;
   width: calc(var(--trace-indent-width, 1rem) / 2);
   height: 1px;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgb(55, 60, 68);
   pointer-events: none;
   z-index: 0;
 }
@@ -530,15 +530,15 @@ body {
 /* Tree lines - vertical continuation from current node to next sibling
    This line extends through all children to reach the next sibling
    Positioned on the container so it spans the entire height including all descendants
-   Position at current node's depth level: depth * indent-width - indent-width/2 */
+   Position at current node's depth level: depth * indent-width - indent-width/2 + 8px */
 .trace-span:not(.trace-span--last-child).trace-span--has-parent::after {
   content: "";
   position: absolute;
-  left: calc(var(--depth) * var(--trace-indent-width, 1rem) - (var(--trace-indent-width, 1rem) / 2));
+  left: calc(var(--depth) * var(--trace-indent-width, 1rem) - (var(--trace-indent-width, 1rem) / 2) + 8px);
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgb(55, 60, 68);
   pointer-events: none;
   z-index: 0;
 }
