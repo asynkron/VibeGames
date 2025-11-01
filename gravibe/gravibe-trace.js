@@ -451,18 +451,17 @@ function renderSpanNode(trace, node, state) {
     expandedAttributes: new Set(),
   };
 
-  const body = document.createElement("div");
-  body.className = "trace-span__body";
-
   const detailSections = renderSpanDetails(node.span);
   const hasDetails = detailSections.childElementCount > 0;
   if (hasDetails) {
     detailSections.id = `trace-span-details-${node.span.spanId}`;
-    body.append(detailSections);
+    container.append(detailSections);
   }
 
   let childrenContainer = null;
   if (hasChildren) {
+    const body = document.createElement("div");
+    body.className = "trace-span__body";
     childrenContainer = document.createElement("div");
     childrenContainer.className = "trace-span__children";
     childrenContainer.id = `trace-span-children-${node.span.spanId}`;
@@ -470,9 +469,6 @@ function renderSpanNode(trace, node, state) {
       childrenContainer.append(renderSpanNode(trace, child, spanState));
     });
     body.append(childrenContainer);
-  }
-
-  if (body.childElementCount > 0) {
     container.append(body);
   }
 
@@ -559,6 +555,17 @@ function collectSpanIds(nodes, bucket = new Set()) {
   return bucket;
 }
 
+// Gather every span that has children so we can expand the whole tree by default.
+function collectExpandableSpanIds(nodes, bucket = new Set()) {
+  nodes.forEach((node) => {
+    if (node.children.length) {
+      bucket.add(node.span.spanId);
+      collectExpandableSpanIds(node.children, bucket);
+    }
+  });
+  return bucket;
+}
+
 function pruneInvalidState(trace, state) {
   if (!state) {
     return;
@@ -576,26 +583,25 @@ function pruneInvalidState(trace, state) {
   });
 }
 
-// The top-level spans start expanded the first time we render the view.
-function ensureRootChildrenExpanded(trace, state) {
-  if (!state || state.initializedRoots) {
+// Expand all spans with children on first render so the entire trace is visible.
+function ensureChildrenExpanded(trace, state) {
+  if (!state || state.initializedChildren) {
     return;
   }
-  trace.roots.forEach((root) => {
-    if (root.children.length) {
-      state.expandedChildren.add(root.span.spanId);
-    }
+  const expandableIds = collectExpandableSpanIds(trace.roots);
+  expandableIds.forEach((id) => {
+    state.expandedChildren.add(id);
   });
-  state.initializedRoots = true;
+  state.initializedChildren = true;
 }
 
 function createTraceViewState(trace) {
   const state = {
     expandedChildren: new Set(),
     expandedAttributes: new Set(),
-    initializedRoots: false,
+    initializedChildren: false,
   };
-  ensureRootChildrenExpanded(trace, state);
+  ensureChildrenExpanded(trace, state);
   return state;
 }
 
@@ -605,7 +611,7 @@ export function renderTrace(host, trace, state) {
     return viewState;
   }
   pruneInvalidState(trace, viewState);
-  ensureRootChildrenExpanded(trace, viewState);
+  ensureChildrenExpanded(trace, viewState);
 
   host.innerHTML = "";
 
