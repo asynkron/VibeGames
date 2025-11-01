@@ -694,12 +694,18 @@ body {
 
 .trace-span__marker {
   position: absolute;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--text-strong);
-  transform: translate(-50%, -50%);
-  top: 0;
+  transform: translateX(-50%);
+  top: -4px;
+  transition: border 0.15s ease, box-shadow 0.15s ease;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+  z-index: 10;
 }
 
 .trace-span__marker--log {
@@ -708,6 +714,43 @@ body {
 
 .trace-span__marker--event {
   background: var(--accent-quaternary);
+}
+
+.trace-span__marker:hover {
+  border: 2px solid white;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+.trace-span__marker-tooltip {
+  position: fixed;
+  z-index: 10000;
+  background: var(--surface-3);
+  border: 1px solid rgb(var(--accent-secondary-rgb) / 0.45);
+  border-radius: 4px;
+  padding: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  max-width: 400px;
+  min-width: 200px;
+  pointer-events: none;
+  font-size: var(--font-size-sm);
+}
+
+.trace-span__marker-tooltip-summary {
+  display: grid;
+  grid-template-columns: 20ch 7ch 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.trace-span__marker-tooltip-title {
+  font-family: var(--font-base);
+  font-size: var(--font-size-sm);
+  color: var(--text-strong);
+  margin-bottom: 0.5rem;
+}
+
+.trace-span__marker-tooltip-attributes {
+  margin-top: 0.5rem;
 }
 
 .trace-span__details {

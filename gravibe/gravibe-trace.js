@@ -516,8 +516,52 @@ function renderSpanEvents(events) {
   return wrapper;
 }
 
+function createMarkerTooltip(data) {
+  const tooltip = document.createElement("div");
+  tooltip.className = "trace-span__marker-tooltip";
+
+  if (data.type === 'log') {
+    const logRow = data.logRow;
+    const summary = document.createElement("div");
+    summary.className = "trace-span__marker-tooltip-summary";
+
+    const severity = document.createElement("span");
+    severity.className = "log-row-severity";
+    severity.textContent = logRow.severityText ?? resolveSeverityGroup(logRow).toUpperCase();
+
+    const timestamp = document.createElement("time");
+    timestamp.className = "log-row-timestamp";
+    timestamp.dateTime =
+      typeof logRow.timeUnixNano === "bigint"
+        ? new Date(Number(logRow.timeUnixNano / 1000000n)).toISOString()
+        : new Date((logRow.timeUnixNano ?? 0) / 1e6).toISOString();
+    timestamp.textContent = formatNanoseconds(logRow.timeUnixNano);
+
+    const message = document.createElement("span");
+    message.className = "log-row-message";
+    message.appendChild(buildTemplateFragment(logRow));
+
+    summary.append(timestamp, severity, message);
+    tooltip.append(summary);
+  } else if (data.type === 'event') {
+    const event = data.event;
+    const eventTitle = document.createElement("div");
+    eventTitle.className = "trace-span__marker-tooltip-title";
+    eventTitle.textContent = `${formatTimestamp(event.timeUnixNano)} — ${event.name}`;
+    tooltip.append(eventTitle);
+
+    if (event.attributes?.length) {
+      const attributesTable = createAttributeTable(event.attributes);
+      attributesTable.classList.add("trace-span__marker-tooltip-attributes");
+      tooltip.append(attributesTable);
+    }
+  }
+
+  return tooltip;
+}
+
 function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
-  // Collect all timestamps: logs and events
+  // Collect all timestamps: logs and events with their data
   const markers = [];
 
   // Get logs for this span
@@ -526,6 +570,7 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
     markers.push({
       timestamp: logRow.timeUnixNano,
       type: 'log',
+      logRow: logRow,
     });
   });
 
@@ -535,6 +580,7 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
       markers.push({
         timestamp: event.timeUnixNano,
         type: 'event',
+        event: event,
       });
     });
   }
@@ -575,6 +621,9 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
   const visibleSpanEnd = Math.min(spanEnd, traceStart + (totalDuration * windowEnd / 100));
   const visibleSpanDuration = visibleSpanEnd - visibleSpanStart;
 
+  // Create a tooltip container that will be reused
+  let currentTooltip = null;
+
   // Create markers for each timestamp
   markers.forEach((marker) => {
     const markerTimestamp = toNumberTimestamp(marker.timestamp);
@@ -597,6 +646,86 @@ function renderSpanMarkers(span, trace, timeWindow = { start: 0, end: 100 }) {
     const markerElement = document.createElement("div");
     markerElement.className = `trace-span__marker trace-span__marker--${marker.type}`;
     markerElement.style.left = `${positionWithinVisibleSpan}%`;
+
+    // Create tooltip for this marker and append to document.body instead
+    const tooltip = createMarkerTooltip(marker);
+    tooltip.style.display = "none";
+    document.body.appendChild(tooltip);
+    markerElement.dataset.tooltipId = `tooltip-${Date.now()}-${Math.random()}`;
+
+    // Add hover handlers
+    markerElement.addEventListener("mouseenter", (e) => {
+      // Remove any existing tooltip
+      if (currentTooltip && currentTooltip !== tooltip) {
+        currentTooltip.style.display = "none";
+      }
+
+      tooltip.style.display = "block";
+      currentTooltip = tooltip;
+
+      // Position tooltip relative to cursor
+      const updateTooltipPosition = (event) => {
+        const mouseX = event.clientX;
+        const mouseY = event.clientY;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        // Get tooltip dimensions (force display to measure)
+        tooltip.style.display = "block";
+        const tooltipRect = tooltip.getBoundingClientRect();
+
+        // Position tooltip below and slightly offset from cursor
+        let left = mouseX;
+        let top = mouseY + 12;
+
+        // Adjust if tooltip goes off screen horizontally
+        const tooltipLeft = mouseX - tooltipRect.width / 2;
+        const tooltipRight = mouseX + tooltipRect.width / 2;
+
+        if (tooltipLeft < 8) {
+          left = tooltipRect.width / 2 + 8;
+        } else if (tooltipRight > viewportWidth - 8) {
+          left = viewportWidth - tooltipRect.width / 2 - 8;
+        }
+
+        // Adjust if tooltip goes off screen vertically
+        const tooltipBottom = top + tooltipRect.height;
+        if (tooltipBottom > viewportHeight - 8) {
+          top = mouseY - tooltipRect.height - 12;
+        }
+
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+        tooltip.style.transform = "translateX(-50%)";
+      };
+
+      updateTooltipPosition(e);
+
+      const moveHandler = (event) => {
+        updateTooltipPosition(event);
+      };
+
+      markerElement.addEventListener("mousemove", moveHandler);
+      markerElement._moveHandler = moveHandler;
+    });
+
+    markerElement.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none";
+      if (markerElement._moveHandler) {
+        markerElement.removeEventListener("mousemove", markerElement._moveHandler);
+        markerElement._moveHandler = null;
+      }
+      if (currentTooltip === tooltip) {
+        currentTooltip = null;
+      }
+    });
+
+    // Clean up tooltip when marker is removed
+    markerElement._cleanupTooltip = () => {
+      if (tooltip.parentNode) {
+        tooltip.parentNode.removeChild(tooltip);
+      }
+    };
 
     container.append(markerElement);
   });
