@@ -442,7 +442,7 @@ body {
 
 .trace-span__summary {
   margin: 0;
-  padding: 0.35rem 0.5rem;
+  padding: 0;
   display: grid;
   grid-template-columns: 1.75rem var(--trace-span-service-width, 16rem) minmax(0, 1fr);
   align-items: center;
