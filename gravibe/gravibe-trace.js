@@ -1322,8 +1322,11 @@ function createTimelineMarkers(trace, numberOfSwimlanes = 3, timeWindow = { star
     // Position relative to window (0-100% within window)
     const position = i * interval;
 
-    // Calculate time delta from window start
-    const timeDelta = (windowDuration * i) / numberOfSwimlanes;
+    // Calculate absolute position in trace (0-100%)
+    const absolutePosition = windowStart + (position * windowWidth) / 100;
+
+    // Calculate absolute time delta from trace start (not window start)
+    const absoluteTimeDelta = (totalDuration * absolutePosition) / 100;
 
     const marker = document.createElement("div");
     marker.className = "trace-timeline-marker";
@@ -1332,13 +1335,13 @@ function createTimelineMarkers(trace, numberOfSwimlanes = 3, timeWindow = { star
     // Add top label
     const topLabel = document.createElement("div");
     topLabel.className = "trace-timeline-marker__label trace-timeline-marker__label--top";
-    topLabel.textContent = formatDurationMs(timeDelta);
+    topLabel.textContent = formatDurationMs(absoluteTimeDelta);
     marker.append(topLabel);
 
     // Add bottom label
     const bottomLabel = document.createElement("div");
     bottomLabel.className = "trace-timeline-marker__label trace-timeline-marker__label--bottom";
-    bottomLabel.textContent = formatDurationMs(timeDelta);
+    bottomLabel.textContent = formatDurationMs(absoluteTimeDelta);
     marker.append(bottomLabel);
 
     container.append(marker);
