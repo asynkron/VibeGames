@@ -700,12 +700,10 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
 }
 
-.trace-span__summary:hover .trace-span__markers {
-  opacity: 1;
+.trace-span__marker--severity-error {
+  opacity: 1 !important;
 }
 
 .trace-span__marker {
@@ -714,7 +712,7 @@ body {
   height: 20px;
   transform: translate(-50%, -50%);
   top: 0;
-  transition: border 0.15s ease, box-shadow 0.15s ease;
+  transition: border 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
   pointer-events: auto;
   cursor: pointer;
   z-index: 10;
@@ -722,6 +720,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0;
+}
+
+.trace-span__summary:hover .trace-span__marker {
+  opacity: 1;
 }
 
 .trace-span__marker::before {
