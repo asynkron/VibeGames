@@ -199,10 +199,11 @@ function hslToHex(h, s, l) {
  * @param {number} lightness - Target lightness (0-100), default 65 for neon effect
  * @returns {string} Normalized hex color string
  */
-function normalizeColorBrightness(hex, lightness = 65) {
+function normalizeColorBrightness(hex, lightness = 65, saturationMultiplier = 1.0) {
   const hsl = hexToHsl(hex);
-  // Keep hue and saturation, set fixed lightness for consistent brightness
-  return hslToHex(hsl.h, hsl.s, lightness);
+  // Reduce saturation and set fixed lightness for consistent, less saturated colors
+  const desaturatedSaturation = hsl.s * saturationMultiplier;
+  return hslToHex(hsl.h, desaturatedSaturation, lightness);
 }
 
 /**
@@ -616,9 +617,9 @@ function renderSpanSummary(trace, node, timeWindow = { start: 0, end: 100 }) {
   const paletteColors = getPaletteColors();
   const paletteLength = paletteColors.length;
   const colorIndex = serviceIndex % paletteLength;
-  // Normalize color to lighter shade with opacity for subtle effect
+  // Normalize color to lighter shade with reduced saturation for subtle effect
   const paletteColor = paletteColors[colorIndex];
-  const normalizedColor = normalizeColorBrightness(paletteColor, 50); // Lighter (50% instead of 35%)
+  const normalizedColor = normalizeColorBrightness(paletteColor, 50, 0.7); // Lighter (50%) and desaturated (70% of original saturation)
 
   // Convert hex to RGB for rgba with opacity
   const hexToRgb = (hex) => {
@@ -913,7 +914,7 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
     const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
     const colorIndex = serviceIndex % paletteLength;
     const paletteColor = paletteColors[colorIndex];
-    const normalizedColor = normalizeColorBrightness(paletteColor, 50);
+    const normalizedColor = normalizeColorBrightness(paletteColor, 50, 0.7); // Desaturated (70% of original saturation)
     return normalizedColor;
   };
 
