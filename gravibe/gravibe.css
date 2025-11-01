@@ -23,6 +23,8 @@
   --accent-quinary-rgb: 229 192 123;
   --accent-senary: #d19a66;
   --accent-senary-rgb: 209 154 102;
+  --accent-error: #e86671;
+  --accent-error-rgb: 232 102 113;
   --chart-glow-scale: 1;
   --chart-glow-opacity: 0.45;
   --chart-outline-scale: 1;
@@ -407,28 +409,25 @@ body {
 
 .log-console-list {
   display: grid;
-  gap: 1rem;
 }
 
 .log-row {
-  border-radius: 10px;
-  border: 1px solid rgba(99, 110, 133, 0.4);
   background: rgba(18, 22, 30, 0.85);
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .log-row[open] {
-  border-color: rgb(var(--accent-secondary-rgb) / 0.5);
+  box-shadow: 0 0 0 1px rgb(var(--accent-secondary-rgb) / 0.45);
   transform: translateY(-1px);
 }
 
 .log-row-summary {
   list-style: none;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 20ch 7ch 1fr;
   gap: 0.75rem;
   align-items: center;
-  padding: 1rem 1.25rem;
+  padding: 4px;
   cursor: pointer;
 }
 
@@ -446,20 +445,31 @@ body {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  padding: 0.35rem 0.55rem;
-  border-radius: 6px;
-  background: rgba(76, 86, 106, 0.25);
-  border: 1px solid rgba(125, 138, 158, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 7ch;
+  max-inline-size: 100%;
+  padding-block: 0.25rem;
+  border-radius: 4px;
+  background: rgba(76, 86, 106, 0.22);
+  border: 1px solid rgba(125, 138, 158, 0.35);
 }
 
 .log-row-timestamp {
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--text-subtle);
-  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  inline-size: 20ch;
+  max-inline-size: 100%;
+  white-space: nowrap;
 }
 
 .log-row-message {
+  font-family: var(--font-mono);
   font-size: 1rem;
   display: flex;
   flex-wrap: wrap;
@@ -542,9 +552,9 @@ body {
 .log-attr {
   font-family: var(--font-mono);
   border-radius: 6px;
-  padding: 0.15rem 0.4rem;
   background: rgba(54, 60, 74, 0.55);
   color: var(--accent-primary);
+  line-height: 1;
 }
 
 .log-attr--string {
@@ -583,16 +593,10 @@ body {
   background: rgba(82, 90, 104, 0.25);
 }
 
-.log-row--severity-trace .log-row-severity {
-  color: var(--accent-quaternary);
-  border-color: rgb(var(--accent-quaternary-rgb) / 0.45);
-  background: rgb(var(--accent-quaternary-rgb) / 0.14);
-}
-
 .log-row--severity-debug .log-row-severity {
-  color: var(--accent-senary);
-  border-color: rgb(var(--accent-senary-rgb) / 0.45);
-  background: rgb(var(--accent-senary-rgb) / 0.14);
+  color: var(--text-muted);
+  border-color: rgba(125, 138, 158, 0.45);
+  background: rgba(82, 90, 104, 0.25);
 }
 
 .log-row--severity-info .log-row-severity {
@@ -608,15 +612,9 @@ body {
 }
 
 .log-row--severity-error .log-row-severity {
-  color: var(--accent-primary);
-  border-color: rgb(var(--accent-primary-rgb) / 0.55);
-  background: rgb(var(--accent-primary-rgb) / 0.18);
-}
-
-.log-row--severity-fatal .log-row-severity {
-  color: var(--accent-tertiary);
-  border-color: rgb(var(--accent-tertiary-rgb) / 0.55);
-  background: rgb(var(--accent-tertiary-rgb) / 0.18);
+  color: var(--accent-error);
+  border-color: rgb(var(--accent-error-rgb) / 0.55);
+  background: rgb(var(--accent-error-rgb) / 0.18);
 }
 
 @media (max-width: 720px) {
@@ -634,6 +632,14 @@ body {
   }
 
   .log-row-timestamp {
+    justify-self: start;
+    inline-size: auto;
+    max-inline-size: none;
+  }
+
+  .log-row-severity {
+    inline-size: auto;
+    max-inline-size: none;
     justify-self: start;
   }
 

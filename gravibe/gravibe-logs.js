@@ -218,16 +218,13 @@ export function createLogRow(params) {
   };
 }
 
+// Collapse the proto severity spectrum into the four common log levels so the
+// UI can style each row with a predictable palette.
 const severityGroups = [
   {
-    name: "trace",
-    numbers: new Set([1, 2, 3, 4]),
-    pattern: /trace/i,
-  },
-  {
     name: "debug",
-    numbers: new Set([5, 6, 7, 8]),
-    pattern: /debug/i,
+    numbers: new Set([1, 2, 3, 4, 5, 6, 7, 8]),
+    pattern: /trace|debug/i,
   },
   {
     name: "info",
@@ -241,13 +238,8 @@ const severityGroups = [
   },
   {
     name: "error",
-    numbers: new Set([17, 18, 19, 20]),
-    pattern: /error/i,
-  },
-  {
-    name: "fatal",
-    numbers: new Set([21, 22, 23, 24]),
-    pattern: /fatal|critical/i,
+    numbers: new Set([17, 18, 19, 20, 21, 22, 23, 24]),
+    pattern: /error|fatal|critical/i,
   },
 ];
 
@@ -477,7 +469,7 @@ function createLogRowElement(logRow, expandedIds) {
   message.className = "log-row-message";
   message.appendChild(buildTemplateFragment(logRow));
 
-  summary.append(severity, message, timestamp);
+  summary.append(timestamp, severity, message);
   details.appendChild(summary);
   details.appendChild(createMetaSection(logRow));
 
@@ -688,8 +680,8 @@ export const sampleLogRows = [
       "Ingest pipeline {{pipeline.id}} crashed: {{error.message}} (restarts {{restart.count}})",
     timeUnixNano: nowNano(-9000),
     observedTimeUnixNano: nowNano(-8000),
-    severityNumber: 21,
-    severityText: "FATAL",
+    severityNumber: 17,
+    severityText: "ERROR",
     traceId: fakeTraceId("ing-ff10"),
     spanId: fakeSpanId("dead"),
     flags: 0x1,
