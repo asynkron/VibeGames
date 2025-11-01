@@ -115,7 +115,7 @@ body {
 
 .effect-select {
   border-radius: 0.75rem;
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.4);
+  border: 1px solid rgb(var(--accent-primary-rgb) / 0.4);
   background: var(--surface-2);
   color: var(--text-strong);
   padding: 0.5rem 0.75rem;
@@ -126,8 +126,8 @@ body {
 
 .effect-select:focus-visible {
   outline: none;
-  border-color: rgba(var(--accent-secondary-rgb), 0.7);
-  box-shadow: 0 0 0 3px rgba(var(--accent-secondary-rgb), 0.25);
+  border-color: rgb(var(--accent-secondary-rgb) / 0.7);
+  box-shadow: 0 0 0 3px rgb(var(--accent-secondary-rgb) / 0.25);
   background: var(--surface-1);
 }
 
@@ -197,7 +197,7 @@ body {
 .dataset-select,
 .palette-select {
   border-radius: 999px;
-  border: 1px solid rgba(var(--accent-primary-rgb), 0.45);
+  border: 1px solid rgb(var(--accent-primary-rgb) / 0.45);
   background: var(--surface-2);
   color: var(--text-strong);
   padding: 0.45rem 0.9rem;
@@ -209,20 +209,17 @@ body {
 .dataset-select:focus-visible,
 .palette-select:focus-visible {
   outline: none;
-  border-color: rgba(var(--accent-secondary-rgb), 0.7);
-  box-shadow: 0 0 0 3px rgba(var(--accent-secondary-rgb), 0.25);
+  border-color: rgb(var(--accent-secondary-rgb) / 0.7);
+  box-shadow: 0 0 0 3px rgb(var(--accent-secondary-rgb) / 0.25);
   background: var(--surface-1);
 }
 
-.palette-picker {
-  justify-self: center;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-  font-size: 0.8rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-subtle);
+.effect-control--palette {
+  align-self: stretch;
+}
+
+.effect-control--palette .palette-select {
+  width: 100%;
 }
 
 .chart-shell {
@@ -248,9 +245,9 @@ body {
 
 .chart-shell[data-background-effect="radial"] {
   background:
-    radial-gradient(circle at 18% 12%, rgba(var(--accent-primary-rgb), 0.18), transparent 58%),
-    radial-gradient(circle at 82% 16%, rgba(var(--accent-tertiary-rgb), 0.16), transparent 55%),
-    radial-gradient(circle at 50% 80%, rgba(var(--accent-secondary-rgb), 0.12), transparent 60%),
+    radial-gradient(circle at 18% 12%, rgb(var(--accent-primary-rgb) / 0.18), transparent 58%),
+    radial-gradient(circle at 82% 16%, rgb(var(--accent-tertiary-rgb) / 0.16), transparent 55%),
+    radial-gradient(circle at 50% 80%, rgb(var(--accent-secondary-rgb) / 0.12), transparent 60%),
     var(--surface-2);
 }
 
@@ -261,8 +258,8 @@ body {
   border-radius: inherit;
   background: radial-gradient(
     circle at center,
-    rgba(var(--accent-primary-rgb), var(--chart-halo-opacity)) 0%,
-    rgba(var(--accent-primary-rgb), 0) 70%
+    rgb(var(--accent-primary-rgb) / var(--chart-halo-opacity)) 0%,
+    rgb(var(--accent-primary-rgb) / 0) 70%
   );
   filter: blur(var(--chart-halo-blur));
   opacity: var(--chart-halo-opacity);
@@ -316,8 +313,8 @@ body {
   border-radius: inherit;
   background: linear-gradient(
     90deg,
-    rgba(var(--accent-primary-rgb), 0.95),
-    rgba(var(--accent-tertiary-rgb), 0.9)
+    rgb(var(--accent-primary-rgb) / 0.95),
+    rgb(var(--accent-tertiary-rgb) / 0.9)
   );
   transition: width 0.45s ease;
 }
