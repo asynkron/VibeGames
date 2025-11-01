@@ -4,6 +4,7 @@
  */
 
 import { initLogConsole, sampleLogRows } from "./gravibe-logs.js";
+import { initTraceViewer, sampleTraceSpans } from "./gravibe-trace.js";
 
 const colorRoles = [
   "accentPrimary",
@@ -3976,6 +3977,12 @@ function initGravibe() {
   if (logConsoleHost) {
     const rerenderLogConsole = initLogConsole(logConsoleHost, sampleLogRows);
     componentRegistry.add(rerenderLogConsole);
+  }
+
+  const traceHost = document.querySelector('[data-component="traceViewer"]');
+  if (traceHost) {
+    const rerenderTrace = initTraceViewer(traceHost, sampleTraceSpans);
+    componentRegistry.add(rerenderTrace);
   }
 }
 
