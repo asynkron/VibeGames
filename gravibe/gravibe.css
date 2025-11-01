@@ -1040,7 +1040,8 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
-  table-layout: fixed;
+  table-layout: auto;
+  min-width: 100%;
 }
 
 .log-attributes-table thead {
@@ -1054,14 +1055,16 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-subtle);
-  width: 33.33%;
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 
 .log-attributes-table td {
   padding: 0.35rem 0.5rem;
   vertical-align: top;
   border-top: 1px solid rgba(80, 92, 110, 0.35);
-  width: 33.33%;
+  overflow-wrap: normal;
+  white-space: normal;
 }
 
 .log-attr {
