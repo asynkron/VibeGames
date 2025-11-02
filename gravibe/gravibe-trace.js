@@ -817,6 +817,14 @@ function renderSpanLogs(span) {
     const summary = document.createElement("summary");
     summary.className = "log-row-summary";
 
+    const expanderWrapper = document.createElement("span");
+    expanderWrapper.className = "log-row__expander-wrapper";
+    const expander = document.createElement("button");
+    expander.className = "log-row__expander";
+    expander.type = "button";
+    expander.setAttribute("aria-expanded", String(logElement.open));
+    expanderWrapper.appendChild(expander);
+
     const severity = document.createElement("span");
     severity.className = "log-row-severity";
     const severityGroup = resolveSeverityGroup(logRow);
@@ -835,7 +843,7 @@ function renderSpanLogs(span) {
     message.className = "log-row-message";
     message.appendChild(buildTemplateFragment(logRow));
 
-    summary.append(timestamp, severity, message);
+    summary.append(expanderWrapper, timestamp, severity, message);
     logElement.appendChild(summary);
     logElement.appendChild(createMetaSection(logRow));
 
@@ -845,6 +853,7 @@ function renderSpanLogs(span) {
       } else {
         expandedLogIds.delete(logRow.id);
       }
+      expander.setAttribute("aria-expanded", String(logElement.open));
     });
 
     logsList.append(logElement);

@@ -617,6 +617,14 @@ function createLogRowElement(logRow, expandedIds) {
   const summary = document.createElement("summary");
   summary.className = "log-row-summary";
 
+  const expanderWrapper = document.createElement("span");
+  expanderWrapper.className = "log-row__expander-wrapper";
+  const expander = document.createElement("button");
+  expander.className = "log-row__expander";
+  expander.type = "button";
+  expander.setAttribute("aria-expanded", String(details.open));
+  expanderWrapper.appendChild(expander);
+
   const severity = document.createElement("span");
   severity.className = "log-row-severity";
   const severityGroup = resolveSeverityGroup(logRow);
@@ -635,7 +643,7 @@ function createLogRowElement(logRow, expandedIds) {
   message.className = "log-row-message";
   message.appendChild(buildTemplateFragment(logRow));
 
-  summary.append(timestamp, severity, message);
+  summary.append(expanderWrapper, timestamp, severity, message);
   details.appendChild(summary);
   details.appendChild(createMetaSection(logRow));
 
@@ -645,6 +653,7 @@ function createLogRowElement(logRow, expandedIds) {
     } else {
       expandedIds.delete(logRow.id);
     }
+    expander.setAttribute("aria-expanded", String(details.open));
   });
 
   return details;
