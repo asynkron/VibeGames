@@ -15,7 +15,8 @@ import { componentRenderers } from "../charts/charts.js";
 import { initDatasetSelector } from "../charts/datasets.js";
 import { notifyLiveDatasetListeners, subscribeToLiveDataset } from "../core/utils.js";
 import { initLogConsole, appendLogsFromSpans } from "../ui/logs.js";
-import { initTraceViewer, sampleTraceSpans } from "../ui/trace.js";
+import { initTraceViewer } from "../ui/trace.js";
+import { sampleTraceSpans } from "../ui/sampleData.js";
 
 // We keep a registry of renderer callbacks so palette swaps can re-render everything in place.
 export const componentRegistry = new Set();
@@ -133,7 +134,7 @@ export function setupComponent(article) {
     componentRegistry.add(runRender);
 }
 
-export function initGravibe() {
+export async function initGravibe() {
     const defaultPalette =
         colorPalettes.find((palette) => palette.id === paletteState.activeId) ?? colorPalettes[0];
 
@@ -171,14 +172,22 @@ export function initGravibe() {
     components.forEach((component) => setupComponent(component));
 
     const logConsoleHost = document.querySelector('[data-component="logConsole"]');
+    const traceHost = document.querySelector('[data-component="traceViewer"]');
+    
+    // Always ensure logs are generated from spans first, before initializing either component
+    const allLogRows = await appendLogsFromSpans(sampleTraceSpans);
+    
+    // Ensure sampleLogRows module is loaded in trace.js before initializing trace viewer
+    if (traceHost) {
+        const { ensureSampleLogRowsLoaded } = await import("../ui/trace.js");
+        await ensureSampleLogRowsLoaded();
+    }
+    
     if (logConsoleHost) {
-        // Append logs generated from trace spans
-        const allLogRows = appendLogsFromSpans(sampleTraceSpans);
         const rerenderLogConsole = initLogConsole(logConsoleHost, allLogRows);
         componentRegistry.add(rerenderLogConsole);
     }
 
-    const traceHost = document.querySelector('[data-component="traceViewer"]');
     if (traceHost) {
         const rerenderTrace = initTraceViewer(traceHost, sampleTraceSpans);
         console.log("[initGravibe] Trace viewer initialized, component:", rerenderTrace);

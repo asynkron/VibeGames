@@ -1137,187 +1137,9 @@ function generateLogsForSpan(span) {
   return logs;
 }
 
-/**
- * Semi-realistic sample rows generated from trace spans.
- */
-export const sampleLogRows = [
-  createLogRow({
-    id: "log-boot",
-    template:
-      "Node {{resource.node}} started worker {{worker.id}} for job {{job.name}} in {{region}} region",
-    timeUnixNano: nowNano(-120000),
-    observedTimeUnixNano: nowNano(-115000),
-    severityNumber: 9,
-    severityText: "INFO",
-    traceId: fakeTraceId("boot001a"),
-    spanId: fakeSpanId("a1f7"),
-    attributes: [
-      createLogAttribute("resource.node", anyValues.string("gravibe-ingest-03")),
-      createLogAttribute("worker.id", anyValues.int(42)),
-      createLogAttribute("job.name", anyValues.string("daily-compaction")),
-      createLogAttribute("region", anyValues.string("eu-central")),
-      createLogAttribute("worker.cold_start", anyValues.bool(false)),
-      createLogAttribute(
-        "worker.capabilities",
-        anyValues.array([
-          anyValues.string("logs"),
-          anyValues.string("metrics"),
-          anyValues.string("profiles"),
-        ])
-      ),
-    ],
-    body: anyValues.string("Worker runtime initialized"),
-  }),
-  createLogRow({
-    id: "log-rate-limit",
-    template: "Rate limiter triggered on route {{http.route}} with {{rate.limit}} requests/min",
-    timeUnixNano: nowNano(-75000),
-    observedTimeUnixNano: nowNano(-74000),
-    severityNumber: 13,
-    severityText: "WARN",
-    traceId: fakeTraceId("rl-87be"),
-    spanId: fakeSpanId("12ef"),
-    attributes: [
-      createLogAttribute("http.route", anyValues.string("/api/session")),
-      createLogAttribute("http.method", anyValues.string("POST")),
-      createLogAttribute("rate.limit", anyValues.int(900)),
-      createLogAttribute("client.id", anyValues.string("orbital-console")),
-      createLogAttribute("limit.exceeded", anyValues.bool(true)),
-      createLogAttribute(
-        "sample.requests",
-        anyValues.array([
-          anyValues.kvlist([
-            ["ip", anyValues.string("10.42.1.22")],
-            ["duration_ms", anyValues.double(183.5)],
-          ]),
-          anyValues.kvlist([
-            ["ip", anyValues.string("10.42.1.23")],
-            ["duration_ms", anyValues.double(156.2)],
-          ]),
-        ])
-      ),
-    ],
-    body: anyValues.string("Throttled burst of session creations"),
-  }),
-  createLogRow({
-    id: "log-config",
-    template: "Updated config bundle {{config.name}} to revision {{config.revision}}",
-    timeUnixNano: nowNano(-51000),
-    severityNumber: 10,
-    severityText: "INFO2",
-    traceId: fakeTraceId("cfg-9dd1"),
-    spanId: fakeSpanId("88aa"),
-    attributes: [
-      createLogAttribute("config.name", anyValues.string("grafana-dashboards")),
-      createLogAttribute("config.revision", anyValues.int(128)),
-      createLogAttribute("config.author", anyValues.string("luna")),
-      createLogAttribute(
-        "config.diff",
-        anyValues.kvlist([
-          ["added_panels", anyValues.int(3)],
-          ["removed_panels", anyValues.int(1)],
-          ["validation", anyValues.bool(true)],
-        ])
-      ),
-      createLogAttribute("checksum", anyValues.bytes("c0ffee42")),
-    ],
-    body: anyValues.string("Config pushed via automation"),
-  }),
-  createLogRow({
-    id: "log-latency",
-    template: "Latency probe {{probe.name}} measured p95 {{latency.p95_ms}} ms",
-    timeUnixNano: nowNano(-32000),
-    observedTimeUnixNano: nowNano(-30000),
-    severityNumber: 13,
-    severityText: "WARN2",
-    traceId: fakeTraceId("lat-5521"),
-    spanId: fakeSpanId("7771"),
-    attributes: [
-      createLogAttribute("probe.name", anyValues.string("edge-vectors")),
-      createLogAttribute("latency.p95_ms", anyValues.double(412.8)),
-      createLogAttribute("latency.sample_size", anyValues.int(240)),
-      createLogAttribute("latency.threshold_ms", anyValues.double(250)),
-      createLogAttribute("slo.breach", anyValues.bool(true)),
-    ],
-    body: anyValues.string("Latency beyond SLO for 3 consecutive checks"),
-  }),
-  createLogRow({
-    id: "log-fatal",
-    template:
-      "Ingest pipeline {{pipeline.id}} crashed: {{error.message}} (restarts {{restart.count}})",
-    timeUnixNano: nowNano(-9000),
-    observedTimeUnixNano: nowNano(-8000),
-    severityNumber: 17,
-    severityText: "ERROR",
-    traceId: fakeTraceId("ing-ff10"),
-    spanId: fakeSpanId("dead"),
-    flags: 0x1,
-    droppedAttributesCount: 2,
-    attributes: [
-      createLogAttribute("pipeline.id", anyValues.string("gravibe-stream-01")),
-      createLogAttribute("error.message", anyValues.string("out of memory")),
-      createLogAttribute("error.code", anyValues.string("OOM-7")),
-      createLogAttribute("restart.count", anyValues.int(5)),
-      createLogAttribute(
-        "last.restart",
-        anyValues.kvlist([
-          ["time", anyValues.string("2024-04-23T07:11:02Z")],
-          ["duration_ms", anyValues.double(1420.6)],
-          ["strategy", anyValues.string("backoff")],
-        ])
-      ),
-    ],
-    body: anyValues.string("Pipeline entered crash loop"),
-  }),
-  createLogRow({
-    id: "log-long-text-1",
-    template: "Processing request {{request.id}} with a very long description that should wrap nicely across multiple lines when displayed in the log row message area. This is to test how word wrapping works with extended text content that exceeds the normal column width.",
-    timeUnixNano: nowNano(-8000),
-    severityNumber: 9,
-    severityText: "INFO",
-    traceId: fakeTraceId("long-001"),
-    spanId: fakeSpanId("long1"),
-    attributes: [
-      createLogAttribute("request.id", anyValues.string("req-1234567890-abcdefghijklmnopqrstuvwxyz")),
-      createLogAttribute("request.description", anyValues.string("This is an extremely long description that contains many words and should demonstrate how text wrapping behaves in the attribute table component when dealing with lengthy string values that exceed the normal column boundaries.")),
-      createLogAttribute("request.path", anyValues.string("/api/v1/very/long/endpoint/path/that/extends/beyond/normal/length")),
-    ],
-  }),
-  createLogRow({
-    id: "log-long-text-2",
-    template: "User {{user.email}} performed action {{action.type}} on resource {{resource.name}} in namespace {{namespace.id}} with parameters {{params.count}}",
-    timeUnixNano: nowNano(-7000),
-    severityNumber: 9,
-    severityText: "INFO",
-    traceId: fakeTraceId("long-002"),
-    spanId: fakeSpanId("long2"),
-    attributes: [
-      createLogAttribute("user.email", anyValues.string("very.long.email.address@extremely-long-domain-name.example.com")),
-      createLogAttribute("action.type", anyValues.string("CREATE_RESOURCE_WITH_COMPLEX_OPERATION")),
-      createLogAttribute("resource.name", anyValues.string("my-very-long-resource-name-that-extends-beyond-normal-length-and-tests-wrapping")),
-      createLogAttribute("namespace.id", anyValues.string("production-environment-long-namespace-identifier-with-many-segments")),
-      createLogAttribute("params.count", anyValues.int(42)),
-      createLogAttribute("params.details", anyValues.string("This parameter contains a lot of detailed information about the operation that was performed, including all the various steps and intermediate states that were encountered during processing.")),
-    ],
-  }),
-  createLogRow({
-    id: "log-long-text-3",
-    template: "Database query executed successfully but took {{duration.ms}} milliseconds which is longer than expected. The query was: SELECT * FROM users WHERE email = {{query.email}} AND status = {{query.status}} AND created_at > {{query.created_at}} ORDER BY created_at DESC LIMIT {{query.limit}}",
-    timeUnixNano: nowNano(-6000),
-    severityNumber: 13,
-    severityText: "WARN",
-    traceId: fakeTraceId("long-003"),
-    spanId: fakeSpanId("long3"),
-    attributes: [
-      createLogAttribute("duration.ms", anyValues.double(1250.75)),
-      createLogAttribute("query.email", anyValues.string("user@example.com")),
-      createLogAttribute("query.status", anyValues.string("active")),
-      createLogAttribute("query.created_at", anyValues.string("2024-01-01T00:00:00Z")),
-      createLogAttribute("query.limit", anyValues.int(100)),
-      createLogAttribute("query.explanation", anyValues.string("This query is designed to retrieve all active users who were created after a certain date, sorted by creation time in descending order, with a limit on the number of results returned.")),
-    ],
-  }),
-];
+// sampleLogRows moved to ui/sampleData.js
+// Note: Not re-exporting here to avoid circular dependency
+// Import directly from "./sampleData.js" where needed
 
 /**
  * Creates virtual log entries for a span (span start, span end, events).
@@ -1393,7 +1215,10 @@ function createVirtualSpanLogs(span) {
  * Generates log rows from trace spans and appends them to the sample log rows.
  * This is called after both modules are loaded to avoid circular dependencies.
  */
-export function appendLogsFromSpans(spans) {
+export async function appendLogsFromSpans(spans) {
+  // Lazy import to avoid circular dependency
+  const { sampleLogRows } = await import("./sampleData.js");
+
   // Generate realistic logs for each span
   const spanLogs = spans.flatMap(span => generateLogsForSpan(span));
   sampleLogRows.push(...spanLogs);
