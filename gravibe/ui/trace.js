@@ -1269,11 +1269,18 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
   svg.style.height = `${SVG_HEIGHT}px`;
 
   // Background - use UI surface color from CSS variables
+  // Read from computed styles to ensure we get the current palette value
   const root = document.documentElement;
   const style = getComputedStyle(root);
-  const surfaceColor = style.getPropertyValue("--ui-surface-2").trim() || "#1e2129";
+  let surfaceColor = style.getPropertyValue("--ui-surface-2").trim();
+  
+  // Fallback if CSS variable is not set
+  if (!surfaceColor) {
+    surfaceColor = "#1e2129"; // Dark fallback
+  }
   
   const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  background.setAttribute("class", "trace-preview-background");
   background.setAttribute("x", "0");
   background.setAttribute("y", "0");
   background.setAttribute("width", "100");
@@ -1635,6 +1642,16 @@ export function renderTrace(host, trace, state) {
     }
   );
   host.append(preview);
+  
+  // Update SVG background color after it's in the DOM to ensure CSS variables are computed
+  // Find the background rect element and update its fill
+  const backgroundRect = preview.querySelector("rect.trace-preview-background");
+  if (backgroundRect) {
+    const root = document.documentElement;
+    const style = getComputedStyle(root);
+    const surfaceColor = style.getPropertyValue("--ui-surface-2").trim() || "#1e2129";
+    backgroundRect.setAttribute("fill", surfaceColor);
+  }
 
   const list = document.createElement("div");
   list.className = "trace-span-list";

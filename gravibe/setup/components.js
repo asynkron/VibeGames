@@ -19,12 +19,19 @@ import { initTraceViewer, sampleTraceSpans } from "../ui/trace.js";
 export const componentRegistry = new Set();
 
 export function rerenderAllComponents() {
-    componentRegistry.forEach((rerender) => {
-        try {
-            rerender();
-        } catch (error) {
-            console.error("Failed to re-render component", error);
-        }
+    // Force a reflow to ensure CSS variables are applied, then re-render
+    // requestAnimationFrame ensures the browser has processed style updates
+    requestAnimationFrame(() => {
+        // Force a synchronous layout calculation to ensure CSS variables are readable
+        void document.documentElement.offsetHeight;
+        
+        componentRegistry.forEach((rerender) => {
+            try {
+                rerender();
+            } catch (error) {
+                console.error("Failed to re-render component", error);
+            }
+        });
     });
 }
 
