@@ -851,7 +851,6 @@ body {
 }
 
 .trace-span__details {
-  margin-left: 40px;
   padding: 0.85rem 1.1rem;
   background: var(--surface-3);
   transition: opacity 0.2s ease;
