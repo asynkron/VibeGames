@@ -18,23 +18,10 @@ export const DEFAULT_BACKGROUND_EFFECT = "linear";
 export const LIVE_DEFAULT_INTERVAL = 2600;
 
 // Each entry describes a selectable base palette so designers can add new themes quickly.
-export const colorPalettes = [
-  {
-    id: "palette-1",
-    label: "Palette 1 — Gravibe Sunrise",
-    colors: ["#ef476f", "#ffd166", "#06d6a0", "#00c0ff", "#073b4c"],
-  },
-  {
-    id: "palette-2",
-    label: "Palette 2 — Cosmic Magenta",
-    colors: ["#390099", "#9e0059", "#ff0054", "#00c0ff", "#ffbd00"],
-  },
-  {
-    id: "palette-3",
-    label: "Palette 3 — Retro Pop",
-    colors: ["#ff595e", "#ffca3a", "#8ac926", "#00c0ff", "#6a4c93"],
-  },
-];
+// Palettes are now defined in individual files under the /themes folder
+import { palette1, palette2, palette3 } from "./themes/index.js";
+
+export const colorPalettes = [palette1, palette2, palette3];
 
 // Shared outline tone so every chart can render the same dark rim as the pie slices.
 export const chartOutlineColor = "rgba(15, 23, 42, 0.95)";
