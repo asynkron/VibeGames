@@ -731,11 +731,11 @@ body {
 }
 
 .trace-span__timeline::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--ui-surface-2);
-  z-index: 0;
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--ui-surface-2) 50%, transparent);
+    z-index: 0;
 }
 
 .trace-span__timeline:disabled,
