@@ -857,7 +857,7 @@ body {
   z-index: 10000;
   pointer-events: none;
   max-width: 500px;
-  min-width: 300px;
+  min-width: max(300px, 25vw); /* At least 25% of viewport width, but never less than 300px */
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   opacity: 0;
@@ -871,11 +871,14 @@ body {
 }
 
 .trace-span__marker-tooltip .log-card {
+  min-width: 100%; /* Fill the tooltip container */
+  width: 100%; /* Ensure it takes full width */
   max-width: 100%;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   background: var(--ui-surface-1);
   padding: 0.75rem 1rem;
   border: 1px solid var(--ui-border);
+  box-sizing: border-box; /* Include padding and border in width calculation */
 }
 
 .trace-span__details {
