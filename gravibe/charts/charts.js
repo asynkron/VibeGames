@@ -1853,3 +1853,4 @@ export const componentRenderers = {
   funnel: renderFunnel,
   stat: renderStat,
   barGauge: renderBarGauge,
+};

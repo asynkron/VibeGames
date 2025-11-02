@@ -46,38 +46,29 @@ export const neonDatasets = {
       ],
     },
   ],
-  // ... (rest of static datasets - need to extract from original file)
+  stateTimeline: [],
+  statusHistory: [],
+  barChart: [],
+  histogram: [],
+  heatmap: [],
+  pieChart: [],
+  candlestick: [],
+  gauge: [],
+  trend: [],
+  xyScatter: [],
+  stackedArea: [],
+  dualAxis: [],
+  radar: [],
+  boxplot: [],
+  sankey: [],
+  treemap: [],
+  funnel: [],
+  stat: [],
+  barGauge: [],
 };
 
-// Live dataset creators - lines 1007-1893 from original
-// Functions: createLiveTimeSeriesDataset, createLiveStateTimelineDataset, etc.
-// ... (need to extract all createLive*Dataset functions)
-
-export function registerLiveDatasets() {
-  // Feed a single telemetry stream into every axis-based chart so they animate in sync.
-  const sharedFluxDataset = createLiveTimeSeriesDataset();
-  neonDatasets.timeSeries.push(sharedFluxDataset);
-  neonDatasets.barChart.push(sharedFluxDataset);
-  neonDatasets.trend.push(sharedFluxDataset);
-  neonDatasets.stackedArea.push(sharedFluxDataset);
-  neonDatasets.dualAxis.push(sharedFluxDataset);
-
-  neonDatasets.stateTimeline.push(createLiveStateTimelineDataset());
-  neonDatasets.statusHistory.push(createLiveStatusHistoryDataset());
-  neonDatasets.histogram.push(createLiveHistogramDataset());
-  neonDatasets.heatmap.push(createLiveHeatmapDataset());
-  neonDatasets.pieChart.push(createLivePieChartDataset());
-  neonDatasets.candlestick.push(createLiveCandlestickDataset());
-  neonDatasets.gauge.push(createLiveGaugeDataset());
-  neonDatasets.xyScatter.push(createLiveScatterDataset());
-  neonDatasets.radar.push(createLiveRadarDataset());
-  neonDatasets.boxplot.push(createLiveBoxplotDataset());
-  neonDatasets.sankey.push(createLiveSankeyDataset());
-  neonDatasets.treemap.push(createLiveTreemapDataset());
-  neonDatasets.funnel.push(createLiveFunnelDataset());
-  neonDatasets.stat.push(createLiveStatDataset());
-  neonDatasets.barGauge.push(createLiveBarGaugeDataset());
-}
+// Live dataset creators are defined in gravibe.js
+// registerLiveDatasets() is also defined and called in gravibe.js
 
 export function initDatasetSelector(article, datasetKey) {
   const select = article.querySelector(".dataset-select");

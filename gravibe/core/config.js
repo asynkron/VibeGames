@@ -19,9 +19,9 @@ export const LIVE_DEFAULT_INTERVAL = 2600;
 
 // Each entry describes a selectable base palette so designers can add new themes quickly.
 // Palettes are now defined in individual files under the /themes folder
-import { palette1, palette2, palette3 } from "../themes/index.js";
+import { colorPalettes } from "../themes/index.js";
 
-export const colorPalettes = [palette1, palette2, palette3];
+export { colorPalettes };
 
 // Shared outline tone so every chart can render the same dark rim as the pie slices.
 export const chartOutlineColor = "rgba(15, 23, 42, 0.95)";
