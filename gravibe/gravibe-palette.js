@@ -68,16 +68,65 @@ export function colorWithAlpha(colorRef, alpha) {
 
 function buildPaletteMapping(palette) {
     const mapping = {};
-    colorRoles.forEach((role, index) => {
-        const color = palette.colors[index % palette.colors.length];
-        mapping[role] = color;
-    });
+    
+    // Map palette colors (primary, secondary, etc.) to accent roles for backward compatibility
+    if (palette.palette) {
+        const paletteColorMap = {
+            primary: "accentPrimary",
+            secondary: "accentSecondary",
+            tertiary: "accentTertiary",
+            quaternary: "accentQuaternary",
+            quinary: "accentQuinary",
+            senary: "accentSenary",
+        };
+        
+        Object.entries(paletteColorMap).forEach(([key, role]) => {
+            if (palette.palette[key]) {
+                mapping[role] = palette.palette[key];
+            }
+        });
+    }
+    
+    // Map logging colors
+    if (palette.logging) {
+        Object.entries(palette.logging).forEach(([level, color]) => {
+            mapping[`logging${level.charAt(0).toUpperCase() + level.slice(1)}`] = color;
+        });
+    }
+    
+    // Backward compatibility: if palette has old 'colors' array, map by index
+    if (!palette.palette && palette.colors && Array.isArray(palette.colors)) {
+        colorRoles.forEach((role, index) => {
+            const color = palette.colors[index % palette.colors.length];
+            mapping[role] = color;
+        });
+    }
+    
     return mapping;
 }
 
 // Initialize with first palette
 if (colorPalettes[0]) {
     paletteState.activeMapping = buildPaletteMapping(colorPalettes[0]);
+}
+
+export function getLoggingColor(level) {
+    const normalizedLevel = level?.toLowerCase();
+    const mappingKey = `logging${normalizedLevel?.charAt(0).toUpperCase() + normalizedLevel?.slice(1) || ""}`;
+    return paletteState.activeMapping[mappingKey] || paletteState.activeMapping[`logging${level}`] || null;
+}
+
+export function getPaletteColor(name) {
+    const paletteColorMap = {
+        primary: "accentPrimary",
+        secondary: "accentSecondary",
+        tertiary: "accentTertiary",
+        quaternary: "accentQuaternary",
+        quinary: "accentQuinary",
+        senary: "accentSenary",
+    };
+    const role = paletteColorMap[name] || name;
+    return paletteState.activeMapping[role] || null;
 }
 
 export function applyPalette(palette) {
@@ -90,10 +139,23 @@ export function applyPalette(palette) {
         const cssVar = toCssVar(role);
         const rgbVar = `${cssVar}-rgb`;
         const color = mapping[role];
-        const { r, g, b } = hexToRgb(color);
-        root.style.setProperty(cssVar, color);
-        root.style.setProperty(rgbVar, `${r} ${g} ${b}`);
+        if (color) {
+            const { r, g, b } = hexToRgb(color);
+            root.style.setProperty(cssVar, color);
+            root.style.setProperty(rgbVar, `${r} ${g} ${b}`);
+        }
     });
+
+    // Also set CSS variables for logging colors
+    if (palette.logging) {
+        Object.entries(palette.logging).forEach(([level, color]) => {
+            const cssVar = `--logging-${level}`;
+            const rgbVar = `--logging-${level}-rgb`;
+            const { r, g, b } = hexToRgb(color);
+            root.style.setProperty(cssVar, color);
+            root.style.setProperty(rgbVar, `${r} ${g} ${b}`);
+        });
+    }
 
     if (rerenderCallback) {
         rerenderCallback();

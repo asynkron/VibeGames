@@ -413,11 +413,15 @@ const severityGroups = [
 
 export function resolveSeverityGroup(logRow) {
   const { severityNumber, severityText } = logRow;
-  // Special handling for "event" and "span" severity
+  // Special handling for "event", "span", and "critical" severity
   if (typeof severityText === "string") {
     const lowerText = severityText.toLowerCase();
     if (lowerText === "event" || lowerText === "span") {
       return lowerText;
+    }
+    // Handle "critical" as a separate severity level
+    if (lowerText === "critical" || lowerText.startsWith("crt")) {
+      return "critical";
     }
   }
   if (typeof severityNumber === "number") {

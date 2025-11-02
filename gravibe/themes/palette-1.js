@@ -5,6 +5,22 @@
 export const palette1 = {
     id: "palette-1",
     label: "Palette 1 — Gravibe Sunrise",
-    colors: ["#ef476f", "#ffd166", "#06d6a0", "#00c0ff", "#073b4c"],
+    palette: {
+        primary: "#ef476f",
+        secondary: "#ffd166",
+        tertiary: "#06d6a0",
+        quaternary: "#00c0ff",
+        quinary: "#073b4c",
+        senary: "#073b4c",
+    },
+    logging: {
+        debug: "#6b7280",
+        information: "#3b82f6",
+        warning: "#f59e0b",
+        error: "#ef476f",
+        critical: "#dc2626",
+        event: "#06d6a0",
+        span: "#00c0ff",
+    },
 };
 

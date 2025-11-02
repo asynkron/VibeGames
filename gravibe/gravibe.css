@@ -796,27 +796,39 @@ body {
 }
 
 .trace-span__marker--log::before {
-  background: var(--accent-tertiary);
+  background: var(--logging-information, var(--accent-tertiary));
 }
 
 .trace-span__marker--severity-debug::before {
-  background: var(--text-muted);
+  background: var(--logging-debug, var(--text-muted));
 }
 
 .trace-span__marker--severity-info::before {
-  background: var(--accent-tertiary);
+  background: var(--logging-information, var(--accent-tertiary));
 }
 
 .trace-span__marker--severity-warn::before {
-  background: var(--accent-secondary);
+  background: var(--logging-warning, var(--accent-secondary));
 }
 
 .trace-span__marker--severity-error::before {
-  background: var(--accent-error);
+  background: var(--logging-error, var(--accent-error));
+}
+
+.trace-span__marker--severity-critical::before {
+  background: var(--logging-critical, var(--logging-error, var(--accent-error)));
+}
+
+.trace-span__marker--severity-event::before {
+  background: var(--logging-event, var(--accent-quaternary));
+}
+
+.trace-span__marker--severity-span::before {
+  background: var(--logging-span, var(--accent-primary));
 }
 
 .trace-span__marker--event::before {
-  background: var(--accent-quaternary);
+  background: var(--logging-event, var(--accent-quaternary));
 }
 
 .trace-span__marker:hover::before {
@@ -1243,39 +1255,45 @@ body {
 }
 
 .log-row--severity-debug .log-row-severity {
-  color: var(--text-muted);
-  border-color: rgba(125, 138, 158, 0.45);
-  background: rgba(82, 90, 104, 0.25);
+  color: var(--logging-debug, var(--text-muted));
+  border-color: rgb(var(--logging-debug-rgb, 107 114 128) / 0.45);
+  background: rgb(var(--logging-debug-rgb, 107 114 128) / 0.16);
 }
 
 .log-row--severity-info .log-row-severity {
-  color: var(--accent-tertiary);
-  border-color: rgb(var(--accent-tertiary-rgb) / 0.45);
-  background: rgb(var(--accent-tertiary-rgb) / 0.16);
+  color: var(--logging-information, var(--accent-tertiary));
+  border-color: rgb(var(--logging-information-rgb, 59 130 246) / 0.45);
+  background: rgb(var(--logging-information-rgb, 59 130 246) / 0.16);
 }
 
 .log-row--severity-warn .log-row-severity {
-  color: var(--accent-secondary);
-  border-color: rgb(var(--accent-secondary-rgb) / 0.45);
-  background: rgb(var(--accent-secondary-rgb) / 0.16);
+  color: var(--logging-warning, var(--accent-secondary));
+  border-color: rgb(var(--logging-warning-rgb, 245 158 11) / 0.45);
+  background: rgb(var(--logging-warning-rgb, 245 158 11) / 0.16);
 }
 
 .log-row--severity-error .log-row-severity {
-  color: var(--accent-error);
-  border-color: rgb(var(--accent-error-rgb) / 0.55);
-  background: rgb(var(--accent-error-rgb) / 0.18);
+  color: var(--logging-error, var(--accent-error));
+  border-color: rgb(var(--logging-error-rgb, 239 71 111) / 0.55);
+  background: rgb(var(--logging-error-rgb, 239 71 111) / 0.18);
+}
+
+.log-row--severity-critical .log-row-severity {
+  color: var(--logging-critical, var(--logging-error, var(--accent-error)));
+  border-color: rgb(var(--logging-critical-rgb, 220 38 38) / 0.55);
+  background: rgb(var(--logging-critical-rgb, 220 38 38) / 0.18);
 }
 
 .log-row--severity-event .log-row-severity {
-  color: var(--accent-quaternary);
-  border-color: rgb(var(--accent-quaternary-rgb) / 0.45);
-  background: rgb(var(--accent-quaternary-rgb) / 0.16);
+  color: var(--logging-event, var(--accent-quaternary));
+  border-color: rgb(var(--logging-event-rgb, 6 214 160) / 0.45);
+  background: rgb(var(--logging-event-rgb, 6 214 160) / 0.16);
 }
 
 .log-row--severity-span .log-row-severity {
-  color: var(--accent-primary);
-  border-color: rgb(var(--accent-primary-rgb) / 0.45);
-  background: rgb(var(--accent-primary-rgb) / 0.16);
+  color: var(--logging-span, var(--accent-primary));
+  border-color: rgb(var(--logging-span-rgb, 0 192 255) / 0.45);
+  background: rgb(var(--logging-span-rgb, 0 192 255) / 0.16);
 }
 
 .log-card {
@@ -1331,33 +1349,38 @@ body {
 }
 
 .log-card--severity-debug .log-card-severity {
-  color: var(--text-muted);
-  background: rgba(82, 90, 104, 0.25);
+  color: var(--logging-debug, var(--text-muted));
+  background: rgb(var(--logging-debug-rgb, 107 114 128) / 0.16);
 }
 
 .log-card--severity-info .log-card-severity {
-  color: var(--accent-tertiary);
-  background: rgb(var(--accent-tertiary-rgb) / 0.16);
+  color: var(--logging-information, var(--accent-tertiary));
+  background: rgb(var(--logging-information-rgb, 59 130 246) / 0.16);
 }
 
 .log-card--severity-warn .log-card-severity {
-  color: var(--accent-secondary);
-  background: rgb(var(--accent-secondary-rgb) / 0.16);
+  color: var(--logging-warning, var(--accent-secondary));
+  background: rgb(var(--logging-warning-rgb, 245 158 11) / 0.16);
 }
 
 .log-card--severity-error .log-card-severity {
-  color: var(--accent-error);
-  background: rgb(var(--accent-error-rgb) / 0.18);
+  color: var(--logging-error, var(--accent-error));
+  background: rgb(var(--logging-error-rgb, 239 71 111) / 0.18);
+}
+
+.log-card--severity-critical .log-card-severity {
+  color: var(--logging-critical, var(--logging-error, var(--accent-error)));
+  background: rgb(var(--logging-critical-rgb, 220 38 38) / 0.18);
 }
 
 .log-card--severity-event .log-card-severity {
-  color: var(--accent-quaternary);
-  background: rgb(var(--accent-quaternary-rgb) / 0.16);
+  color: var(--logging-event, var(--accent-quaternary));
+  background: rgb(var(--logging-event-rgb, 6 214 160) / 0.16);
 }
 
 .log-card--severity-span .log-card-severity {
-  color: var(--accent-primary);
-  background: rgb(var(--accent-primary-rgb) / 0.16);
+  color: var(--logging-span, var(--accent-primary));
+  background: rgb(var(--logging-span-rgb, 0 192 255) / 0.16);
 }
 
 @media (max-width: 720px) {
