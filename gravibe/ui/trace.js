@@ -7,6 +7,8 @@
 
 import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, abbreviateLogLevel, buildTemplateFragment, createMetaSection, createLogCard } from "./logs.js";
 import { createAttributeTable } from "./attributes.js";
+import { hexToRgb, hexToRgba, normalizeColorBrightness } from "../core/colors.js";
+import { getPaletteColors } from "../core/palette.js";
 
 /**
  * @typedef {ReturnType<typeof createTraceSpan>} TraceSpan
@@ -122,105 +124,6 @@ function buildServiceNameMapping(spans) {
   return mapping;
 }
 
-/**
- * Gets palette colors from CSS variables.
- * Reads from inline styles first (fastest, most up-to-date), then falls back to computed styles.
- * @returns {string[]} Array of palette color hex values
- */
-function getPaletteColors() {
-  console.log("[getPaletteColors] Called");
-  const root = document.documentElement;
-  // Use the same color roles that applyPalette uses
-  const colorRoles = ["accentPrimary", "accentSecondary", "accentTertiary", "accentQuaternary", "accentQuinary", "accentSenary"];
-  const colors = colorRoles.map((role) => {
-    // Convert role name to CSS variable (same as toCssVar in palette.js)
-    const cssVar = `--${role.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
-    // First try to read from inline style (set by applyPalette) - this is immediate
-    let value = root.style.getPropertyValue(cssVar).trim();
-    // If not found in inline style, fall back to computed style
-    if (!value) {
-      const style = getComputedStyle(root);
-      value = style.getPropertyValue(cssVar).trim();
-    }
-    // Filter out empty values
-    return value || null;
-  }).filter(Boolean);
-  // Return non-empty colors only
-  return colors.length > 0 ? colors : ["#00c0ff", "#9b59b6", "#2ecc71", "#f39c12", "#e74c3c", "#3498db"]; // Fallback palette
-}
-
-/**
- * Converts hex color to HSL
- * @param {string} hex - Hex color string (e.g., "#00c0ff")
- * @returns {{h: number, s: number, l: number}} HSL values (h: 0-360, s: 0-100, l: 0-100)
- */
-function hexToHsl(hex) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) {
-    return { h: 0, s: 0, l: 50 };
-  }
-
-  let r = Number.parseInt(result[1], 16) / 255;
-  let g = Number.parseInt(result[2], 16) / 255;
-  let b = Number.parseInt(result[3], 16) / 255;
-
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h, s, l = (max + min) / 2;
-
-  if (max === min) {
-    h = s = 0; // achromatic
-  } else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-      default: h = 0;
-    }
-  }
-
-  return {
-    h: Math.round(h * 360),
-    s: Math.round(s * 100),
-    l: Math.round(l * 100),
-  };
-}
-
-/**
- * Converts HSL to hex color
- * @param {number} h - Hue (0-360)
- * @param {number} s - Saturation (0-100)
- * @param {number} l - Lightness (0-100)
- * @returns {string} Hex color string
- */
-function hslToHex(h, s, l) {
-  l /= 100;
-  const a = (s * Math.min(l, 1 - l)) / 100;
-  const f = (n) => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-
-/**
- * Normalizes a hex color to a specific brightness/intensity.
- * Keeps the hue and saturation but sets a fixed lightness.
- * @param {string} hex - Hex color string
- * @param {number} lightness - Target lightness (0-100), default 65 for neon effect
- * @returns {string} Normalized hex color string
- */
-function normalizeColorBrightness(hex, lightness = 65, saturationMultiplier = 1.0) {
-  const hsl = hexToHsl(hex);
-  // Reduce saturation and set fixed lightness for consistent, less saturated colors
-  const desaturatedSaturation = hsl.s * saturationMultiplier;
-  return hslToHex(hsl.h, desaturatedSaturation, lightness);
-}
 
 /**
  * Builds a hierarchical trace model so spans become aware of their children
@@ -252,6 +155,8 @@ export function buildTraceModel(spans) {
     minStart = Math.min(minStart, start);
     maxEnd = Math.max(maxEnd, end);
     traceId = span.traceId || traceId;
+    //TODO: this is out meta-model
+    // add component information, group name and other information extracted from the core model
     spanNodes.set(span.spanId, { span, depth: 0, children: [] });
   });
 
@@ -928,17 +833,7 @@ function renderSpanSummary(trace, node, timeWindow = { start: 0, end: 100 }) {
     const colorIdx = serviceIdx % paletteLen;
     const palColor = paletteCols[colorIdx];
     const normColor = normalizeColorBrightness(palColor, 50, 0.7);
-
-    const hexToRgbHelper = (hex) => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? {
-        r: Number.parseInt(result[1], 16),
-        g: Number.parseInt(result[2], 16),
-        b: Number.parseInt(result[3], 16),
-      } : null;
-    };
-
-    return hexToRgbHelper(normColor);
+    return hexToRgb(normColor);
   };
 
   const serviceRgb = getServiceColor(serviceName);
@@ -989,15 +884,6 @@ function renderSpanSummary(trace, node, timeWindow = { start: 0, end: 100 }) {
   const normalizedColor = normalizeColorBrightness(paletteColor, 50, 0.7); // Lighter (50%) and desaturated (70% of original saturation)
 
   // Convert hex to RGB for rgba with opacity
-  const hexToRgb = (hex) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: Number.parseInt(result[1], 16),
-      g: Number.parseInt(result[2], 16),
-      b: Number.parseInt(result[3], 16),
-    } : null;
-  };
-
   const rgb = hexToRgb(normalizedColor);
   if (rgb) {
     // Use rgba with 0.6 opacity for less intense colors
@@ -1315,18 +1201,6 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
     const paletteColor = paletteColors[colorIndex];
     const normalizedColor = normalizeColorBrightness(paletteColor, 50, 0.7); // Desaturated (70% of original saturation)
     return normalizedColor;
-  };
-
-  // Helper to convert hex to RGBA
-  const hexToRgba = (hex, alpha = 0.6) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!result) {
-      return `rgba(97, 175, 239, ${alpha})`;
-    }
-    const r = Number.parseInt(result[1], 16);
-    const g = Number.parseInt(result[2], 16);
-    const b = Number.parseInt(result[3], 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
   // Render each span (preview always shows full range)
@@ -1658,18 +1532,6 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
       return normalizeColorBrightness(paletteColor, 50, 0.7);
     };
 
-    // Helper to convert hex to RGBA string
-    const hexToRgba = (hex, alpha = 0.6) => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      if (!result) {
-        return `rgba(97, 175, 239, ${alpha})`;
-      }
-      const r = Number.parseInt(result[1], 16);
-      const g = Number.parseInt(result[2], 16);
-      const b = Number.parseInt(result[3], 16);
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    };
-
     // Find all span rectangles (excluding background and overlays)
     const spanRects = svg.querySelectorAll("rect:not(.trace-preview-background):not(.trace-preview__selection)");
 
@@ -1950,23 +1812,6 @@ export function initTraceViewer(host, spans) {
         return "#61afef";
       }
       return normalizeColorBrightness(paletteColor, 50, 0.7);
-    };
-
-    // Helper to convert hex to RGB
-    const hexToRgb = (hex) => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? {
-        r: Number.parseInt(result[1], 16),
-        g: Number.parseInt(result[2], 16),
-        b: Number.parseInt(result[3], 16),
-      } : null;
-    };
-
-    // Helper to convert hex to RGBA string
-    const hexToRgba = (hex, alpha = 0.6) => {
-      const rgb = hexToRgb(hex);
-      if (!rgb) return `rgba(97, 175, 239, ${alpha})`;
-      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
     };
 
     // Update service color indicators in span summaries

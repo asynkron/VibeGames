@@ -145,6 +145,31 @@ export function getUIColor(name) {
     return paletteState.activeMapping[mappingKey] || null;
 }
 
+/**
+ * Gets palette colors from CSS variables.
+ * Reads from inline styles first (fastest, most up-to-date), then falls back to computed styles.
+ * @returns {string[]} Array of palette color hex values
+ */
+export function getPaletteColors() {
+    const root = document.documentElement;
+    // Use the same color roles that applyPalette uses
+    const colors = colorRoles.map((role) => {
+        // Convert role name to CSS variable (same as toCssVar)
+        const cssVar = `--${role.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
+        // First try to read from inline style (set by applyPalette) - this is immediate
+        let value = root.style.getPropertyValue(cssVar).trim();
+        // If not found in inline style, fall back to computed style
+        if (!value) {
+            const style = getComputedStyle(root);
+            value = style.getPropertyValue(cssVar).trim();
+        }
+        // Filter out empty values
+        return value || null;
+    }).filter(Boolean);
+    // Return non-empty colors only, or fallback palette
+    return colors.length > 0 ? colors : ["#00c0ff", "#9b59b6", "#2ecc71", "#f39c12", "#e74c3c", "#3498db"];
+}
+
 export function applyPalette(palette) {
     console.log("[applyPalette] Called with palette:", palette.id);
     const mapping = buildPaletteMapping(palette);
