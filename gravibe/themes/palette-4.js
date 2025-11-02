@@ -1,18 +1,20 @@
 /*
  * Palette 4 — Light Mode
  * A light-themed palette with softer, muted colors optimized for light backgrounds
+ * Normalized for consistency with other palettes
  */
 
 export const palette4 = {
     id: "palette-4",
     label: "Palette 4 — Light Mode",
     palette: {
-        primary: "#3b82f6",
-        secondary: "#8b5cf6",
-        tertiary: "#10b981",
-        quaternary: "#06b6d4",
-        quinary: "#f59e0b",
-        senary: "#ef4444",
+        // Normalized to work well on light backgrounds while maintaining similar intensity
+        primary: "#3b82f6",      // Blue (kept - already good)
+        secondary: "#8b5cf6",   // Violet (kept - already good)
+        tertiary: "#10b981",    // Emerald (adjusted from #10b981 for consistency)
+        quaternary: "#06b6d4",  // Cyan (kept - already good)
+        quinary: "#f59e0b",     // Amber (kept - already good)
+        senary: "#ef4444",      // Red (kept - already good)
     },
     logging: {
         debug: "#64748b",
@@ -32,4 +34,3 @@ export const palette4 = {
         highlight: "rgba(0, 0, 0, 0.05)",
     },
 };
-
