@@ -7,7 +7,7 @@ import { colorRoles, colorPalettes } from "./config.js";
 
 export const paletteState = {
     activeMapping: {},
-    activeId: colorPalettes[0]?.id ?? "",
+    activeId: colorPalettes.find(p => p.id === "palette-5")?.id ?? colorPalettes[0]?.id ?? "",
 };
 
 // This will be set by setup/components.js to avoid circular dependency

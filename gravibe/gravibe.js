@@ -23,7 +23,7 @@ const colorRoles = [
 
 const DEFAULT_RENDERER_MODE = "svg";
 const BACKGROUND_EFFECTS = ["solid", "linear", "radial"];
-const DEFAULT_BACKGROUND_EFFECT = "linear";
+const DEFAULT_BACKGROUND_EFFECT = "solid";
 
 // Each entry describes a selectable base palette so designers can add new themes quickly.
 // Palettes and palette state are now imported from core modules
