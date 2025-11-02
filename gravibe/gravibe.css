@@ -1236,6 +1236,14 @@ body {
   display: inline;
 }
 
+/* When log-attr is used inside attribute table, override styles for proper table display */
+.log-attributes-table td.log-attr {
+  display: table-cell; /* Preserve table cell display */
+  font-size: inherit; /* Match table font size (var(--font-size-sm)) */
+  line-height: 1.4; /* Better line-height for table cells */
+  vertical-align: top; /* Ensure proper vertical alignment */
+}
+
 .log-attr--string {
   color: var(--accent-secondary);
 }
