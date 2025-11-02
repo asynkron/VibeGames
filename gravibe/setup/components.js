@@ -3,17 +3,18 @@
  * Component registry, setup, and initialization
  */
 
-import { colorPalettes } from "./gravibe-config.js";
-import { paletteState, applyPalette } from "./gravibe-palette.js";
-import { setRerenderCallback as setPaletteRerender } from "./gravibe-palette.js";
-import { setRerenderCallback as setEffectsRerender } from "./gravibe-effects.js";
-import { registerEffectControls, registerRendererControl, registerBackgroundControl } from "./gravibe-effects.js";
-import { neonDatasets } from "./gravibe-datasets.js";
-import { componentRenderers } from "./gravibe-charts.js";
-import { initDatasetSelector } from "./gravibe-datasets.js";
-import { notifyLiveDatasetListeners, subscribeToLiveDataset } from "./gravibe-utils.js";
-import { initLogConsole, appendLogsFromSpans } from "./gravibe-logs.js";
-import { initTraceViewer, sampleTraceSpans } from "./gravibe-trace.js";
+import { colorPalettes } from "../core/config.js";
+import { paletteState, applyPalette } from "../core/palette.js";
+import { setRerenderCallback as setPaletteRerender } from "../core/palette.js";
+import { setRerenderCallback as setEffectsRerender } from "../core/effects.js";
+import { registerEffectControls, registerRendererControl, registerBackgroundControl } from "../core/effects.js";
+import { neonDatasets } from "../charts/datasets.js";
+// TODO: Extract chart renderers from gravibe.js to charts/charts.js
+import { componentRenderers } from "../gravibe.js";
+import { initDatasetSelector } from "../charts/datasets.js";
+import { notifyLiveDatasetListeners, subscribeToLiveDataset } from "../core/utils.js";
+import { initLogConsole, appendLogsFromSpans } from "../ui/logs.js";
+import { initTraceViewer, sampleTraceSpans } from "../ui/trace.js";
 
 // We keep a registry of renderer callbacks so palette swaps can re-render everything in place.
 export const componentRegistry = new Set();

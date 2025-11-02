@@ -5,7 +5,7 @@
  * structure mappable from the proto payloads while remaining ergonomic in JS.
  */
 
-import { formatAnyValueInline, formatAnyValueMultiline, createAttributeTable } from "./gravibe-attributes.js";
+import { formatAnyValueInline, formatAnyValueMultiline, createAttributeTable } from "./attributes.js";
 
 /**
  * @typedef {Object} LogAnyValue
@@ -527,7 +527,7 @@ export function formatNanoseconds(value) {
 }
 
 // Re-export for external consumers
-export { formatAnyValueInline, formatAnyValueMultiline, createAttributeTable } from "./gravibe-attributes.js";
+export { formatAnyValueInline, formatAnyValueMultiline, createAttributeTable } from "./attributes.js";
 
 export function createMetaSection(logRow) {
   const wrapper = document.createElement("div");

@@ -3,7 +3,7 @@
  * Static datasets and live dataset creators
  */
 
-import { jitterValue, randomInt, randomFloat, weightedRandomPick } from "./gravibe-utils.js";
+import { jitterValue, randomInt, randomFloat, weightedRandomPick } from "../core/utils.js";
 
 // Static datasets object - lines 332-1005 from original
 export const neonDatasets = {

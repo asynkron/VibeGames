@@ -3,14 +3,14 @@
  * Color utilities and palette state management
  */
 
-import { colorRoles, colorPalettes } from "./gravibe-config.js";
+import { colorRoles, colorPalettes } from "./config.js";
 
 export const paletteState = {
     activeMapping: {},
     activeId: colorPalettes[0]?.id ?? "",
 };
 
-// This will be set by gravibe-components.js to avoid circular dependency
+// This will be set by setup/components.js to avoid circular dependency
 let rerenderCallback = null;
 
 export function setRerenderCallback(callback) {

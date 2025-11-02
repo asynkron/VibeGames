@@ -3,7 +3,7 @@
  * Helper functions for data manipulation and live dataset management
  */
 
-import { LIVE_DEFAULT_INTERVAL } from "./gravibe-config.js";
+import { LIVE_DEFAULT_INTERVAL } from "./config.js";
 
 export function clamp(value, min, max) {
     if (typeof min === "number") {

@@ -3,8 +3,8 @@
  * Glow, outline, and visual effect utilities
  */
 
-import { effectDefaults, DEFAULT_BACKGROUND_EFFECT, BACKGROUND_EFFECTS } from "./gravibe-config.js";
-import { colorWithAlpha } from "./gravibe-palette.js";
+import { effectDefaults, DEFAULT_BACKGROUND_EFFECT, BACKGROUND_EFFECTS } from "./config.js";
+import { colorWithAlpha } from "./palette.js";
 
 export const effectsState = { ...effectDefaults };
 
@@ -22,7 +22,7 @@ function normalizeBackgroundEffect(effect) {
     return BACKGROUND_EFFECTS.includes(effect) ? effect : DEFAULT_BACKGROUND_EFFECT;
 }
 
-// This will be set by gravibe-components.js to avoid circular dependency
+// This will be set by setup/components.js to avoid circular dependency
 let rerenderCallback = null;
 
 export function setRerenderCallback(callback) {

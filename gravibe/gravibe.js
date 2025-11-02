@@ -3,8 +3,8 @@
  * Each component exposes multiple datasets and detailed comments so AI agents can remix the visuals quickly.
  */
 
-import { initLogConsole, sampleLogRows, appendLogsFromSpans } from "./gravibe-logs.js";
-import { initTraceViewer, sampleTraceSpans } from "./gravibe-trace.js";
+import { initLogConsole, sampleLogRows, appendLogsFromSpans } from "./ui/logs.js";
+import { initTraceViewer, sampleTraceSpans } from "./ui/trace.js";
 
 const colorRoles = [
   "accentPrimary",
@@ -57,8 +57,8 @@ function normalizeBackgroundEffect(effect) {
 const backgroundState = {
   effect: normalizeBackgroundEffect(
     document.querySelector(".chart-shell")?.dataset.backgroundEffect ||
-      document.body?.dataset.backgroundEffect ||
-      DEFAULT_BACKGROUND_EFFECT
+    document.body?.dataset.backgroundEffect ||
+    DEFAULT_BACKGROUND_EFFECT
   ),
 };
 
@@ -2045,7 +2045,7 @@ function notifyLiveDatasetListeners(dataset) {
 
 function subscribeToLiveDataset(dataset, listener) {
   if (!dataset.live || typeof dataset.next !== "function") {
-    return () => {};
+    return () => { };
   }
 
   const controller = getLiveDatasetController(dataset);
@@ -3290,23 +3290,23 @@ function renderDualAxis(dataset, container) {
         },
         itemStyle: isBar
           ? {
-              borderRadius: [6, 6, 0, 0],
-              shadowBlur: withGlowBlur(18),
-              shadowColor: withGlowColor(series.color, 0.45),
-              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color },
-                { offset: 1, color: colorWithAlpha(series.color, 0.45) },
-              ]),
-              borderColor: chartOutlineColor,
-              borderWidth: withOutlineWidth(1),
-            }
+            borderRadius: [6, 6, 0, 0],
+            shadowBlur: withGlowBlur(18),
+            shadowColor: withGlowColor(series.color, 0.45),
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color },
+              { offset: 1, color: colorWithAlpha(series.color, 0.45) },
+            ]),
+            borderColor: chartOutlineColor,
+            borderWidth: withOutlineWidth(1),
+          }
           : {
-              color,
-              shadowBlur: withGlowBlur(16),
-              shadowColor: withGlowColor(series.color, 0.45),
-              borderColor: chartOutlineColor,
-              borderWidth: withOutlineWidth(1),
-            },
+            color,
+            shadowBlur: withGlowBlur(16),
+            shadowColor: withGlowColor(series.color, 0.45),
+            borderColor: chartOutlineColor,
+            borderWidth: withOutlineWidth(1),
+          },
       };
     }),
   });
@@ -3842,7 +3842,8 @@ function renderBarGauge(dataset, container) {
   return chart;
 }
 
-const componentRenderers = {
+// TODO: Extract chart renderers to charts/charts.js
+export const componentRenderers = {
   timeSeries: renderTimeSeries,
   stateTimeline: renderStateTimeline,
   statusHistory: renderStatusHistory,

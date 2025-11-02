@@ -5,8 +5,8 @@
  * definitions.
  */
 
-import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, abbreviateLogLevel, buildTemplateFragment, createMetaSection, createLogCard } from "./gravibe-logs.js";
-import { createAttributeTable } from "./gravibe-attributes.js";
+import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, abbreviateLogLevel, buildTemplateFragment, createMetaSection, createLogCard } from "./logs.js";
+import { createAttributeTable } from "./attributes.js";
 
 /**
  * @typedef {ReturnType<typeof createTraceSpan>} TraceSpan
@@ -32,7 +32,7 @@ export const SpanKind = Object.freeze({
  * @param {SpanKind=} params.kind
  * @param {number|bigint} params.startTimeUnixNano
  * @param {number|bigint} params.endTimeUnixNano
- * @param {Array<{ key: string, value: import("./gravibe-logs.js").LogAnyValue | Record<string, any> }>=} params.attributes
+ * @param {Array<{ key: string, value: import("./logs.js").LogAnyValue | Record<string, any> }>=} params.attributes
  * @param {TraceEvent[]=} params.events
  * @param {{ code: "STATUS_CODE_OK"|"STATUS_CODE_ERROR"|"STATUS_CODE_UNSET", message?: string }=} params.status
  * @param {{ name?: string, version?: string }=} params.instrumentationScope
@@ -75,7 +75,7 @@ export function createTraceSpan({
  * @param {Object} params
  * @param {string} params.name
  * @param {number|bigint} params.timeUnixNano
- * @param {Array<{ key: string, value: import("./gravibe-logs.js").LogAnyValue | Record<string, any> }>=} params.attributes
+ * @param {Array<{ key: string, value: import("./logs.js").LogAnyValue | Record<string, any> }>=} params.attributes
  * @returns {TraceEvent}
  */
 export function createTraceEvent({ name, timeUnixNano, attributes = [] }) {

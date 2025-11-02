@@ -4,7 +4,7 @@
  * in a structured table format with columns for name, type, and value.
  */
 
-import { LogAnyValueKind } from "./gravibe-logs.js";
+import { LogAnyValueKind } from "./logs.js";
 
 /**
  * @typedef {Object} LogAnyValue

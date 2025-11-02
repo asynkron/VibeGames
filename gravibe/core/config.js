@@ -19,7 +19,7 @@ export const LIVE_DEFAULT_INTERVAL = 2600;
 
 // Each entry describes a selectable base palette so designers can add new themes quickly.
 // Palettes are now defined in individual files under the /themes folder
-import { palette1, palette2, palette3 } from "./themes/index.js";
+import { palette1, palette2, palette3 } from "../themes/index.js";
 
 export const colorPalettes = [palette1, palette2, palette3];
 
