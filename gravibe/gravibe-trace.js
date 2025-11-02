@@ -5,7 +5,7 @@
  * definitions.
  */
 
-import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, buildTemplateFragment, createMetaSection, createLogCard } from "./gravibe-logs.js";
+import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds, resolveSeverityGroup, abbreviateLogLevel, buildTemplateFragment, createMetaSection, createLogCard } from "./gravibe-logs.js";
 import { createAttributeTable } from "./gravibe-attributes.js";
 
 /**
@@ -819,7 +819,9 @@ function renderSpanLogs(span) {
 
     const severity = document.createElement("span");
     severity.className = "log-row-severity";
-    severity.textContent = logRow.severityText ?? resolveSeverityGroup(logRow).toUpperCase();
+    const severityGroup = resolveSeverityGroup(logRow);
+    const severityToDisplay = logRow.severityText ?? severityGroup;
+    severity.textContent = abbreviateLogLevel(severityToDisplay);
 
     const timestamp = document.createElement("time");
     timestamp.className = "log-row-timestamp";
