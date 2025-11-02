@@ -1227,6 +1227,14 @@ body {
   white-space: normal;
 }
 
+.log-attributes-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.log-attributes-table tbody tr:hover {
+  background-color: var(--ui-highlight);
+}
+
 .log-attr {
   font-family: var(--font-mono);
   color: var(--accent-primary);
