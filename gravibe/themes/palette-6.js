@@ -30,6 +30,7 @@ export const palette6 = {
         text: "#abb2bf",          // Atom One Dark foreground
         headers: "#ffffff",
         highlight: "rgba(255, 255, 255, 0.05)",
+        border: "#3e4451",
     },
 };
 

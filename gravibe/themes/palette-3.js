@@ -31,5 +31,6 @@ export const palette3 = {
         text: "#d7dce3",
         headers: "#ffffff",
         highlight: "rgba(255, 255, 255, 0.05)",
+        border: "#3a404c",
     },
 };

@@ -32,5 +32,6 @@ export const palette2 = {
         text: "#e2e8f0",          // Slightly lighter for better contrast (was #d7dce3)
         headers: "#ffffff",
         highlight: "rgba(255, 255, 255, 0.06)", // Slightly more visible (was 0.05)
+        border: "#404755",
     },
 };

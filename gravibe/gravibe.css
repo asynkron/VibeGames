@@ -10,13 +10,14 @@
   --ui-text: #d7dce3;
   --ui-headers: #ffffff;
   --ui-highlight: rgba(255, 255, 255, 0.05);
+  --ui-border: #3a404c;
   
   /* Map legacy variables to UI colors for backward compatibility */
   --surface-0: var(--ui-surface-3);
   --surface-1: var(--ui-surface-1);
   --surface-2: var(--ui-surface-2);
   --surface-3: var(--ui-surface-3);
-  --surface-border: #3a404c;
+  --surface-border: var(--ui-border);
   --surface-border-subtle: rgba(88, 96, 109, 0.6);
   --text-strong: var(--ui-text);
   /* Muted and subtle text are derived from UI text with opacity */
@@ -221,7 +222,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  border: 1px solid var(--surface-border);
+  border: 1px solid var(--ui-border);
 }
 
 .component-card header {
@@ -285,7 +286,7 @@ body {
   isolation: isolate;
   border-radius: 8px;
   border-style: solid;
-  border-color: var(--surface-border);
+  border-color: var(--ui-border);
   border-width: calc(1px * var(--chart-outline-scale));
   background: var(--surface-2);
   padding: clamp(0.8rem, 2vw, 1.1rem);
@@ -361,7 +362,7 @@ body {
   border-radius: 8px;
   overflow: hidden;
   background: var(--surface-2);
-  border: 1px solid var(--surface-border);
+  border: 1px solid var(--ui-border);
 }
 
 .bar-gauge-fill {
@@ -407,7 +408,7 @@ body {
   width: 100%;
   background: var(--ui-surface-1);
   border-radius: 12px;
-  border: 1px solid rgba(104, 116, 136, 0.35);
+  border: 1px solid var(--ui-border);
   box-shadow: var(--shadow-soft);
   padding: clamp(1.5rem, 4vw, 2.25rem);
   display: grid;
@@ -418,7 +419,7 @@ body {
   width: 100%;
   background: var(--ui-surface-1);
   border-radius: 12px;
-  border: 1px solid rgba(104, 116, 136, 0.35);
+  border: 1px solid var(--ui-border);
   box-shadow: var(--shadow-soft);
   padding: clamp(1.5rem, 4vw, 2.25rem);
   display: grid;
@@ -523,7 +524,7 @@ body {
   top: 0;
   width: 1px;
   height: 50%;
-  background: rgb(55, 60, 68);
+  background: var(--ui-border);
   pointer-events: none;
   z-index: 0;
 }
@@ -537,7 +538,7 @@ body {
   top: 50%;
   width: calc(var(--trace-indent-width, 1rem) / 2);
   height: 1px;
-  background: rgb(55, 60, 68);
+  background: var(--ui-border);
   pointer-events: none;
   z-index: 0;
 }
@@ -553,7 +554,7 @@ body {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgb(55, 60, 68);
+  background: var(--ui-border);
   pointer-events: none;
   z-index: 0;
 }
@@ -874,7 +875,7 @@ body {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   background: var(--ui-surface-1);
   padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--ui-border);
 }
 
 .trace-span__details {
@@ -1007,11 +1008,6 @@ body {
 .log-row {
   background: var(--ui-surface-1);
   transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
-}
-
-.log-row[open] {
-  box-shadow: 0 0 0 1px rgb(var(--accent-secondary-rgb) / 0.45);
-  transform: translateY(-1px);
 }
 
 .log-row-summary:hover {
@@ -1225,7 +1221,7 @@ body {
 .log-attributes-table td {
   padding: 0.35rem 0.5rem;
   vertical-align: top;
-  border-top: 1px solid rgba(80, 92, 110, 0.35);
+  border-top: 1px solid var(--ui-border);
   overflow-wrap: break-word;
   word-break: break-all;
   white-space: normal;
@@ -1360,7 +1356,7 @@ body {
   gap: 1rem;
   margin-top: 0.25rem;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(80, 92, 110, 0.35);
+  border-top: 1px solid var(--ui-border);
 }
 
 .log-card--severity-debug .log-card-severity {

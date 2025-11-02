@@ -30,6 +30,7 @@ export const palette5 = {
         text: "#f8f8f2",          // Monokai foreground
         headers: "#ffffff",
         highlight: "rgba(255, 255, 255, 0.05)",
+        border: "#3e3e3e",
     },
 };
 

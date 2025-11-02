@@ -30,6 +30,7 @@ export const palette7 = {
         text: "#ebdbb2",          // Gruvbox light foreground
         headers: "#fbf1c7",       // Gruvbox light background color
         highlight: "rgba(255, 255, 255, 0.05)",
+        border: "#504945",
     },
 };
 
