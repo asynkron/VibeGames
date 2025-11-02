@@ -1329,13 +1329,16 @@ function initGravibe() {
 
   const paletteSelect = document.querySelector("#palette-select");
   if (paletteSelect) {
+    console.log("[gravibe.js initGravibe] Loading palettes:", colorPalettes.length, "palettes found");
     paletteSelect.innerHTML = "";
     colorPalettes.forEach((palette) => {
+      console.log("[gravibe.js initGravibe] Adding palette option:", palette.id, palette.label);
       const option = document.createElement("option");
       option.value = palette.id;
       option.textContent = palette.label;
       paletteSelect.append(option);
     });
+    console.log("[gravibe.js initGravibe] Palette dropdown populated with", paletteSelect.options.length, "options");
 
     if (paletteState.activeId) {
       paletteSelect.value = paletteState.activeId;
