@@ -124,13 +124,29 @@ function buildServiceNameMapping(spans) {
 
 /**
  * Gets palette colors from CSS variables.
+ * Reads from inline styles first (fastest, most up-to-date), then falls back to computed styles.
  * @returns {string[]} Array of palette color hex values
  */
 function getPaletteColors() {
+  console.log("[getPaletteColors] Called");
   const root = document.documentElement;
-  const style = getComputedStyle(root);
-  const colorRoles = ["primary", "secondary", "tertiary", "quaternary", "quinary", "senary"];
-  return colorRoles.map((role) => style.getPropertyValue(`--accent-${role}`).trim());
+  // Use the same color roles that applyPalette uses
+  const colorRoles = ["accentPrimary", "accentSecondary", "accentTertiary", "accentQuaternary", "accentQuinary", "accentSenary"];
+  const colors = colorRoles.map((role) => {
+    // Convert role name to CSS variable (same as toCssVar in palette.js)
+    const cssVar = `--${role.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
+    // First try to read from inline style (set by applyPalette) - this is immediate
+    let value = root.style.getPropertyValue(cssVar).trim();
+    // If not found in inline style, fall back to computed style
+    if (!value) {
+      const style = getComputedStyle(root);
+      value = style.getPropertyValue(cssVar).trim();
+    }
+    // Filter out empty values
+    return value || null;
+  }).filter(Boolean);
+  // Return non-empty colors only
+  return colors.length > 0 ? colors : ["#00c0ff", "#9b59b6", "#2ecc71", "#f39c12", "#e74c3c", "#3498db"]; // Fallback palette
 }
 
 /**
@@ -1273,12 +1289,12 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
   const root = document.documentElement;
   const style = getComputedStyle(root);
   let surfaceColor = style.getPropertyValue("--ui-surface-2").trim();
-  
+
   // Fallback if CSS variable is not set
   if (!surfaceColor) {
     surfaceColor = "#1e2129"; // Dark fallback
   }
-  
+
   const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   background.setAttribute("class", "trace-preview-background");
   background.setAttribute("x", "0");
@@ -1597,7 +1613,91 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
   svg.addEventListener("mouseenter", showMarkers);
   svg.addEventListener("mouseleave", hideMarkers);
 
-  return svg;
+  /**
+   * Updates all computed colors in the preview without re-rendering.
+   * Updates background color and span rectangle fill colors.
+   */
+  const update = () => {
+    console.log("[Trace Preview Update] update() method called!");
+    // Force a reflow to ensure CSS variables are applied
+    void svg.offsetWidth;
+
+    // Update background color - read from inline style first (immediate)
+    const backgroundRect = svg.querySelector("rect.trace-preview-background");
+    if (backgroundRect) {
+      const root = document.documentElement;
+      // Read from inline style first (set by applyPalette), then fall back to computed style
+      let surfaceColor = root.style.getPropertyValue("--ui-surface-2").trim();
+      if (!surfaceColor) {
+        const style = getComputedStyle(root);
+        surfaceColor = style.getPropertyValue("--ui-surface-2").trim();
+      }
+      backgroundRect.setAttribute("fill", surfaceColor || "#1e2129");
+      console.log("[Trace Preview Update] Background color:", surfaceColor);
+    }
+
+    // Update span rectangle fill colors - read fresh palette colors
+    const paletteColors = getPaletteColors();
+    console.log("[Trace Preview Update] Palette colors read:", paletteColors);
+    if (paletteColors.length === 0) {
+      // If no palette colors available, skip update
+      console.warn("[Trace Preview Update] No palette colors available, skipping update");
+      return;
+    }
+    const paletteLength = paletteColors.length;
+
+    // Helper to compute service color
+    const computeServiceColor = (serviceName) => {
+      const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
+      const colorIndex = serviceIndex % paletteLength;
+      const paletteColor = paletteColors[colorIndex];
+      if (!paletteColor) {
+        // Fallback if palette color is missing
+        return "#61afef";
+      }
+      return normalizeColorBrightness(paletteColor, 50, 0.7);
+    };
+
+    // Helper to convert hex to RGBA string
+    const hexToRgba = (hex, alpha = 0.6) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      if (!result) {
+        return `rgba(97, 175, 239, ${alpha})`;
+      }
+      const r = Number.parseInt(result[1], 16);
+      const g = Number.parseInt(result[2], 16);
+      const b = Number.parseInt(result[3], 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    // Find all span rectangles (excluding background and overlays)
+    const spanRects = svg.querySelectorAll("rect:not(.trace-preview-background):not(.trace-preview__selection)");
+
+    // Update each span rectangle with new colors
+    spanRects.forEach((rect, index) => {
+      if (index < allSpans.length) {
+        const node = allSpans[index];
+        const serviceName = node.span.resource?.serviceName || "unknown-service";
+        const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
+        const colorIndex = serviceIndex % paletteLength;
+        const color = computeServiceColor(serviceName);
+        const rgba = hexToRgba(color, 0.6);
+        rect.setAttribute("fill", rgba);
+        if (index < 3) { // Log first 3 spans to avoid spam
+          console.log(`[Trace Preview Update] Span ${index}: service="${serviceName}", index=${serviceIndex}, colorIndex=${colorIndex}, color="${color}", rgba="${rgba}"`);
+        }
+      }
+    });
+    console.log(`[Trace Preview Update] Updated ${spanRects.length} span rectangles`);
+  };
+
+  // Store preview component reference on the SVG element for direct access
+  svg.__previewComponent = { element: svg, update };
+
+  return {
+    element: svg,
+    update
+  };
 }
 
 export function renderTrace(host, trace, state) {
@@ -1641,17 +1741,10 @@ export function renderTrace(host, trace, state) {
       end: viewState.timeWindowEnd ?? 100,
     }
   );
-  host.append(preview);
-  
-  // Update SVG background color after it's in the DOM to ensure CSS variables are computed
-  // Find the background rect element and update its fill
-  const backgroundRect = preview.querySelector("rect.trace-preview-background");
-  if (backgroundRect) {
-    const root = document.documentElement;
-    const style = getComputedStyle(root);
-    const surfaceColor = style.getPropertyValue("--ui-surface-2").trim() || "#1e2129";
-    backgroundRect.setAttribute("fill", surfaceColor);
-  }
+  host.append(preview.element);
+
+  // Store preview reference in viewState for later updates
+  viewState.preview = preview;
 
   const list = document.createElement("div");
   list.className = "trace-span-list";
@@ -1811,14 +1904,144 @@ function createSplitter(container) {
 }
 
 export function initTraceViewer(host, spans) {
+  console.log("[initTraceViewer] Called, host:", host);
   if (!host) {
-    return () => { };
+    console.log("[initTraceViewer] No host, returning empty functions");
+    return { render: () => { }, update: () => { } };
   }
   const trace = buildTraceModel(spans);
   let viewState = renderTrace(host, trace);
-  return () => {
-    viewState = renderTrace(host, trace, viewState);
+  let previewComponent = viewState.preview; // Store preview reference
+  console.log("[initTraceViewer] Trace viewer initialized, previewComponent:", previewComponent);
+
+  /**
+   * Recomputes and updates all computed colors in the trace viewer
+   * without full re-rendering. Updates:
+   * - Service color indicators in span summaries
+   * - Span bar colors (CSS custom properties)
+   * - SVG preview background color
+   * - SVG preview span rectangle fill colors
+   */
+  const update = () => {
+    console.log("[Trace Viewer Update] update() method called!");
+    // Force a reflow to ensure CSS variables are applied
+    void host.offsetWidth;
+
+    // Always get the latest preview component reference
+    const currentPreview = viewState?.preview || previewComponent;
+
+    // Read fresh palette colors from CSS variables
+    const paletteColors = getPaletteColors();
+    console.log("[Trace Viewer Update] Palette colors read:", paletteColors);
+    if (paletteColors.length === 0) {
+      // If no palette colors available, skip update
+      console.warn("[Trace Viewer Update] No palette colors available, skipping update");
+      return;
+    }
+    const paletteLength = paletteColors.length;
+
+    // Helper to compute service color
+    const computeServiceColor = (serviceName) => {
+      const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
+      const colorIndex = serviceIndex % paletteLength;
+      const paletteColor = paletteColors[colorIndex];
+      if (!paletteColor) {
+        // Fallback if palette color is missing
+        return "#61afef";
+      }
+      return normalizeColorBrightness(paletteColor, 50, 0.7);
+    };
+
+    // Helper to convert hex to RGB
+    const hexToRgb = (hex) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: Number.parseInt(result[1], 16),
+        g: Number.parseInt(result[2], 16),
+        b: Number.parseInt(result[3], 16),
+      } : null;
+    };
+
+    // Helper to convert hex to RGBA string
+    const hexToRgba = (hex, alpha = 0.6) => {
+      const rgb = hexToRgb(hex);
+      if (!rgb) return `rgba(97, 175, 239, ${alpha})`;
+      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+    };
+
+    // Update service color indicators in span summaries
+    const serviceButtons = host.querySelectorAll(".trace-span__service");
+    console.log(`[Trace Viewer Update] Found ${serviceButtons.length} service buttons to update`);
+    let updateCount = 0;
+    serviceButtons.forEach((serviceButton) => {
+      const serviceName = serviceButton.querySelector(".trace-span__service-name")?.textContent || "unknown-service";
+      const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
+      const normalizedColor = computeServiceColor(serviceName);
+      const rgb = hexToRgb(normalizedColor);
+
+      if (rgb) {
+        const serviceColorStyle = `background-color: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6);`;
+        const indicator = serviceButton.querySelector(".trace-span__service-indicator");
+        if (indicator) {
+          indicator.style.cssText = serviceColorStyle;
+          updateCount++;
+          if (updateCount <= 3) { // Log first 3 to avoid spam
+            console.log(`[Trace Viewer Update] Service indicator: service="${serviceName}", index=${serviceIndex}, color="${normalizedColor}", rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`);
+          }
+        }
+      }
+    });
+    console.log(`[Trace Viewer Update] Updated ${updateCount} service indicators`);
+
+    // Update span bar colors (CSS custom properties)
+    const bars = host.querySelectorAll(".trace-span__bar");
+    console.log(`[Trace Viewer Update] Found ${bars.length} span bars to update`);
+    let barUpdateCount = 0;
+    bars.forEach((bar) => {
+      // Find the service name from the parent span
+      const summary = bar.closest(".trace-span__summary");
+      if (!summary) return;
+
+      const serviceButton = summary.querySelector(".trace-span__service");
+      if (!serviceButton) return;
+
+      const serviceName = serviceButton.querySelector(".trace-span__service-name")?.textContent || "unknown-service";
+      const serviceIndex = trace.serviceNameMapping?.get(serviceName) ?? 0;
+      const normalizedColor = computeServiceColor(serviceName);
+      const rgb = hexToRgb(normalizedColor);
+
+      if (rgb) {
+        const colorValue = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`;
+        const shadowValue = `0 0 18px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`;
+        bar.style.setProperty("--service-color", colorValue);
+        bar.style.setProperty("--service-shadow", shadowValue);
+        barUpdateCount++;
+        if (barUpdateCount <= 3) { // Log first 3 to avoid spam
+          console.log(`[Trace Viewer Update] Span bar: service="${serviceName}", index=${serviceIndex}, color="${normalizedColor}", --service-color="${colorValue}"`);
+        }
+      }
+    });
+    console.log(`[Trace Viewer Update] Updated ${barUpdateCount} span bars`);
+
+    // Update SVG preview component using its update method
+    if (currentPreview && typeof currentPreview.update === "function") {
+      currentPreview.update();
+    } else {
+      // Fallback: try to find and update preview via DOM query
+      const previewElement = host.querySelector(".trace-preview");
+      if (previewElement && previewElement.__previewComponent) {
+        previewElement.__previewComponent.update();
+      }
+    }
   };
+
+  const render = () => {
+    viewState = renderTrace(host, trace, viewState);
+    // Update preview reference after re-render
+    previewComponent = viewState.preview;
+  };
+
+  return { render, update };
 }
 
 const ns = 1e6;

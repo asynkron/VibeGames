@@ -8,7 +8,7 @@ import { initTraceViewer, sampleTraceSpans } from "./ui/trace.js";
 import { componentRenderers } from "./charts/charts.js";
 import { neonDatasets, initDatasetSelector } from "./charts/datasets.js";
 import { colorPalettes, LIVE_DEFAULT_INTERVAL } from "./core/config.js";
-import { paletteState, applyPalette, resolveColor, colorWithAlpha } from "./core/palette.js";
+import { paletteState, applyPalette, resolveColor, colorWithAlpha, setRerenderCallback } from "./core/palette.js";
 import { withGlowBlur, withGlowColor, withOutlineWidth } from "./core/effects.js";
 import { clamp } from "./core/utils.js";
 
@@ -31,6 +31,8 @@ const DEFAULT_BACKGROUND_EFFECT = "linear";
 // We keep a registry of renderer callbacks so palette swaps can re-render everything in place.
 const componentRegistry = new Set();
 
+console.log("[gravibe.js] Module loaded, componentRegistry created");
+
 // Track the current ECharts renderer so we can recreate instances when toggled.
 const rendererState = { mode: DEFAULT_RENDERER_MODE };
 
@@ -42,8 +44,8 @@ function normalizeBackgroundEffect(effect) {
 const backgroundState = {
   effect: normalizeBackgroundEffect(
     document.querySelector(".chart-shell")?.dataset.backgroundEffect ||
-    document.body?.dataset.backgroundEffect ||
-    DEFAULT_BACKGROUND_EFFECT
+      document.body?.dataset.backgroundEffect ||
+      DEFAULT_BACKGROUND_EFFECT
   ),
 };
 
@@ -51,12 +53,38 @@ const backgroundState = {
 const chartOutlineColor = "rgba(15, 23, 42, 0.95)";
 
 function rerenderAllComponents() {
-  componentRegistry.forEach((rerender) => {
-    try {
-      rerender();
+  console.log("[gravibe.js rerenderAllComponents] Called, components in registry:", componentRegistry.size);
+  // Use double requestAnimationFrame to ensure CSS variables are fully applied
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      // Force a synchronous layout calculation to ensure CSS variables are readable
+      void document.documentElement.offsetHeight;
+      
+      let componentIndex = 0;
+      componentRegistry.forEach((component) => {
+        componentIndex++;
+        try {
+          // Support both old-style functions and new-style objects with update() method
+          if (typeof component === "function") {
+            // Legacy: call as function (for chart components)
+            console.log(`[gravibe.js rerenderAllComponents] Component ${componentIndex}: calling as function`);
+            component();
+          } else if (component && typeof component.update === "function") {
+            // New style: call update() method
+            console.log(`[gravibe.js rerenderAllComponents] Component ${componentIndex}: calling update() method`);
+            component.update();
+          } else if (component && typeof component.render === "function") {
+            // Fallback: call render() if update() is not available
+            console.log(`[gravibe.js rerenderAllComponents] Component ${componentIndex}: calling render() method`);
+            component.render();
+          } else {
+            console.warn(`[gravibe.js rerenderAllComponents] Component ${componentIndex}: unknown type`, typeof component, component);
+          }
     } catch (error) {
-      console.error("Failed to re-render component", error);
+          console.error(`[gravibe.js rerenderAllComponents] Component ${componentIndex}: Failed to update`, error);
     }
+      });
+    });
   });
 }
 
@@ -1281,10 +1309,17 @@ function setupComponent(article) {
 }
 
 function initGravibe() {
+  console.log("[gravibe.js initGravibe] Called");
+  
+  // Set the rerender callback so palette changes trigger component updates
+  setRerenderCallback(rerenderAllComponents);
+  console.log("[gravibe.js initGravibe] Registered rerenderAllComponents callback");
+  
   const defaultPalette =
     colorPalettes.find((palette) => palette.id === paletteState.activeId) ?? colorPalettes[0];
 
   if (defaultPalette) {
+    console.log("[gravibe.js initGravibe] Applying default palette:", defaultPalette.id);
     applyPalette(defaultPalette);
   }
 
@@ -1309,6 +1344,7 @@ function initGravibe() {
     paletteSelect.addEventListener("change", (event) => {
       const selected = colorPalettes.find((palette) => palette.id === event.target.value);
       if (selected) {
+        console.log("[gravibe.js] Palette select changed to:", selected.id);
         applyPalette(selected);
       }
     });
@@ -1328,6 +1364,8 @@ function initGravibe() {
   const traceHost = document.querySelector('[data-component="traceViewer"]');
   if (traceHost) {
     const rerenderTrace = initTraceViewer(traceHost, sampleTraceSpans);
+    console.log("[gravibe.js initGravibe] Trace viewer initialized, component:", rerenderTrace);
+    console.log("[gravibe.js initGravibe] Component has update method:", typeof rerenderTrace?.update === "function");
     componentRegistry.add(rerenderTrace);
   }
 }

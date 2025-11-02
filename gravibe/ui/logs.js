@@ -706,21 +706,34 @@ class LogConsoleView {
 
     this.root.appendChild(list);
   }
+
+  /**
+   * Recomputes and updates all computed colors in the log console
+   * without full re-rendering. Currently log rows use CSS variables
+   * so no updates are needed, but this method exists for consistency.
+   */
+  update() {
+    // Log rows use CSS variables for colors (--logging-*), so they update automatically
+    // No manual updates needed
+  }
 }
 
 /**
  * Initializes a log console inside the provided element.
  * @param {HTMLElement | null} hostElement
  * @param {LogRow[]} rows
- * @returns {() => void} rerender handle so palette changes can refresh the UI
+ * @returns {{render: () => void, update: () => void}} Component interface with render and update methods
  */
 export function initLogConsole(hostElement, rows) {
   if (!hostElement) {
-    return () => { };
+    return { render: () => {}, update: () => {} };
   }
   const view = new LogConsoleView(hostElement, rows);
   view.render();
-  return () => view.render();
+  return {
+    render: () => view.render(),
+    update: () => view.update()
+  };
 }
 
 function nowNano(offsetMs = 0) {

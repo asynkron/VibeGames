@@ -3,6 +3,8 @@
  * Component registry, setup, and initialization
  */
 
+console.log("[components.js] Module loaded");
+
 import { colorPalettes } from "../core/config.js";
 import { paletteState, applyPalette } from "../core/palette.js";
 import { setRerenderCallback as setPaletteRerender } from "../core/palette.js";
@@ -19,18 +21,39 @@ import { initTraceViewer, sampleTraceSpans } from "../ui/trace.js";
 export const componentRegistry = new Set();
 
 export function rerenderAllComponents() {
-    // Force a reflow to ensure CSS variables are applied, then re-render
-    // requestAnimationFrame ensures the browser has processed style updates
+    console.log("[rerenderAllComponents] Called, components in registry:", componentRegistry.size);
+    // Use double requestAnimationFrame to ensure CSS variables are fully applied
+    // First RAF: browser processes style changes
     requestAnimationFrame(() => {
-        // Force a synchronous layout calculation to ensure CSS variables are readable
-        void document.documentElement.offsetHeight;
-        
-        componentRegistry.forEach((rerender) => {
-            try {
-                rerender();
-            } catch (error) {
-                console.error("Failed to re-render component", error);
-            }
+        // Second RAF: ensures all style updates are fully computed
+        requestAnimationFrame(() => {
+            // Force a synchronous layout calculation to ensure CSS variables are readable
+            void document.documentElement.offsetHeight;
+            
+            let componentIndex = 0;
+            componentRegistry.forEach((component) => {
+                componentIndex++;
+                try {
+                    // Support both old-style functions and new-style objects with update() method
+                    if (typeof component === "function") {
+                        // Legacy: call as function (for chart components)
+                        console.log(`[rerenderAllComponents] Component ${componentIndex}: calling as function`);
+                        component();
+                    } else if (component && typeof component.update === "function") {
+                        // New style: call update() method
+                        console.log(`[rerenderAllComponents] Component ${componentIndex}: calling update() method`);
+                        component.update();
+                    } else if (component && typeof component.render === "function") {
+                        // Fallback: call render() if update() is not available
+                        console.log(`[rerenderAllComponents] Component ${componentIndex}: calling render() method`);
+                        component.render();
+                    } else {
+                        console.warn(`[rerenderAllComponents] Component ${componentIndex}: unknown type`, typeof component, component);
+                    }
+                } catch (error) {
+                    console.error(`[rerenderAllComponents] Component ${componentIndex}: Failed to update`, error);
+                }
+            });
         });
     });
 }
@@ -158,6 +181,8 @@ export function initGravibe() {
     const traceHost = document.querySelector('[data-component="traceViewer"]');
     if (traceHost) {
         const rerenderTrace = initTraceViewer(traceHost, sampleTraceSpans);
+        console.log("[initGravibe] Trace viewer initialized, component:", rerenderTrace);
+        console.log("[initGravibe] Component has update method:", typeof rerenderTrace?.update === "function");
         componentRegistry.add(rerenderTrace);
     }
 }

@@ -146,6 +146,7 @@ export function getUIColor(name) {
 }
 
 export function applyPalette(palette) {
+    console.log("[applyPalette] Called with palette:", palette.id);
     const mapping = buildPaletteMapping(palette);
     paletteState.activeMapping = mapping;
     paletteState.activeId = palette.id;
