@@ -9,12 +9,16 @@ import { normalizeAnyValue, createLogAttribute, sampleLogRows, formatNanoseconds
 import { createAttributeTable } from "./attributes.js";
 import { hexToRgb, hexToRgba, normalizeColorBrightness } from "../core/colors.js";
 import { getPaletteColors } from "../core/palette.js";
+import { ComponentKind, extractSpanDescription, createComponentKey } from "./metaModel.js";
 
 /**
  * @typedef {ReturnType<typeof createTraceSpan>} TraceSpan
  * @typedef {ReturnType<typeof createTraceEvent>} TraceEvent
- * @typedef {{ traceId: string, startTimeUnixNano: number, endTimeUnixNano: number, durationNano: number, spanCount: number, roots: TraceSpanNode[], serviceNameMapping: Map<string, number> }} TraceModel
- * @typedef {{ span: TraceSpan, depth: number, children: TraceSpanNode[] }} TraceSpanNode
+ * @typedef {{ id: string, name: string }} Group
+ * @typedef {{ id: string, name: string, groupId: string, kind: string, componentStack: string }} Component
+ * @typedef {{ groupName: string, componentName: string, operation: string, componentKind: string, componentStack: string, isClient?: boolean }} SpanDescription
+ * @typedef {{ traceId: string, startTimeUnixNano: number, endTimeUnixNano: number, durationNano: number, spanCount: number, roots: TraceSpanNode[], serviceNameMapping: Map<string, number>, groups: Map<string, Group>, components: Map<string, Component> }} TraceModel
+ * @typedef {{ span: TraceSpan, depth: number, children: TraceSpanNode[], description?: SpanDescription }} TraceSpanNode
  */
 
 export const SpanKind = Object.freeze({
@@ -24,6 +28,7 @@ export const SpanKind = Object.freeze({
   PRODUCER: "SPAN_KIND_PRODUCER",
   CONSUMER: "SPAN_KIND_CONSUMER",
 });
+
 
 /**
  * @param {Object} params
@@ -125,6 +130,7 @@ function buildServiceNameMapping(spans) {
 }
 
 
+
 /**
  * Builds a hierarchical trace model so spans become aware of their children
  * without mutating the original span definitions.
@@ -141,6 +147,8 @@ export function buildTraceModel(spans) {
       spanCount: 0,
       roots: [],
       serviceNameMapping: new Map(),
+      groups: new Map(),
+      components: new Map(),
     };
   }
 
@@ -149,15 +157,55 @@ export function buildTraceModel(spans) {
   let maxEnd = Number.NEGATIVE_INFINITY;
   let traceId = spans[0].traceId;
 
+  // Maps to collect unique groups and components
+  const groups = new Map();
+  const components = new Map();
+
   spans.forEach((span) => {
     const start = toNumberTimestamp(span.startTimeUnixNano);
     const end = toNumberTimestamp(span.endTimeUnixNano);
     minStart = Math.min(minStart, start);
     maxEnd = Math.max(maxEnd, end);
     traceId = span.traceId || traceId;
-    //TODO: this is out meta-model
-    // add component information, group name and other information extracted from the core model
-    spanNodes.set(span.spanId, { span, depth: 0, children: [] });
+
+    // Extract span description using extractors
+    const serviceName = span.resource?.serviceName || "unknown-service";
+    const description = extractSpanDescription(span, serviceName);
+
+    // Normalize group name - if component is Service and group is empty, use component name as group
+    let groupName = description.groupName;
+    let componentName = description.componentName;
+    if (description.componentKind === ComponentKind.SERVICE && !groupName) {
+      groupName = componentName;
+      componentName = "Internal";
+    }
+    if (!componentName) {
+      componentName = "Unknown";
+    }
+
+    // Create or get group
+    const groupId = groupName || "";
+    if (groupId && !groups.has(groupId)) {
+      groups.set(groupId, {
+        id: groupId,
+        name: groupName,
+      });
+    }
+
+    // Create or get component
+    const componentId = createComponentKey(groupName, componentName);
+    if (!components.has(componentId)) {
+      components.set(componentId, {
+        id: componentId,
+        name: componentName,
+        groupId: groupId,
+        kind: description.componentKind,
+        componentStack: description.componentStack || "",
+      });
+    }
+
+    // Store description in node
+    spanNodes.set(span.spanId, { span, depth: 0, children: [], description });
   });
 
   const serviceNameMapping = buildServiceNameMapping(spans);
@@ -202,6 +250,8 @@ export function buildTraceModel(spans) {
     spanCount: spans.length,
     roots,
     serviceNameMapping,
+    groups,
+    components,
   };
 }
 
