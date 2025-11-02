@@ -1268,13 +1268,17 @@ function renderTracePreview(trace, onSelectionChange = null, initialSelection = 
   svg.style.width = "100%";
   svg.style.height = `${SVG_HEIGHT}px`;
 
-  // Background
+  // Background - use UI surface color from CSS variables
+  const root = document.documentElement;
+  const style = getComputedStyle(root);
+  const surfaceColor = style.getPropertyValue("--ui-surface-2").trim() || "#1e2129";
+  
   const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   background.setAttribute("x", "0");
   background.setAttribute("y", "0");
   background.setAttribute("width", "100");
   background.setAttribute("height", `${SVG_HEIGHT}`);
-  background.setAttribute("fill", "rgb(12 16 24 / 50%)");
+  background.setAttribute("fill", surfaceColor);
   svg.appendChild(background);
 
   // Get palette colors for service coloring

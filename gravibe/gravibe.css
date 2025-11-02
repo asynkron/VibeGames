@@ -436,7 +436,7 @@ body {
   margin-bottom: 1.5rem;
   border-radius: 6px;
   overflow: hidden;
-  background: rgb(12 16 24 / 50%);
+  background: var(--ui-surface-2);
   cursor: crosshair;
   position: relative;
 }
@@ -705,7 +705,7 @@ body {
   font-size: var(--font-size-xs);
   color: var(--text-subtle);
   white-space: nowrap;
-  background: rgba(31, 35, 41, 0.85);
+  background: var(--ui-surface-2);
   padding: 0.25rem 0.4rem;
   border-radius: 3px;
   pointer-events: auto;
@@ -733,7 +733,7 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgb(12 16 24 / 50%);
+  background: var(--ui-surface-2);
   z-index: 0;
 }
 
@@ -1209,7 +1209,7 @@ body {
 }
 
 .log-attributes-table thead {
-  background: rgba(34, 38, 50, 0.75);
+  background: var(--ui-surface-2);
 }
 
 .log-attributes-table th {
