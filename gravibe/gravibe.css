@@ -11,7 +11,7 @@
   --ui-headers: #ffffff;
   --ui-highlight: rgba(255, 255, 255, 0.05);
   --ui-border: #3a404c;
-  
+
   /* Map legacy variables to UI colors for backward compatibility */
   --surface-0: var(--ui-surface-3);
   --surface-1: var(--ui-surface-1);
@@ -731,11 +731,11 @@ body {
 }
 
 .trace-span__timeline::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: color-mix(in srgb, var(--ui-surface-2) 50%, transparent);
-    z-index: 0;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ui-surface-2) 50%, transparent);
+  z-index: 0;
 }
 
 .trace-span__timeline:disabled,
@@ -857,7 +857,8 @@ body {
   z-index: 10000;
   pointer-events: none;
   max-width: 500px;
-  min-width: max(300px, 25vw); /* At least 25% of viewport width, but never less than 300px */
+  min-width: max(300px, 25vw);
+  /* At least 25% of viewport width, but never less than 300px */
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   opacity: 0;
@@ -871,14 +872,17 @@ body {
 }
 
 .trace-span__marker-tooltip .log-card {
-  min-width: 100%; /* Fill the tooltip container */
-  width: 100%; /* Ensure it takes full width */
+  min-width: 100%;
+  /* Fill the tooltip container */
+  width: 100%;
+  /* Ensure it takes full width */
   max-width: 100%;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   background: var(--ui-surface-1);
   padding: 0.75rem 1rem;
   border: 1px solid var(--ui-border);
-  box-sizing: border-box; /* Include padding and border in width calculation */
+  box-sizing: border-box;
+  /* Include padding and border in width calculation */
 }
 
 .trace-span__details {
@@ -1251,10 +1255,14 @@ body {
 
 /* When log-attr is used inside attribute table, override styles for proper table display */
 .log-attributes-table td.log-attr {
-  display: table-cell; /* Preserve table cell display */
-  font-size: inherit; /* Match table font size (var(--font-size-sm)) */
-  line-height: 1.4; /* Better line-height for table cells */
-  vertical-align: top; /* Ensure proper vertical alignment */
+  display: table-cell;
+  /* Preserve table cell display */
+  font-size: inherit;
+  /* Match table font size (var(--font-size-sm)) */
+  line-height: 1.4;
+  /* Better line-height for table cells */
+  vertical-align: top;
+  /* Ensure proper vertical alignment */
 }
 
 .log-attr--string {
