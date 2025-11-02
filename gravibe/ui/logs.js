@@ -726,7 +726,7 @@ class LogConsoleView {
  */
 export function initLogConsole(hostElement, rows) {
   if (!hostElement) {
-    return { render: () => {}, update: () => {} };
+    return { render: () => { }, update: () => { } };
   }
   const view = new LogConsoleView(hostElement, rows);
   view.render();
