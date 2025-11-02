@@ -1,0 +1,102 @@
+/*
+ * Gravibe Palette Management
+ * Color utilities and palette state management
+ */
+
+import { colorRoles, colorPalettes } from "./gravibe-config.js";
+
+export const paletteState = {
+    activeMapping: {},
+    activeId: colorPalettes[0]?.id ?? "",
+};
+
+// This will be set by gravibe-components.js to avoid circular dependency
+let rerenderCallback = null;
+
+export function setRerenderCallback(callback) {
+    rerenderCallback = callback;
+}
+
+function hexToRgb(hex) {
+    const trimmed = hex.replace(/^#/, "");
+    const bigint = parseInt(trimmed, 16);
+    return {
+        r: (bigint >> 16) & 255,
+        g: (bigint >> 8) & 255,
+        b: bigint & 255,
+    };
+}
+
+function toCssVar(role) {
+    return `--${role.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
+}
+
+export function resolveColor(colorRef) {
+    if (!colorRef) {
+        return colorRef;
+    }
+
+    if (paletteState.activeMapping[colorRef]) {
+        return paletteState.activeMapping[colorRef];
+    }
+
+    return colorRef;
+}
+
+export function colorWithAlpha(colorRef, alpha) {
+    const color = resolveColor(colorRef);
+    if (!color) {
+        return color;
+    }
+
+    if (color.startsWith("#")) {
+        const { r, g, b } = hexToRgb(color);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    const rgbaMatch = color.match(/rgba?\(([^)]+)\)/);
+    if (rgbaMatch) {
+        const [r, g, b] = rgbaMatch[1]
+            .split(",")
+            .map((part) => parseFloat(part.trim()))
+            .slice(0, 3);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    return color;
+}
+
+function buildPaletteMapping(palette) {
+    const mapping = {};
+    colorRoles.forEach((role, index) => {
+        const color = palette.colors[index % palette.colors.length];
+        mapping[role] = color;
+    });
+    return mapping;
+}
+
+// Initialize with first palette
+if (colorPalettes[0]) {
+    paletteState.activeMapping = buildPaletteMapping(colorPalettes[0]);
+}
+
+export function applyPalette(palette) {
+    const mapping = buildPaletteMapping(palette);
+    paletteState.activeMapping = mapping;
+    paletteState.activeId = palette.id;
+
+    const root = document.documentElement;
+    colorRoles.forEach((role) => {
+        const cssVar = toCssVar(role);
+        const rgbVar = `${cssVar}-rgb`;
+        const color = mapping[role];
+        const { r, g, b } = hexToRgb(color);
+        root.style.setProperty(cssVar, color);
+        root.style.setProperty(rgbVar, `${r} ${g} ${b}`);
+    });
+
+    if (rerenderCallback) {
+        rerenderCallback();
+    }
+}
+
