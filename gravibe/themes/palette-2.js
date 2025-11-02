@@ -22,5 +22,13 @@ export const palette2 = {
         event: "#9e0059",
         span: "#00c0ff",
     },
+    ui: {
+        "surface-1": "#242933",
+        "surface-2": "#1e2129",
+        "surface-3": "#12161e",
+        text: "#d7dce3",
+        headers: "#ffffff",
+        highlight: "rgba(255, 255, 255, 0.05)",
+    },
 };
 

@@ -94,6 +94,15 @@ function buildPaletteMapping(palette) {
         });
     }
     
+    // Map UI colors
+    if (palette.ui) {
+        Object.entries(palette.ui).forEach(([key, color]) => {
+            // Convert "surface-1" to "uiSurface1" for mapping
+            const camelKey = key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+            mapping[`ui${camelKey.charAt(0).toUpperCase() + camelKey.slice(1)}`] = color;
+        });
+    }
+    
     // Backward compatibility: if palette has old 'colors' array, map by index
     if (!palette.palette && palette.colors && Array.isArray(palette.colors)) {
         colorRoles.forEach((role, index) => {
@@ -129,6 +138,13 @@ export function getPaletteColor(name) {
     return paletteState.activeMapping[role] || null;
 }
 
+export function getUIColor(name) {
+    // Convert "surface-1" to "uiSurface1" for mapping lookup
+    const camelKey = name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+    const mappingKey = `ui${camelKey.charAt(0).toUpperCase() + camelKey.slice(1)}`;
+    return paletteState.activeMapping[mappingKey] || null;
+}
+
 export function applyPalette(palette) {
     const mapping = buildPaletteMapping(palette);
     paletteState.activeMapping = mapping;
@@ -146,7 +162,7 @@ export function applyPalette(palette) {
         }
     });
 
-    // Also set CSS variables for logging colors
+    // Set CSS variables for logging colors
     if (palette.logging) {
         Object.entries(palette.logging).forEach(([level, color]) => {
             const cssVar = `--logging-${level}`;
@@ -154,6 +170,26 @@ export function applyPalette(palette) {
             const { r, g, b } = hexToRgb(color);
             root.style.setProperty(cssVar, color);
             root.style.setProperty(rgbVar, `${r} ${g} ${b}`);
+        });
+    }
+
+    // Set CSS variables for UI colors
+    if (palette.ui) {
+        Object.entries(palette.ui).forEach(([key, color]) => {
+            const cssVar = `--ui-${key}`;
+            root.style.setProperty(cssVar, color);
+            
+            // For rgba colors like highlight, don't generate rgb variant
+            // For hex colors, generate rgb variant
+            if (color.startsWith("#")) {
+                try {
+                    const { r, g, b } = hexToRgb(color);
+                    const rgbVar = `--ui-${key}-rgb`;
+                    root.style.setProperty(rgbVar, `${r} ${g} ${b}`);
+                } catch (e) {
+                    // Skip rgb variant if color conversion fails
+                }
+            }
         });
     }
 

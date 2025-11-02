@@ -2,16 +2,26 @@
 
 :root {
   color-scheme: dark;
-  /* Atom One Dark inspired palette keeps surfaces muted while charts remain vibrant */
-  --surface-0: #1f2329;
-  --surface-1: #242933;
-  --surface-2: #1e2129;
-  --surface-3: #12161e;
+  /* UI colors are set dynamically by the active palette via JavaScript */
+  /* Fallback values for when palette hasn't loaded yet */
+  --ui-surface-1: #242933;
+  --ui-surface-2: #1e2129;
+  --ui-surface-3: #12161e;
+  --ui-text: #d7dce3;
+  --ui-headers: #ffffff;
+  --ui-highlight: rgba(255, 255, 255, 0.05);
+  
+  /* Map legacy variables to UI colors for backward compatibility */
+  --surface-0: var(--ui-surface-3);
+  --surface-1: var(--ui-surface-1);
+  --surface-2: var(--ui-surface-2);
+  --surface-3: var(--ui-surface-3);
   --surface-border: #3a404c;
   --surface-border-subtle: rgba(88, 96, 109, 0.6);
-  --text-strong: #d7dce3;
-  --text-muted: #9aa1b1;
-  --text-subtle: #7f8797;
+  --text-strong: var(--ui-text);
+  /* Muted and subtle text are derived from UI text with opacity */
+  --text-muted: color-mix(in srgb, var(--ui-text) 70%, transparent);
+  --text-subtle: color-mix(in srgb, var(--ui-text) 50%, transparent);
   --accent-primary: #61afef;
   --accent-primary-rgb: 97 175 239;
   --accent-secondary: #98c379;
@@ -61,8 +71,8 @@ body {
 body {
   margin: 0;
   font-family: var(--font-base);
-  color: var(--text-strong);
-  background: var(--surface-0);
+  color: var(--ui-text);
+  background: var(--ui-surface-3);
   display: flex;
   flex-direction: column;
   gap: 2rem;
@@ -81,7 +91,7 @@ body {
   margin: 0 auto;
   max-width: 64rem;
   width: min(100%, 64rem);
-  background: linear-gradient(135deg, rgba(32, 36, 46, 0.95), rgba(19, 22, 30, 0.95));
+  background: var(--ui-surface-1);
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 8px;
   padding: clamp(1.25rem, 2vw, 1.75rem);
@@ -93,6 +103,7 @@ body {
   margin: 0;
   font-size: var(--font-size-h3);
   font-weight: 600;
+  color: var(--ui-headers);
 }
 
 .effect-panel p {
@@ -112,7 +123,7 @@ body {
   gap: 0.5rem;
   padding: 0.75rem;
   border-radius: 8px;
-  background: rgba(19, 22, 30, 0.65);
+  background: var(--ui-surface-2);
   border: 1px solid rgba(99, 114, 135, 0.2);
 }
 
@@ -131,8 +142,8 @@ body {
 .effect-select {
   border-radius: 8px;
   border: 1px solid rgb(var(--accent-primary-rgb) / 0.4);
-  background: var(--surface-2);
-  color: var(--text-strong);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
   padding: 0.5rem 0.75rem;
   font: inherit;
   letter-spacing: 0.04em;
@@ -143,7 +154,7 @@ body {
   outline: none;
   border-color: rgb(var(--accent-secondary-rgb) / 0.7);
   box-shadow: 0 0 0 3px rgb(var(--accent-secondary-rgb) / 0.25);
-  background: var(--surface-1);
+  background: var(--ui-surface-1);
 }
 
 .effect-control output {
@@ -156,6 +167,7 @@ body {
   margin: 0;
   font-size: var(--font-size-h1);
   font-weight: 600;
+  color: var(--ui-headers);
 }
 
 .page-header p {
@@ -186,6 +198,7 @@ body {
   margin: 0;
   font-size: var(--font-size-h2);
   font-weight: 600;
+  color: var(--ui-headers);
 }
 
 .component-section__header p {
@@ -202,7 +215,7 @@ body {
 }
 
 .component-card {
-  background: var(--surface-1);
+  background: var(--ui-surface-1);
   border-radius: 8px;
   padding: 1.5rem;
   display: flex;
@@ -220,6 +233,7 @@ body {
   margin: 0;
   font-size: var(--font-size-xl);
   font-weight: 600;
+  color: var(--ui-headers);
 }
 
 .component-card p {
@@ -242,8 +256,8 @@ body {
 .palette-select {
   border-radius: 8px;
   border: 1px solid rgb(var(--accent-primary-rgb) / 0.45);
-  background: var(--surface-2);
-  color: var(--text-strong);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
   padding: 0.45rem 0.9rem;
   font: inherit;
   letter-spacing: 0.04em;
@@ -443,6 +457,7 @@ body {
   margin: 0;
   font-size: var(--font-size-h3);
   font-weight: 600;
+  color: var(--ui-headers);
 }
 
 .trace-header p,
@@ -561,7 +576,7 @@ body {
 }
 
 .trace-span__summary:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--ui-highlight);
 }
 
 .trace-span__left {
@@ -977,6 +992,7 @@ body {
   margin: 0;
   font-size: var(--font-size-h3);
   font-weight: 600;
+  color: var(--ui-headers);
 }
 
 .log-console-header p {
@@ -990,7 +1006,7 @@ body {
 }
 
 .log-row {
-  background: rgba(18, 22, 30, 0.85);
+  background: var(--ui-surface-1);
   transition: box-shadow 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
 }
 
@@ -1000,7 +1016,7 @@ body {
 }
 
 .log-row-summary:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--ui-highlight);
 }
 
 .log-row-summary {
