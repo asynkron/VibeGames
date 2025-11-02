@@ -436,6 +436,42 @@ export function resolveSeverityGroup(logRow) {
   return "info";
 }
 
+/**
+ * Abbreviates log level text to a shorter format.
+ * @param {string} severityText - The severity text to abbreviate (case-insensitive)
+ * @returns {string} The abbreviated log level
+ */
+export function abbreviateLogLevel(severityText) {
+  if (!severityText || typeof severityText !== "string") {
+    return "inf";
+  }
+  const lower = severityText.toLowerCase().trim();
+  // Handle common variations
+  if (lower === "debug" || lower.startsWith("dbg")) {
+    return "dbg";
+  }
+  if (lower === "info" || lower === "information" || lower.startsWith("inf")) {
+    return "inf";
+  }
+  if (lower === "warn" || lower === "warning" || lower.startsWith("wrn")) {
+    return "wrn";
+  }
+  if (lower === "error" || lower.startsWith("err")) {
+    return "err";
+  }
+  if (lower === "critical" || lower.startsWith("crt")) {
+    return "crt";
+  }
+  if (lower === "span" || lower.startsWith("spn")) {
+    return "spn";
+  }
+  if (lower === "event" || lower.startsWith("evt")) {
+    return "evt";
+  }
+  // Default fallback
+  return "inf";
+}
+
 export function createAttributeBadge(attribute) {
   const badge = document.createElement("span");
   badge.className = `log-attr log-attr--${attribute.value.kind}`;
@@ -550,7 +586,9 @@ export function createLogCard(logRow) {
 
   const severity = document.createElement("span");
   severity.className = "log-card-severity";
-  severity.textContent = logRow.severityText ?? resolveSeverityGroup(logRow).toUpperCase();
+  const severityGroup = resolveSeverityGroup(logRow);
+  const severityToDisplay = logRow.severityText ?? severityGroup;
+  severity.textContent = abbreviateLogLevel(severityToDisplay);
 
   header.append(timestamp, document.createTextNode(" : "), severity);
 
@@ -581,7 +619,9 @@ function createLogRowElement(logRow, expandedIds) {
 
   const severity = document.createElement("span");
   severity.className = "log-row-severity";
-  severity.textContent = logRow.severityText ?? resolveSeverityGroup(logRow).toUpperCase();
+  const severityGroup = resolveSeverityGroup(logRow);
+  const severityToDisplay = logRow.severityText ?? severityGroup;
+  severity.textContent = abbreviateLogLevel(severityToDisplay);
 
   const timestamp = document.createElement("time");
   timestamp.className = "log-row-timestamp";

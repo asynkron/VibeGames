@@ -995,7 +995,7 @@ body {
 .log-row-summary {
   list-style: none;
   display: grid;
-  grid-template-columns: 20ch 7ch 1fr;
+  grid-template-columns: auto auto 1fr;
   gap: 0.75rem;
   align-items: center;
   padding: 2px;
@@ -1019,7 +1019,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 7ch;
+  inline-size: auto;
   max-inline-size: 100%;
   padding-block: 0.25rem;
   border-radius: 4px;
@@ -1033,7 +1033,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-self: start;
-  inline-size: 20ch;
+  inline-size: auto;
   max-inline-size: 100%;
   white-space: nowrap;
 }
