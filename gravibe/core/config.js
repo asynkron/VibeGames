@@ -14,7 +14,7 @@ export const colorRoles = [
 
 export const DEFAULT_RENDERER_MODE = "svg";
 export const BACKGROUND_EFFECTS = ["solid", "linear", "radial"];
-export const DEFAULT_BACKGROUND_EFFECT = "linear";
+export const DEFAULT_BACKGROUND_EFFECT = "solid";
 export const LIVE_DEFAULT_INTERVAL = 2600;
 
 // Each entry describes a selectable base palette so designers can add new themes quickly.

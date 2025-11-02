@@ -405,7 +405,7 @@ body {
 
 .log-console-section {
   width: 100%;
-  background: linear-gradient(135deg, rgba(25, 28, 38, 0.92), rgba(16, 19, 27, 0.92));
+  background: var(--ui-surface-1);
   border-radius: 12px;
   border: 1px solid rgba(104, 116, 136, 0.35);
   box-shadow: var(--shadow-soft);
@@ -416,7 +416,7 @@ body {
 
 .trace-section {
   width: 100%;
-  background: linear-gradient(135deg, rgba(25, 28, 38, 0.92), rgba(16, 19, 27, 0.92));
+  background: var(--ui-surface-1);
   border-radius: 12px;
   border: 1px solid rgba(104, 116, 136, 0.35);
   box-shadow: var(--shadow-soft);
