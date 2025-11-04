@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>C64 SID Axel F</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="screen">
+      <header class="frame">
+        <h1>C64 SID — Axel F</h1>
+        <p>
+          A playful take on the Commodore 64's three-channel SID chip. Press play to hear an
+          in-browser rendition of Harold Faltermeyer's "Axel F" built from pulse, triangle, and
+          "chaos" noise voices.
+        </p>
+      </header>
+      <section class="controls frame">
+        <button id="play">Play</button>
+        <button id="stop" disabled>Stop</button>
+        <label class="volume">
+          Volume
+          <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7" />
+        </label>
+      </section>
+      <section class="anatomy frame">
+        <h2>Voice Mixer</h2>
+        <ul>
+          <li><strong>Pulse Lead</strong> — carries the main Axel F melody with quick filter sweeps.</li>
+          <li><strong>Triangle Pad</strong> — underpins the harmony with a glassy SID triangle.</li>
+          <li><strong>Chaos Drum</strong> — emulates the SID's famous "chaos" mode for crunchy drums.</li>
+        </ul>
+      </section>
+      <section class="sequencer frame">
+        <h2>Pattern Overview</h2>
+        <p>
+          The sequencer loops a 32-step grid at 124 BPM. Notes glow as they are scheduled so you can
+          follow each channel's groove.
+        </p>
+        <div class="grid" id="grid"></div>
+      </section>
+      <footer class="frame">
+        <p>
+          Built with the Web Audio API. Best experienced on desktop speakers or headphones for the
+          wide stereo image and chunky SID grit.
+        </p>
+      </footer>
+    </main>
+    <script type="module" src="sid.js"></script>
+  </body>
+</html>
