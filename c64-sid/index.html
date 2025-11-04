@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SID Axel F • VibeGames</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #12003b;
+      --bg-alt: #1e0566;
+      --fg: #e0d6ff;
+      --accent: #6d9fff;
+      --c64-blue: #7b8bff;
+      --panel: rgba(28, 7, 82, 0.72);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.5rem;
+      background: radial-gradient(circle at 20% 20%, rgba(90, 64, 255, 0.25), transparent 55%),
+        radial-gradient(circle at 80% 30%, rgba(160, 96, 255, 0.3), transparent 50%),
+        linear-gradient(160deg, var(--bg) 0%, #050018 100%);
+      color: var(--fg);
+      font-family: "Press Start 2P", system-ui, sans-serif;
+      padding: clamp(1.5rem, 2vw + 1rem, 3rem) 1.5rem 4rem;
+    }
+    header {
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3vw, 2.1rem);
+      text-shadow: 0 0 14px rgba(125, 152, 255, 0.65);
+    }
+    header p {
+      margin: 0;
+      font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+      line-height: 1.5;
+      color: rgba(224, 214, 255, 0.7);
+    }
+    main {
+      width: min(42rem, 95vw);
+      background: var(--panel);
+      border: 3px solid rgba(125, 152, 255, 0.25);
+      border-radius: 1.5rem;
+      box-shadow: 0 0 60px rgba(59, 88, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      padding: clamp(1.75rem, 2.5vw + 1rem, 2.75rem);
+      display: grid;
+      gap: 2rem;
+    }
+    button {
+      font-family: inherit;
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 1.1rem 1.8rem;
+      border-radius: 999px;
+      border: none;
+      color: var(--bg);
+      background: linear-gradient(120deg, #c4d4ff 0%, var(--c64-blue) 45%, #aec7ff 100%);
+      box-shadow: 0 18px 30px rgba(109, 159, 255, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+    button:hover,
+    button:focus-visible {
+      transform: translateY(-3px);
+      box-shadow: 0 20px 34px rgba(109, 159, 255, 0.32), inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+      outline: none;
+    }
+    button[disabled] {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .meters {
+      display: grid;
+      gap: 1rem;
+    }
+    .meter {
+      display: grid;
+      gap: 0.35rem;
+    }
+    .meter label {
+      font-size: 0.65rem;
+      color: rgba(224, 214, 255, 0.6);
+    }
+    .bar {
+      position: relative;
+      height: 0.9rem;
+      border-radius: 999px;
+      background: rgba(109, 159, 255, 0.18);
+      overflow: hidden;
+    }
+    .fill {
+      position: absolute;
+      inset: 0;
+      width: 12%;
+      transform-origin: left center;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(196, 212, 255, 0.9), rgba(109, 159, 255, 0.7));
+      transition: transform 120ms ease-out;
+    }
+    .ticker {
+      height: 180px;
+      border-radius: 1rem;
+      background: rgba(12, 3, 44, 0.65);
+      border: 1px solid rgba(162, 180, 255, 0.18);
+      overflow: hidden;
+      position: relative;
+    }
+    .ticker::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(109, 159, 255, 0.4) 1px, transparent 1px);
+      background-size: 100% 14px;
+      mix-blend-mode: screen;
+      opacity: 0.25;
+      transform: translateY(var(--scan, 0));
+    }
+    .ticker-lines {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      padding: 1.5rem 1.2rem;
+      font-size: 0.68rem;
+      color: rgba(196, 212, 255, 0.7);
+    }
+    .ticker-lines span {
+      display: block;
+    }
+    footer {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(224, 214, 255, 0.6);
+      text-align: center;
+    }
+    @media (max-width: 600px) {
+      body {
+        gap: 2rem;
+      }
+      header h1 {
+        font-size: 1.3rem;
+      }
+      main {
+        padding: 1.5rem;
+        gap: 1.5rem;
+      }
+      .ticker-lines {
+        font-size: 0.6rem;
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Commodore 64 SID Session</h1>
+    <p>Fire up a faithful three-voice SID sketch of <strong>Axel F</strong> with classic pulse, triangle, and chaos noise drums.</p>
+  </header>
+  <main>
+    <section class="controls">
+      <button id="start">Boot the SID</button>
+      <button id="stop" disabled>Stop</button>
+    </section>
+    <section class="meters" aria-label="Channel meters">
+      <div class="meter">
+        <label>Pulse Lead</label>
+        <div class="bar"><div class="fill" data-meter="0"></div></div>
+      </div>
+      <div class="meter">
+        <label>Triangle Bass</label>
+        <div class="bar"><div class="fill" data-meter="1"></div></div>
+      </div>
+      <div class="meter">
+        <label>Chaos Drums</label>
+        <div class="bar"><div class="fill" data-meter="2"></div></div>
+      </div>
+    </section>
+    <section class="ticker" aria-hidden="true">
+      <div class="ticker-lines">
+        <span>&gt; load "axel.f",8,1</span>
+        <span>run</span>
+        <span>now playing: axel f sid demo</span>
+        <span>voices: pulse / triangle / noise</span>
+      </div>
+    </section>
+  </main>
+  <footer>All audio is generated live with the Web Audio API.</footer>
+  <script>
+    // Simple note-to-frequency helper tuned to A440.
+    const NOTE_INDEX = { C: -9, 'C#': -8, Db: -8, D: -7, 'D#': -6, Eb: -6, E: -5, F: -4, 'F#': -3, Gb: -3, G: -2, 'G#': -1, Ab: -1, A: 0, 'A#': 1, Bb: 1, B: 2 };
+    function noteToFreq(note) {
+      const [, pitch, octave] = note.match(/([A-G]#?|Bb|Db|Eb|Gb|Ab)(\d)/);
+      const semitone = NOTE_INDEX[pitch] + (Number(octave) - 4) * 12;
+      return 440 * Math.pow(2, semitone / 12);
+    }
+
+    const tempo = 118; // BPM close to the original tune.
+    const beat = 60 / tempo;
+    const loopBeats = 16;
+    const loopDuration = loopBeats * beat;
+
+    const leadPattern = [
+      { start: 0.0, note: 'F4', length: 0.5 },
+      { start: 0.5, note: 'G4', length: 0.5 },
+      { start: 1.0, note: 'C5', length: 0.75 },
+      { start: 1.75, note: 'F4', length: 0.25 },
+      { start: 2.0, note: 'F4', length: 0.5 },
+      { start: 2.5, note: 'G4', length: 0.5 },
+      { start: 3.0, note: 'C5', length: 0.75 },
+      { start: 3.75, note: 'F4', length: 0.25 },
+      { start: 4.0, note: 'F4', length: 0.5 },
+      { start: 4.5, note: 'G4', length: 0.5 },
+      { start: 5.0, note: 'C5', length: 0.5 },
+      { start: 5.5, note: 'A#4', length: 0.5 },
+      { start: 6.0, note: 'G4', length: 0.5 },
+      { start: 6.5, note: 'F4', length: 0.5 },
+      { start: 7.0, note: 'F4', length: 0.5 },
+      { start: 7.5, note: 'A#4', length: 0.5 },
+      { start: 8.0, note: 'F4', length: 0.5 },
+      { start: 8.5, note: 'C5', length: 0.5 },
+      { start: 9.0, note: 'F5', length: 0.5 },
+      { start: 9.5, note: 'C5', length: 0.5 },
+      { start: 10.0, note: 'A#4', length: 0.5 },
+      { start: 10.5, note: 'F4', length: 0.5 },
+      { start: 11.0, note: 'G4', length: 0.5 },
+      { start: 11.5, note: 'C5', length: 0.5 },
+      { start: 12.0, note: 'F4', length: 0.5 },
+      { start: 12.5, note: 'C5', length: 0.5 },
+      { start: 13.0, note: 'G4', length: 0.5 },
+      { start: 13.5, note: 'C5', length: 0.5 },
+      { start: 14.0, note: 'A#4', length: 0.5 },
+      { start: 14.5, note: 'F4', length: 0.5 },
+      { start: 15.0, note: 'G4', length: 0.5 },
+      { start: 15.5, note: 'C5', length: 0.5 }
+    ];
+
+    const bassPattern = [
+      { start: 0.0, note: 'F2', length: 1.0 },
+      { start: 1.0, note: 'F3', length: 0.5 },
+      { start: 1.5, note: 'C3', length: 0.5 },
+      { start: 2.0, note: 'F2', length: 1.0 },
+      { start: 3.0, note: 'F3', length: 0.5 },
+      { start: 3.5, note: 'C3', length: 0.5 },
+      { start: 4.0, note: 'A#2', length: 1.0 },
+      { start: 5.0, note: 'F2', length: 0.5 },
+      { start: 5.5, note: 'A#2', length: 0.5 },
+      { start: 6.0, note: 'C3', length: 1.0 },
+      { start: 7.0, note: 'F2', length: 1.0 },
+      { start: 8.0, note: 'D#2', length: 1.0 },
+      { start: 9.0, note: 'A#2', length: 0.5 },
+      { start: 9.5, note: 'C3', length: 0.5 },
+      { start: 10.0, note: 'D#2', length: 1.0 },
+      { start: 11.0, note: 'C3', length: 1.0 },
+      { start: 12.0, note: 'F2', length: 1.0 },
+      { start: 13.0, note: 'C3', length: 0.5 },
+      { start: 13.5, note: 'F2', length: 0.5 },
+      { start: 14.0, note: 'A#1', length: 1.0 },
+      { start: 15.0, note: 'C3', length: 1.0 }
+    ];
+
+    const drumPattern = [];
+    for (let i = 0; i < loopBeats; i += 0.5) {
+      if (Number.isInteger(i)) {
+        drumPattern.push({ start: i, type: i % 4 === 0 ? 'kick' : 'snare' });
+      } else {
+        drumPattern.push({ start: i, type: 'hat' });
+      }
+    }
+
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const meterEls = Array.from(document.querySelectorAll('[data-meter]'));
+    const tickerEl = document.querySelector('.ticker');
+
+    let ctx;
+    let masterGain;
+    let channelGains = [];
+    let analysers = [];
+    let noiseBuffer;
+    let loopTimer;
+    let isPlaying = false;
+
+    function createContext() {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(0.6, ctx.currentTime);
+      masterGain.connect(ctx.destination);
+
+      analysers = [];
+      channelGains = [0, 1, 2].map(() => {
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        gain.connect(analyser);
+        analyser.connect(masterGain);
+        analysers.push(analyser);
+        return gain;
+      });
+
+      noiseBuffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      animateMeters();
+    }
+
+    function applyEnvelope(gainNode, startTime, attack, decay, sustain, release, duration) {
+      const peakTime = startTime + attack;
+      const sustainTime = Math.max(startTime + duration - release, peakTime);
+      gainNode.gain.cancelScheduledValues(startTime);
+      gainNode.gain.setValueAtTime(0.0001, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(sustain, peakTime);
+      gainNode.gain.setValueAtTime(sustain, sustainTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, sustainTime + release);
+    }
+
+    function scheduleLead(startTime) {
+      leadPattern.forEach(event => {
+        const time = startTime + event.start * beat;
+        const duration = event.length * beat;
+        const osc = ctx.createOscillator();
+        const pulse = createPulseWave(0.22);
+        osc.setPeriodicWave(pulse);
+        osc.frequency.setValueAtTime(noteToFreq(event.note), time);
+
+        const gain = ctx.createGain();
+        applyEnvelope(gain, time, 0.005, 0.06, 0.9, 0.08, duration);
+
+        osc.connect(gain).connect(channelGains[0]);
+        osc.start(time);
+        osc.stop(time + duration + 0.1);
+      });
+    }
+
+    function scheduleBass(startTime) {
+      bassPattern.forEach(event => {
+        const time = startTime + event.start * beat;
+        const duration = event.length * beat;
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(noteToFreq(event.note), time);
+
+        const gain = ctx.createGain();
+        applyEnvelope(gain, time, 0.01, 0.12, 0.7, 0.12, duration);
+
+        osc.connect(gain).connect(channelGains[1]);
+        osc.start(time);
+        osc.stop(time + duration + 0.2);
+      });
+    }
+
+    function scheduleDrums(startTime) {
+      drumPattern.forEach(event => {
+        const time = startTime + event.start * beat;
+        const gain = ctx.createGain();
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuffer;
+        src.loop = true;
+        src.playbackRate.setValueAtTime(event.type === 'hat' ? 8 : 1, time);
+        src.connect(gain).connect(channelGains[2]);
+
+        if (event.type === 'kick') {
+          applyEnvelope(gain, time, 0.001, 0.06, 0.9, 0.12, 0.35 * beat);
+        } else if (event.type === 'snare') {
+          applyEnvelope(gain, time, 0.002, 0.08, 0.7, 0.16, 0.45 * beat);
+        } else {
+          applyEnvelope(gain, time, 0.001, 0.04, 0.4, 0.08, 0.2 * beat);
+        }
+
+        src.start(time);
+        src.stop(time + 0.5);
+      });
+    }
+
+    function createPulseWave(width = 0.5) {
+      const real = new Float32Array(32);
+      const imag = new Float32Array(32);
+      real[0] = 0;
+      for (let i = 1; i < 32; i++) {
+        const n = i;
+        real[i] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * width);
+        imag[i] = 0;
+      }
+      return ctx.createPeriodicWave(real, imag);
+    }
+
+    function scheduleLoop(startTime) {
+      if (!ctx) return;
+      scheduleLead(startTime);
+      scheduleBass(startTime);
+      scheduleDrums(startTime);
+
+      const nextStart = startTime + loopDuration;
+      loopTimer = setTimeout(() => {
+        if (isPlaying) {
+          scheduleLoop(nextStart);
+        }
+      }, Math.max(0, (nextStart - ctx.currentTime - 0.1) * 1000));
+    }
+
+    function animateMeters() {
+      if (!analysers.length || !ctx) return;
+      const data = new Uint8Array(analysers[0].fftSize);
+      analysers.forEach((analyser, index) => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const value = (data[i] - 128) / 128;
+          sum += value * value;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        const meter = meterEls[index];
+        meter.style.transform = `scaleX(${Math.min(1, rms * 6 + 0.05)})`;
+      });
+      tickerEl?.style.setProperty('--scan', `${(performance.now() / 18) % 14}px`);
+      requestAnimationFrame(animateMeters);
+    }
+
+    function start() {
+      if (isPlaying) return;
+      if (!ctx) {
+        createContext();
+      }
+      const startTime = ctx.currentTime + 0.1;
+      isPlaying = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      scheduleLoop(startTime);
+    }
+
+    function stop() {
+      if (!ctx) return;
+      isPlaying = false;
+      clearTimeout(loopTimer);
+      channelGains.forEach(gain => gain.gain.cancelScheduledValues(ctx.currentTime));
+      ctx.close();
+      ctx = null;
+      masterGain = null;
+      analysers = [];
+      channelGains = [];
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      meterEls.forEach(el => el.style.transform = 'scaleX(0.1)');
+    }
+
+    startBtn.addEventListener('click', async () => {
+      if (ctx?.state === 'suspended') {
+        await ctx.resume();
+      }
+      start();
+    });
+
+    stopBtn.addEventListener('click', stop);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && isPlaying) {
+        stop();
+      }
+    });
+  </script>
+</body>
+</html>
