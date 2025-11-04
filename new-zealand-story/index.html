@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The New Kiwi Story</title>
+  <link rel="stylesheet" href="../shared/styles/crt.css" />
+  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="stylesheet" href="../shared/styles/hud.css" />
+  <link rel="stylesheet" href="style.css" />
+  <meta name="color-scheme" content="dark light" />
+</head>
+<body>
+  <div class="screen kiwi-screen crt-frame">
+    <canvas id="game" width="640" height="480" aria-label="The New Kiwi Story"></canvas>
+    <div class="crt-overlay"></div>
+    <div class="crt-glow"></div>
+    <div class="retro-hud kiwi-hud">
+      <div class="retro-controls">
+        <span class="title">THE NEW KIWI STORY</span>
+        <span class="score">SCORE <span id="hud-score">000000</span></span>
+        <span class="round">STAGE <span id="hud-stage">1</span></span>
+        <span class="lives">LIVES <span id="hud-lives">3</span></span>
+      </div>
+      <div class="retro-status">
+        <span class="hint">ARROWS: MOVE · Z: JUMP · X: ARROW · P: PAUSE · M: MUTE</span>
+      </div>
+    </div>
+  </div>
+  <script defer type="module" src="main.js"></script>
+</body>
+</html>
