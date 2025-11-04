@@ -1,0 +1,32 @@
+body {
+  font-family: 'Press Start 2P', 'VT323', 'IBM Plex Mono', system-ui, sans-serif;
+  background: radial-gradient(circle at center, #1f1f38 0%, #050512 60%, #010106 100%);
+  color: #f0f6ff;
+}
+
+.kiwi-screen {
+  --crt-glass-color: rgba(10, 18, 40, 0.4);
+  --crt-overlay-color: rgba(12, 25, 50, 0.12);
+  --scanline-alpha-min: 0.08;
+  --scanline-alpha-max: 0.45;
+  box-shadow: 0 0 0 4px #2c4df0 inset, 0 0 0 8px #0b1028 inset;
+  background: linear-gradient(180deg, #0a2546 0%, #071631 45%, #040b1d 100%);
+}
+
+.kiwi-hud {
+  color: #fddc6c;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.7);
+}
+
+.kiwi-hud .title {
+  color: #fefefe;
+  font-weight: bold;
+}
+
+.kiwi-hud .hint {
+  color: #9ad6ff;
+}
+
+canvas#game {
+  background: #041025;
+}
