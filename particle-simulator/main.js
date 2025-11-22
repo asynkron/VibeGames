@@ -8,9 +8,11 @@ const TYPE_CONFIG = {
   neutron: { label: 'Neutron', color: '#7cf3a0', radius: 18 },
   hydrogen: { label: 'Hydrogen', color: '#7f8cff', radius: 20 },
   helium: { label: 'Helium', color: '#f65d7a', radius: 24 },
+  lithium: { label: 'Lithium', color: '#86f7ff', radius: 26 },
 };
 
 const particles = [];
+const flashes = [];
 let idCounter = 0;
 let width = 0;
 let height = 0;
@@ -36,7 +38,7 @@ function rand(min, max) {
   return Math.random() * (max - min) + min;
 }
 
-function spawn(type, position) {
+function spawn(type, position, withFlash = false) {
   const cfg = TYPE_CONFIG[type];
   const x = position?.x ?? rand(cfg.radius, width - cfg.radius);
   const y = position?.y ?? rand(cfg.radius, height - cfg.radius);
@@ -50,7 +52,11 @@ function spawn(type, position) {
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
     radius: cfg.radius,
+    senseRadius: cfg.radius * 3,
+    swapAt: type === 'proton' || type === 'neutron' ? performance.now() + 10000 : null,
   });
+
+  if (withFlash) flashes.push({ x, y, color: cfg.color, born: performance.now(), duration: 420 });
 }
 
 function seedUniverse() {
@@ -94,7 +100,7 @@ function updateMotion() {
 function overlap(a, b) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
-  const range = a.radius + b.radius;
+  const range = a.senseRadius + b.senseRadius;
   return dx * dx + dy * dy <= range * range;
 }
 
@@ -184,12 +190,12 @@ function quarkFusion() {
     for (let i = 0; i < recipe.neutrons; i += 1) {
       consumed.push(ups.shift(), downs.shift(), downs.shift());
       const center = centroid(consumed.slice(-3));
-      spawn('neutron', center);
+      spawn('neutron', center, true);
     }
     for (let i = 0; i < recipe.protons; i += 1) {
       consumed.push(ups.shift(), ups.shift(), downs.shift());
       const center = centroid(consumed.slice(-3));
-      spawn('proton', center);
+      spawn('proton', center, true);
     }
     consumeParticles(consumed);
   }
@@ -210,7 +216,7 @@ function nucleonFusion() {
       const used = [protons.shift(), neutrons.shift()];
       consumed.push(...used);
       const center = centroid(used);
-      spawn('hydrogen', center);
+      spawn('hydrogen', center, true);
     }
     consumeParticles(consumed);
   }
@@ -227,7 +233,29 @@ function hydrogenFusion() {
       const used = [cluster[i * 2], cluster[i * 2 + 1]];
       consumed.push(...used);
       const center = centroid(used);
-      spawn('helium', center);
+      spawn('helium', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function heliumHydrogenFusion() {
+  // One helium plus one hydrogen forms lithium with a shock wave.
+  const clusters = buildClusters(['helium', 'hydrogen']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const heliums = cluster.filter((idx) => particles[idx].type === 'helium');
+    const hydrogens = cluster.filter((idx) => particles[idx].type === 'hydrogen');
+    const pairs = Math.min(heliums.length, hydrogens.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [heliums.shift(), hydrogens.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('lithium', center, true);
       ripple(center);
     }
     consumeParticles(consumed);
@@ -248,10 +276,38 @@ function ripple(origin) {
   }
 }
 
+function swapNucleon(p, targetType) {
+  const cfg = TYPE_CONFIG[targetType];
+  p.type = targetType;
+  p.radius = cfg.radius;
+  p.senseRadius = cfg.radius * 3;
+  p.swapAt = performance.now() + 10000;
+  flashes.push({ x: p.x, y: p.y, color: cfg.color, born: performance.now(), duration: 320 });
+}
+
+function updateNucleonOscillation() {
+  const now = performance.now();
+  for (const p of particles) {
+    if ((p.type === 'proton' || p.type === 'neutron') && p.swapAt && now >= p.swapAt) {
+      swapNucleon(p, p.type === 'proton' ? 'neutron' : 'proton');
+    }
+  }
+}
+
 function runReactions() {
   quarkFusion();
   nucleonFusion();
   hydrogenFusion();
+  heliumHydrogenFusion();
+}
+
+function updateFlashes() {
+  const now = performance.now();
+  for (let i = flashes.length - 1; i >= 0; i -= 1) {
+    if (now - flashes[i].born > flashes[i].duration) {
+      flashes.splice(i, 1);
+    }
+  }
 }
 
 function drawParticle(p) {
@@ -259,6 +315,12 @@ function drawParticle(p) {
   const gradient = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, p.radius);
   gradient.addColorStop(0, `${cfg.color}ee`);
   gradient.addColorStop(1, `${cfg.color}22`);
+
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.senseRadius, 0, Math.PI * 2);
+  ctx.strokeStyle = `${cfg.color}22`;
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   ctx.beginPath();
   ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
@@ -296,10 +358,27 @@ function drawBackdrop() {
 function render() {
   ctx.save();
   drawBackdrop();
+  drawFlashes();
   for (const p of particles) {
     drawParticle(p);
   }
   ctx.restore();
+}
+
+function drawFlashes() {
+  const now = performance.now();
+  for (const flash of flashes) {
+    const progress = Math.min(1, (now - flash.born) / flash.duration);
+    const radius = 30 + progress * 90;
+    const alpha = 1 - progress;
+    const gradient = ctx.createRadialGradient(flash.x, flash.y, 4, flash.x, flash.y, radius);
+    gradient.addColorStop(0, `${flash.color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`);
+    gradient.addColorStop(1, `${flash.color}00`);
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(flash.x, flash.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function updateHud() {
@@ -323,6 +402,7 @@ function renderLegend() {
     { from: '2 up + 1 down', to: 'Proton' },
     { from: '1 proton + 1 neutron', to: 'Hydrogen' },
     { from: '2 hydrogen', to: 'Helium + shock wave' },
+    { from: '1 helium + 1 hydrogen', to: 'Lithium + shock wave' },
   ];
   legend.innerHTML = rules
     .map(
@@ -338,6 +418,8 @@ function renderLegend() {
 function tick() {
   updateMotion();
   runReactions();
+  updateNucleonOscillation();
+  updateFlashes();
   render();
   updateHud();
   requestAnimationFrame(tick);
