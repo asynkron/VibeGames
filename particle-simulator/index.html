@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quark Fusion Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="universe" aria-label="Particle simulator canvas"></canvas>
+  <section id="hud">
+    <div class="section">
+      <h1>Quark Fusion Playground</h1>
+      <p class="subtitle">Wobbling quarks, snap-together protons, neutrons, and atoms.</p>
+    </div>
+    <div class="section counts" id="counts"></div>
+    <div class="section controls">
+      <button id="quarkBurst">Add quark burst</button>
+      <button id="atomPair">Add hydrogen pair</button>
+      <button id="reset">Reset universe</button>
+    </div>
+    <div class="section legend" id="legend"></div>
+  </section>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
