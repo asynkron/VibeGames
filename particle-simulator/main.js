@@ -9,6 +9,13 @@ const TYPE_CONFIG = {
   hydrogen: { label: 'Hydrogen', color: '#7f8cff', radius: 20 },
   helium: { label: 'Helium', color: '#f65d7a', radius: 24 },
   lithium: { label: 'Lithium', color: '#86f7ff', radius: 26 },
+  beryllium: { label: 'Beryllium', color: '#c6ff7f', radius: 28 },
+  boron: { label: 'Boron', color: '#ffa5e6', radius: 30 },
+  carbon: { label: 'Carbon', color: '#90b1ff', radius: 32 },
+  nitrogen: { label: 'Nitrogen', color: '#9fffe0', radius: 34 },
+  oxygen: { label: 'Oxygen', color: '#ffcf8f', radius: 36 },
+  fluorine: { label: 'Fluorine', color: '#f5a3ff', radius: 38 },
+  neon: { label: 'Neon', color: '#8fffff', radius: 40 },
 };
 
 const particles = [];
@@ -262,6 +269,270 @@ function heliumHydrogenFusion() {
   }
 }
 
+function lithiumHeliumFusion() {
+  // One lithium plus one helium forms boron and releases a shock wave.
+  const clusters = buildClusters(['lithium', 'helium']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const lithiums = cluster.filter((idx) => particles[idx].type === 'lithium');
+    const heliums = cluster.filter((idx) => particles[idx].type === 'helium');
+    const pairs = Math.min(lithiums.length, heliums.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [lithiums.shift(), heliums.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('boron', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function lithiumHydrogenFusion() {
+  // One lithium plus one hydrogen fuses into beryllium with a shock wave.
+  const clusters = buildClusters(['lithium', 'hydrogen']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const lithiums = cluster.filter((idx) => particles[idx].type === 'lithium');
+    const hydrogens = cluster.filter((idx) => particles[idx].type === 'hydrogen');
+    const pairs = Math.min(lithiums.length, hydrogens.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [lithiums.shift(), hydrogens.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('beryllium', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function berylliumHydrogenFusion() {
+  // One beryllium plus one hydrogen makes boron and radiates energy.
+  const clusters = buildClusters(['beryllium', 'hydrogen']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const berylliums = cluster.filter((idx) => particles[idx].type === 'beryllium');
+    const hydrogens = cluster.filter((idx) => particles[idx].type === 'hydrogen');
+    const pairs = Math.min(berylliums.length, hydrogens.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [berylliums.shift(), hydrogens.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('boron', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function berylliumHeliumFusion() {
+  // One beryllium plus one helium builds carbon and emits a shock wave.
+  const clusters = buildClusters(['beryllium', 'helium']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const berylliums = cluster.filter((idx) => particles[idx].type === 'beryllium');
+    const heliums = cluster.filter((idx) => particles[idx].type === 'helium');
+    const pairs = Math.min(berylliums.length, heliums.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [berylliums.shift(), heliums.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('carbon', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function boronHydrogenFusion() {
+  // One boron plus one hydrogen climbs to carbon with a shock wave.
+  const clusters = buildClusters(['boron', 'hydrogen']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const borons = cluster.filter((idx) => particles[idx].type === 'boron');
+    const hydrogens = cluster.filter((idx) => particles[idx].type === 'hydrogen');
+    const pairs = Math.min(borons.length, hydrogens.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [borons.shift(), hydrogens.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('carbon', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function boronHeliumFusion() {
+  // One boron plus one helium fuses into nitrogen and kicks matter away.
+  const clusters = buildClusters(['boron', 'helium']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const borons = cluster.filter((idx) => particles[idx].type === 'boron');
+    const heliums = cluster.filter((idx) => particles[idx].type === 'helium');
+    const pairs = Math.min(borons.length, heliums.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [borons.shift(), heliums.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('nitrogen', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function carbonHydrogenFusion() {
+  // One carbon plus one hydrogen yields nitrogen and a ripple.
+  const clusters = buildClusters(['carbon', 'hydrogen']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const carbons = cluster.filter((idx) => particles[idx].type === 'carbon');
+    const hydrogens = cluster.filter((idx) => particles[idx].type === 'hydrogen');
+    const pairs = Math.min(carbons.length, hydrogens.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [carbons.shift(), hydrogens.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('nitrogen', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function carbonHeliumFusion() {
+  // One carbon plus one helium produces oxygen and blasts nearby particles.
+  const clusters = buildClusters(['carbon', 'helium']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const carbons = cluster.filter((idx) => particles[idx].type === 'carbon');
+    const heliums = cluster.filter((idx) => particles[idx].type === 'helium');
+    const pairs = Math.min(carbons.length, heliums.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [carbons.shift(), heliums.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('oxygen', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function nitrogenHydrogenFusion() {
+  // One nitrogen plus one hydrogen steps to oxygen with a shock wave.
+  const clusters = buildClusters(['nitrogen', 'hydrogen']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const nitrogens = cluster.filter((idx) => particles[idx].type === 'nitrogen');
+    const hydrogens = cluster.filter((idx) => particles[idx].type === 'hydrogen');
+    const pairs = Math.min(nitrogens.length, hydrogens.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [nitrogens.shift(), hydrogens.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('oxygen', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function nitrogenHeliumFusion() {
+  // One nitrogen plus one helium creates fluorine and radiates outward.
+  const clusters = buildClusters(['nitrogen', 'helium']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const nitrogens = cluster.filter((idx) => particles[idx].type === 'nitrogen');
+    const heliums = cluster.filter((idx) => particles[idx].type === 'helium');
+    const pairs = Math.min(nitrogens.length, heliums.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [nitrogens.shift(), heliums.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('fluorine', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function oxygenHydrogenFusion() {
+  // One oxygen plus one hydrogen yields fluorine alongside a blast wave.
+  const clusters = buildClusters(['oxygen', 'hydrogen']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const oxygens = cluster.filter((idx) => particles[idx].type === 'oxygen');
+    const hydrogens = cluster.filter((idx) => particles[idx].type === 'hydrogen');
+    const pairs = Math.min(oxygens.length, hydrogens.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [oxygens.shift(), hydrogens.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('fluorine', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
+function oxygenHeliumFusion() {
+  // One oxygen plus one helium forms neon and jolts the surroundings.
+  const clusters = buildClusters(['oxygen', 'helium']);
+  for (const cluster of clusters) {
+    if (cluster.length < 2) continue;
+    const oxygens = cluster.filter((idx) => particles[idx].type === 'oxygen');
+    const heliums = cluster.filter((idx) => particles[idx].type === 'helium');
+    const pairs = Math.min(oxygens.length, heliums.length);
+    if (!pairs) continue;
+
+    const consumed = [];
+    for (let i = 0; i < pairs; i += 1) {
+      const used = [oxygens.shift(), heliums.shift()];
+      consumed.push(...used);
+      const center = centroid(used);
+      spawn('neon', center, true);
+      ripple(center);
+    }
+    consumeParticles(consumed);
+  }
+}
+
 function ripple(origin) {
   const waveRadius = 240;
   const wavePower = 5.5;
@@ -299,6 +570,18 @@ function runReactions() {
   nucleonFusion();
   hydrogenFusion();
   heliumHydrogenFusion();
+  lithiumHydrogenFusion();
+  lithiumHeliumFusion();
+  berylliumHydrogenFusion();
+  berylliumHeliumFusion();
+  boronHydrogenFusion();
+  boronHeliumFusion();
+  carbonHydrogenFusion();
+  carbonHeliumFusion();
+  nitrogenHydrogenFusion();
+  nitrogenHeliumFusion();
+  oxygenHydrogenFusion();
+  oxygenHeliumFusion();
 }
 
 function updateFlashes() {
@@ -403,6 +686,18 @@ function renderLegend() {
     { from: '1 proton + 1 neutron', to: 'Hydrogen' },
     { from: '2 hydrogen', to: 'Helium + shock wave' },
     { from: '1 helium + 1 hydrogen', to: 'Lithium + shock wave' },
+    { from: '1 lithium + 1 hydrogen', to: 'Beryllium + shock wave' },
+    { from: '1 lithium + 1 helium', to: 'Boron + shock wave' },
+    { from: '1 beryllium + 1 hydrogen', to: 'Boron + shock wave' },
+    { from: '1 beryllium + 1 helium', to: 'Carbon + shock wave' },
+    { from: '1 boron + 1 hydrogen', to: 'Carbon + shock wave' },
+    { from: '1 boron + 1 helium', to: 'Nitrogen + shock wave' },
+    { from: '1 carbon + 1 hydrogen', to: 'Nitrogen + shock wave' },
+    { from: '1 carbon + 1 helium', to: 'Oxygen + shock wave' },
+    { from: '1 nitrogen + 1 hydrogen', to: 'Oxygen + shock wave' },
+    { from: '1 nitrogen + 1 helium', to: 'Fluorine + shock wave' },
+    { from: '1 oxygen + 1 hydrogen', to: 'Fluorine + shock wave' },
+    { from: '1 oxygen + 1 helium', to: 'Neon + shock wave' },
   ];
   legend.innerHTML = rules
     .map(
