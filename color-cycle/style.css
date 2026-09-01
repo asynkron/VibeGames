@@ -1,0 +1,33 @@
+:root {
+  color-scheme: dark;
+  --hue: 120;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #000;
+}
+
+.stage {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.color-square {
+  width: clamp(12rem, 40vmin, 28rem);
+  aspect-ratio: 1;
+  background: hsl(var(--hue) 100% 50%);
+}
