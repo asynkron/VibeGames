@@ -1,112 +1,75 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
-
 :root {
-  --screen-width: min(96vw, 960px);
-  --screen-aspect: 4 / 3;
-  --screen-bg: #050408;
-  --screen-shadow:
-    0 0 0 3px rgba(8, 6, 3, 0.9) inset,
-    0 24px 60px rgba(0, 0, 0, 0.65),
-    0 0 120px rgba(0, 0, 0, 0.55);
-  --screen-body-bg: radial-gradient(circle at 50% 12%, #1c1a23 0, #0c0b11 55%, #040309 100%);
-  --screen-text: #f3e9c6;
-  --screen-font: 'Press Start 2P', 'VT323', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --ui-margin: 18px;
-}
-
-html,
-body {
-  height: 100%;
+  color-scheme: dark;
+  background: #000;
+  color: #fff;
+  font-family: monospace;
 }
 
 body {
   margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  background:
-    radial-gradient(120% 120% at 12% 18%, rgba(96, 80, 52, 0.3) 0, transparent 65%),
-    radial-gradient(110% 90% at 85% 12%, rgba(52, 48, 42, 0.35) 0, transparent 58%),
-    repeating-linear-gradient(135deg, rgba(32, 28, 24, 0.55) 0 32px, rgba(14, 12, 10, 0.55) 32px 64px),
-    #050408;
-  color: var(--screen-text);
-  font-family: var(--screen-font);
+  min-width: 640px;
+  min-height: max(400px, 100svh);
+  background: #000;
 }
 
 .screen {
-  position: relative;
+  position: absolute;
   isolation: isolate;
-  width: min(100vw, calc(100vh * var(--screen-aspect)));
-  max-width: 100vw;
-  max-height: 100vh;
-  aspect-ratio: var(--screen-aspect);
-  /* Stage sizing/alignment is driven from the HUD renderer. */
+  width: 640px;
+  height: 400px;
+  background: #000;
 }
 
 #stage {
   position: absolute;
-  display: block;
   z-index: 1;
   pointer-events: none;
 }
 
-#hud-frame {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-}
-
-#hud {
+#hud,
+.minimap-overlay,
+.minimap-overlay canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 10;
-  pointer-events: auto;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
 }
 
-#stage.is-encountering .pixel-canvas {
-  display: none;
+canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+#hud {
+  z-index: 2;
+  cursor: default;
+  touch-action: manipulation;
+}
+
+#hud:focus-visible {
+  outline: 2px solid #ffff55;
+  outline-offset: -2px;
 }
 
 .minimap-overlay {
-  position: absolute;
-  inset: 0;
   display: none;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 18px;
-  padding: 32px;
-  background: radial-gradient(circle at 50% 50%, rgba(4, 6, 10, 0.92) 0%, rgba(2, 3, 5, 0.96) 100%);
-  z-index: 15;
-  pointer-events: auto;
+  z-index: 3;
+  background: #000;
+  cursor: pointer;
 }
 
 .minimap-overlay.is-visible {
-  display: flex;
+  display: block;
 }
 
-.minimap-overlay canvas {
-  width: min(92%, 720px);
-  max-height: calc(100% - 140px);
-  height: auto;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  border: 2px solid rgba(116, 94, 64, 0.75);
-  box-shadow:
-    0 0 24px rgba(0, 0, 0, 0.65),
-    0 0 0 6px rgba(10, 12, 18, 0.85) inset;
-  background: rgba(6, 8, 12, 0.92);
-}
-
-.minimap-hint {
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(243, 233, 198, 0.75);
-  text-align: center;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

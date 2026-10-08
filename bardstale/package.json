@@ -1,0 +1,9 @@
+{
+  "name": "bardstale",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check main.js && node --check config/uiSettings.js && node --check config/combatSettings.js && node --check src/dungeon.js && node --check src/render/tiles.js && node --check src/render/hud.js && node --check src/render/minimap.js && node --check src/render/combatSprites.js && node --check src/render/combatSpriteTiles.js && node --check src/render/spriteWorkshop.js && node --check src/render/scene.js && node --check src/systems/battlefield.js && node --check src/systems/core.js"
+  }
+}

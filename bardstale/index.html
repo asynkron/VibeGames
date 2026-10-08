@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bard's Tale</title>
-  <link rel="stylesheet" href="../shared/styles/screen.css" />
+  <link rel="icon" href="data:," />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="screen" class="screen">
-    <div id="stage" data-screen-canvas="true"></div>
-    <div id="hud-frame" data-screen-canvas="true">
-      <canvas id="hud" data-screen-canvas="true" aria-label="Bard's Tale interface"></canvas>
-    </div>
-  </div>
+  <main id="screen" class="screen" aria-label="Bard's Tale">
+    <div id="stage" aria-hidden="true"></div>
+    <canvas id="hud" width="640" height="400" tabindex="0" aria-label="Bard's Tale character interface" aria-describedby="controls"></canvas>
+    <p id="controls" class="sr-only">Arrow keys move and turn while exploring. M opens the map; M or Escape closes it. Click a party member to inspect their portrait and statistics. Combat commands use numbers 1 through 8; 0 returns to the previous menu. Choose Move, then use the arrow keys or click a reachable dungeon cell. Enter finishes movement. Choose an attack or spell, then click a highlighted target or use the cursor and Enter. Page Up and Page Down turn command pages. D turns character detail pages.</p>
+    <div id="ui-accessibility" class="sr-only"></div>
+  </main>
   <script type="module" src="./main.js"></script>
 </body>
 </html>

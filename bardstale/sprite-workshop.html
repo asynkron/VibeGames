@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Character tiles · Bard's Tale</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root { color-scheme: dark; font-family: monospace; font-size: 14px; color: #eee; background: #14171b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px; }
+    main { max-width: 1040px; margin: auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
+    h2 { font-size: 14px; font-weight: normal; color: #98aaa9; text-transform: uppercase; }
+    a { color: #70dfda; text-underline-offset: 4px; }
+    button, select { font: inherit; border: 1px solid #697478; border-radius: 0; background: #222b30; color: #fff; min-height: 34px; }
+    button { cursor: pointer; padding: 6px 10px; }
+    button:hover, select:hover { border-color: #a7e6df; }
+    :focus-visible { outline: 2px solid #ffff55; outline-offset: 3px; }
+    select { width: 100%; padding: 5px 8px; }
+    .workbench { display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: 24px; }
+    .preview { border: 1px solid #586368; background: #080b0e; padding: 22px; }
+    .preview-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+    .grid-control { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #ccd6d6; }
+    input[type=checkbox] { accent-color: #55ffff; width: 16px; height: 16px; margin: 0; }
+    .facings { display: flex; justify-content: center; flex-wrap: wrap; gap: 24px; padding: 28px 0 22px; }
+    figure { margin: 0; }
+    figcaption { text-align: center; margin-top: 10px; color: #c3d0d0; font-size: 12px; text-transform: uppercase; }
+    .sprite { position: relative; width: 192px; height: 192px; background: #505050; }
+    canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+    .sprite canvas { width: 100%; height: 100%; }
+    .with-grid::after { content: ''; position: absolute; inset: 0; pointer-events: none; border: 1px solid #d6e4df66; background-image: linear-gradient(to right, transparent calc(100% - 1px), #d6e4df66 0), linear-gradient(to bottom, transparent calc(100% - 1px), #d6e4df66 0); background-size: 33.333333% 33.333333%; }
+    .native-row { display: flex; justify-content: center; align-items: center; gap: 14px; border-top: 1px solid #343d42; padding-top: 18px; color: #a4b4b5; font-size: 12px; }
+    .native-row canvas { width: 24px; height: 24px; background: #505050; }
+    .dimensions { margin-top: 18px; text-align: center; font-size: 12px; line-height: 1.6; color: #9caeb1; }
+    .controls { display: grid; gap: 13px; align-content: start; }
+    .field { display: grid; gap: 5px; }
+    .field > span { text-transform: uppercase; font-size: 12px; color: #a4b4b5; }
+    .parts { display: grid; gap: 11px; border-top: 1px solid #455158; padding-top: 16px; margin-top: 2px; }
+    .variants { margin-top: 26px; }
+    .variant-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .variant-heading select { width: 150px; }
+    .variant-list { display: flex; flex-wrap: wrap; gap: 10px; }
+    .variant { display: grid; justify-items: center; gap: 9px; min-width: 96px; padding: 10px; background: #080b0e; font-size: 12px; }
+    .variant[aria-pressed=true] { border-color: #55ffff; color: #55ffff; }
+    .variant canvas { width: 72px; height: 72px; background: #505050; }
+    footer { color: #98aaa9; font-size: 12px; line-height: 1.6; margin-top: 24px; border-top: 1px solid #343d42; padding-top: 16px; }
+    @media (max-width: 800px) { body { padding: 18px; } .workbench { grid-template-columns: minmax(0, 1fr); } .controls { grid-template-columns: 1fr auto; align-items: end; } .parts { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 480px) { header { align-items: start; } .preview { padding: 14px; } .facings { gap: 18px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><h1>Character tiles</h1><a href="./index.html">Back to game</a></header>
+    <div class="workbench">
+      <section class="preview" aria-label="Character appearance preview">
+        <div class="preview-heading">
+          <h2>24 × 24 pixels · 8× view</h2>
+          <label class="grid-control"><input id="grid-toggle" type="checkbox" checked /> 8 × 8 tile grid</label>
+        </div>
+        <div class="facings">
+          <figure><div id="left-preview" class="sprite with-grid"></div><figcaption>Face left</figcaption></figure>
+          <figure><div id="right-preview" class="sprite with-grid"></div><figcaption>Face right</figcaption></figure>
+        </div>
+        <div class="native-row"><span>Native size</span><div id="native-left"></div><div id="native-right"></div><span>24 × 24</span></div>
+        <p class="dimensions">3 × 3 tiles per character · each tile is 8 × 8 pixels</p>
+      </section>
+      <section class="controls" aria-label="Character parts">
+        <label class="field"><span>Character preset</span><select id="kind"></select></label>
+        <button id="reset" type="button">Reset preset</button>
+        <div id="parts" class="parts"></div>
+      </section>
+    </div>
+    <section class="variants" aria-labelledby="variants-title">
+      <div class="variant-heading"><h2 id="variants-title">Compare parts</h2><select id="variant-part" aria-label="Part to compare"></select></div>
+      <div id="variant-list" class="variant-list"></div>
+    </section>
+    <footer>Change a part to try another head, outfit, weapon, or shield. Both facings use the same assembled character.</footer>
+  </main>
+  <script type="module" src="./src/render/spriteWorkshop.js"></script>
+</body>
+</html>
