@@ -100,7 +100,7 @@ export function paintHumanTorso(p,style) {
     leather:'leather',tunic:'teal',robe:'teal'}[style];
   paintBodyPart(p,'torso',cell=>{
     if (style==='bare') return 'skin';
-    if (cell.region==='waist') return cell.y===10?'belt':coat;
+    if (cell.region==='waist') return coat;
     if (style==='steel') {
       if (cell.z<11 || Math.abs(cell.x-11.5)>2.5) return 'gunmetal';
       if (frontSurface(cell) && (cell.x===11 || cell.x===12)) return 'silver';
@@ -111,7 +111,6 @@ export function paintHumanTorso(p,style) {
   if (style==='bare') return;
 
   // The waist closes the cuirass/jerkin; the complete hips remain on the legs.
-  p.put(11,10,14,'gold'); p.put(12,10,14,'gold');
   if (style==='steel') {
     p.limb([9.5,16.5,12.5],[11.5,17.5,13.5],.55,'silver');
     p.limb([14.5,16.5,12.5],[12.5,17.5,13.5],.55,'silver');
@@ -147,25 +146,18 @@ export function paintHumanArms(p,style) {
   paintBodyPart(p,'arms',cell=>{
     if (style==='bare') return 'skin';
     const hand=cell.region==='hand'||cell.region==='wrist';
-    if (style==='sleeves') return hand?'skin':'teal';
-    if (style==='leather') return hand?'leather':cell.region==='forearm'?'belt':'leather';
-    if (cell.region==='elbow'||cell.region==='wrist') return 'gunmetal';
+    if (hand) return 'skin';
+    if (style==='sleeves') return 'teal';
+    if (style==='leather') return cell.region==='forearm'?'belt':'leather';
+    if (style==='chain') return (cell.x+cell.y)%2===0?'steel':'gunmetal';
+    if (cell.region==='elbow') return 'gunmetal';
     return frontSurface(cell,12)?'steel':'gunmetal';
   });
-  const handSurface={plate:'steel',leather:'leather',sleeves:'skin',bare:'skin'}[style];
   // Inner thumbs wrap the shaft and shield handle without filling their grips.
-  p.put(6,14,15,handSurface); p.put(16,11,15,handSurface);
+  p.put(6,14,15,'skin'); p.put(16,11,15,'skin');
   if (style==='plate') {
     for (const arm of FRAME.arms) {
-      p.oval([arm.shoulder[0],16,12],[2,1.4,1.95],'steel',(_x,y)=>y>=15);
       p.oval([arm.elbow[0],arm.elbow[1],12.5],[1.45,1.15,1.4],'steel');
-    }
-    for (const cell of p.cells.values()) {
-      if (cell.y===16) cell.surface='silver';
-    }
-  } else if (style==='leather') {
-    for (const arm of FRAME.arms) {
-      p.oval([arm.shoulder[0],16,12],[1.75,1.4,1.7],'belt',(_x,y)=>y>15);
     }
   }
 }
@@ -205,20 +197,20 @@ export function paintHumanLegs(p,style) {
   if (style==='bones') { paintSkeletalLegs(p); return; }
   paintBodyPart(p,'legs',cell=>{
     const lower=['knee','shin','calf','ankle','foot'].includes(cell.region);
+    if (cell.region==='foot'||cell.region==='ankle') return 'skin';
     if (style==='bare') return lower?'skin':'indigo';
-    if (style==='skirt') return cell.region==='foot'||cell.region==='ankle'?'leather':lower?'skin':'teal';
-    if (style==='ranger') return lower?'leather':'olive';
-    if (style==='robe') return lower?'leather':'teal';
-    if (cell.y===0) return 'leather';
+    if (style==='skirt') return lower?'skin':'teal';
+    if (style==='ranger') return 'olive';
+    if (style==='plain') return 'indigo';
+    if (style==='robe') return lower?'skin':'teal';
     if (cell.region==='pelvis') return 'indigo';
-    if (cell.region==='ankle') return 'gunmetal';
     if (cell.region==='thigh' && cell.z<(cell.x<12?13:11)) return 'indigo';
     return 'steel';
   });
   if (style==='armored') {
     for (const leg of FRAME.legs) {
       p.oval([leg.knee[0],leg.knee[1],leg.knee[2]+.6],[1.4,1.15,1.05],'silver');
-      p.limb([leg.ankle[0],2.5,leg.ankle[2]+1],[leg.knee[0],4.5,leg.knee[2]+1],.6,'silver');
+      p.limb([leg.ankle[0],3.5,leg.ankle[2]+1],[leg.knee[0],4.5,leg.knee[2]+1],.6,'silver');
     }
   } else if (style==='ranger') {
     for (const leg of FRAME.legs) p.oval([leg.knee[0],5.2,leg.knee[2]],[1.4,.65,1.35],'belt');
@@ -229,4 +221,52 @@ export function paintHumanLegs(p,style) {
     paintHem(p,6,12,'teal');
     for (let x=8;x<16;x++) p.put(x,6,14,'gold');
   }
+}
+
+/** Independent gear follows the same anatomical frame as the underlying body. */
+export function paintHumanOverlay(p,slot,style) {
+  if (style==='none') return;
+  const surface={cloth:'ivory',leather:'leather',steel:'steel',gold:'gold',ruby:'ruby',sapphire:'sapphire'}[style];
+  if (!surface) throw new RangeError(`Unknown ${slot} material: ${style}`);
+  if (slot==='shoulders') {
+    for (const arm of FRAME.arms) {
+      p.oval([arm.shoulder[0],16.3,12],[2.5,1.7,2.2],surface,(_x,y)=>y>=15);
+      if (style==='steel') {
+        p.oval([arm.shoulder[0],15.3,12],[2.65,.7,2.25],'gunmetal');
+        p.put(Math.floor(arm.shoulder[0]),17,13,'silver');
+      } else p.put(Math.floor(arm.shoulder[0]),16,14,'gold');
+    }
+  } else if (slot==='hands') {
+    for (const cell of HUMAN_BODY) if(cell.owner==='arms' && ['hand','wrist'].includes(cell.region)) {
+      p.put(cell.x,cell.y,cell.z,surface);
+    }
+    p.put(6,14,15,surface); p.put(16,11,15,surface);
+    for (const arm of FRAME.arms) {
+      p.oval([arm.wrist[0],arm.wrist[1],14.5],[1.3,1.3,1],style==='steel'?'gunmetal':surface);
+      if(style==='steel') p.put(Math.floor(arm.hand[0]),Math.floor(arm.hand[1]),16,'silver');
+    }
+  } else if (slot==='feet') {
+    for (const cell of HUMAN_BODY) if(cell.owner==='legs' && ['foot','ankle'].includes(cell.region)) {
+      p.put(cell.x,cell.y,cell.z,cell.y===0?'leather':surface);
+    }
+    for(const leg of FRAME.legs) {
+      p.oval([leg.ankle[0],3,leg.ankle[2]],[1.5,.75,1.45],style==='steel'?'gunmetal':surface);
+      p.put(Math.floor(leg.foot[0]),1,Math.floor(leg.foot[2]+1),style==='steel'?'silver':surface);
+    }
+  } else if (slot==='waist') {
+    p.oval([12,10.7,12],[3.3,.8,2.5],surface);
+    p.box([11,10,14],[13,12,15],'gold');
+    p.put(11,10,15,style==='gold'?'ruby':'gunmetal');
+    if(style==='leather') p.box([14,9,13],[16,11,15],'belt');
+  } else if(slot==='neck') {
+    // The chain lies on top of the collar and drops to a chest pendant.
+    p.limb([9.5,17.5,13.5],[11.5,15.5,14.5],.6,'gold');
+    p.limb([14.5,17.5,13.5],[12.5,15.5,14.5],.6,'gold');
+    p.box([11,15,15],[13,16,16],surface);
+    p.put(11,14,15,style==='gold'?'gold':surface);
+  } else if(slot==='ring1'||slot==='ring2') {
+    const [x,y]=slot==='ring1'?[4,14]:[18,11];
+    p.box([x,y,14],[x+1,y+1,17],'gold');
+    p.put(x,y,17,surface);
+  } else throw new RangeError(`Unknown overlay slot: ${slot}`);
 }

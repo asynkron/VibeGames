@@ -1,5 +1,8 @@
 // Later parts own shared cells, so equipment can sit over clothing and anatomy.
-export const VOXEL_PART_SLOTS = Object.freeze(['torso', 'legs', 'arms', 'head', 'back', 'offhand', 'mainhand']);
+export const VOXEL_PART_SLOTS = Object.freeze([
+  'torso', 'legs', 'arms', 'head', 'back', 'shoulders', 'hands', 'feet',
+  'waist', 'neck', 'ring1', 'ring2', 'offhand', 'mainhand',
+]);
 
 const AXES = ['x', 'y', 'z'];
 const cellKey = ({ x, y, z }) => `${x},${y},${z}`;

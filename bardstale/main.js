@@ -5,6 +5,7 @@ import { createHudRenderer } from './src/render/hud.js';
 import { createMinimapOverlay } from './src/render/minimap.js';
 import { buildScene } from './src/render/scene.js';
 import { createCombatMapControls } from './src/render/combatMapControls.js';
+import { createInventoryPanel } from './src/render/inventoryPanel.js';
 import { initBt3Systems } from './src/systems/core.js';
 import { UI_SETTINGS } from './config/uiSettings.js';
 
@@ -28,8 +29,9 @@ function main() {
   const screenElement = document.getElementById('screen');
   let combatLayoutActive = false;
   const hud = createHudRenderer(hudCanvas, {
+    onInventoryClick(characterId) { openInventory(characterId); },
     onViewportClick(event) {
-      if (!systems.isCombatActive) return;
+      if (inventory.isOpen() || !systems.isCombatActive) return;
       const cell = g.pickBattleCell(event.clientX, event.clientY);
       if (cell) systems.selectCombatCell(cell.x, cell.y);
     },
@@ -88,8 +90,16 @@ function main() {
     },
   };
   const systems = initBt3Systems({ hud, combatView, dungeon: state });
+  const inventory = createInventoryPanel({
+    parent: document.body,
+    systems,
+    onClose() {
+      screenElement.inert = false;
+      hudCanvas.focus({ preventScroll: true });
+    },
+  });
   const mapControls = createCombatMapControls(hudCanvas, {
-    isActive: () => systems.isCombatActive && !minimap.isVisible(),
+    isActive: () => systems.isCombatActive && !minimap.isVisible() && !inventory.isOpen(),
     containsPoint(clientX, clientY) {
       const rect = stageElement.getBoundingClientRect();
       return clientX >= rect.left && clientX < rect.right && clientY >= rect.top && clientY < rect.bottom;
@@ -104,8 +114,22 @@ function main() {
   // Animation state
   let anim = null; // {type:'move'|'turn', start, duration, fromPos:{x,z}, toPos:{x,z}, fromYaw, toYaw}
   let keyQueued = null;
+  let inventoryQueuedFor = null;
   let lastFrameTime = performance.now();
   let torchPhase = Math.random() * Math.PI * 2;
+
+  function openInventory(characterId) {
+    minimap.hide();
+    mapControls.cancel();
+    keyQueued = null;
+    const targetId = characterId || hud.getInspectedCharacterId();
+    if (anim) {
+      inventoryQueuedFor = targetId;
+      return;
+    }
+    inventory.open(targetId);
+    screenElement.inert = true;
+  }
 
   function startMove(dirSign) { // +1 forward, -1 backward
     if (anim || systems.isCombatActive || minimap.isVisible()) return;
@@ -145,6 +169,14 @@ function main() {
   };
 
   function onKey(ev) {
+    if (inventory.isOpen() || inventoryQueuedFor !== null) return;
+    if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
+    if (ev.key.toLowerCase() === 'i') {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      openInventory();
+      return;
+    }
     if (ev.key === 'm' || ev.key === 'M') {
       ev.preventDefault();
       ev.stopImmediatePropagation();
@@ -196,6 +228,11 @@ function main() {
         const wasMove = anim.type === 'move';
         anim = null;
         if (wasMove) systems.onStepComplete(opts.depth);
+        if (inventoryQueuedFor !== null) {
+          const targetId = inventoryQueuedFor;
+          inventoryQueuedFor = null;
+          openInventory(targetId);
+        }
         if (keyQueued) {
           const navigate = keyQueued;
           keyQueued = null;
@@ -215,7 +252,7 @@ function main() {
     g.torchAnchor.position.x = offset.x + Math.sin(torchPhase * 2.4) * 0.035;
     g.torchAnchor.position.y = offset.y + Math.cos(torchPhase * 3.1) * 0.018;
 
-    g.render();
+    if (!inventory.isOpen()) g.render();
     requestAnimationFrame(step);
   }
 

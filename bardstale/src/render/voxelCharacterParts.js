@@ -1,6 +1,6 @@
 import { defineVoxelPart, createCharacterRecipe, assembleVoxelCharacter } from './voxelParts.js';
 import { paintMainhand, paintOffhand } from './voxelEquipmentParts.js';
-import { paintHumanTorso, paintHumanArms, paintHumanLegs } from './voxelHumanoidBody.js';
+import { paintHumanTorso, paintHumanArms, paintHumanLegs, paintHumanOverlay } from './voxelHumanoidBody.js';
 
 export const VOXEL_MATERIALS = {
   cloth: { roughness: 0.93, metalness: 0, envMapIntensity: 0.12 },
@@ -27,19 +27,30 @@ const PAINT = {
   slit: ['#16232c', 'steel'],
   bone: ['#e6d8af', 'bone'], shadowBone: ['#a59778', 'bone'],
   wood: ['#76503a', 'wood'], crystal: ['#68dcf0', 'crystal'],
+  ruby: ['#e63b65', 'crystal'], sapphire: ['#367aff', 'crystal'],
   maple: ['#d6a365', 'wood'], fretboard: ['#352822', 'wood'],
   string: ['#d2be9a', 'cloth'], goblinSkin: ['#789944', 'skin'], ogreSkin: ['#94916a', 'skin'],
 };
 
-export const DEFAULT_VOXEL_APPEARANCE = Object.freeze({ head: 'knight', torso: 'steel', arms: 'plate', legs: 'armored', back: 'none', mainhand: 'sword', offhand: 'kite' });
+export const EMPTY_VOXEL_GEAR = Object.freeze({ shoulders:'none', hands:'none', feet:'none', waist:'none', neck:'none', ring1:'none', ring2:'none' });
+export const DEFAULT_VOXEL_APPEARANCE = Object.freeze({ ...EMPTY_VOXEL_GEAR, head: 'knight', torso: 'steel', arms: 'plate', legs: 'armored', back: 'none', mainhand: 'sword', offhand: 'kite' });
+const armorOptions = label => [{value:'none',label:`No ${label}`},{value:'cloth',label:`Cloth ${label}`},{value:'leather',label:`Leather ${label}`},{value:'steel',label:`Steel ${label}`}];
+const jewelryOptions = label => [{value:'none',label:`No ${label}`},{value:'gold',label:`Gold ${label}`},{value:'ruby',label:`Ruby ${label}`},{value:'sapphire',label:`Sapphire ${label}`}];
 export const VOXEL_APPEARANCE_OPTIONS = Object.freeze({
   head: [{ value: 'knight', label: 'Knight’s great helm' }, { value: 'plumed', label: 'Plumed great helm' }, { value: 'bare', label: 'Short hair' }, { value: 'bald', label: 'Shaven head' }, { value: 'hood', label: 'Deep hood' }, { value: 'wizardHat', label: 'Pointed wizard hat' }, { value: 'crown', label: 'Crowned head' }, { value: 'longHair', label: 'Long hair' }, { value: 'goblin', label: 'Goblin head' }, { value: 'ogre', label: 'Tusken ogre head' }, { value: 'skull', label: 'Skull' }],
   torso: [{ value: 'bare', label: 'Bare torso' }, { value: 'teal', label: 'Teal brigandine' }, { value: 'crimson', label: 'Crimson coat' }, { value: 'steel', label: 'Steel cuirass' }, { value: 'chain', label: 'Chainmail hauberk' }, { value: 'leather', label: 'Leather jerkin' }, { value: 'tunic', label: 'Cloth tunic' }, { value: 'robe', label: 'Robed torso' }, { value: 'ribs', label: 'Rib cage' }],
-  arms: [{ value: 'plate', label: 'Plate arms & gauntlets' }, { value: 'leather', label: 'Leather sleeves & gloves' }, { value: 'sleeves', label: 'Cloth sleeves' }, { value: 'bare', label: 'Bare arms' }, { value: 'bones', label: 'Skeletal arms' }],
-  legs: [{ value: 'armored', label: 'Plate leggings & boots' }, { value: 'ranger', label: 'Leather trousers & boots' }, { value: 'robe', label: 'Long robe' }, { value: 'skirt', label: 'Kilt & boots' }, { value: 'bare', label: 'Shorts & bare feet' }, { value: 'bones', label: 'Skeletal legs' }],
+  arms: [{ value: 'plate', label: 'Plate sleeves' }, { value:'chain', label:'Chainmail sleeves' }, { value: 'leather', label: 'Leather sleeves' }, { value: 'sleeves', label: 'Cloth sleeves' }, { value: 'bare', label: 'Bare arms' }, { value: 'bones', label: 'Skeletal arms' }],
+  legs: [{ value: 'armored', label: 'Plate leggings' }, { value: 'ranger', label: 'Ranger trousers' }, { value:'plain',label:'Plain trousers' }, { value: 'robe', label: 'Long robe' }, { value: 'skirt', label: 'Kilt' }, { value: 'bare', label: 'Shorts' }, { value: 'bones', label: 'Skeletal legs' }],
+  shoulders: [{value:'none',label:'No shoulder armor'},{value:'cloth',label:'Woven mantle'},{value:'leather',label:'Leather spaulders'},{value:'steel',label:'Steel pauldrons'}],
+  hands: armorOptions('gloves'),
+  feet: armorOptions('boots'),
+  waist: [{value:'none',label:'No belt'},{value:'leather',label:'Leather belt & pouch'},{value:'gold',label:'Golden girdle'}],
+  neck: jewelryOptions('pendant'),
+  ring1: jewelryOptions('main-hand ring'),
+  ring2: jewelryOptions('off-hand ring'),
   back: [{ value: 'none', label: 'No back item' }, { value: 'cape', label: 'Cloth cape' }, { value: 'backpack', label: 'Leather backpack' }, { value: 'lute', label: 'Bard’s lute' }],
   mainhand: [{ value: 'sword', label: 'Longsword' }, { value: 'shortSword', label: 'Short sword' }, { value: 'dagger', label: 'Dagger' }, { value: 'axe', label: 'Battle axe' }, { value: 'mace', label: 'Spiked mace' }, { value: 'flail', label: 'Flail' }, { value: 'staff', label: 'Tall crystal staff' }, { value: 'spear', label: 'Long spear' }, { value: 'halberd', label: 'Halberd' }, { value: 'bow', label: 'Longbow' }, { value: 'club', label: 'Ogre club' }, { value: 'none', label: 'Empty hand' }],
-  offhand: [{ value: 'kite', label: 'Kite shield' }, { value: 'round', label: 'Round shield' }, { value: 'none', label: 'Empty hand' }],
+  offhand: [{ value: 'kite', label: 'Kite shield' }, { value: 'round', label: 'Round shield' }, { value:'dagger',label:'Dagger' }, { value:'shortSword',label:'Short sword' }, { value: 'none', label: 'Empty hand' }],
 });
 
 // All parts are authored in the same unrestricted character coordinates.
@@ -79,6 +90,12 @@ function painter() {
 function makeBodyPart(slot, style) {
   const p = painter();
   ({ torso: paintHumanTorso, arms: paintHumanArms, legs: paintHumanLegs })[slot](p, style);
+  return p.cells;
+}
+
+function makeOverlay(slot,style) {
+  const p = painter();
+  paintHumanOverlay(p,slot,style);
   return p.cells;
 }
 
@@ -297,6 +314,9 @@ export const VOXEL_PARTS = Object.freeze({
   legs: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.legs.map(({value})=>[value,registerPart(`legs/${value}`,makeBodyPart('legs',value))]))),
   arms: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.arms.map(({value})=>[value,registerPart(`arms/${value}`,makeBodyPart('arms',value))]))),
   head: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.head.map(({value})=>[value,registerPart(`head/${value}`,makeHead(value))]))),
+  ...Object.fromEntries(Object.keys(EMPTY_VOXEL_GEAR).map(slot=>[
+    slot,Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS[slot].map(({value})=>[value,registerPart(`${slot}/${value}`,makeOverlay(slot,value))]))),
+  ])),
   back: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.back.map(({value})=>[value,registerPart(`back/${value}`,makeBack(value))]))),
   offhand: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.offhand.map(({value})=>[value,registerPart(`offhand/${value}`,makeEquipment('offhand',value))]))),
   mainhand: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.mainhand.map(({value})=>[value,registerPart(`mainhand/${value}`,makeEquipment('mainhand',value))]))),

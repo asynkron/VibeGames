@@ -497,3 +497,58 @@ test('flee ends selection without further hero commands and clears combat once n
     assert.equal(record.actions, null);
   });
 });
+
+test('equipped gear reaches combat, remains locked through retreat, and bard songs require the carried-back instrument', async () => {
+  await withCombat(async ({ systems, record, choose, flush, begin, unit }) => {
+    const initial = systems.getInventorySnapshot('c_bard');
+    assert.equal(initial.equipment.back, 'lute');
+    assert.equal(systems.unequipInventoryItem('c_bard', 'back').ok, true);
+    const luteIndex = systems.getInventorySnapshot('c_bard').inventory.findIndex(entry => entry?.itemId === 'lute');
+    assert.ok(luteIndex >= 0, 'The unequipped lute belongs to the carried inventory.');
+    await begin();
+    const bard = unit('c_bard');
+    assert.equal(bard.equipment.back, '', 'The combat renderer receives the actual unequipped appearance.');
+    assert.equal(systems.getInventorySnapshot(bard.id).locked, true);
+    assert.equal(systems.equipInventoryItem(bard.id, luteIndex, 'back').ok, false);
+    assert.equal(systems.transferInventoryItem(bard.id, luteIndex, 'c_warrior').ok, false);
+    assert.equal(systems.unequipInventoryItem(bard.id, 'mainhand').ok, false);
+    systems.selectCombatCell(bard.x, bard.y);
+    choose('Sing');
+    choose("Rogue's March");
+    await flush();
+    assert.ok(record.logs.includes('Lyre fumbles without an instrument.'));
+    assert.equal(unit(bard.id).canAct, true, 'A missing instrument does not consume the hero action.');
+    choose('Flee');
+    assert.equal(systems.getInventorySnapshot(bard.id).locked, true, 'Gear stays locked while the retreat resolves.');
+    await flush();
+    assert.equal(systems.getInventorySnapshot(bard.id).locked, false);
+    assert.equal(systems.equipInventoryItem(bard.id, luteIndex, 'back').ok, true);
+    assert.equal(systems.getInventorySnapshot(bard.id).equipment.back, 'lute');
+    await begin();
+    assert.equal(unit(bard.id).equipment.back, 'lute', 'The next battle receives the changed loadout.');
+  });
+});
+
+test('an equipped bow attacks beyond melee distance with a projectile and resolves damage after the shot', async () => {
+  await withCombat(async ({ systems, record, begin, unit, flush, setRandom }) => {
+    const inventory = systems.getInventorySnapshot('c_rogue');
+    const bowIndex = inventory.inventory.findIndex(entry => entry?.itemId === 'longbow');
+    assert.ok(bowIndex >= 0);
+    assert.equal(systems.equipInventoryItem('c_rogue', bowIndex, 'mainhand').ok, true);
+    await begin();
+    const rogue = unit('c_rogue');
+    systems.selectCombatCell(rogue.x, rogue.y);
+    const target = record.snapshot.targetIds.map(unit).find(foe => Math.abs(foe.x - rogue.x) + Math.abs(foe.y - rogue.y) > 1);
+    assert.ok(target, 'The bow makes a nonadjacent foe attackable without spending movement.');
+    assert.ok(Math.abs(target.x - rogue.x) + Math.abs(target.y - rogue.y) <= 6);
+    setRandom(0.99);
+    systems.selectCombatCell(target.x, target.y);
+    assert.equal(record.effects.at(-1).kind, 'arrow');
+    assert.equal(record.effects.at(-1).source.id, rogue.id);
+    assert.equal(unit(target.id).hpCurrent, target.hpCurrent, 'The shot is visible before damage is applied.');
+    await flush();
+    assert.ok(unit(target.id).hpCurrent < target.hpCurrent);
+    assert.equal(unit(rogue.id).canAct, false);
+    assert.equal(unit(rogue.id).movementRemaining, 4);
+  });
+});

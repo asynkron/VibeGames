@@ -199,6 +199,16 @@ const shields = {
 };
 
 export function paintOffhand(p, style) {
+  if (style==='dagger'||style==='shortSword') {
+    // Reflect complete geometry into the other hand, which grips three rows lower.
+    // Painting through a temporary cell map keeps the weapon's shading and details.
+    const start=new Set(p.cells.keys());
+    paintMainhand(p,style);
+    const weapon=[...p.cells.entries()].filter(([key])=>!start.has(key));
+    for(const [key] of weapon) p.cells.delete(key);
+    for(const [,cell] of weapon) p.put(22-cell.x,cell.y-3,cell.z,cell.surface);
+    return;
+  }
   if (!Object.hasOwn(shields, style)) throw new RangeError(`Unknown shield variant: ${style}`);
   shields[style](p);
 }

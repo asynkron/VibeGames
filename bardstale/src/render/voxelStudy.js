@@ -355,9 +355,12 @@ try {
   reset();
   loading.remove();
   const clock = new THREE.Clock();
+  const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
   renderer.shadowMap.needsUpdate = true;
-  renderer.setAnimationLoop(() => {
+  renderer.setAnimationLoop(now => {
     controls.update(Math.min(clock.getDelta(), 0.1));
+    sculpture.updateEffects(now, { reducedMotion: motionPreference.matches });
+    if (referenceFigure.group.visible) referenceFigure.updateEffects(now, { reducedMotion: motionPreference.matches });
     renderer.render(scene, camera);
   });
 } catch (error) {

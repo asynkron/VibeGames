@@ -35,6 +35,14 @@ export function createCombatVoxelActors(parent, cellSize) {
   parent.add(group);
   const entries = new Map();
   const models = new Map();
+  const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function boxFromBounds(bounds) {
+    return new THREE.Box3(
+      new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
+      new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z),
+    );
+  }
 
   function modelFor(unit) {
     const descriptor = { kind: unit.kind, equipment: unit.equipment, appearance: unit.appearance };
@@ -50,7 +58,8 @@ export function createCombatVoxelActors(parent, cellSize) {
     }
     entry.figure = createVoxelFigure(model, { layout: 'figure' });
     entry.modelKey = key;
-    entry.bounds = new THREE.Box3().setFromObject(entry.figure.group);
+    entry.bounds = boxFromBounds(entry.figure.assembly.bounds);
+    entry.displayBounds = boxFromBounds(entry.figure.getDisplayBounds());
     const torso = entry.figure.assembly.parts.torso;
     entry.bodyBounds = torso ? new THREE.Box3(
       new THREE.Vector3(torso.bounds.min.x,torso.bounds.min.y,torso.bounds.min.z),
@@ -59,16 +68,7 @@ export function createCombatVoxelActors(parent, cellSize) {
     entry.pose.add(entry.figure.group);
     // Keep voxel density stable when an item extends beyond the body.
     entry.pose.scale.setScalar(0.04 * cellSize * model.scale);
-    entry.materials = new Set();
-    entry.figure.group.traverse(object => {
-      if (!object.isMesh) return;
-      object.castShadow = true;
-      object.receiveShadow = true;
-      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-        material.depthWrite = true;
-        entry.materials.add(material);
-      }
-    });
+    entry.materials = new Set(entry.figure.surfaceMaterials);
   }
 
   function release(entry) {
@@ -186,6 +186,7 @@ export function createCombatVoxelActors(parent, cellSize) {
       entry.figure.group.position.y = -Math.min(min.y * cosine - min.z * sine, min.y * cosine - max.z * sine);
       const shade = 1 - entry.fall * 0.58;
       for (const material of entry.materials) material.color.setRGB(shade, shade, shade);
+      entry.figure.updateEffects(now, { reducedMotion: motionPreference.matches, active: entry.alive });
     }
   }
 
@@ -195,7 +196,12 @@ export function createCombatVoxelActors(parent, cellSize) {
       if (!hit.object.isMesh) continue;
       let object = hit.object;
       while (object && object !== group) {
-        if (object.userData.combatCell) return { ...object.userData.combatCell };
+        if (object.userData.combatCell) {
+          const entry = entries.get(object.userData.combatActor);
+          const materials = Array.isArray(hit.object.material) ? hit.object.material : [hit.object.material];
+          if (materials.some(material => entry.materials.has(material))) return { ...object.userData.combatCell };
+          break;
+        }
         object = object.parent;
       }
     }
@@ -220,8 +226,9 @@ export function createCombatVoxelActors(parent, cellSize) {
 
   function framingBounds() {
     const bounds = [];
-    for (const [id,entry] of entries) {
-      const current = boundsFor(id);
+    for (const entry of entries.values()) {
+      entry.figure.group.updateWorldMatrix(true,false);
+      const current = entry.displayBounds.clone().applyMatrix4(entry.figure.group.matrixWorld);
       bounds.push(current);
       bounds.push(current.clone().translate(entry.to.clone().sub(entry.root.position)));
     }

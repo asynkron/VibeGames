@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VOXEL_MATERIALS } from './voxelCharacterParts.js';
+import { createItemEffects } from './itemEffects.js';
 
 const FACES = [
   { normal: [1,0,0], corners: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] },
@@ -65,6 +66,9 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
   surface.name = 'assembled-figure';
   surface.add(...surfaceMeshes(assembly.voxels,materials,geometries));
   group.add(surface);
+  const itemEffects = model.itemEffects ?? [];
+  const effects = createItemEffects(itemEffects);
+  group.add(effects.group);
   const parts = [];
   let outlineMaterial;
   let exploded = false;
@@ -73,6 +77,9 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
     torso: [0,gap,0], legs: [0,0,0], arms: [0,gap,gap * 1.5],
     head: [0,gap * 2,0], back: [0,gap,-gap * 1.5],
     offhand: [gap * 1.5,gap,0], mainhand: [-gap * 1.5,gap,0],
+    shoulders:[0,gap*2,gap], hands:[0,gap,gap*3], feet:[0,-gap,gap],
+    waist:[0,gap,gap*2], neck:[0,gap*2,gap*2],
+    ring1:[-gap,gap,gap*4], ring2:[gap,gap,gap*4],
   };
 
   if (layout === 'parts') {
@@ -109,9 +116,10 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
       part.group.position.fromArray(exploded ? separation[part.slot] : [0,0,0]);
       part.meshes.visible = exploded;
     }
+    effects.setPartOffsets(exploded ? separation : {});
   }
 
-  function getDisplayBounds() {
+  function solidDisplayBounds() {
     if (!exploded) return assembly.bounds;
     const bounds = {min:{x:Infinity,y:Infinity,z:Infinity},max:{x:-Infinity,y:-Infinity,z:-Infinity}};
     for (const part of parts) for (const axis of ['x','y','z']) {
@@ -121,12 +129,25 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
     return parts.length ? bounds : assembly.bounds;
   }
 
+  function getDisplayBounds() {
+    const solid = solidDisplayBounds();
+    const particles = effects.getBounds();
+    if (!particles) return solid;
+    return {
+      min: Object.fromEntries(['x','y','z'].map(axis=>[axis,Math.min(solid.min[axis],particles.min[axis])])),
+      max: Object.fromEntries(['x','y','z'].map(axis=>[axis,Math.max(solid.max[axis],particles.max[axis])])),
+    };
+  }
+
   const swatches = new Map();
   for (const voxel of assembly.voxels) if (!swatches.has(voxel.material)) {
     swatches.set(voxel.material,{name:voxel.material,color:voxel.color});
   }
   return {
     group,recipe,appearance,assembly,
+    surfaceMaterials:Object.values(materials),
+    hasEffects:itemEffects.length>0,
+    updateEffects:effects.update,
     voxelCount:assembly.voxels.length,
     partCount:assembly.partCount,
     dimensions:assembly.dimensions,
@@ -136,9 +157,10 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
     setPartBounds(visible) { parts.forEach(part=>{part.outline.visible=visible;}); },
     exportData() {
       const ids=[...new Set(Object.values(recipe.parts).filter(Boolean).map(part=>part.partId))];
-      return {format:'voxel-character/2',appearance,scale:model.scale,footprint:model.footprint,recipe,parts:ids.map(id=>library.get(id))};
+      return {format:'voxel-character/2',appearance,scale:model.scale,footprint:model.footprint,recipe,parts:ids.map(id=>library.get(id)),itemEffects};
     },
     dispose() {
+      effects.dispose();
       geometries.forEach(geometry=>geometry.dispose());
       Object.values(materials).forEach(material=>material.dispose());
       outlineMaterial?.dispose();

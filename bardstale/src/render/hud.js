@@ -7,7 +7,7 @@ const DETAIL_COLUMNS = 29;
 const ROSTER_FIRST_ROW = 5;
 const ROSTER_ROW_STRIDE = 2;
 
-export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick }) {
+export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, onInventoryClick }) {
   const { resolution, colors, layout, combatLayout, tileSize, columns, rows } = UI_SETTINGS;
   canvas.width = resolution.width;
   canvas.height = resolution.height;
@@ -155,6 +155,10 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick }
       tiles.text(`[D] MORE ${state.detailPage + 1}/${detailPageCount}`, 49, 30, colors.yellow, DETAIL_COLUMNS);
       addZone(49, 30, DETAIL_COLUMNS, 1, nextDetailPage);
     }
+    if (member) {
+      tiles.text('[I] GEAR', 49, 31, colors.yellow);
+      addZone(49, 31, 12, 1, () => onInventoryClick(member.id));
+    }
   }
 
   function numberedButtons() {
@@ -232,6 +236,8 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick }
     }
     tiles.text('AC', 48, 7, colors.green);
     tiles.text(unit.ac, 51, 7, colors.text, 27);
+    tiles.text('[I] GEAR', 69, 7, colors.yellow, 9);
+    addZone(69, 7, 9, 1, () => onInventoryClick(inspectedMember().id));
     tiles.text('WEAPON', 48, 9, colors.green);
     tiles.text(unit.weapon, 48, 10, colors.text, 30);
   }
@@ -315,6 +321,8 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick }
     const details = document.createElement('p');
     details.textContent = characterDetailLines(inspectedMember()).join(' ');
     fragment.append(details);
+    const inspected = inspectedMember();
+    if (inspected) appendAccessibleButton(fragment, `Open ${inspected.name} inventory`, () => onInventoryClick(inspected.id));
     visibleCommands.forEach((button, index) => appendAccessibleButton(fragment, `${index + 1}: ${button.label}`, button.onSelect));
     const back = backButton();
     if (back) appendAccessibleButton(fragment, '0: Back', back.onSelect);
@@ -417,6 +425,7 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick }
 
   render();
   return {
+    getInspectedCharacterId() { return inspectedMember()?.id || state.party[0]?.id; },
     appendLog(message) {
       state.log.push(String(message));
       if (state.log.length > 64) state.log.splice(0, state.log.length - 64);

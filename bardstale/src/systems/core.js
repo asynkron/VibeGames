@@ -1,5 +1,7 @@
 import { createBattlefield } from './battlefield.js';
 import { footprintForKind } from '../combatFootprints.js';
+import { INVENTORY_CAPACITY } from '../items.js';
+import { createInventory, createEquipment, addInventoryItem, equipCarriedItem, unequipItem, transferCarriedItem, useCarriedItem, getEquippedItem, computeCharacterStats } from './inventory.js';
 
 const assetUrl = (path) => new URL(`../../assets/${path}`, import.meta.url).href;
 
@@ -272,22 +274,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     monk_stunning_blow: { id: 'monk_stunning_blow', name: 'Stunning Blow', type: 'attack', damageBonus: 4, apply: { stunned: true, duration: 1 }, description: 'Chi-focused strike that may stun the target.' },
   };
 
-  const ITEM_DB = {
-    sword_basic: { id: 'sword_basic', name: 'Short Sword', slot: 'weapon', minDamage: 2, maxDamage: 8, toHit: 1, acBonus: 0, magicRes: 0, weight: 3 },
-    longsword: { id: 'longsword', name: 'Longsword', slot: 'weapon', minDamage: 3, maxDamage: 9, toHit: 2, acBonus: 0, magicRes: 0, weight: 4 },
-    dagger: { id: 'dagger', name: 'Dagger', slot: 'weapon', minDamage: 1, maxDamage: 6, toHit: 2, acBonus: 0, magicRes: 0, weight: 1 },
-    quarterstaff: { id: 'quarterstaff', name: 'Quarterstaff', slot: 'weapon', minDamage: 2, maxDamage: 7, toHit: 1, acBonus: 0, magicRes: 0, weight: 3 },
-    spear: { id: 'spear', name: 'Spear', slot: 'weapon', minDamage: 3, maxDamage: 8, toHit: 1, acBonus: 0, magicRes: 0, weight: 4 },
-    halberd: { id: 'halberd', name: 'Halberd', slot: 'weapon', minDamage: 4, maxDamage: 10, toHit: 0, acBonus: 0, magicRes: 0, weight: 6 },
-    leather_armor: { id: 'leather_armor', name: 'Leather Armor', slot: 'body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -1, magicRes: 0, weight: 5 },
-    chain_armor: { id: 'chain_armor', name: 'Chain Armor', slot: 'body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -2, magicRes: 0, weight: 7 },
-    robes: { id: 'robes', name: 'Mystic Robes', slot: 'body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 5, weight: 2 },
-    shield_wood: { id: 'shield_wood', name: 'Wooden Shield', slot: 'offhand', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -1, magicRes: 0, weight: 3 },
-    songbook: { id: 'songbook', name: 'Songbook', slot: 'instrument', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 0, weight: 1 },
-    lute: { id: 'lute', name: 'Traveler\'s Lute', slot: 'instrument', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 0, weight: 1 },
-    healing_potion: { id: 'healing_potion', name: 'Healing Potion', slot: 'consumable', heals: 20, weight: 1 },
-  };
-
   const MONSTER_DB = {
     serpent: { id: 'serpent', name: 'Cavern Serpent', hpMin: 6, hpMax: 12, ac: 9, toHit: 1, dmgMin: 2, dmgMax: 5, magicRes: 5, special: '' },
     rat_swarm: { id: 'rat_swarm', name: 'Rat Swarm', hpMin: 5, hpMax: 10, ac: 9, toHit: 0, dmgMin: 1, dmgMax: 4, magicRes: 0, special: 'swarm' },
@@ -376,10 +362,11 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         ac: def.baseAc,
         toHit: def.baseToHit + abilityModifier(attrs.dexterity),
         damage: { min: 1 + def.damageBonus + abilityModifier(attrs.strength), max: 6 + def.damageBonus + abilityModifier(attrs.strength) },
+        weaponDamageBonus: def.damageBonus + abilityModifier(attrs.strength),
         magicResist: abilityModifier(attrs.luck) * 3,
       },
-      inventory: [],
-      equipment: { weapon: '', offhand: '', body: '', head: '', hands: '', feet: '', instrument: '', accessory: '' },
+      inventory: createInventory(),
+      equipment: createEquipment(),
       statusEffects: [],
       knownSpells: getClassSpellList(classType),
       knownSongs: def.songs ? def.songs.slice() : [],
@@ -387,85 +374,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       portrait: def.portrait,
       description: def.description,
       alive: true,
-    };
-  }
-
-  function addItem(character, itemId, qty = 1) {
-    const existing = character.inventory.find((entry) => entry.itemId === itemId && !entry.equipped);
-    if (existing) {
-      existing.qty += qty;
-    } else {
-      character.inventory.push({ itemId, qty, equipped: false });
-    }
-  }
-
-  function equipItem(character, itemId) {
-    const def = ITEM_DB[itemId];
-    if (!def || !(def.slot in character.equipment)) return false;
-    const entry = character.inventory.find((item) => item.itemId === itemId && item.qty > 0);
-    if (!entry) return false;
-    const previousItemId = character.equipment[def.slot];
-    for (const item of character.inventory) {
-      if (item.itemId === previousItemId) item.equipped = false;
-    }
-    entry.equipped = true;
-    character.equipment[def.slot] = itemId;
-    return true;
-  }
-
-  function getEquippedItem(character, slot) {
-    const id = character.equipment?.[slot];
-    if (!id) return null;
-    return ITEM_DB[id];
-  }
-
-  function computeCharacterStats(character) {
-    const base = character.base;
-    let ac = base.ac;
-    let toHit = base.toHit;
-    let minDamage = base.damage.min;
-    let maxDamage = base.damage.max;
-    let magicRes = base.magicResist;
-    const weapon = getEquippedItem(character, 'weapon');
-    if (weapon) {
-      if (typeof weapon.minDamage === 'number') minDamage = Math.max(minDamage, weapon.minDamage);
-      if (typeof weapon.maxDamage === 'number') maxDamage = Math.max(maxDamage, weapon.maxDamage);
-      if (typeof weapon.toHit === 'number') toHit += weapon.toHit;
-    }
-    const offhand = getEquippedItem(character, 'offhand');
-    if (offhand?.acBonus) ac += offhand.acBonus;
-    const body = getEquippedItem(character, 'body');
-    if (body?.acBonus) ac += body.acBonus;
-    if (body?.magicRes) magicRes += body.magicRes;
-    const instrument = getEquippedItem(character, 'instrument');
-    if (instrument?.magicRes) magicRes += instrument.magicRes;
-    const statuses = character.statusEffects || [];
-    let critBonus = 0;
-    for (const status of statuses) {
-      if (status?.modifiers?.ac) ac += status.modifiers.ac;
-      if (status?.modifiers?.toHit) toHit += status.modifiers.toHit;
-      if (status?.modifiers?.damageBonus) {
-        minDamage += status.modifiers.damageBonus;
-        maxDamage += status.modifiers.damageBonus;
-      }
-      if (status?.modifiers?.magicResist) magicRes += status.modifiers.magicResist;
-      if (status?.modifiers?.critBonus) critBonus += status.modifiers.critBonus;
-    }
-    if (character.classType === 'Monk' && !getEquippedItem(character, 'body')) {
-      ac -= Math.max(1, Math.floor(character.level / 2));
-    }
-    if (character.classType === 'Monk' && !weapon) {
-      const scale = Math.max(4, 6 + character.level);
-      minDamage = Math.max(minDamage, Math.floor(scale / 2));
-      maxDamage = Math.max(maxDamage, scale);
-    }
-    return {
-      ac,
-      toHit,
-      minDamage,
-      maxDamage,
-      magicRes,
-      critBonus,
     };
   }
 
@@ -546,6 +454,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     return true;
   }
 
+  const inventoryListeners = new Set();
   const party = {
     id: 'p_main',
     name: 'Main Party',
@@ -560,27 +469,42 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
   };
 
   function setupStartingGear() {
-    const [warrior, paladin, rogue, bard, chrono] = party.members;
-    addItem(warrior, 'longsword'); equipItem(warrior, 'longsword');
-    addItem(warrior, 'chain_armor'); equipItem(warrior, 'chain_armor');
-    addItem(warrior, 'shield_wood'); equipItem(warrior, 'shield_wood');
-
-    addItem(paladin, 'longsword'); equipItem(paladin, 'longsword');
-    addItem(paladin, 'chain_armor'); equipItem(paladin, 'chain_armor');
-    addItem(paladin, 'shield_wood'); equipItem(paladin, 'shield_wood');
-    addItem(paladin, 'healing_potion', 2);
-
-    addItem(rogue, 'dagger'); equipItem(rogue, 'dagger');
-    addItem(rogue, 'leather_armor'); equipItem(rogue, 'leather_armor');
-    addItem(rogue, 'healing_potion');
-
-    addItem(bard, 'sword_basic'); equipItem(bard, 'sword_basic');
-    addItem(bard, 'leather_armor'); equipItem(bard, 'leather_armor');
-    addItem(bard, 'lute'); equipItem(bard, 'lute');
-
-    addItem(chrono, 'quarterstaff'); equipItem(chrono, 'quarterstaff');
-    addItem(chrono, 'robes'); equipItem(chrono, 'robes');
-    addItem(chrono, 'healing_potion');
+    const loadouts = [
+      {
+        equipment: { mainhand: 'longsword', offhand: 'shield_wood', head: 'iron_helm', chest: 'chain_armor', shoulders: 'iron_pauldrons', hands: 'iron_gauntlets', waist: 'leather_belt', legs: 'leather_trousers', feet: 'leather_boots' },
+        carried: ['plumed_helm', 'plate_armor', 'halberd', 'plate_leggings', 'iron_boots', 'war_belt', 'ruby_pendant', ['ring_precision', 2], 'ring_power', 'travel_cape', ['healing_potion', 2], 'ember_sword', 'rime_mace'],
+      },
+      {
+        equipment: { mainhand: 'longsword', offhand: 'shield_kite', head: 'plumed_helm', chest: 'chain_armor', shoulders: 'iron_pauldrons', hands: 'iron_gauntlets', waist: 'leather_belt', legs: 'plate_leggings', feet: 'leather_boots', neck: 'ward_amulet' },
+        carried: ['spear', 'mace', 'iron_boots', 'sapphire_pendant', 'ring_warding', ['healing_potion', 2], 'void_shield'],
+      },
+      {
+        equipment: { mainhand: 'dagger', head: 'leather_hood', chest: 'leather_armor', shoulders: 'leather_pauldrons', hands: 'leather_gloves', waist: 'leather_belt', legs: 'leather_trousers', feet: 'leather_boots', back: 'travel_cape' },
+        carried: ['longbow', 'dagger', 'battle_axe', 'leather_pack', 'healing_potion', 'venom_dagger'],
+      },
+      {
+        equipment: { mainhand: 'sword_basic', chest: 'leather_armor', shoulders: 'cloth_mantle', hands: 'leather_gloves', waist: 'leather_belt', legs: 'leather_trousers', feet: 'leather_boots', back: 'lute' },
+        carried: ['flail', 'battle_kilt', 'ring_power', 'healing_potion'],
+      },
+      {
+        equipment: { mainhand: 'quarterstaff', head: 'circlet', chest: 'robes', shoulders: 'cloth_mantle', hands: 'silk_gloves', waist: 'leather_belt', legs: 'robe_skirt', feet: 'cloth_shoes' },
+        carried: ['wizard_hat', 'travel_cape', 'ward_amulet', 'ring_warding', ['mana_potion', 2], 'healing_potion', 'star_amulet'],
+      },
+    ];
+    party.members.forEach((member, index) => {
+      for (const [slot, itemId] of Object.entries(loadouts[index].equipment)) {
+        const added = addInventoryItem(member, itemId);
+        if (!added.ok) throw new Error(added.message);
+        const inventoryIndex = member.inventory.findIndex(entry => entry?.itemId === itemId);
+        const equipped = equipCarriedItem(member, inventoryIndex, slot);
+        if (!equipped.ok) throw new Error(equipped.message);
+      }
+      for (const entry of loadouts[index].carried) {
+        const [itemId, qty] = Array.isArray(entry) ? entry : [entry, 1];
+        const added = addInventoryItem(member, itemId, qty);
+        if (!added.ok) throw new Error(added.message);
+      }
+    });
   }
 
   setupStartingGear();
@@ -603,11 +527,40 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         damageMax: stats.maxDamage,
         alive: member.alive,
         portrait: member.portrait,
-        attributes: member.attributes,
+        attributes: { ...member.attributes },
         statusText: describeStatuses(member),
       };
     });
     hud.setParty({ gold: party.gold, members });
+    for (const listener of inventoryListeners) listener();
+  }
+
+  function getInventorySnapshot(characterId = party.members[0].id) {
+    const member = findPartyMember(characterId);
+    if (!member) return null;
+    return {
+      character: {
+        id: member.id, name: member.name, classType: member.classType, level: member.level,
+        hpCurrent: member.hpCurrent, hpMax: member.hpMax, spCurrent: member.spCurrent, spMax: member.spMax,
+        alive: member.alive, portrait: member.portrait, attributes: { ...member.attributes },
+      },
+      equipment: { ...member.equipment },
+      inventory: member.inventory.map(entry => entry ? { ...entry } : null),
+      stats: computeCharacterStats(member),
+      capacity: INVENTORY_CAPACITY,
+      party: party.members.map(({ id, name, classType }) => ({ id, name, classType })),
+      locked: combatState !== null,
+      lockReason: combatState !== null ? 'Equipment, transfers, and potions are available after combat.' : '',
+    };
+  }
+
+  function changeInventory(characterId, change) {
+    if (combatState !== null) return { ok: false, message: 'Equipment, transfers, and potions are available after combat.' };
+    const member = findPartyMember(characterId);
+    if (!member) return { ok: false, message: 'Character not found.' };
+    const response = change(member);
+    if (response.ok) renderParty();
+    return response;
   }
 
   function findPartyMember(id) {
@@ -962,7 +915,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       log(`${bard.name} does not recall that melody.`);
       return false;
     }
-    if (!bard.equipment.instrument) {
+    if (!getEquippedItem(bard, 'back')?.instrument) {
       log(`${bard.name} fumbles without an instrument.`);
       return false;
     }
@@ -1262,8 +1215,13 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     return Boolean(actor?.alive && turn && !turn.actionSpent && !isUnableToAct(actor));
   }
 
+  function weaponTargeting(actor) {
+    const range = getEquippedItem(actor, 'mainhand')?.range || 1;
+    return { melee: range === 1, range };
+  }
+
   function attackableMonsters(state, actor) {
-    return livingMonsters(state.monsters).filter((monster) => state.board.canTarget(actor.id, monster.id, { melee: true, range: 1 }));
+    return livingMonsters(state.monsters).filter((monster) => state.board.canTarget(actor.id, monster.id, weaponTargeting(actor)));
   }
 
   function targetKind(action) {
@@ -1291,7 +1249,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         spCurrent: entity.spCurrent ?? 0,
         spMax: entity.spMax ?? 0,
         ac: team === 'party' ? computeCharacterStats(entity).ac : entity.ac,
-        weapon: team === 'party' ? getEquippedItem(entity, 'weapon')?.name || 'Unarmed' : '',
+        weapon: team === 'party' ? getEquippedItem(entity, 'mainhand')?.name || 'Unarmed' : '',
         equipment: team === 'party' ? { ...entity.equipment } : undefined,
         alive: entity.alive,
         auras: entity.alive ? entity.statusEffects.map((status) => ({ id: status.id, ...status.visual })) : [],
@@ -1518,8 +1476,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       party.gold += gold;
       log(`The party claims ${gold} gold.`);
       if (Math.random() < 0.35) {
-        addItem(party.members[0], 'healing_potion');
-        log('A spare healing potion is recovered.');
+        const carrier = party.members.find(member => addInventoryItem(member, 'healing_potion').ok);
+        log(carrier ? `${carrier.name} recovers a healing potion.` : 'The packs are full; a spare healing potion is left behind.');
       }
     }
     log(`Combat ends. Winner: ${state.winner}.`);
@@ -1537,9 +1495,9 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     if (!heroCanSelect(state, actor)) return;
     let performed = false;
     if (action.type === 'attack') {
-      const target = state.monsters.find((monster) => monster.id === action.targetId && monster.alive && state.board.canTarget(actor.id, monster.id, { melee: true, range: 1 }));
+      const target = state.monsters.find((monster) => monster.id === action.targetId && monster.alive && state.board.canTarget(actor.id, monster.id, weaponTargeting(actor)));
       if (!target) {
-        promptMainAction(state, actor, 'The target is no longer adjacent.');
+        promptMainAction(state, actor, 'The target is no longer in weapon range.');
         return;
       }
       state.busy = true;
@@ -1547,7 +1505,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       state.targeting = null;
       hud.clearActions();
       publishBattle(state);
-      if (!await playBattleEffect(state, 'slash', actor, [target], 0xffd26b)) return;
+      if (!await playBattleEffect(state, weaponTargeting(actor).range > 1 ? 'arrow' : 'slash', actor, [target], 0xffd26b)) return;
       performAttack(actor, target);
       performed = true;
     } else {
@@ -1796,5 +1754,36 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     },
     handleCombatKey,
     selectCombatCell,
+    getInventorySnapshot,
+    previewInventoryEquipment(characterId, index, slot) {
+      const member = findPartyMember(characterId);
+      if (!member) return { ok: false, message: 'Character not found.' };
+      const preview = {
+        ...member,
+        inventory: member.inventory.map(entry => entry ? { ...entry } : null),
+        equipment: { ...member.equipment },
+      };
+      const response = equipCarriedItem(preview, index, slot);
+      return { ...response, stats: computeCharacterStats(preview), equipment: { ...preview.equipment } };
+    },
+    equipInventoryItem(characterId, index, slot) {
+      return changeInventory(characterId, member => equipCarriedItem(member, index, slot));
+    },
+    unequipInventoryItem(characterId, slot) {
+      return changeInventory(characterId, member => unequipItem(member, slot));
+    },
+    transferInventoryItem(characterId, index, targetId) {
+      return changeInventory(characterId, member => {
+        const recipient = findPartyMember(targetId);
+        return recipient ? transferCarriedItem(member, index, recipient) : { ok: false, message: 'Recipient not found.' };
+      });
+    },
+    useInventoryItem(characterId, index) {
+      return changeInventory(characterId, member => useCarriedItem(member, index));
+    },
+    subscribeInventory(listener) {
+      inventoryListeners.add(listener);
+      return () => inventoryListeners.delete(listener);
+    },
   };
 }
