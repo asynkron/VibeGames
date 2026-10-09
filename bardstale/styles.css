@@ -51,6 +51,10 @@ canvas {
   outline-offset: -2px;
 }
 
+#hud.combat-map-controls {
+  touch-action: none;
+}
+
 .minimap-overlay {
   display: none;
   z-index: 3;

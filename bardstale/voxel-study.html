@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#191c1a" />
+  <title>Combat characters · Voxel workshop</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./voxel-study.css" />
+  <script type="importmap">
+    { "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <main class="studio">
+    <header class="masthead">
+      <a class="wordmark" href="./voxel-study.html" aria-label="Voxel study home">
+        <svg viewBox="0 0 28 32" fill="none" aria-hidden="true"><path d="M14 1 27 8.5v15L14 31 1 23.5v-15L14 1Z M1 8.5 14 16l13-7.5M14 16v15" stroke="currentColor" stroke-width="1.6"/></svg>
+        VOXEL<span>STUDIES</span>
+      </a>
+      <span class="edition">BARD’S TALE <span class="divider">/</span> CHARACTER STUDY 001</span>
+      <span class="live"><i></i> INTERACTIVE 3D</span>
+    </header>
+
+    <section class="intro">
+      <h1>Small blocks. <em>A whole party.</em></h1>
+      <p class="intro-note">Build a hero. Meet the monsters.<br />The figures used in combat.</p>
+    </section>
+
+    <section class="workbench" aria-label="Interactive voxel character study">
+      <aside class="reference">
+        <div class="section-heading"><h2>Character workshop</h2></div>
+        <p class="description">Choose body parts and equipment.</p>
+        <div class="part-selector roster-selector"><label for="character-kind">Hero or creature</label><select id="character-kind"></select></div>
+        <p class="reference-note" id="creature-note" hidden>This creature has its own body blocks. Rotate or separate them to inspect its shape.</p>
+        <fieldset class="part-selectors">
+          <legend>Character</legend>
+          <div class="part-selector"><label for="head-variant">Head &amp; helmet</label><select id="head-variant" aria-describedby="block-note"></select></div>
+          <div class="part-selector"><label for="torso-variant">Torso</label><select id="torso-variant" aria-describedby="block-note"></select></div>
+          <div class="part-selector"><label for="arms-variant">Arms &amp; gauntlets</label><select id="arms-variant" aria-describedby="block-note"></select></div>
+          <div class="part-selector"><label for="legs-variant">Legs &amp; boots</label><select id="legs-variant" aria-describedby="block-note"></select></div>
+          <div class="part-selector"><label for="palette-variant">Colors</label><select id="palette-variant" aria-describedby="block-note"></select></div>
+        </fieldset>
+        <fieldset class="part-selectors equipment-selectors">
+          <legend>Equipment</legend>
+          <div class="part-selector"><label for="weapon-variant">Weapon</label><select id="weapon-variant" aria-describedby="block-note"></select></div>
+          <div class="part-selector"><label for="shield-variant">Shield</label><select id="shield-variant" aria-describedby="block-note"></select></div>
+        </fieldset>
+        <details class="model-details">
+          <summary>Model details &amp; source</summary>
+          <p class="reference-note" id="block-note">Each part uses 8 × 8 × 8 voxel blocks in a 3 × 3 × 3 grid.</p>
+          <dl class="model-stats"><div><dt>Blocks used</dt><dd id="block-count">— / 27</dd></div><div><dt>Voxel count</dt><dd id="voxel-count">—</dd></div><div><dt>Dimensions</dt><dd id="dimensions">24 × 24 × 24</dd></div></dl>
+          <div class="palette-section"><span class="palette-label">MATERIALS &amp; COLORS</span><div class="palette" id="palette" aria-label="Cloth, leather, steel, gold, skin and feather colors"></div></div>
+          <figure class="source-figure">
+            <a href="./assets/voxel-study/source-sprite.png" target="_blank" rel="noopener" aria-label="Open original sprite at full size"><img src="./assets/voxel-study/source-sprite.png" width="328" height="322" alt="Original pixel sprite: a red and gold warrior with a white plume and a raised black flail with a white ball." /></a>
+            <figcaption><span>The original sprite</span><a href="./assets/voxel-study/source-sprite.png" target="_blank" rel="noopener">View source</a></figcaption>
+          </figure>
+        </details>
+      </aside>
+
+      <div class="viewer-panel">
+        <div class="viewer-heading"><div class="section-heading"><h2>The voxel figure</h2></div><span class="viewer-label">VOLUME / LIGHT / SHADOW</span></div>
+        <div id="viewport" class="viewport" role="region" aria-label="3D voxel figure. Drag to rotate, scroll to zoom. Use the view buttons for preset angles.">
+          <p id="loading" class="loading" role="status">Building the little hero…</p>
+          <span class="view-caption" id="view-caption">THREE-QUARTER VIEW</span>
+          <div class="orientation" aria-hidden="true"><span>Y</span><svg viewBox="0 0 60 50"><path d="M30 28V3M30 28 7 40M30 28l24 12" stroke="#92998c" fill="none"/><path d="M30 28l24 12" stroke="#deaa78"/></svg><span class="axis-x">X</span><span class="axis-z">Z</span></div>
+          <span class="drag-hint"><svg viewBox="0 0 16 20" fill="none" aria-hidden="true"><rect x="3" y="1" width="10" height="16" rx="5" stroke="currentColor"/><path d="M8 4v4" stroke="currentColor"/></svg>DRAG TO ROTATE <b>·</b> SCROLL TO ZOOM</span>
+        </div>
+        <div class="toolbar">
+          <div class="views" role="group" aria-label="Camera view">
+            <button type="button" data-view="angle" aria-pressed="true">¾ view</button>
+            <button type="button" data-view="front" aria-pressed="false">Front</button>
+            <button type="button" data-view="side" aria-pressed="false">Side</button>
+          </div>
+          <div class="toggles"><button id="rotate" type="button" aria-pressed="false"><span class="rotate-icon" aria-hidden="true">↻</span> Auto-rotate</button><button id="grid" type="button" aria-pressed="true"><span class="grid-icon" aria-hidden="true">▦</span> Grid</button></div>
+          <button id="reset" class="reset-button" type="button" title="Reset camera and display settings" aria-label="Reset view">↺</button>
+          <div class="block-tools" role="group" aria-label="Block assembly view"><button id="block-grid" type="button" aria-pressed="false">Block boundaries</button><button id="explode" type="button" aria-pressed="false">Separate blocks</button></div>
+        </div>
+      </div>
+    </section>
+    <footer><span><i class="tiny-cube"></i> FROM FLAT TO FULLY FORMED</span><div class="export-actions"><button id="save-image" type="button">Save image <span aria-hidden="true">↗</span></button><button id="export-recipe" type="button">Export blocks <span aria-hidden="true">↗</span></button></div><span class="footer-credit">A little experiment in Three.js</span></footer>
+    <p id="save-status" class="sr-only" role="status" aria-live="polite"></p>
+    <p id="assembly-status" class="sr-only" role="status" aria-live="polite"></p>
+  </main>
+  <script type="module" src="./src/render/voxelStudy.js"></script>
+</body>
+</html>

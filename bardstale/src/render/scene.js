@@ -2,7 +2,9 @@ import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { DIR, DX, DY, WALL, yawForDir } from '../dungeon.js';
 import { UI_SETTINGS } from '../../config/uiSettings.js';
 import { COMBAT_CELLS_PER_MAP_TILE } from '../../config/combatSettings.js';
-import { createCombatSpriteCanvas } from './combatSprites.js';
+import { createCombatVoxelActors } from './combatVoxelActors.js';
+import { createCombatEffects } from './combatEffects.js';
+import { createCombatLighting } from './combatLighting.js';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = UI_SETTINGS.resolution;
 
@@ -31,7 +33,9 @@ const COMBAT_VIEWPORT_HEIGHT = UI_SETTINGS.combatLayout.viewport.rows * UI_SETTI
 const COMBAT_ASPECT = COMBAT_VIEWPORT_WIDTH / COMBAT_VIEWPORT_HEIGHT;
 const COMBAT_WALL_HEIGHT = 0.8;
 const COMBAT_CELL_SIZE = 1 / COMBAT_CELLS_PER_MAP_TILE;
-const COMBAT_SPRITE_WORLD_SIZE = 0.96 * COMBAT_CELL_SIZE;
+const COMBAT_FIGURE_WORLD_SIZE = 0.96 * COMBAT_CELL_SIZE;
+const COMBAT_RENDER_SCALE = 2;
+const COMBAT_CAMERA_ELEVATION_SINE = Math.sqrt(2 / 3);
 
 export function buildScene(state, stage) {
   const scene = new THREE.Scene();
@@ -61,6 +65,11 @@ export function buildScene(state, stage) {
   const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.6);
   dirLight.position.set(3.5, 4.5, 2.5);
   scene.add(ambient, hemiLight, dirLight);
+  const explorationLighting = {
+    ambient: ambient.intensity,
+    hemisphere: hemiLight.intensity,
+    directional: dirLight.intensity,
+  };
 
   const tileSize = 1.0;
   const wallHeight = tileSize;
@@ -156,6 +165,17 @@ export function buildScene(state, stage) {
   const battleGroup = new THREE.Group();
   battleGroup.visible = false;
   scene.add(battleGroup);
+  const combatEffects = createCombatEffects(THREE, battleGroup, COMBAT_CELL_SIZE);
+  const combatLighting = createCombatLighting(THREE, battleGroup, COMBAT_CELL_SIZE);
+  // A dim key keeps voxel faces and cast shadows readable while local light dominates.
+  const combatKey = new THREE.DirectionalLight(0xe7eaff, 0.28);
+  combatKey.castShadow = true;
+  combatKey.shadow.mapSize.set(2048, 2048);
+  combatKey.shadow.bias = -0.0002;
+  combatKey.shadow.normalBias = 0.008 * COMBAT_CELL_SIZE;
+  combatKey.shadow.camera.near = 0.1;
+  combatKey.shadow.camera.far = 40;
+  battleGroup.add(combatKey, combatKey.target);
   // Stone caps define the taller combat walls without changing the exploration mesh.
   const wallCaps = new THREE.InstancedMesh(
     new THREE.BoxGeometry(1, 0.04 * COMBAT_CELL_SIZE, 0.12 * COMBAT_CELL_SIZE),
@@ -170,19 +190,17 @@ export function buildScene(state, stage) {
     wallCaps.setMatrixAt(index, capTransform.matrix);
     wallCaps.setColorAt(index, new THREE.Color(wall.material === doorMat ? 0xb38b52 : 0xa59d8c));
   });
+  wallCaps.castShadow = true;
+  wallCaps.receiveShadow = true;
   battleGroup.add(wallCaps);
-  const battleLight = new THREE.DirectionalLight(0xfff4dc, 1.15);
-  const battleFloorMaterial = new THREE.MeshLambertMaterial({ color: 0x42403c, side: THREE.DoubleSide });
-  battleLight.visible = false;
-  scene.add(battleLight, battleLight.target);
-  const spriteTextures = new Map();
-  const battleSprites = new Map();
+  const combatActors = createCombatVoxelActors(battleGroup, COMBAT_CELL_SIZE);
   const markers = new THREE.Group();
   battleGroup.add(markers);
-  const markerGeometry = new THREE.PlaneGeometry(COMBAT_SPRITE_WORLD_SIZE, COMBAT_SPRITE_WORLD_SIZE);
+  const markerGeometry = new THREE.PlaneGeometry(COMBAT_FIGURE_WORLD_SIZE, COMBAT_FIGURE_WORLD_SIZE);
   const raycaster = new THREE.Raycaster();
   let battleActive = false;
-  let battleFrame = null;
+  let battleView = null;
+  let battleSnapshot = null;
 
   function pixelTexture(canvas) {
     const texture = new THREE.CanvasTexture(canvas);
@@ -216,6 +234,7 @@ export function buildScene(state, stage) {
     reachable: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#55ff55', true), transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }),
     selected: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#ffff55'), transparent: true, depthWrite: false, side: THREE.DoubleSide }),
     target: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#ff5555'), transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+    spellTarget: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#55ffff'), transparent: true, depthWrite: false, side: THREE.DoubleSide }),
   };
 
   const gridCanvas = document.createElement('canvas');
@@ -258,11 +277,16 @@ export function buildScene(state, stage) {
 
   function projectedCell(cell, height = 0) {
     const { x, z } = combatCellCenter(cell);
-    return { x: (x - z) / Math.SQRT2, y: -(x + z) / Math.sqrt(3) + height };
+    const azimuth = battleView?.azimuth ?? Math.PI / 4;
+    return {
+      x: x * Math.cos(azimuth) - z * Math.sin(azimuth),
+      y: -(x * Math.sin(azimuth) + z * Math.cos(azimuth)) * COMBAT_CAMERA_ELEVATION_SINE + height,
+    };
   }
 
   function frameBattle(snapshot) {
-    const points = snapshot.units.flatMap((unit) => [projectedCell(unit), projectedCell(unit, COMBAT_SPRITE_WORLD_SIZE)]);
+    if (battleView?.manual) return;
+    const points = snapshot.units.flatMap((unit) => [projectedCell(unit), projectedCell(unit, COMBAT_FIGURE_WORLD_SIZE)]);
     if (snapshot.cursor) points.push(projectedCell(snapshot.cursor));
     if (!points.length) {
       points.push(projectedCell({
@@ -275,150 +299,147 @@ export function buildScene(state, stage) {
     const minY = Math.min(...points.map((point) => point.y));
     const maxY = Math.max(...points.map((point) => point.y));
     const margin = 1.2 * COMBAT_CELL_SIZE;
-    const halfSpan = Math.max(7.5 * COMBAT_CELL_SIZE, ((maxX - minX) / 2 + margin) / COMBAT_ASPECT, (maxY - minY) / 2 + margin);
-    if (!battleFrame) {
-      battleFrame = { x: (minX + maxX) / 2, y: (minY + maxY) / 2, halfSpan };
+    const halfSpan = Math.max(4.5 * COMBAT_CELL_SIZE, ((maxX - minX) / 2 + margin) / COMBAT_ASPECT, (maxY - minY) / 2 + margin);
+    let centerX = (minX + maxX) / 2;
+    let centerY = (minY + maxY) / 2;
+    if (!battleView) {
+      battleView = { x: 0, z: 0, azimuth: Math.PI / 4, halfSpan, manual: false };
     } else {
-      battleFrame.halfSpan = Math.max(battleFrame.halfSpan, halfSpan);
-      const safeWidth = battleFrame.halfSpan * COMBAT_ASPECT - margin;
-      const safeHeight = battleFrame.halfSpan - margin;
-      if (minX < battleFrame.x - safeWidth) battleFrame.x = minX + safeWidth;
-      if (maxX > battleFrame.x + safeWidth) battleFrame.x = maxX - safeWidth;
-      if (minY < battleFrame.y - safeHeight) battleFrame.y = minY + safeHeight;
-      if (maxY > battleFrame.y + safeHeight) battleFrame.y = maxY - safeHeight;
+      battleView.halfSpan = Math.max(battleView.halfSpan, halfSpan);
+      centerX = battleView.x * Math.cos(battleView.azimuth) - battleView.z * Math.sin(battleView.azimuth);
+      centerY = -(battleView.x * Math.sin(battleView.azimuth) + battleView.z * Math.cos(battleView.azimuth)) * COMBAT_CAMERA_ELEVATION_SINE;
+      const safeWidth = battleView.halfSpan * COMBAT_ASPECT - margin;
+      const safeHeight = battleView.halfSpan - margin;
+      if (minX < centerX - safeWidth) centerX = minX + safeWidth;
+      if (maxX > centerX + safeWidth) centerX = maxX - safeWidth;
+      if (minY < centerY - safeHeight) centerY = minY + safeHeight;
+      if (maxY > centerY + safeHeight) centerY = maxY - safeHeight;
     }
-    const centerX = (battleFrame.x * Math.SQRT2 - battleFrame.y * Math.sqrt(3)) / 2;
-    const centerZ = (-battleFrame.x * Math.SQRT2 - battleFrame.y * Math.sqrt(3)) / 2;
-    battleCamera.position.set(centerX + 14, 28, centerZ + 14);
-    battleCamera.lookAt(centerX, 0, centerZ);
-    battleCamera.left = -battleFrame.halfSpan * COMBAT_ASPECT;
-    battleCamera.right = battleFrame.halfSpan * COMBAT_ASPECT;
-    battleCamera.top = battleFrame.halfSpan;
-    battleCamera.bottom = -battleFrame.halfSpan;
+    const depth = -centerY / COMBAT_CAMERA_ELEVATION_SINE;
+    battleView.x = centerX * Math.cos(battleView.azimuth) + depth * Math.sin(battleView.azimuth);
+    battleView.z = -centerX * Math.sin(battleView.azimuth) + depth * Math.cos(battleView.azimuth);
+  }
+
+  function updateBattleCamera() {
+    if (!battleView) return;
+    const { x, z, azimuth, halfSpan } = battleView;
+    const horizontalDistance = 14 * Math.SQRT2;
+    battleCamera.position.set(x + Math.sin(azimuth) * horizontalDistance, 28, z + Math.cos(azimuth) * horizontalDistance);
+    battleCamera.lookAt(x, 0, z);
+    battleCamera.left = -halfSpan * COMBAT_ASPECT;
+    battleCamera.right = halfSpan * COMBAT_ASPECT;
+    battleCamera.top = halfSpan;
+    battleCamera.bottom = -halfSpan;
     battleCamera.updateProjectionMatrix();
     battleCamera.updateMatrixWorld(true);
-    battleLight.position.set(centerX, 18, centerZ);
-    battleLight.target.position.set(centerX, 0, centerZ);
+    combatKey.position.set(x - 5, 9, z + 4);
+    combatKey.target.position.set(x, 0, z);
+    const shadowSpan = Math.max(4 * COMBAT_CELL_SIZE, Math.min(halfSpan * 1.4, 12));
+    Object.assign(combatKey.shadow.camera, { left: -shadowSpan, right: shadowSpan, top: shadowSpan, bottom: -shadowSpan });
+    combatKey.shadow.camera.updateProjectionMatrix();
   }
 
-  function facingToward(from, to, currentFacing) {
-    const horizontal = (to.x - from.x) - (to.y - from.y);
-    return horizontal < 0 ? 'left' : horizontal > 0 ? 'right' : currentFacing;
+  function panBattle(dx, dy) {
+    if (!battleActive || !battleView) return;
+    const rect = stage.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const horizontal = -dx * 2 * battleView.halfSpan * COMBAT_ASPECT / rect.width;
+    const depth = -dy * 2 * battleView.halfSpan / rect.height / COMBAT_CAMERA_ELEVATION_SINE;
+    const { azimuth } = battleView;
+    battleView.x = THREE.MathUtils.clamp(battleView.x + horizontal * Math.cos(azimuth) + depth * Math.sin(azimuth), 0, state.width);
+    battleView.z = THREE.MathUtils.clamp(battleView.z - horizontal * Math.sin(azimuth) + depth * Math.cos(azimuth), 0, state.height);
+    battleView.manual = true;
+    updateBattleCamera();
   }
 
-  function initialFacing(unit, units) {
-    let closest = null;
-    let closestDistance = Infinity;
-    for (const opponent of units) {
-      if (!opponent.alive || opponent.team === unit.team) continue;
-      const distance = (opponent.x - unit.x) ** 2 + (opponent.y - unit.y) ** 2;
-      if (distance < closestDistance) {
-        closest = opponent;
-        closestDistance = distance;
-      }
-    }
-    const facing = unit.team === 'party' ? 'right' : 'left';
-    return closest ? facingToward(unit, closest, facing) : facing;
+  function rotateBattle(radians) {
+    if (!battleActive || !battleView) return;
+    battleView.azimuth = THREE.MathUtils.euclideanModulo(battleView.azimuth + radians, Math.PI * 2);
+    battleView.manual = true;
+    updateBattleCamera();
   }
 
-  function spriteTexture(unit, facing) {
-    const descriptor = {
-      kind: unit.kind,
-      equipment: unit.equipment,
-      appearance: unit.appearance,
-      facing,
-    };
-    const key = JSON.stringify(descriptor);
-    let texture = spriteTextures.get(key);
-    if (!texture) {
-      texture = pixelTexture(createCombatSpriteCanvas(descriptor));
-      spriteTextures.set(key, texture);
-    }
-    return { key, texture };
+  function zoomBattle(delta) {
+    if (!battleActive || !battleView) return;
+    battleView.halfSpan = THREE.MathUtils.clamp(battleView.halfSpan * Math.exp(THREE.MathUtils.clamp(delta * 0.0015, -1, 1)), 1.5 * COMBAT_CELL_SIZE, Math.max(state.width, state.height) / COMBAT_ASPECT);
+    battleView.manual = true;
+    updateBattleCamera();
+  }
+
+  function resetBattleView() {
+    if (!battleActive || !battleSnapshot) return;
+    battleView = null;
+    frameBattle(battleSnapshot);
+    updateBattleCamera();
   }
 
   function setBattle(snapshot) {
     if (!battleActive) {
       battleActive = true;
-      battleFrame = null;
+      battleView = null;
       ceiling.visible = false;
-      floor.material = battleFloorMaterial;
       wallsGroup.scale.y = COMBAT_WALL_HEIGHT;
       scene.fog = null;
       torch.visible = false;
+      ambient.intensity = 0.14;
+      hemiLight.intensity = 0.18;
+      dirLight.intensity = 0.08;
       battleGroup.visible = true;
-      battleLight.visible = true;
       onResize();
     }
-    const unitIds = new Set(snapshot.units.map((unit) => unit.id));
-    for (const [id, entry] of battleSprites) {
-      if (unitIds.has(id)) continue;
-      battleGroup.remove(entry.sprite);
-      entry.sprite.material.dispose();
-      battleSprites.delete(id);
-    }
-    const active = snapshot.units.find((unit) => unit.id === snapshot.activeId && unit.alive);
-    const target = snapshot.units.find((unit) => unit.id === snapshot.targetId && unit.alive);
-    for (const unit of snapshot.units) {
-      let entry = battleSprites.get(unit.id);
-      const previousCell = entry?.sprite.userData.combatCell;
-      let facing = entry?.facing || initialFacing(unit, snapshot.units);
-      if (previousCell) facing = facingToward(previousCell, unit, facing);
-      if (unit === active && target) facing = facingToward(unit, target, facing);
-      const { key, texture } = spriteTexture(unit, facing);
-      if (!entry) {
-        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.1, depthWrite: false });
-        const sprite = new THREE.Sprite(material);
-        sprite.center.set(0.5, 0);
-        sprite.scale.set(COMBAT_SPRITE_WORLD_SIZE, COMBAT_SPRITE_WORLD_SIZE, 1);
-        sprite.renderOrder = 5;
-        battleGroup.add(sprite);
-        entry = { sprite, textureKey: key, facing };
-        battleSprites.set(unit.id, entry);
-      } else if (entry.textureKey !== key) {
-        entry.sprite.material.map = texture;
-        entry.sprite.material.needsUpdate = true;
-        entry.textureKey = key;
-      }
-      entry.facing = facing;
-      const center = combatCellCenter(unit);
-      entry.sprite.position.set(center.x, 0.035 * COMBAT_CELL_SIZE, center.z);
-      entry.sprite.userData.combatCell = { x: unit.x, y: unit.y };
-      entry.sprite.material.opacity = unit.alive ? 1 : 0.35;
-      entry.sprite.material.color.set(unit.alive ? 0xffffff : 0x8f829b);
-    }
-    markers.clear();
-    for (const cell of snapshot.reachable || []) addMarker(cell, markerMaterials.reachable, 0.022);
-    addMarker(active, markerMaterials.selected, 0.03);
-    addMarker(target, markerMaterials.target, 0.032);
-    addMarker(snapshot.cursor, markerMaterials.selected, 0.034);
+    battleSnapshot = snapshot;
+    combatLighting.sync(snapshot);
+    combatEffects.sync(snapshot.units);
     frameBattle(snapshot);
+    updateBattleCamera();
+    combatActors.sync(snapshot);
+    const active = snapshot.units.find((unit) => unit.id === snapshot.activeId && unit.alive);
+    markers.clear();
+    for (const cell of snapshot.reachable) {
+      if (cell.cost > 0) addMarker(cell, markerMaterials.reachable, 0.022);
+    }
+    addMarker(active, markerMaterials.selected, 0.03);
+    const targetMaterial = snapshot.targetKind === 'attack' ? markerMaterials.target : markerMaterials.spellTarget;
+    for (const unit of snapshot.units) {
+      if (snapshot.targetIds.includes(unit.id)) addMarker(unit, targetMaterial, 0.032);
+    }
+    if (snapshot.mode === 'target') addMarker(snapshot.cursor, markerMaterials.selected, 0.034);
   }
 
   function clearBattle() {
     if (!battleActive) return;
     battleActive = false;
-    battleFrame = null;
+    battleView = null;
+    battleSnapshot = null;
+    combatEffects.clear();
+    combatLighting.clear();
     battleGroup.visible = false;
-    battleLight.visible = false;
+    ambient.intensity = explorationLighting.ambient;
+    hemiLight.intensity = explorationLighting.hemisphere;
+    dirLight.intensity = explorationLighting.directional;
     ceiling.visible = true;
-    floor.material = floorMat;
     wallsGroup.scale.y = 1;
     scene.fog = explorationFog;
     torch.visible = true;
     markers.clear();
-    for (const { sprite } of battleSprites.values()) {
-      battleGroup.remove(sprite);
-      sprite.material.dispose();
-    }
-    battleSprites.clear();
-    for (const texture of spriteTextures.values()) texture.dispose();
-    spriteTextures.clear();
+    combatActors.clear();
     onResize();
   }
 
   function render() {
+    if (battleActive) {
+      const now = performance.now();
+      combatActors.update(now);
+      combatEffects.update(now);
+      combatLighting.update(now, combatActors.positionFor);
+    }
     renderer.render(scene, battleActive ? battleCamera : camera);
+  }
+
+  function playBattleEffect(effect) {
+    if (!battleActive) return Promise.resolve();
+    combatActors.play(effect);
+    return combatEffects.play(effect);
   }
 
   function pickBattleCell(clientX, clientY) {
@@ -431,15 +452,8 @@ export function buildScene(state, stage) {
     );
     scene.updateMatrixWorld(true);
     raycaster.setFromCamera(point, battleCamera);
-    const spriteHits = raycaster.intersectObjects([...battleSprites.values()].map((entry) => entry.sprite), false);
-    for (const hit of spriteHits) {
-      const image = hit.object.material.map.image;
-      const pixelX = Math.min(image.width - 1, Math.max(0, Math.floor(hit.uv.x * image.width)));
-      const pixelY = Math.min(image.height - 1, Math.max(0, Math.floor((1 - hit.uv.y) * image.height)));
-      if (image.getContext('2d').getImageData(pixelX, pixelY, 1, 1).data[3]) {
-        return { ...hit.object.userData.combatCell };
-      }
-    }
+    const actorCell = combatActors.pick(raycaster);
+    if (actorCell) return actorCell;
     const hit = raycaster.intersectObject(floor, false)[0];
     if (!hit) return null;
     const x = Math.floor(hit.point.x * COMBAT_CELLS_PER_MAP_TILE);
@@ -452,7 +466,7 @@ export function buildScene(state, stage) {
     const w = Math.max(1, rect.width || SCREEN_WIDTH);
     const h = Math.max(1, rect.height || SCREEN_HEIGHT);
     // Keep the camera aspect tied to the DOM size while rendering to a fixed buffer.
-    renderer.setSize(battleActive ? COMBAT_VIEWPORT_WIDTH : VIEWPORT_RENDER_SIZE, battleActive ? COMBAT_VIEWPORT_HEIGHT : VIEWPORT_RENDER_SIZE, false);
+    renderer.setSize(battleActive ? COMBAT_VIEWPORT_WIDTH * COMBAT_RENDER_SCALE : VIEWPORT_RENDER_SIZE, battleActive ? COMBAT_VIEWPORT_HEIGHT * COMBAT_RENDER_SCALE : VIEWPORT_RENDER_SIZE, false);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
     camera.aspect = w / h;
@@ -461,5 +475,5 @@ export function buildScene(state, stage) {
   onResize();
   window.addEventListener('resize', onResize);
 
-  return { scene, renderer, camera, player, torch, torchAnchor, setBattle, clearBattle, render, pickBattleCell };
+  return { scene, renderer, camera, player, torch, torchAnchor, setBattle, clearBattle, render, pickBattleCell, panBattle, rotateBattle, zoomBattle, resetBattleView, playBattleEffect };
 }

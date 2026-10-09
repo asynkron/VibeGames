@@ -4,6 +4,7 @@ import { DX, DY, WALL, buildDungeon, getWall, leftOf, rightOf, backOf, yawForDir
 import { createHudRenderer } from './src/render/hud.js';
 import { createMinimapOverlay } from './src/render/minimap.js';
 import { buildScene } from './src/render/scene.js';
+import { createCombatMapControls } from './src/render/combatMapControls.js';
 import { initBt3Systems } from './src/systems/core.js';
 import { UI_SETTINGS } from './config/uiSettings.js';
 
@@ -30,6 +31,9 @@ function main() {
       if (!systems.isCombatActive) return;
       const cell = g.pickBattleCell(event.clientX, event.clientY);
       if (cell) systems.selectCombatCell(cell.x, cell.y);
+    },
+    onCombatCellClick(x, y) {
+      systems.selectCombatCell(x, y);
     },
   });
 
@@ -61,9 +65,13 @@ function main() {
   const g = buildScene(state, stageElement);
   const minimap = createMinimapOverlay(screenElement, state);
   const combatView = {
+    playEffect(effect) {
+      return g.playBattleEffect(effect);
+    },
     show(snapshot) {
       if (!combatLayoutActive) {
         combatLayoutActive = true;
+        hudCanvas.classList.add('combat-map-controls');
         sizeScreen();
       }
       hud.setCombatStatus(snapshot);
@@ -71,12 +79,25 @@ function main() {
     },
     hide() {
       combatLayoutActive = false;
+      hudCanvas.classList.remove('combat-map-controls');
+      mapControls.cancel();
       sizeScreen();
       hud.setCombatStatus(null);
       g.clearBattle();
     },
   };
   const systems = initBt3Systems({ hud, combatView, dungeon: state });
+  const mapControls = createCombatMapControls(hudCanvas, {
+    isActive: () => systems.isCombatActive && !minimap.isVisible(),
+    containsPoint(clientX, clientY) {
+      const rect = stageElement.getBoundingClientRect();
+      return clientX >= rect.left && clientX < rect.right && clientY >= rect.top && clientY < rect.bottom;
+    },
+    pan: g.panBattle,
+    rotate: g.rotateBattle,
+    zoom: g.zoomBattle,
+    reset: g.resetBattleView,
+  });
   hud.appendLog('The party enters the dungeon.');
 
   // Animation state

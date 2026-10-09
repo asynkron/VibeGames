@@ -7,7 +7,7 @@ const DETAIL_COLUMNS = 29;
 const ROSTER_FIRST_ROW = 5;
 const ROSTER_ROW_STRIDE = 2;
 
-export function createHudRenderer(canvas, { onViewportClick }) {
+export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick }) {
   const { resolution, colors, layout, combatLayout, tileSize, columns, rows } = UI_SETTINGS;
   canvas.width = resolution.width;
   canvas.height = resolution.height;
@@ -293,11 +293,24 @@ export function createHudRenderer(canvas, { onViewportClick }) {
     }
     for (const member of state.party) {
       const label = `${member.name}, ${member.classType}, level ${member.level}, AC ${member.ac}, HP ${member.hpCurrent}/${member.hpMax}, SP ${member.spCurrent}/${member.spMax}${member.statusText ? `, ${member.statusText}` : ''}${member.alive ? '' : ', dead'}`;
-      if (state.combat || state.buttons.length) {
+      const combatUnit = state.combat?.units.find((unit) => unit.id === member.id);
+      if (combatUnit?.canAct && !state.combat.busy) {
+        appendAccessibleButton(fragment, `Select ${label}, movement ${combatUnit.movementRemaining}/4`, () => onCombatCellClick(combatUnit.x, combatUnit.y));
+      } else if (state.combat || state.buttons.length) {
         const entry = document.createElement('p');
         entry.textContent = label;
         fragment.append(entry);
       } else appendAccessibleButton(fragment, `Inspect ${label}`, () => inspectMember(member));
+    }
+    if (state.combat && !state.combat.busy) {
+      for (const cell of state.combat.reachable) {
+        if (cell.cost > 0) appendAccessibleButton(fragment, `Move to combat cell ${cell.x}, ${cell.y}, ${cell.cost} steps`, () => onCombatCellClick(cell.x, cell.y));
+      }
+      for (const unit of state.combat.units) {
+        if (!state.combat.targetIds.includes(unit.id)) continue;
+        const action = state.combat.targetKind === 'attack' ? 'Attack' : 'Cast on';
+        appendAccessibleButton(fragment, `${action} ${unit.name}, HP ${unit.hpCurrent}/${unit.hpMax}`, () => onCombatCellClick(unit.x, unit.y));
+      }
     }
     const details = document.createElement('p');
     details.textContent = characterDetailLines(inspectedMember()).join(' ');

@@ -699,11 +699,10 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       party: party.members,
       monsters,
       board,
-      turnOrder: [],
-      turnIndex: 0,
+      heroTurns: new Map(),
       actorId: '',
       activeId: '',
-      movementRemaining: 4,
+      menuRevision: 0,
       phase: 'opening',
       mode: 'resolving',
       busy: true,
@@ -811,7 +810,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     if (spellDef.target === 'ally') {
       return allies.filter((target) => target.id === explicitTargetId && (target.alive || spellDef.type === 'revive') && inRange(target) && canRestorePosition(state, target));
     }
-    if (spellDef.target === 'party') return allies;
+    if (spellDef.target === 'party') return allies.filter((target) => target.alive);
     if (spellDef.target === 'self') return [caster];
     return [];
   }
@@ -830,9 +829,41 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     return damage;
   }
 
-  function castSpell(state, caster, spellCode, explicitTargetId) {
+  const MAGIC_PALETTE = {
+    holy: 0xf4d66a,
+    arcane: 0x55ffff,
+    temporal: 0xb875ff,
+    flame: 0xff8034,
+    frost: 0x90c8ff,
+    nature: 0x55ff55,
+  };
+
+  function spellRune(spell) {
+    const style = ['ARFI', 'MAGM', 'FLCO', 'LAVA', 'BLAZ', 'MAFL'].includes(spell.code) ? 'flame'
+      : ['FRFO', 'STLI', 'OGST'].includes(spell.code) ? 'frost'
+      : ['HOWA', 'WOHL', 'FLRE', 'REST', 'SPTO', 'DIVA'].includes(spell.code) ? 'holy'
+      : spell.classType === 'Chronomancer' ? 'temporal'
+      : spell.classType === 'Geomancer' ? 'nature' : 'arcane';
+    return { style, color: MAGIC_PALETTE[style] };
+  }
+
+  function statusVisual(modifiers, rune) {
+    const protective = modifiers.ac < 0 || modifiers.magicResist > 0;
+    return { kind: protective ? 'shield' : 'rune', ...rune };
+  }
+
+  async function playBattleEffect(state, kind, source, targets, color, rune) {
+    const cell = (entity) => {
+      const position = state.board.position(entity.id);
+      return { id: entity.id, x: position.x, y: position.y, team: position.team };
+    };
+    await combatView.playEffect({ kind, source: cell(source), targets: targets.map(cell), color, ...(rune ? { rune } : {}) });
+    return isCurrentBattle(state);
+  }
+
+  async function castSpell(state, caster, spellCode, explicitTargetId) {
     const spellDef = SPELL_LIBRARY[spellCode];
-    if (!spellDef) {
+    if (!spellDef || !caster.knownSpells.includes(spellCode)) {
       log(`${caster.name} tries to cast an unknown spell.`);
       return false;
     }
@@ -850,6 +881,11 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       return false;
     }
     log(`${caster.name} casts ${spellDef.name}!`);
+    const effectKind = ['heal', 'revive', 'restore'].includes(spellDef.type) ? 'heal'
+      : spellDef.type === 'buff' ? 'buff' : spellCode === 'MIJA' ? 'arrow'
+        : spellDef.target === 'enemies' ? 'burst' : 'bolt';
+    const rune = spellRune(spellDef);
+    if (!await playBattleEffect(state, effectKind, caster, targets, rune.color, rune)) return false;
     if (spellDef.type === 'damage' || spellDef.type === 'drain') {
       for (const target of targets) {
         const damage = applySpellDamage(caster, target, spellDef);
@@ -892,6 +928,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
           name: spellDef.name,
           duration: spellDef.duration ?? 0,
           modifiers: { ...spellDef.modifiers },
+          visual: statusVisual(spellDef.modifiers, rune),
         };
         applyStatus(target, status);
         if (spellDef.duration) {
@@ -904,9 +941,9 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     return true;
   }
 
-  function performSong(state, bard, songId) {
+  async function performSong(state, bard, songId) {
     const song = SONG_LIBRARY[songId];
-    if (!song) {
+    if (!song || !bard.knownSongs.includes(songId)) {
       log(`${bard.name} does not recall that melody.`);
       return false;
     }
@@ -914,16 +951,22 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       log(`${bard.name} fumbles without an instrument.`);
       return false;
     }
+    const targets = song.target === 'enemies'
+      ? livingMonsters(state.monsters).filter((target) => state.board.canTarget(bard.id, target.id, { range: 6 }))
+      : (song.target === 'party' ? party.members.filter((member) => member.alive) : [bard]);
+    if (!targets.length) return false;
     log(`${bard.name} plays ${song.name}.`);
+    const rune = { style: 'holy', color: MAGIC_PALETTE.holy };
+    if (!await playBattleEffect(state, song.type === 'heal' ? 'heal' : 'buff', bard, targets, rune.color, rune)) return false;
     let success = false;
     if (song.type === 'buff') {
-      const targets = song.target === 'party' ? party.members : [bard];
       for (const target of targets) {
         const status = {
           id: `song_${song.id}_${target.id}`,
           name: song.name,
           duration: song.duration ?? 0,
           modifiers: { ...song.modifiers },
+          visual: statusVisual(song.modifiers, rune),
         };
         applyStatus(target, status);
         success = true;
@@ -932,19 +975,18 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         log(`The party is inspired for ${song.duration} rounds.`);
       }
     } else if (song.type === 'heal') {
-      const targets = song.target === 'party' ? party.members : [bard];
       for (const target of targets) {
         if (healTarget(target, song.amount)) success = true;
       }
       if (success) log('Wounds knit as the song crescendos.');
     } else if (song.type === 'debuff') {
-      const targets = livingMonsters(state.monsters).filter((target) => state.board.canTarget(bard.id, target.id, { range: 6 }));
       for (const target of targets) {
         const status = {
           id: `song_${song.id}_${target.id}`,
           name: song.name,
           duration: song.duration ?? 0,
           modifiers: { ...song.modifiers },
+          visual: statusVisual(song.modifiers, rune),
         };
         applyStatus(target, status);
         success = true;
@@ -954,9 +996,9 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     return true;
   }
 
-  function useAbility(state, actor, abilityId, targetId) {
+  async function useAbility(state, actor, abilityId, targetId) {
     const ability = ABILITY_LIBRARY[abilityId];
-    if (!ability) {
+    if (!ability || actor.abilityId !== abilityId) {
       log(`${actor.name} tries a technique they have not mastered.`);
       return false;
     }
@@ -972,9 +1014,13 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         isBackstab: abilityId === 'rogue_backstab',
         damageMultiplier: ability.damageMultiplier || 1,
       };
+      if (!await playBattleEffect(state, 'slash', actor, [target], 0xffd26b)) return false;
       const result = performAttack(actor, target, options);
       if (result.hit && ability.apply?.stunned && target.alive) {
-        applyStatus(target, { id: `ability_${ability.id}_${target.id}`, name: ability.name, duration: ability.apply.duration || 1, modifiers: { stunned: true } });
+        applyStatus(target, {
+          id: `ability_${ability.id}_${target.id}`, name: ability.name, duration: ability.apply.duration || 1,
+          modifiers: { stunned: true }, visual: statusVisual({ stunned: true }, { style: 'holy', color: MAGIC_PALETTE.holy }),
+        });
         log(`${target.name} is stunned!`);
       }
       return true;
@@ -982,6 +1028,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     if (ability.type === 'heal') {
       const target = state.party.find((member) => member.id === targetId && state.board.canTarget(actor.id, member.id, { range: 6 }) && canRestorePosition(state, member));
       if (!target) return false;
+      const rune = { style: 'holy', color: MAGIC_PALETTE.holy };
+      if (!await playBattleEffect(state, 'heal', actor, [target], rune.color, rune)) return false;
       if (reviveTarget(target, ability.amount)) {
         log(`${actor.name} uses ${ability.name} on ${target.name}.`);
         return true;
@@ -990,11 +1038,14 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       return true;
     }
     if (ability.type === 'prep') {
+      const rune = { style: 'holy', color: MAGIC_PALETTE.holy };
+      if (!await playBattleEffect(state, 'buff', actor, [actor], rune.color, rune)) return false;
       applyStatus(actor, {
         id: `ability_${ability.id}_${actor.id}`,
         name: ability.name,
         duration: ability.duration ?? 1,
         modifiers: { ...(ability.modifiers || {}) },
+        visual: statusVisual(ability.modifiers || {}, rune),
       });
       log(`${actor.name} prepares with ${ability.name}.`);
       return true;
@@ -1012,7 +1063,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     return livingPartyMembers().filter((hero) => state.board.canTarget(monster.id, hero.id, { range, melee }));
   }
 
-  function monsterSpecialAction(state, monster, meleeTarget) {
+  async function monsterSpecialAction(state, monster, meleeTarget) {
     if (!monster.special || Math.random() > 0.35) return false;
     const rangedTargets = heroesInRange(state, monster);
     const target = meleeTarget || rangedTargets[0];
@@ -1020,6 +1071,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     switch (monster.special) {
       case 'swarm': {
         if (!meleeTarget) return false;
+        if (!await playBattleEffect(state, 'slash', monster, [target], 0xff7070)) return false;
         log(`${monster.name} swarms over ${target.name}!`);
         const result = performMonsterAttack(monster, target, { damageBonus: 2 });
         if (result.hit) performMonsterAttack(monster, target, { damageBonus: 1 });
@@ -1027,42 +1079,61 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       }
       case 'backstab': {
         if (!meleeTarget) return false;
+        if (!await playBattleEffect(state, 'slash', monster, [target], 0xff7070)) return false;
         log(`${monster.name} darts behind ${target.name}!`);
         performMonsterAttack(monster, target, { toHitBonus: 3, damageBonus: 3 });
         return true;
       }
       case 'war_cry': {
         if (!rangedTargets.length) return false;
+        const rune = { style: 'flame', color: MAGIC_PALETTE.flame };
+        if (!await playBattleEffect(state, 'buff', monster, rangedTargets, rune.color, rune)) return false;
         log(`${monster.name} unleashes a war cry!`);
         for (const hero of rangedTargets) {
-          applyStatus(hero, { id: `debuff_war_cry_${hero.id}`, name: 'War Cry', duration: 2, modifiers: { toHit: -1 } });
+          applyStatus(hero, {
+            id: `debuff_war_cry_${hero.id}`, name: 'War Cry', duration: 2,
+            modifiers: { toHit: -1 }, visual: statusVisual({ toHit: -1 }, rune),
+          });
         }
         return true;
       }
       case 'bone_chill': {
         if (!rangedTargets.length) return false;
+        const rune = { style: 'frost', color: MAGIC_PALETTE.frost };
+        if (!await playBattleEffect(state, 'burst', monster, rangedTargets, rune.color, rune)) return false;
         log(`${monster.name} exhales bone-chilling frost!`);
         for (const hero of rangedTargets) {
-          applyStatus(hero, { id: `bone_chill_${hero.id}`, name: 'Bone Chill', duration: 2, modifiers: { ac: 1 } });
+          applyStatus(hero, {
+            id: `bone_chill_${hero.id}`, name: 'Bone Chill', duration: 2,
+            modifiers: { ac: 1 }, visual: statusVisual({ ac: 1 }, rune),
+          });
         }
         return true;
       }
       case 'stun_palm': {
         if (!meleeTarget) return false;
+        if (!await playBattleEffect(state, 'slash', monster, [target], 0xff7070)) return false;
         log(`${monster.name} attempts a stunning palm!`);
         const result = performMonsterAttack(monster, target, { toHitBonus: 2 });
         if (result.hit && target.alive) {
-          applyStatus(target, { id: `stun_${monster.id}`, name: 'Stunned', duration: 1, modifiers: { stunned: true } });
+          applyStatus(target, {
+            id: `stun_${monster.id}`, name: 'Stunned', duration: 1, modifiers: { stunned: true },
+            visual: statusVisual({ stunned: true }, { style: 'holy', color: MAGIC_PALETTE.holy }),
+          });
           log(`${target.name} is stunned!`);
         }
         return true;
       }
       case 'shield_bash': {
         if (!meleeTarget) return false;
+        if (!await playBattleEffect(state, 'slash', monster, [target], 0xff7070)) return false;
         log(`${monster.name} bashes ${target.name} with a shield!`);
         const result = performMonsterAttack(monster, target, { damageBonus: 2 });
         if (result.hit && target.alive) {
-          applyStatus(target, { id: `bash_${monster.id}`, name: 'Dazed', duration: 2, modifiers: { toHit: -1 } });
+          applyStatus(target, {
+            id: `bash_${monster.id}`, name: 'Dazed', duration: 2, modifiers: { toHit: -1 },
+            visual: statusVisual({ toHit: -1 }, { style: 'holy', color: MAGIC_PALETTE.holy }),
+          });
         }
         return true;
       }
@@ -1070,6 +1141,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         if (!rangedTargets.length) return false;
         const defender = rangedTargets[0];
         const spell = SPELL_LIBRARY.ARFI;
+        const rune = spellRune(spell);
+        if (!await playBattleEffect(state, 'bolt', monster, [defender], rune.color, rune)) return false;
         log(`${monster.name} casts ${spell.name}!`);
         const damage = applySpellDamage(monster, defender, spell);
         if (damage) log(`${defender.name} takes ${damage} damage from ${spell.name}.`);
@@ -1077,6 +1150,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       }
       case 'chain_lightning': {
         if (!rangedTargets.length) return false;
+        const rune = { style: 'arcane', color: MAGIC_PALETTE.arcane };
+        if (!await playBattleEffect(state, 'bolt', monster, rangedTargets, rune.color, rune)) return false;
         log(`${monster.name} hurls chain lightning!`);
         for (const hero of rangedTargets) {
           const damage = roll(8, 16);
@@ -1088,6 +1163,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       case 'shadow_flame': {
         if (!rangedTargets.length) return false;
         const defender = rangedTargets[0];
+        const rune = { style: 'temporal', color: MAGIC_PALETTE.temporal };
+        if (!await playBattleEffect(state, 'bolt', monster, [defender], rune.color, rune)) return false;
         log(`${monster.name} conjures shadow flame!`);
         const damage = roll(12, 20);
         applyPhysicalDamage(defender, damage);
@@ -1101,6 +1178,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       case 'smash': {
         const nearby = heroesInRange(state, monster, 2);
         if (!nearby.length) return false;
+        if (!await playBattleEffect(state, 'burst', monster, nearby, 0xffd26b)) return false;
         log(`${monster.name} smashes the ground!`);
         for (const hero of nearby) {
           const result = hitCheck(monster.toHit + 2, computeCharacterStats(hero).ac);
@@ -1115,6 +1193,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       case 'life_drain': {
         if (!rangedTargets.length) return false;
         const defender = rangedTargets[0];
+        const rune = { style: 'temporal', color: MAGIC_PALETTE.temporal };
+        if (!await playBattleEffect(state, 'bolt', monster, [defender], rune.color, rune)) return false;
         log(`${monster.name} drains life from ${defender.name}!`);
         const damage = roll(10, 18);
         applyPhysicalDamage(defender, damage);
@@ -1124,6 +1204,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       }
       case 'elemental_burst': {
         if (!rangedTargets.length) return false;
+        const rune = { style: 'flame', color: MAGIC_PALETTE.flame };
+        if (!await playBattleEffect(state, 'burst', monster, rangedTargets, rune.color, rune)) return false;
         log(`${monster.name} detonates elemental energy!`);
         for (const hero of rangedTargets) {
           const damage = roll(9, 15);
@@ -1148,9 +1230,30 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     return findPartyMember(state.actorId);
   }
 
+  function heroIsAvailable(state, actor) {
+    const turn = state.heroTurns.get(actor?.id);
+    return Boolean(actor?.alive && turn && !turn.actionSpent && !isUnableToAct(actor));
+  }
+
+  function attackableMonsters(state, actor) {
+    return livingMonsters(state.monsters).filter((monster) => state.board.canTarget(actor.id, monster.id, { melee: true, range: 1 }));
+  }
+
+  function targetKind(action) {
+    if (action.type === 'spell') {
+      const spell = SPELL_LIBRARY[action.spellCode];
+      return ['heal', 'revive', 'restore'].includes(spell.type) ? 'heal' : spell.type === 'buff' ? 'buff' : 'spell';
+    }
+    if (action.type === 'ability' && ABILITY_LIBRARY[action.abilityId]?.type === 'heal') return 'heal';
+    return 'attack';
+  }
+
   function publishBattle(state) {
     if (combatState !== state) return;
-    const targetId = state.targeting?.targets.find((target) => {
+    const actor = activeHero(state);
+    const selectable = !state.busy && state.phase === 'hero' && heroIsAvailable(state, actor);
+    const targets = selectable ? state.targeting?.targets || (state.mode === 'ready' ? attackableMonsters(state, actor) : []) : [];
+    const targetId = targets.find((target) => {
       const position = state.board.position(target.id);
       return position.x === state.cursor.x && position.y === state.cursor.y;
     })?.id || '';
@@ -1167,77 +1270,85 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         weapon: team === 'party' ? getEquippedItem(entity, 'weapon')?.name || 'Unarmed' : '',
         equipment: team === 'party' ? { ...entity.equipment } : undefined,
         alive: entity.alive,
+        auras: entity.alive ? entity.statusEffects.map((status) => ({ id: status.id, ...status.visual })) : [],
+        canAct: team === 'party' && state.phase === 'hero' && heroIsAvailable(state, entity),
+        movementRemaining: state.heroTurns.get(id)?.movementRemaining ?? 0,
       })),
       activeId: state.activeId,
       targetId,
+      targetIds: targets.map((target) => target.id),
+      targetKind: state.targeting ? targetKind(state.targeting.action) : 'attack',
       cursor: { ...state.cursor },
-      reachable: state.mode === 'move' ? state.board.reachable(state.actorId, state.movementRemaining) : [],
+      reachable: selectable && state.mode === 'ready' ? state.board.reachable(state.actorId, state.heroTurns.get(state.actorId).movementRemaining) : [],
       mode: state.mode,
+      busy: state.busy,
       round: state.round,
     });
   }
 
   function heroCanSelect(state, actor) {
-    return isCurrentBattle(state) && state.phase === 'hero' && !state.busy && state.actorId === actor.id && actor.alive;
+    return isCurrentBattle(state) && state.phase === 'hero' && !state.busy && state.actorId === actor?.id && heroIsAvailable(state, actor);
   }
 
   function showActionMenu(state, actor, prompt, buttons, details = actor.description) {
+    const revision = ++state.menuRevision;
     publishBattle(state);
     hud.setActions({
       prompt,
       buttons: buttons.map((button) => ({
         ...button,
         onSelect: () => {
-          if (heroCanSelect(state, actor)) button.onSelect();
+          if (state.menuRevision === revision && heroCanSelect(state, actor)) button.onSelect();
         },
       })),
       active: {
         id: actor.id,
         portrait: actor.portrait,
         heading: `${actor.name} — ${actor.classType}`,
-        details: `MOVE ${state.movementRemaining}/4  SP ${actor.spCurrent}/${actor.spMax}. ${details}`,
+        details: `MOVE ${state.heroTurns.get(actor.id).movementRemaining}/4  SP ${actor.spCurrent}/${actor.spMax}. ${details}`,
       },
     });
   }
 
   function promptMainAction(state, actor, message = '') {
     if (!isCurrentBattle(state)) return;
-    state.mode = 'menu';
+    state.mode = 'ready';
     state.targeting = null;
     const position = state.board.position(actor.id);
     state.cursor = { x: position.x, y: position.y };
     const buttons = [];
-    if (state.movementRemaining > 0) {
-      buttons.push({ label: `Move (${state.movementRemaining} left)`, onSelect: () => promptMove(state, actor) });
-    }
-    buttons.push({ label: 'Attack', onSelect: () => promptAttackTargets(state, actor) });
     if ((actor.knownSpells || []).some((code) => SPELL_LIBRARY[code]?.usableInCombat) && actor.spCurrent > 0) {
       buttons.push({ label: 'Cast Spell', onSelect: () => promptSpellSelect(state, actor) });
     }
     if ((actor.knownSongs || []).length) buttons.push({ label: 'Sing', onSelect: () => promptSongSelect(state, actor) });
     if (actor.abilityId) buttons.push({ label: 'Use Ability', onSelect: () => promptAbilitySelect(state, actor) });
     if (state.encounter.canFlee) buttons.push({ label: 'Flee', onSelect: () => commitHeroAction(state, actor, { type: 'flee' }) });
-    buttons.push({ label: 'Pass', onSelect: () => commitHeroAction(state, actor, { type: 'pass' }) });
+    buttons.push({ label: 'End Turn', onSelect: () => commitHeroAction(state, actor, { type: 'pass' }) });
     const prompt = message || `Round ${state.round}: ${actor.name}`;
     showActionMenu(state, actor, prompt, buttons);
   }
 
-  function promptMove(state, actor) {
-    state.mode = 'move';
+  async function moveHero(state, actor, x, y) {
+    if (!heroCanSelect(state, actor) || state.mode !== 'ready') return;
+    const turn = state.heroTurns.get(actor.id);
+    const path = state.board.pathToCell(actor.id, x, y, turn.movementRemaining);
+    if (!path.length) return;
+    state.busy = true;
+    state.mode = 'resolving';
     state.targeting = null;
-    const position = state.board.position(actor.id);
-    state.cursor = { x: position.x, y: position.y };
-    showActionMenu(state, actor, `${actor.name}: Move ${state.movementRemaining}/4`, [
-      { label: 'Back', role: 'back', onSelect: () => promptMainAction(state, actor) },
-    ]);
-  }
-
-  function moveHero(state, actor, x, y) {
-    if (!heroCanSelect(state, actor) || state.mode !== 'move') return;
-    const result = state.board.move(actor.id, x, y, state.movementRemaining);
-    if (!result.moved) return;
-    state.movementRemaining -= result.cost;
-    promptMove(state, actor);
+    hud.clearActions();
+    for (const cell of path) {
+      if (!isCurrentBattle(state)) return;
+      const result = state.board.move(actor.id, cell.x, cell.y, 1);
+      if (!result.moved) break;
+      turn.movementRemaining -= result.cost;
+      state.cursor = { ...cell };
+      publishBattle(state);
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+    if (!isCurrentBattle(state)) return;
+    state.busy = false;
+    promptMainAction(state, actor);
   }
 
   function promptTargetSelection(state, actor, { targets, action, prompt, details, onCancel }) {
@@ -1251,19 +1362,22 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     state.cursor = { x: position.x, y: position.y };
     const buttons = targets.map((target) => ({
       label: `${target.name} (${target.hpCurrent}/${target.hpMax})${target.alive ? '' : ' [KO]'}`,
-      onSelect: () => commitHeroAction(state, actor, { ...action, targetId: target.id }),
+      onSelect: () => {
+        const position = state.board.position(target.id);
+        selectCombatCell(position.x, position.y);
+      },
     }));
     buttons.push({ label: 'Back', role: 'back', onSelect: onCancel });
     showActionMenu(state, actor, prompt, buttons, details);
   }
 
-  function promptAttackTargets(state, actor, ability = null) {
+  function promptAbilityAttackTargets(state, actor, ability) {
     const targets = livingMonsters(state.monsters).filter((monster) => state.board.canTarget(actor.id, monster.id, { melee: true, range: 1 }));
     promptTargetSelection(state, actor, {
       targets,
-      action: ability ? { type: 'ability', abilityId: ability.id } : { type: 'attack' },
+      action: { type: 'ability', abilityId: ability.id },
       prompt: `Choose target for ${actor.name}`,
-      details: ability?.description || 'Strike an adjacent foe across an open edge.',
+      details: ability.description,
       onCancel: () => promptMainAction(state, actor),
     });
   }
@@ -1329,7 +1443,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       return;
     }
     if (ability.type === 'attack') {
-      promptAttackTargets(state, actor, ability);
+      promptAbilityAttackTargets(state, actor, ability);
       return;
     }
     if (ability.type === 'heal') {
@@ -1409,6 +1523,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       state.targeting = null;
       hud.clearActions();
       publishBattle(state);
+      if (!await playBattleEffect(state, 'slash', actor, [target], 0xffd26b)) return;
       performAttack(actor, target);
       performed = true;
     } else {
@@ -1417,12 +1532,14 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       state.targeting = null;
       hud.clearActions();
       publishBattle(state);
-      if (action.type === 'spell') performed = castSpell(state, actor, action.spellCode, action.targetId);
-      else if (action.type === 'song') performed = performSong(state, actor, action.songId);
-      else if (action.type === 'ability') performed = useAbility(state, actor, action.abilityId, action.targetId);
+      if (action.type === 'spell') performed = await castSpell(state, actor, action.spellCode, action.targetId);
+      else if (action.type === 'song') performed = await performSong(state, actor, action.songId);
+      else if (action.type === 'ability') performed = await useAbility(state, actor, action.abilityId, action.targetId);
       else if (action.type === 'flee') performed = attemptFlee(state, actor);
       else if (action.type === 'pass') performed = true;
     }
+    if (combatState !== state) return;
+    if (performed) state.heroTurns.get(actor.id).actionSpent = true;
     renderParty();
     publishBattle(state);
     if (!performed) {
@@ -1438,7 +1555,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     }
     await waitForLogIdle();
     if (!isCurrentBattle(state)) return;
-    state.turnIndex += 1;
     await beginNextHeroTurn(state);
   }
 
@@ -1461,7 +1577,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       if (!result.moved) break;
       state.cursor = { x: cell.x, y: cell.y };
       publishBattle(state);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 120));
     }
   }
 
@@ -1489,12 +1605,12 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
           moved = true;
           target = heroesInRange(state, monster, 1, true)[0];
         }
-        if (!monsterSpecialAction(state, monster, target)) {
+        if (!await monsterSpecialAction(state, monster, target)) {
           if (!target && !moved) {
             await walkMonster(state, monster);
             target = heroesInRange(state, monster, 1, true)[0];
           }
-          if (target) performMonsterAttack(monster, target);
+          if (target && await playBattleEffect(state, 'slash', monster, [target], 0xff7070)) performMonsterAttack(monster, target);
         }
       }
       renderParty();
@@ -1513,36 +1629,21 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     await beginPlayerRound(state);
   }
 
+  function selectHero(state, actor) {
+    if (!isCurrentBattle(state) || state.phase !== 'hero' || state.busy || !heroIsAvailable(state, actor)) return;
+    state.actorId = actor.id;
+    state.activeId = actor.id;
+    promptMainAction(state, actor);
+  }
+
   async function beginNextHeroTurn(state) {
     if (!isCurrentBattle(state)) return;
-    while (state.turnIndex < state.turnOrder.length) {
-      const actor = findPartyMember(state.turnOrder[state.turnIndex]);
-      if (!actor?.alive) {
-        state.turnIndex += 1;
-        continue;
-      }
-      state.actorId = actor.id;
-      state.activeId = actor.id;
-      state.movementRemaining = 4;
-      const position = state.board.position(actor.id);
-      state.cursor = { x: position.x, y: position.y };
-      if (isUnableToAct(actor)) {
-        for (const status of actor.statusEffects) status.awaitingHeroTurn = false;
-        state.busy = true;
-        state.mode = 'resolving';
-        publishBattle(state);
-        log(`${actor.name} is incapacitated and misses a turn.`);
-        await waitForLogIdle();
-        if (!isCurrentBattle(state)) return;
-        state.turnIndex += 1;
-        continue;
-      }
+    const actor = state.party.find((hero) => heroIsAvailable(state, hero));
+    if (actor) {
       state.phase = 'hero';
       state.busy = false;
-      promptMainAction(state, actor);
-      return;
-    }
-    await runMonsterPhase(state);
+      selectHero(state, actor);
+    } else await runMonsterPhase(state);
   }
 
   async function beginPlayerRound(state) {
@@ -1550,11 +1651,18 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     state.phase = 'hero';
     state.busy = true;
     state.mode = 'resolving';
-    state.turnOrder = livingPartyMembers().map((member) => member.id);
-    state.turnIndex = 0;
+    state.heroTurns = new Map(state.party.filter((hero) => hero.alive).map((hero) => [hero.id, { movementRemaining: 4, actionSpent: false }]));
     state.targeting = null;
     publishBattle(state);
     log(`-- Round ${state.round} --`);
+    for (const hero of state.party) {
+      if (!hero.alive || !isUnableToAct(hero)) continue;
+      const turn = state.heroTurns.get(hero.id);
+      turn.actionSpent = true;
+      turn.movementRemaining = 0;
+      for (const status of hero.statusEffects) status.awaitingHeroTurn = false;
+      log(`${hero.name} is incapacitated and misses a turn.`);
+    }
     await waitForLogIdle();
     if (!isCurrentBattle(state)) return;
     await beginNextHeroTurn(state);
@@ -1596,36 +1704,50 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= state.board.width || y >= state.board.height) return;
     const actor = activeHero(state);
     if (!heroCanSelect(state, actor)) return;
-    if (state.mode === 'move') {
-      moveHero(state, actor, x, y);
-      return;
-    }
     if (state.mode === 'target') {
-      state.cursor = { x, y };
-      publishBattle(state);
       const target = state.targeting.targets.find((candidate) => {
         const position = state.board.position(candidate.id);
         return position.x === x && position.y === y;
       });
-      if (target) commitHeroAction(state, actor, { ...state.targeting.action, targetId: target.id });
+      if (target) {
+        state.cursor = { x, y };
+        publishBattle(state);
+        commitHeroAction(state, actor, { ...state.targeting.action, targetId: target.id });
+        return;
+      }
     }
+    const clickedHero = state.party.find((hero) => {
+      const position = state.board.position(hero.id);
+      return position.x === x && position.y === y && heroIsAvailable(state, hero);
+    });
+    if (clickedHero) {
+      selectHero(state, clickedHero);
+      return;
+    }
+    if (state.mode !== 'ready') return;
+    const clickedMonster = attackableMonsters(state, actor).find((monster) => {
+      const position = state.board.position(monster.id);
+      return position.x === x && position.y === y;
+    });
+    if (clickedMonster) {
+      state.cursor = { x, y };
+      publishBattle(state);
+      commitHeroAction(state, actor, { type: 'attack', targetId: clickedMonster.id });
+    } else moveHero(state, actor, x, y);
   }
 
   function handleCombatKey(key) {
     const state = combatState;
     if (!state) return false;
-    if (state.busy || state.ended) return true;
+    if (state.busy || state.ended || state.phase !== 'hero') return true;
     const actor = activeHero(state);
+    if (!heroCanSelect(state, actor)) return true;
     const arrows = { ArrowUp: [0, -1], ArrowRight: [1, 0], ArrowDown: [0, 1], ArrowLeft: [-1, 0] };
     const step = arrows[key];
-    if (state.mode === 'move') {
+    if (state.mode === 'ready') {
       if (step) {
         const position = state.board.position(actor.id);
         moveHero(state, actor, position.x + step[0], position.y + step[1]);
-        return true;
-      }
-      if (key === 'Enter' || key === 'Escape') {
-        promptMainAction(state, actor);
         return true;
       }
     } else if (state.mode === 'target') {
@@ -1641,6 +1763,9 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         state.targeting.onCancel();
         return true;
       }
+    } else if (key === 'Escape') {
+      promptMainAction(state, actor);
+      return true;
     }
     return Boolean(step);
   }

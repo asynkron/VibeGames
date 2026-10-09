@@ -154,6 +154,23 @@ export function createBattlefield(dungeon, heroes, monsters) {
     return { moved: true, cost: destination.cost };
   }
 
+  function reconstructPath(reached, destination) {
+    const path = [];
+    let current = destination;
+    while (current && current.previous !== null) {
+      path.push({ x: current.x, y: current.y });
+      current = reached.get(current.previous);
+    }
+    return path.reverse();
+  }
+
+  function pathToCell(id, toX, toY, budget) {
+    const actor = position(id);
+    if (!actor?.entity.alive || !inBounds(toX, toY) || !(budget >= 0)) return [];
+    const { reached, destination } = search(actor, Math.floor(budget), new Set([cellKey(toX, toY)]));
+    return destination ? reconstructPath(reached, destination) : [];
+  }
+
   function pathToAdjacent(id, targetId, maxSteps = Infinity) {
     const actor = position(id);
     const target = position(targetId);
@@ -165,13 +182,7 @@ export function createBattlefield(dungeon, heroes, monsters) {
     if (!goals.size) return [];
     const { reached, destination } = search(actor, Infinity, goals);
     if (!destination) return [];
-    const path = [];
-    let current = destination;
-    while (current.previous !== null) {
-      path.push({ x: current.x, y: current.y });
-      current = reached.get(current.previous);
-    }
-    return path.reverse().slice(0, Math.floor(maxSteps));
+    return reconstructPath(reached, destination).slice(0, Math.floor(maxSteps));
   }
 
   function hasLineOfSight(actor, target) {
@@ -220,5 +231,5 @@ export function createBattlefield(dungeon, heroes, monsters) {
     return hasLineOfSight(actor, target);
   }
 
-  return { width, height, origin, units, position, reachable, move, pathToAdjacent, canTarget };
+  return { width, height, origin, units, position, reachable, move, pathToCell, pathToAdjacent, canTarget };
 }

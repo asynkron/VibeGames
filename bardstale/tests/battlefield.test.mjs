@@ -143,6 +143,22 @@ test('movement charges every subcell step including wall detours and keeps the e
   const detourMap = room(2, 2);
   link(detourMap, 0, 0, DIR.E, WALL.WALL);
   const detour = createBattlefield(detourMap, [combatant('hero')], []);
+  assert.deepEqual(detour.pathToCell('hero', 4, 1, 6), [], 'Animation paths must obey the same detour budget as movement.');
+  const route = detour.pathToCell('hero', 4, 1, 7);
+  assert.equal(route.length, 7);
+  assert.deepEqual(route.at(-1), { x: 4, y: 1 });
+  let previous = { x: 1, y: 1 };
+  for (const step of route) {
+    const direction = [DIR.N, DIR.E, DIR.S, DIR.W].find((dir) => previous.x + DX[dir] === step.x && previous.y + DY[dir] === step.y);
+    assert.notEqual(direction, undefined, 'A plotted animation path advances one orthogonal cell per frame.');
+    const mapX = Math.floor(previous.x / 3);
+    const mapY = Math.floor(previous.y / 3);
+    if (mapX !== Math.floor(step.x / 3) || mapY !== Math.floor(step.y / 3)) {
+      assert.notEqual(getWall(detourMap.cells, 2, 2, mapX, mapY, direction), WALL.WALL);
+    }
+    previous = step;
+  }
+  assert.deepEqual({ x: detour.position('hero').x, y: detour.position('hero').y }, { x: 1, y: 1 }, 'Plotting a route does not move the actor.');
   assert.deepEqual(detour.move('hero', 4, 1, 6), { moved: false, cost: 0 });
   assert.deepEqual(detour.move('hero', 4, 1, 7), { moved: true, cost: 7 });
 });
