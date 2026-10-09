@@ -5,6 +5,7 @@ import { COMBAT_CELLS_PER_MAP_TILE } from '../../config/combatSettings.js';
 import { createCombatVoxelActors } from './combatVoxelActors.js';
 import { createCombatEffects } from './combatEffects.js';
 import { createCombatLighting } from './combatLighting.js';
+import { footprintCells, occupiesCell } from '../combatFootprints.js';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = UI_SETTINGS.resolution;
 
@@ -33,9 +34,9 @@ const COMBAT_VIEWPORT_HEIGHT = UI_SETTINGS.combatLayout.viewport.rows * UI_SETTI
 const COMBAT_ASPECT = COMBAT_VIEWPORT_WIDTH / COMBAT_VIEWPORT_HEIGHT;
 const COMBAT_WALL_HEIGHT = 0.8;
 const COMBAT_CELL_SIZE = 1 / COMBAT_CELLS_PER_MAP_TILE;
-const COMBAT_FIGURE_WORLD_SIZE = 0.96 * COMBAT_CELL_SIZE;
 const COMBAT_RENDER_SCALE = 2;
 const COMBAT_CAMERA_ELEVATION_SINE = Math.sqrt(2 / 3);
+const COMBAT_CAMERA_ELEVATION_COSINE = Math.sqrt(1 / 3);
 
 export function buildScene(state, stage) {
   const scene = new THREE.Scene();
@@ -165,7 +166,8 @@ export function buildScene(state, stage) {
   const battleGroup = new THREE.Group();
   battleGroup.visible = false;
   scene.add(battleGroup);
-  const combatEffects = createCombatEffects(THREE, battleGroup, COMBAT_CELL_SIZE);
+  const combatActors = createCombatVoxelActors(battleGroup, COMBAT_CELL_SIZE);
+  const combatEffects = createCombatEffects(THREE, battleGroup, COMBAT_CELL_SIZE, combatActors);
   const combatLighting = createCombatLighting(THREE, battleGroup, COMBAT_CELL_SIZE);
   // A dim key keeps voxel faces and cast shadows readable while local light dominates.
   const combatKey = new THREE.DirectionalLight(0xe7eaff, 0.28);
@@ -193,10 +195,9 @@ export function buildScene(state, stage) {
   wallCaps.castShadow = true;
   wallCaps.receiveShadow = true;
   battleGroup.add(wallCaps);
-  const combatActors = createCombatVoxelActors(battleGroup, COMBAT_CELL_SIZE);
   const markers = new THREE.Group();
   battleGroup.add(markers);
-  const markerGeometry = new THREE.PlaneGeometry(COMBAT_FIGURE_WORLD_SIZE, COMBAT_FIGURE_WORLD_SIZE);
+  const markerGeometry = new THREE.PlaneGeometry(0.96 * COMBAT_CELL_SIZE, 0.96 * COMBAT_CELL_SIZE);
   const raycaster = new THREE.Raycaster();
   let battleActive = false;
   let battleView = null;
@@ -275,18 +276,28 @@ export function buildScene(state, stage) {
     markers.add(marker);
   }
 
-  function projectedCell(cell, height = 0) {
-    const { x, z } = combatCellCenter(cell);
+  function projectedPoint({ x, y, z }) {
     const azimuth = battleView?.azimuth ?? Math.PI / 4;
     return {
       x: x * Math.cos(azimuth) - z * Math.sin(azimuth),
-      y: -(x * Math.sin(azimuth) + z * Math.cos(azimuth)) * COMBAT_CAMERA_ELEVATION_SINE + height,
+      y: -(x * Math.sin(azimuth) + z * Math.cos(azimuth)) * COMBAT_CAMERA_ELEVATION_SINE
+        + y * COMBAT_CAMERA_ELEVATION_COSINE,
     };
+  }
+
+  function projectedCell(cell) {
+    return projectedPoint({ ...combatCellCenter(cell), y: 0 });
   }
 
   function frameBattle(snapshot) {
     if (battleView?.manual) return;
-    const points = snapshot.units.flatMap((unit) => [projectedCell(unit), projectedCell(unit, COMBAT_FIGURE_WORLD_SIZE)]);
+    const points = combatActors.framingBounds().flatMap(({ min, max }) => {
+      const corners = [];
+      for (const x of [min.x,max.x]) for (const y of [min.y,max.y]) for (const z of [min.z,max.z]) {
+        corners.push(projectedPoint({x,y,z}));
+      }
+      return corners;
+    });
     if (snapshot.cursor) points.push(projectedCell(snapshot.cursor));
     if (!points.length) {
       points.push(projectedCell({
@@ -388,22 +399,29 @@ export function buildScene(state, stage) {
       onResize();
     }
     battleSnapshot = snapshot;
+    combatActors.sync(snapshot);
     combatLighting.sync(snapshot);
     combatEffects.sync(snapshot.units);
     frameBattle(snapshot);
     updateBattleCamera();
-    combatActors.sync(snapshot);
     const active = snapshot.units.find((unit) => unit.id === snapshot.activeId && unit.alive);
     markers.clear();
     for (const cell of snapshot.reachable) {
       if (cell.cost > 0) addMarker(cell, markerMaterials.reachable, 0.022);
     }
-    addMarker(active, markerMaterials.selected, 0.03);
+    if (active) for (const cell of footprintCells(active)) addMarker(cell, markerMaterials.selected, 0.03);
     const targetMaterial = snapshot.targetKind === 'attack' ? markerMaterials.target : markerMaterials.spellTarget;
     for (const unit of snapshot.units) {
-      if (snapshot.targetIds.includes(unit.id)) addMarker(unit, targetMaterial, 0.032);
+      if (snapshot.targetIds.includes(unit.id)) {
+        for (const cell of footprintCells(unit)) addMarker(cell, targetMaterial, 0.032);
+      }
     }
-    if (snapshot.mode === 'target') addMarker(snapshot.cursor, markerMaterials.selected, 0.034);
+    if (snapshot.mode === 'target' && snapshot.cursor) {
+      const underCursor = snapshot.units.find(unit => unit.alive && occupiesCell(unit,snapshot.cursor.x,snapshot.cursor.y));
+      for (const cell of underCursor ? footprintCells(underCursor) : [snapshot.cursor]) {
+        addMarker(cell, markerMaterials.selected, 0.034);
+      }
+    }
   }
 
   function clearBattle() {

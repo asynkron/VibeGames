@@ -136,7 +136,7 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
     setPartBounds(visible) { parts.forEach(part=>{part.outline.visible=visible;}); },
     exportData() {
       const ids=[...new Set(Object.values(recipe.parts).filter(Boolean).map(part=>part.partId))];
-      return {format:'voxel-character/2',appearance,recipe,parts:ids.map(id=>library.get(id))};
+      return {format:'voxel-character/2',appearance,scale:model.scale,footprint:model.footprint,recipe,parts:ids.map(id=>library.get(id))};
     },
     dispose() {
       geometries.forEach(geometry=>geometry.dispose());

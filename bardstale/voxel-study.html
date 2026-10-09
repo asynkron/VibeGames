@@ -63,9 +63,9 @@
       </aside>
 
       <div class="viewer-panel">
-        <div class="viewer-heading"><div class="section-heading"><h2>The voxel figure</h2></div><span class="viewer-label">VOLUME / LIGHT / SHADOW</span></div>
+        <div class="viewer-heading"><div class="section-heading"><h2>The voxel figure</h2></div><span class="viewer-label" id="size-caption"></span></div>
         <div id="viewport" class="viewport" role="region" aria-label="3D voxel figure. Drag to rotate, scroll to zoom. Use the view buttons for preset angles.">
-          <p id="loading" class="loading" role="status">Building the little hero…</p>
+          <p id="loading" class="loading" role="status">Assembling the figure…</p>
           <span class="view-caption" id="view-caption">THREE-QUARTER VIEW</span>
           <div class="orientation" aria-hidden="true"><span>Y</span><svg viewBox="0 0 60 50"><path d="M30 28V3M30 28 7 40M30 28l24 12" stroke="#92998c" fill="none"/><path d="M30 28l24 12" stroke="#deaa78"/></svg><span class="axis-x">X</span><span class="axis-z">Z</span></div>
           <span class="drag-hint"><svg viewBox="0 0 16 20" fill="none" aria-hidden="true"><rect x="3" y="1" width="10" height="16" rx="5" stroke="currentColor"/><path d="M8 4v4" stroke="currentColor"/></svg>DRAG TO ROTATE <b>·</b> SCROLL TO ZOOM</span>
@@ -75,10 +75,11 @@
             <button type="button" data-view="angle" aria-pressed="true">¾ view</button>
             <button type="button" data-view="front" aria-pressed="false">Front</button>
             <button type="button" data-view="side" aria-pressed="false">Side</button>
+            <button type="button" data-view="rear" aria-pressed="false">Rear</button>
           </div>
           <div class="toggles"><button id="rotate" type="button" aria-pressed="false"><span class="rotate-icon" aria-hidden="true">↻</span> Auto-rotate</button><button id="grid" type="button" aria-pressed="true"><span class="grid-icon" aria-hidden="true">▦</span> Grid</button></div>
           <button id="reset" class="reset-button" type="button" title="Reset camera and display settings" aria-label="Reset view">↺</button>
-          <div class="part-tools" role="group" aria-label="Body part assembly view"><button id="part-bounds" type="button" aria-pressed="false">Part bounds</button><button id="explode" type="button" aria-pressed="false">Separate parts</button></div>
+          <div class="part-tools" role="group" aria-label="Body part assembly view"><button id="part-bounds" type="button" aria-pressed="false">Part bounds</button><button id="explode" type="button" aria-pressed="false">Separate parts</button><button id="human-reference" type="button" aria-pressed="false">Human reference</button></div>
         </div>
       </div>
     </section>

@@ -1,3 +1,5 @@
+import { footprintCenter, normalizeFootprint } from '../combatFootprints.js';
+
 const EFFECT_COLORS = {
   slash: 0xffffaa, bolt: 0x55ccff, arrow: 0xffdd88,
   heal: 0x55ff55, burst: 0xff7733, buff: 0x55ffff,
@@ -44,7 +46,7 @@ function pixelCircle(ctx, center, radius, segments = 48) {
   }
 }
 
-export function createCombatEffects(THREE, parent, cellSize) {
+export function createCombatEffects(THREE, parent, cellSize, actors) {
   const group = new THREE.Group();
   group.name = 'combat-effects';
   parent.add(group);
@@ -143,7 +145,12 @@ export function createCombatEffects(THREE, parent, cellSize) {
   }
 
   function position(cell, height = 0.5) {
-    return new THREE.Vector3((cell.x + 0.5) * cellSize, height * cellSize, (cell.y + 0.5) * cellSize);
+    const center = footprintCenter(cell);
+    return new THREE.Vector3(center.x*cellSize,height*cellSize,center.y*cellSize);
+  }
+
+  function bodyPosition(unit, fraction) {
+    return actors.effectAnchorFor(unit.id,fraction);
   }
 
   function sprite(owner, shape, color, size, luminous = true) {
@@ -168,7 +175,8 @@ export function createCombatEffects(THREE, parent, cellSize) {
     const ring = new THREE.Mesh(geometry('plane'), material);
     ring.rotation.x = -Math.PI / 2;
     ring.position.copy(position(cell, 0.016));
-    ring.scale.set(size * cellSize, size * cellSize, 1);
+    ring.userData.footprint = normalizeFootprint(cell.footprint);
+    ring.scale.set(size*cellSize*ring.userData.footprint.width,size*cellSize*ring.userData.footprint.height,1);
     ring.renderOrder = 1;
     owner.group.add(ring);
     owner.materials.push(material);
@@ -205,7 +213,7 @@ export function createCombatEffects(THREE, parent, cellSize) {
         : style === 'flame' ? 'flame' : style === 'frost' ? 'shard' : 'spark';
       const item = sprite(effect, shape, i % 5 === 0 ? 0xffffff : color, (kind === 'heal' ? 0.17 : 0.08) + random() * 0.08);
       particles.push({ item, angle: i * Math.PI * 2 / count, height: random() * 0.25,
-        spread: 0.65 + random() * 0.55, origin: position(target, 0.25) });
+        spread: 0.65 + random() * 0.55, origin: bodyPosition(target, 0.25) });
     }
     return particles;
   }
@@ -240,16 +248,16 @@ export function createCombatEffects(THREE, parent, cellSize) {
     effect.color = color;
     effect.style = rune?.style || (color === 0xff8034 || color === 0xff7733 ? 'flame'
       : color === 0x90c8ff || color === 0x64eeff ? 'frost' : 'arcane');
-    effect.source = position(source, 0.65);
+    effect.source = bodyPosition(source, 0.65);
     if (rune) effect.circles.push({ mesh: floorRune(effect, source, rune.style, rune.color), baseSize: 1.45 });
     for (const target of targets) {
       const particles = impact(effect, target, kind, color, effect.style);
-      const at = position(target, 0.55);
+      const at = bodyPosition(target, 0.55);
       const track = { particles, at, color };
       if (kind === 'arrow' || kind === 'bolt') {
         track.projectile = sprite(effect, kind === 'arrow' ? 'arrow' : effect.style === 'flame' ? 'flame' : effect.style === 'frost' ? 'shard' : 'spark', color, kind === 'arrow' ? 0.65 : 0.27);
         if (kind === 'arrow') track.projectile.scale.y *= 0.5;
-        track.from = position(source, 0.6);
+        track.from = bodyPosition(source, 0.6);
         track.to = at;
         track.trail = Array.from({ length: kind === 'bolt' ? 8 : 3 }, (_, index) =>
           sprite(effect, 'spark', index % 3 === 0 ? 0xffffff : color, 0.13 - index * 0.008));
@@ -315,14 +323,14 @@ export function createCombatEffects(THREE, parent, cellSize) {
     }
     for (const { mesh, baseSize } of effect.circles) {
       const size = baseSize * (0.75 + Math.sin(progress * Math.PI) * 0.35) * cellSize;
-      mesh.scale.set(size, size, 1);
+      mesh.scale.set(size*mesh.userData.footprint.width,size*mesh.userData.footprint.height,1);
       mesh.rotation.z = progress * Math.PI / 3;
       mesh.material.opacity = Math.sin(progress * Math.PI) * 0.85;
     }
   }
 
   function createAura(unit, descriptor) {
-    const entry = { group: new THREE.Group(), materials: [], descriptor, phase: seedFor(`${unit.id}:${descriptor.id}`) % 628 / 100 };
+    const entry = { group: new THREE.Group(), unitId: unit.id, materials: [], descriptor, phase: seedFor(`${unit.id}:${descriptor.id}`) % 628 / 100 };
     group.add(entry.group);
     entry.circle = floorRune(entry, { x: -0.5, y: -0.5 }, descriptor.style, descriptor.color, 1.4);
     if (descriptor.kind === 'shield') {
@@ -413,7 +421,7 @@ export function createCombatEffects(THREE, parent, cellSize) {
       const chunk = death && i % 4 === 0;
       effect.tracks.push({ item: sprite(effect, chunk ? 'chunk' : 'spark', colors.particle, chunk ? 0.14 : 0.045 + random() * 0.05, false),
         angle: random() * Math.PI * 2, distance: (death ? 0.65 : 0.25) + random() * (death ? 0.7 : 0.5),
-        lift: 0.15 + random() * 0.6, origin: position(unit, 0.45), spin: (random() - 0.5) * Math.PI * 4 });
+        lift: 0.15 + random() * 0.6, origin: bodyPosition(unit, 0.45), spin: (random() - 0.5) * Math.PI * 4 });
     }
     draw(effect, 0);
   }
@@ -435,6 +443,9 @@ export function createCombatEffects(THREE, parent, cellSize) {
           removeAura(entry); auras.delete(key); entry = null;
         }
         if (!entry) { entry = createAura(unit, descriptor); auras.set(key, entry); }
+        const footprint = normalizeFootprint(unit.footprint);
+        const modelHeight = actors.boundsFor(unit.id).getSize(new THREE.Vector3()).y;
+        entry.group.scale.set(footprint.width,Math.max(1,modelHeight/(DOME_HEIGHT*cellSize)),footprint.height);
         entry.group.position.copy(position(unit, 0));
       }
     }
@@ -467,6 +478,8 @@ export function createCombatEffects(THREE, parent, cellSize) {
     }
     const seconds = now / 1000;
     for (const entry of auras.values()) {
+      const at = actors.positionFor(entry.unitId);
+      entry.group.position.set(at.x,0,at.z);
       const pulse = Math.sin(seconds * 2.8 + entry.phase);
       entry.circle.material.opacity = 0.4 + pulse * 0.12;
       entry.circle.rotation.z = seconds * 0.18 + entry.phase;

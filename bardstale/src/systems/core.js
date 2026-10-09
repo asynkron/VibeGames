@@ -1,4 +1,5 @@
 import { createBattlefield } from './battlefield.js';
+import { footprintForKind } from '../combatFootprints.js';
 
 const assetUrl = (path) => new URL(`../../assets/${path}`, import.meta.url).href;
 
@@ -276,6 +277,8 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     longsword: { id: 'longsword', name: 'Longsword', slot: 'weapon', minDamage: 3, maxDamage: 9, toHit: 2, acBonus: 0, magicRes: 0, weight: 4 },
     dagger: { id: 'dagger', name: 'Dagger', slot: 'weapon', minDamage: 1, maxDamage: 6, toHit: 2, acBonus: 0, magicRes: 0, weight: 1 },
     quarterstaff: { id: 'quarterstaff', name: 'Quarterstaff', slot: 'weapon', minDamage: 2, maxDamage: 7, toHit: 1, acBonus: 0, magicRes: 0, weight: 3 },
+    spear: { id: 'spear', name: 'Spear', slot: 'weapon', minDamage: 3, maxDamage: 8, toHit: 1, acBonus: 0, magicRes: 0, weight: 4 },
+    halberd: { id: 'halberd', name: 'Halberd', slot: 'weapon', minDamage: 4, maxDamage: 10, toHit: 0, acBonus: 0, magicRes: 0, weight: 6 },
     leather_armor: { id: 'leather_armor', name: 'Leather Armor', slot: 'body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -1, magicRes: 0, weight: 5 },
     chain_armor: { id: 'chain_armor', name: 'Chain Armor', slot: 'body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: -2, magicRes: 0, weight: 7 },
     robes: { id: 'robes', name: 'Mystic Robes', slot: 'body', minDamage: 0, maxDamage: 0, toHit: 0, acBonus: 0, magicRes: 5, weight: 2 },
@@ -298,34 +301,36 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     warlock: { id: 'warlock', name: 'Void Warlock', hpMin: 14, hpMax: 22, ac: 6, toHit: 4, dmgMin: 4, dmgMax: 8, magicRes: 30, special: 'shadow_flame' },
     ogre: { id: 'ogre', name: 'Crag Ogre', hpMin: 18, hpMax: 28, ac: 6, toHit: 5, dmgMin: 5, dmgMax: 10, magicRes: 12, special: 'smash' },
     lich: { id: 'lich', name: 'Fallen Lich', hpMin: 18, hpMax: 28, ac: 4, toHit: 5, dmgMin: 4, dmgMax: 9, magicRes: 40, special: 'life_drain' },
+    dragon: { id: 'dragon', name: 'Ember Dragon', hpMin: 36, hpMax: 52, ac: 3, toHit: 6, dmgMin: 6, dmgMax: 12, magicRes: 35, special: 'dragon_breath' },
     elemental: { id: 'elemental', name: 'Chaos Elemental', hpMin: 16, hpMax: 26, ac: 5, toHit: 4, dmgMin: 5, dmgMax: 9, magicRes: 35, special: 'elemental_burst' },
   };
 
   const ENCOUNTER_TABLES = [
-    { maxDepth: 1, options: [
+    { maxDepth: 1, roamingWeight: 5, options: [
       { species: 'rat_swarm', min: 2, max: 5 },
       { species: 'serpent', min: 1, max: 3 },
       { species: 'hobbit', min: 1, max: 3 }
     ] },
-    { maxDepth: 2, options: [
+    { maxDepth: 2, roamingWeight: 4, options: [
       { species: 'hobgoblin', min: 2, max: 4 },
       { species: 'skeleton', min: 2, max: 4 },
       { species: 'monk', min: 1, max: 3 }
     ] },
-    { maxDepth: 3, options: [
+    { maxDepth: 3, roamingWeight: 3, options: [
       { species: 'knight', min: 1, max: 3 },
       { species: 'mage', min: 1, max: 2 },
       { species: 'ogre', min: 1, max: 2 }
     ] },
-    { maxDepth: 4, options: [
+    { maxDepth: 4, roamingWeight: 2, options: [
       { species: 'enchantress', min: 1, max: 2 },
       { species: 'warlock', min: 1, max: 2 },
       { species: 'elemental', min: 1, max: 2 }
     ] },
-    { maxDepth: Number.POSITIVE_INFINITY, options: [
+    { maxDepth: 5, roamingWeight: 1, options: [
       { species: 'lich', min: 1, max: 2 },
       { species: 'warlock', min: 1, max: 3 },
-      { species: 'elemental', min: 1, max: 3 }
+      { species: 'elemental', min: 1, max: 3 },
+      { species: 'dragon', min: 1, max: 1 }
     ] },
   ];
 
@@ -625,6 +630,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       id: `${spec.id}_${index}`,
       name: spec.name,
       speciesId: spec.id,
+      footprint: footprintForKind(spec.id),
       hpCurrent: hp,
       hpMax: hp,
       ac: spec.ac,
@@ -664,22 +670,31 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
   }
 
   function generateEncounter(depth) {
-    const tier = ENCOUNTER_TABLES.find((entry) => depth <= entry.maxDepth) || ENCOUNTER_TABLES[ENCOUNTER_TABLES.length - 1];
+    const roaming = depth === undefined;
+    let tier;
+    if (roaming) {
+      let draw = Math.random() * ENCOUNTER_TABLES.reduce((total, entry) => total + entry.roamingWeight, 0);
+      tier = ENCOUNTER_TABLES.find((entry) => (draw -= entry.roamingWeight) < 0);
+      depth = tier.maxDepth;
+    } else {
+      tier = ENCOUNTER_TABLES.find((entry) => depth <= entry.maxDepth) || ENCOUNTER_TABLES[ENCOUNTER_TABLES.length - 1];
+    }
     const choices = tier.options.slice();
     for (let i = choices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [choices[i], choices[j]] = [choices[j], choices[i]];
     }
-    const groupCount = Math.min(choices.length, roll(1, 3));
+    const groupCount = roaming && depth > 1 ? 1 : Math.min(choices.length, roll(1, 3));
     const groups = [];
     for (let i = 0; i < groupCount; i++) {
       const option = choices[i];
-      groups.push({ species: option.species, count: roll(option.min, option.max) });
+      const max = roaming && depth > 1 ? Math.min(option.max, depth === 2 ? 2 : 1) : option.max;
+      groups.push({ species: option.species, count: roll(Math.min(option.min, max), max) });
     }
     return {
       id: 'enc_' + Math.random().toString(36).slice(2),
       depth,
-      canFlee: depth <= 4,
+      canFlee: roaming || depth <= 4,
       groups,
     };
   }
@@ -855,7 +870,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
   async function playBattleEffect(state, kind, source, targets, color, rune) {
     const cell = (entity) => {
       const position = state.board.position(entity.id);
-      return { id: entity.id, x: position.x, y: position.y, team: position.team };
+      return { id: entity.id, x: position.x, y: position.y, team: position.team, footprint: position.footprint };
     };
     await combatView.playEffect({ kind, source: cell(source), targets: targets.map(cell), color, ...(rune ? { rune } : {}) });
     return isCurrentBattle(state);
@@ -1056,7 +1071,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
   function canRestorePosition(state, target) {
     if (target.alive) return true;
     const position = state.board.position(target.id);
-    return !state.board.units.some((unit) => unit.id !== target.id && unit.entity.alive && unit.x === position.x && unit.y === position.y);
+    return state.board.canPlace(target.id, position.x, position.y);
   }
 
   function heroesInRange(state, monster, range = 6, melee = false) {
@@ -1134,6 +1149,18 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
             id: `bash_${monster.id}`, name: 'Dazed', duration: 2, modifiers: { toHit: -1 },
             visual: statusVisual({ toHit: -1 }, { style: 'holy', color: MAGIC_PALETTE.holy }),
           });
+        }
+        return true;
+      }
+      case 'dragon_breath': {
+        if (!rangedTargets.length) return false;
+        const rune = { style: 'flame', color: MAGIC_PALETTE.flame };
+        if (!await playBattleEffect(state, 'bolt', monster, rangedTargets, rune.color, rune)) return false;
+        log(`${monster.name} breathes a torrent of fire!`);
+        for (const hero of rangedTargets) {
+          const damage = roll(8, 14);
+          applyPhysicalDamage(hero, damage);
+          log(`${hero.name} takes ${damage} fire damage.`);
         }
         return true;
       }
@@ -1253,13 +1280,10 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     const actor = activeHero(state);
     const selectable = !state.busy && state.phase === 'hero' && heroIsAvailable(state, actor);
     const targets = selectable ? state.targeting?.targets || (state.mode === 'ready' ? attackableMonsters(state, actor) : []) : [];
-    const targetId = targets.find((target) => {
-      const position = state.board.position(target.id);
-      return position.x === state.cursor.x && position.y === state.cursor.y;
-    })?.id || '';
+    const targetId = targets.find((target) => state.board.occupies(target.id, state.cursor.x, state.cursor.y))?.id || '';
     combatView.show({
-      units: state.board.units.map(({ id, team, x, y, entity }) => ({
-        id, team, x, y,
+      units: state.board.units.map(({ id, team, x, y, footprint, entity }) => ({
+        id, team, x, y, footprint,
         kind: entity.classType || entity.speciesId,
         name: entity.name,
         hpCurrent: entity.hpCurrent,
@@ -1587,7 +1611,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     state.mode = 'resolving';
     state.targeting = null;
     hud.clearActions();
-    const rangedSpecials = new Set(['war_cry', 'bone_chill', 'fire_bolt', 'chain_lightning', 'shadow_flame', 'life_drain', 'elemental_burst']);
+    const rangedSpecials = new Set(['war_cry', 'bone_chill', 'fire_bolt', 'chain_lightning', 'shadow_flame', 'life_drain', 'elemental_burst', 'dragon_breath']);
     for (const monster of livingMonsters(state.monsters)) {
       if (!isCurrentBattle(state)) return;
       state.activeId = monster.id;
@@ -1683,8 +1707,9 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
   function maybeEncounter(depth) {
     if (combatState || !livingPartyMembers().length) return;
     stepsSinceEncounter += 1;
-    const threshold = Math.max(1, 4 - Math.min(depth, 3));
-    if (stepsSinceEncounter >= threshold && Math.random() < 0.35 + depth * 0.08) {
+    const cadenceDepth = depth ?? 1;
+    const threshold = Math.max(1, 4 - Math.min(cadenceDepth, 3));
+    if (stepsSinceEncounter >= threshold && Math.random() < 0.35 + cadenceDepth * 0.08) {
       stepsSinceEncounter = 0;
       beginEncounter(depth);
     }
@@ -1705,10 +1730,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     const actor = activeHero(state);
     if (!heroCanSelect(state, actor)) return;
     if (state.mode === 'target') {
-      const target = state.targeting.targets.find((candidate) => {
-        const position = state.board.position(candidate.id);
-        return position.x === x && position.y === y;
-      });
+      const target = state.targeting.targets.find((candidate) => state.board.occupies(candidate.id, x, y));
       if (target) {
         state.cursor = { x, y };
         publishBattle(state);
@@ -1716,19 +1738,13 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         return;
       }
     }
-    const clickedHero = state.party.find((hero) => {
-      const position = state.board.position(hero.id);
-      return position.x === x && position.y === y && heroIsAvailable(state, hero);
-    });
+    const clickedHero = state.party.find((hero) => state.board.occupies(hero.id, x, y) && heroIsAvailable(state, hero));
     if (clickedHero) {
       selectHero(state, clickedHero);
       return;
     }
     if (state.mode !== 'ready') return;
-    const clickedMonster = attackableMonsters(state, actor).find((monster) => {
-      const position = state.board.position(monster.id);
-      return position.x === x && position.y === y;
-    });
+    const clickedMonster = attackableMonsters(state, actor).find((monster) => state.board.occupies(monster.id, x, y));
     if (clickedMonster) {
       state.cursor = { x, y };
       publishBattle(state);

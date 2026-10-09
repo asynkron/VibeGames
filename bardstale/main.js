@@ -13,7 +13,8 @@ function parseOptsFromURL() {
   const w = parseInt(p.get('w') || p.get('width') || '0', 10) || undefined;
   const h = parseInt(p.get('h') || p.get('height') || '0', 10) || undefined;
   const seed = p.get('seed') || undefined;
-  return { width: w, height: h, seed };
+  const depth = p.has('depth') ? clamp(parseInt(p.get('depth'), 10) || 1, 1, 5) : undefined;
+  return { width: w, height: h, seed, depth };
 }
 
 function main() {
@@ -194,7 +195,7 @@ function main() {
       if (t >= 1) {
         const wasMove = anim.type === 'move';
         anim = null;
-        if (wasMove) systems.onStepComplete(1);
+        if (wasMove) systems.onStepComplete(opts.depth);
         if (keyQueued) {
           const navigate = keyQueued;
           keyQueued = null;

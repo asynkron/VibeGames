@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DIR, DX, DY, WALL, backOf, getWall } from '../src/dungeon.js';
 import { createBattlefield } from '../src/systems/battlefield.js';
+import { footprintCells, footprintCenter, normalizeFootprint, occupiesCell } from '../src/combatFootprints.js';
 
 const SIDES = ['n', 'e', 's', 'w'];
 const combatant = (id) => ({ id, alive: true });
@@ -282,4 +283,117 @@ test('AI follows legal subcell routes through dungeon turns and truncates moveme
   assert.equal(board.canTarget('hero', 'foe', { melee: true }), true);
   board.position('foe').entity.alive = false;
   assert.deepEqual(board.pathToAdjacent('hero', 'foe'), []);
+});
+
+test('footprints define cell coverage and visual centers without sharing mutable dimensions', () => {
+  const source = { width: 2, height: 3 };
+  const footprint = normalizeFootprint(source);
+  source.width = 7;
+  const unit = { x: 4, y: 2, footprint };
+  assert.equal(Object.isFrozen(footprint), true);
+  assert.deepEqual(footprintCenter(unit), { x: 5, y: 3.5 });
+  assert.deepEqual(footprintCells(unit), [
+    { x: 4, y: 2 }, { x: 5, y: 2 }, { x: 4, y: 3 },
+    { x: 5, y: 3 }, { x: 4, y: 4 }, { x: 5, y: 4 },
+  ]);
+  assert.deepEqual(footprintCells(unit, 0, 1)[0], { x: 0, y: 1 });
+  for (const [x, y, occupied] of [[4, 2, true], [5, 4, true], [6, 4, false], [5, 5, false], [4.5, 2, false]]) {
+    assert.equal(occupiesCell(unit, x, y), occupied);
+  }
+  assert.deepEqual(normalizeFootprint(), { width: 1, height: 1 });
+  for (const invalid of [null, {}, { width: 0, height: 1 }, { width: 2, height: -1 }, { width: 1.5, height: 2 }]) {
+    assert.throws(() => normalizeFootprint(invalid), RangeError);
+  }
+});
+
+test('a dragon reserves four combat cells before the five heroes fill a closed dungeon tile', () => {
+  const heroes = Array.from({ length: 5 }, (_, i) => combatant(`hero${i}`));
+  const dragon = { ...combatant('dragon'), footprint: { width: 2, height: 2 } };
+  const board = createBattlefield(dungeon(1, 1), heroes, [dragon]);
+  const occupied = board.units.flatMap((unit) => footprintCells(unit));
+  assert.equal(occupied.length, 9);
+  assert.deepEqual(new Set(occupied.map(({ x, y }) => `${x},${y}`)), new Set([
+    '0,0', '1,0', '2,0', '0,1', '1,1', '2,1', '0,2', '1,2', '2,2',
+  ]));
+  const large = board.position('dragon');
+  assert.equal(board.occupies('dragon', large.x + 1, large.y + 1), true);
+  assert.equal(board.canPlace('dragon', large.x, large.y), true);
+  assert.equal(board.canPlace('dragon', 2, 2), false, 'The whole footprint must stay inside the board.');
+  assert.throws(() => createBattlefield(dungeon(1, 1), heroes, [dragon, combatant('extra')]), RangeError);
+  assert.throws(() => createBattlefield(dungeon(1, 1), [{ ...dragon, id: 'giant' }], [dragon]), RangeError,
+    'Enough total area does not guarantee that two large rectangles fit.');
+});
+
+test('large movement and paths cannot squeeze through a single-cell gap', () => {
+  const board = createBattlefield(room(3, 1), [combatant('hero')], [{ ...combatant('dragon'), footprint: { width: 2, height: 2 } }]);
+  assert.equal(board.move('hero', 3, 1, 2).moved, true);
+  assert.deepEqual(board.pathToCell('dragon', 0, 0, 30), []);
+  assert.equal(board.move('dragon', 0, 0, 30).moved, false);
+  assert.ok(board.reachable('dragon', 30).every(({ x }) => x >= 4));
+  board.position('hero').entity.alive = false;
+  const route = board.pathToCell('dragon', 0, 0, 30);
+  assert.ok(route.length > 0);
+  for (const next of route) assert.equal(board.move('dragon', next.x, next.y, 1).moved, true);
+  assert.deepEqual({ x: board.position('dragon').x, y: board.position('dragon').y }, { x: 0, y: 0 });
+});
+
+test('the far side of a large body cannot overlap or sweep across a dungeon wall', () => {
+  const map = room(2, 2);
+  link(map, 0, 1, DIR.E, WALL.WALL);
+  const board = createBattlefield(map, [{ ...combatant('giant'), footprint: { width: 2, height: 2 } }], []);
+  assert.equal(board.move('giant', 1, 2, 1).moved, true);
+  assert.equal(board.canPlace('giant', 2, 2), false);
+  assert.deepEqual(board.move('giant', 2, 2, 1), { moved: false, cost: 0 });
+  assert.deepEqual(board.pathToCell('giant', 3, 2, 2), []);
+  const around = board.pathToCell('giant', 3, 2, 4);
+  assert.equal(around.length, 4);
+  for (const next of around) assert.equal(board.move('giant', next.x, next.y, 1).moved, true);
+  assert.equal(board.canPlace('giant', 3, 2), true);
+});
+
+test('death frees every occupied cell and revival requires the complete footprint to be clear', () => {
+  const dragon = { ...combatant('dragon'), footprint: { width: 2, height: 2 } };
+  const board = createBattlefield(room(3, 2), [combatant('hero')], [dragon]);
+  const target = board.position('dragon');
+  const corner = { x: target.x + 1, y: target.y + 1 };
+  assert.equal(board.move('hero', corner.x, corner.y, 20).moved, false);
+  dragon.alive = false;
+  assert.equal(board.canPlace('dragon', target.x, target.y), true);
+  assert.equal(board.move('hero', corner.x, corner.y, 20).moved, true);
+  assert.equal(board.canPlace('dragon', target.x, target.y), false);
+  assert.equal(board.move('hero', 0, 0, 20).moved, true);
+  assert.equal(board.canPlace('dragon', target.x, target.y), true);
+  dragon.alive = true;
+  assert.equal(board.move('hero', corner.x, corner.y, 20).moved, false);
+});
+
+test('melee and AI approach the nearest exposed edge of both large combatants', () => {
+  const board = createBattlefield(room(4, 3), [{ ...combatant('giant'), footprint: { width: 2, height: 2 } }], [{ ...combatant('dragon'), footprint: { width: 2, height: 2 } }]);
+  assert.equal(board.move('dragon', 7, 4, 20).moved, true);
+  const route = board.pathToAdjacent('giant', 'dragon');
+  assert.ok(route.length > 0);
+  assert.deepEqual(board.pathToAdjacent('giant', 'dragon', 2), route.slice(0, 2));
+  for (const next of route) assert.equal(board.move('giant', next.x, next.y, 1).moved, true);
+  assert.equal(board.canTarget('giant', 'dragon', { melee: true }), true);
+  assert.equal(board.canTarget('dragon', 'giant', { melee: true }), true);
+  assert.equal(board.canTarget('giant', 'giant', { melee: true }), false);
+  assert.equal(board.canTarget('giant', 'giant', { range: 0 }), true);
+  assert.deepEqual(board.pathToAdjacent('giant', 'dragon'), []);
+  const giant = board.position('giant');
+  const dragon = board.position('dragon');
+  assert.ok(Math.abs(giant.x - dragon.x) + Math.abs(giant.y - dragon.y) > 1, 'Melee measures the exposed body edges, not anchor cells.');
+});
+
+test('ranged targeting uses one exposed cell pair that satisfies both distance and line of sight', () => {
+  const map = room(2, 2);
+  link(map, 0, 0, DIR.E, WALL.WALL);
+  const board = createBattlefield(map, [combatant('hero')], [{ ...combatant('dragon'), footprint: { width: 2, height: 2 } }]);
+  assert.equal(board.move('hero', 1, 2, 1).moved, true);
+  assert.equal(board.move('dragon', 3, 2, 10).moved, true);
+  // The near corner at (3,2) is two cells away behind a wall. The visible corner
+  // at (3,3) is three cells away through the neighboring open dungeon boundary.
+  for (const [actor, target] of [['hero', 'dragon'], ['dragon', 'hero']]) {
+    assert.equal(board.canTarget(actor, target, { range: 2 }), false);
+    assert.equal(board.canTarget(actor, target, { range: 3 }), true);
+  }
 });

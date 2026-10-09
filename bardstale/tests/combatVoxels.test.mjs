@@ -59,17 +59,21 @@ test('helmet variants enclose the head with armor rather than exposed skin', () 
     assert.ok(voxels.some(voxel => voxel.material === 'steel'), `${head} must contain metal armor.`);
     assert.equal(voxels.filter(voxel => voxel.material === 'skin').length, 0, `${head} must cover the face, ears, and neck.`);
   }
+  const plain = cellsIn(assembleCharacterParts({ head: 'knight' }), 'head');
+  const plumed = cellsIn(assembleCharacterParts({ head: 'plumed' }), 'head');
+  assert.ok(Math.max(...plumed.map(voxel => voxel.y)) >= Math.max(...plain.map(voxel => voxel.y)) + 6, 'The feather crest must extend above the helmet instead of being clipped to the head height.');
 });
 
 test('custom creatures use one complete torso and retain their distinct silhouettes and materials', () => {
-  const warrior = assembleCombatVoxelModel({ kind: 'warrior' });
+  const warrior = assembleCombatVoxelModel({ kind: 'warrior', appearance: { mainhand: 'none', offhand: 'none' } });
   const skeleton = assembleCombatVoxelModel({ kind: 'skeleton' });
   const serpent = assembleCombatVoxelModel({ kind: 'serpent' });
   const rats = assembleCombatVoxelModel({ kind: 'rat_swarm' });
   const elemental = assembleCombatVoxelModel({ kind: 'elemental' });
-  const forms = [warrior, skeleton, serpent, rats, elemental].map(model => JSON.stringify(geometry(model)));
+  const dragon = assembleCombatVoxelModel({ kind: 'dragon' });
+  const forms = [warrior, skeleton, serpent, rats, elemental, dragon].map(model => JSON.stringify(geometry(model)));
   assert.equal(new Set(forms).size, forms.length, 'Each anatomy must differ in occupied cells, beyond a color change.');
-  for (const creature of [serpent, rats, elemental]) {
+  for (const creature of [serpent, rats, elemental, dragon]) {
     assert.equal(creature.assembly.partCount, 1);
     assert.deepEqual(cellsIn(creature, 'torso'), creature.assembly.voxels);
     assert.ok(Object.entries(creature.recipe.parts).every(([slot, reference]) => slot === 'torso' || reference === null));
@@ -82,8 +86,12 @@ test('custom creatures use one complete torso and retain their distinct silhouet
   assert.ok(extent({ assembly: { voxels: serpent.assembly.voxels.filter(voxel => voxel.y < 6) } }, 'x') >= 16, 'The serpent needs a broad ground coil.');
   assert.ok(elemental.assembly.voxels.some(voxel => voxel.material === 'stone'));
   assert.ok(elemental.assembly.voxels.some(voxel => voxel.material === 'flame'));
+  assert.ok(extent(dragon, 'x') >= 40 && extent(dragon, 'z') >= 40, 'The dragon must occupy a broad volume in both ground axes, beyond a humanoid-sized figure.');
+  assert.ok(extent(dragon, 'y') > extent(warrior, 'y'), 'The dragon must rise above the human figures.');
   assert.ok(assembleCombatVoxelModel({ kind: 'hobbit' }).scale < warrior.scale);
-  assert.ok(assembleCombatVoxelModel({ kind: 'ogre' }).scale > warrior.scale);
+  const ogre = assembleCombatVoxelModel({ kind: 'ogre' });
+  assert.equal(ogre.scale, warrior.scale, 'The ogre must use the same voxel size as a human.');
+  assert.ok(extent(ogre, 'y') >= extent(warrior, 'y') * 1.9, 'A giant ogre must be sculpted from more normal-sized voxels.');
 });
 
 test('equipped weapons replace the mainhand item without changing anatomy or offhand', () => {
@@ -92,17 +100,21 @@ test('equipped weapons replace the mainhand item without changing anatomy or off
   assert.equal(cellsIn(unarmed, 'mainhand').length, 0);
   const silhouettes = [];
   for (const [item, variant] of [
-    ['sword_basic', 'shortSword'], ['longsword', 'sword'], ['dagger', 'dagger'], ['quarterstaff', 'staff'],
+    ['sword_basic', 'shortSword'], ['longsword', 'sword'], ['dagger', 'dagger'], ['quarterstaff', 'staff'], ['spear', 'spear'], ['halberd', 'halberd'],
   ]) {
     const armed = assembleCombatVoxelModel({ kind: 'Warrior', equipment: { ...equipment, weapon: item } });
     assert.equal(armed.appearance.mainhand, variant, item);
     assert.ok(cellsIn(armed, 'mainhand').length > 0, `${item} must be visible.`);
+    if (['staff', 'spear', 'halberd'].includes(variant)) {
+      const headTop = Math.max(...cellsIn(armed, 'head').map(voxel => voxel.y));
+      assert.ok(cellsIn(armed, 'mainhand').some(voxel => voxel.y >= headTop + 8), `${item} must extend well above the head without being clipped.`);
+    }
     for (const slot of Object.keys(unarmed.assembly.parts)) {
       if (slot !== 'mainhand') assert.deepEqual(armed.assembly.parts[slot], unarmed.assembly.parts[slot], `${item} must preserve ${slot}.`);
     }
     silhouettes.push(JSON.stringify(cellsIn(armed, 'mainhand').map(position).sort()));
   }
-  assert.equal(new Set(silhouettes).size, silhouettes.length, 'The dagger, short sword, longsword, and staff must have different shapes.');
+  assert.equal(new Set(silhouettes).size, silhouettes.length, 'Equipped weapon types must have different silhouettes.');
 });
 
 test('armor and offhand item IDs produce the corresponding parts and empty hands stay empty', () => {
@@ -155,6 +167,16 @@ test('real combat snapshots supply renderable party gear and enemy kinds', t => 
     assert.ok(unit.equipment.weapon, `${unit.name} must publish the starting weapon.`);
     assert.ok(cellsIn(model, 'mainhand').length > 0, `${unit.name}'s equipped weapon must reach the figure.`);
     assert.equal(cellsIn(model, 'offhand').length > 0, Boolean(unit.equipment.offhand), `${unit.name} must only carry a shield when one is equipped.`);
+    if (unit.kind === 'Bard') {
+      assert.equal(unit.equipment.instrument, 'lute', 'The starting bard must actually carry the instrument shown on the figure.');
+      assert.equal(model.appearance.back, 'lute');
+      assert.ok(cellsIn(model, 'back').some(voxel => voxel.material === 'wood'));
+      const withoutInstrument = assembleCombatVoxelModel({ ...unit, equipment: { ...unit.equipment, instrument: '' } });
+      assert.equal(cellsIn(withoutInstrument, 'back').length, 0, 'Unequipping the lute must remove it from the back.');
+      for (const slot of Object.keys(model.assembly.parts)) {
+        if (slot !== 'back') assert.deepEqual(withoutInstrument.assembly.parts[slot], model.assembly.parts[slot], `Removing the instrument must preserve ${slot}.`);
+      }
+    }
     const unclothed = assembleCombatVoxelModel({ kind: unit.kind, equipment: {} });
     assert.notDeepEqual(model.assembly.voxels, unclothed.assembly.voxels, `${unit.name}'s gear must visibly change the figure.`);
   }

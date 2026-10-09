@@ -1,23 +1,30 @@
 import * as THREE from 'three';
 import { assembleCombatVoxelModel } from './combatVoxelCatalog.js';
 import { createVoxelFigure } from './voxelFigure.js';
+import { footprintCenter } from '../combatFootprints.js';
 
 const STEP_DURATION = 150;
 const FALL_DURATION = 240;
 const POSE_DURATIONS = { slash: 360, arrow: 640, bolt: 720, heal: 900, burst: 780, buff: 850 };
+
+function directionBetween(source, target) {
+  const from = footprintCenter(source), to = footprintCenter(target);
+  return { x: to.x-from.x, y: to.y-from.y };
+}
 
 function initialDirection(unit, units) {
   let closest = null;
   let closestDistance = Infinity;
   for (const opponent of units) {
     if (!opponent.alive || opponent.team === unit.team) continue;
-    const distance = (opponent.x - unit.x) ** 2 + (opponent.y - unit.y) ** 2;
+    const direction = directionBetween(unit, opponent);
+    const distance = direction.x ** 2 + direction.y ** 2;
     if (distance < closestDistance) {
       closest = opponent;
       closestDistance = distance;
     }
   }
-  return closest ? { x: closest.x - unit.x, y: closest.y - unit.y }
+  return closest ? directionBetween(unit, closest)
     : { x: unit.team === 'party' ? 1 : -1, y: 0 };
 }
 
@@ -44,6 +51,11 @@ export function createCombatVoxelActors(parent, cellSize) {
     entry.figure = createVoxelFigure(model, { layout: 'figure' });
     entry.modelKey = key;
     entry.bounds = new THREE.Box3().setFromObject(entry.figure.group);
+    const torso = entry.figure.assembly.parts.torso;
+    entry.bodyBounds = torso ? new THREE.Box3(
+      new THREE.Vector3(torso.bounds.min.x,torso.bounds.min.y,torso.bounds.min.z),
+      new THREE.Vector3(torso.bounds.max.x,torso.bounds.max.y,torso.bounds.max.z),
+    ) : entry.bounds.clone();
     entry.pose.add(entry.figure.group);
     // Keep voxel density stable when an item extends beyond the body.
     entry.pose.scale.setScalar(0.04 * cellSize * model.scale);
@@ -82,7 +94,8 @@ export function createCombatVoxelActors(parent, cellSize) {
     const target = snapshot.units.find(unit => unit.id === snapshot.targetId && unit.alive);
     for (const unit of snapshot.units) {
       let entry = entries.get(unit.id);
-      const center = new THREE.Vector3((unit.x + 0.5) * cellSize, 0, (unit.y + 0.5) * cellSize);
+      const at = footprintCenter(unit);
+      const center = new THREE.Vector3(at.x * cellSize, 0, at.y * cellSize);
       const { key, model } = modelFor(unit);
       if (!entry) {
         const root = new THREE.Group();
@@ -103,13 +116,13 @@ export function createCombatVoxelActors(parent, cellSize) {
         replaceFigure(entry, model, key);
       }
       const previousCell = entry.root.userData.combatCell;
-      if (previousCell && (previousCell.x !== unit.x || previousCell.y !== unit.y)) {
-        face(entry, { x: unit.x - previousCell.x, y: unit.y - previousCell.y });
+      if (previousCell && !entry.to.equals(center)) {
+        face(entry, { x: center.x-entry.to.x, y: center.z-entry.to.z });
         entry.from.copy(entry.root.position).setY(0);
         entry.to.copy(center);
         entry.stepStart = now;
       }
-      if (unit === active && target) face(entry, { x: target.x - unit.x, y: target.y - unit.y });
+      if (unit === active && target) face(entry, directionBetween(unit,target));
       else face(entry, entry.direction);
       if (entry.alive !== unit.alive) {
         entry.fallFrom = entry.fall;
@@ -130,7 +143,7 @@ export function createCombatVoxelActors(parent, cellSize) {
     const source = entries.get(effect.source.id);
     const target = effect.targets.find(unit => unit.id !== effect.source.id);
     if (source?.alive) {
-      if (target) face(source, { x: target.x - effect.source.x, y: target.y - effect.source.y });
+      if (target) face(source, directionBetween(effect.source,target));
       source.action = { kind: effect.kind === 'slash' || effect.kind === 'arrow' ? 'attack' : 'cast',
         start: now, duration: POSE_DURATIONS[effect.kind] };
     }
@@ -199,5 +212,29 @@ export function createCombatVoxelActors(parent, cellSize) {
     return entries.get(id).root.position;
   }
 
-  return { sync, update, play, pick, clear, positionFor };
+  function boundsFor(id) {
+    const entry = entries.get(id);
+    entry.figure.group.updateWorldMatrix(true,false);
+    return entry.bounds.clone().applyMatrix4(entry.figure.group.matrixWorld);
+  }
+
+  function framingBounds() {
+    const bounds = [];
+    for (const [id,entry] of entries) {
+      const current = boundsFor(id);
+      bounds.push(current);
+      bounds.push(current.clone().translate(entry.to.clone().sub(entry.root.position)));
+    }
+    return bounds;
+  }
+
+  function effectAnchorFor(id, fraction) {
+    const entry = entries.get(id);
+    entry.figure.group.updateWorldMatrix(true,false);
+    const body = entry.bodyBounds.clone().applyMatrix4(entry.figure.group.matrixWorld);
+    return new THREE.Vector3(entry.root.position.x,
+      THREE.MathUtils.lerp(body.min.y,body.max.y,fraction),entry.root.position.z);
+  }
+
+  return { sync, update, play, pick, clear, positionFor, boundsFor, framingBounds, effectAnchorFor };
 }

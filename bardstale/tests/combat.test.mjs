@@ -94,6 +94,31 @@ async function withCombat(run) {
   }
 }
 
+test('normal exploration encounters the full monster roster without a depth override and permits retreat', async () => {
+  const encountered = new Set();
+  for (let sample = 1; sample <= 256; sample += 1) {
+    await withCombat(async ({ systems, record, setRandom, flush }) => {
+      let randomState = sample;
+      setRandom(() => {
+        randomState = (Math.imul(randomState, 1664525) + 1013904223) >>> 0;
+        return randomState / 0x100000000;
+      });
+      for (let step = 0; step < 40 && !systems.isCombatActive; step += 1) systems.onStepComplete();
+      assert.equal(systems.isCombatActive, true, 'Walking normally must trigger an encounter.');
+      await flush();
+      const monsters = record.snapshot.units.filter(unit => unit.team === 'monster');
+      assert.ok(monsters.length > 0);
+      for (const monster of monsters) encountered.add(monster.kind);
+      assert.ok(record.actions.buttons.some(button => button.label === 'Flee'), 'Roaming encounters must allow a starter party to retreat from stronger monsters.');
+      if (monsters.some(monster => ['ogre', 'dragon', 'lich'].includes(monster.kind))) {
+        assert.equal(monsters.length, 1, 'The strongest roaming creatures appear alone.');
+      }
+    });
+  }
+  assert.equal(encountered.size, 14, `Normal encounters must reach all 14 monster species; reached ${[...encountered].join(', ')}.`);
+  assert.ok(encountered.has('ogre') && encountered.has('dragon'), 'Large voxel creatures must appear in actual combat.');
+});
+
 test('clicking heroes shows movement immediately and walks legal cells while preserving each hero budget', async () => {
   await withCombat(async ({ systems, record, choose, flush, begin, unit, dungeon, initialDungeon }) => {
     await begin();
@@ -171,7 +196,7 @@ test('clicking highlighted enemies attacks after its effect and rejects duplicat
     assert.equal(unit(target.id).hpCurrent, previousHp, 'Damage waits for the visible strike.');
     assert.equal(record.effects.length, 1);
     assert.equal(record.effects[0].kind, 'slash');
-    assert.deepEqual(record.effects[0].targets, [{ id: target.id, x: target.x, y: target.y, team: 'monster' }]);
+    assert.deepEqual(record.effects[0].targets, [{ id: target.id, x: target.x, y: target.y, team: 'monster', footprint: { width: 1, height: 1 } }]);
     assert.equal(record.effects[0].source.id, 'c_warrior');
     assert.equal(record.effects[0].source.team, 'party');
     const duringStrike = structuredClone(record.snapshot.units);
@@ -241,6 +266,46 @@ test('spell targeting highlights only reachable foes, resolves projectile before
   });
 });
 
+test('all four cells of a dragon resolve to one target for melee and spell actions', async () => {
+  for (const action of ['attack', 'spell']) {
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+      await withCombat(async ({ systems, record, choose, flush, begin, unit, setRandom }) => {
+        setRandom(0.6);
+        await begin(5);
+        const dragon = record.snapshot.units.find(entry => entry.kind === 'dragon');
+        assert.ok(dragon, 'A deep encounter must produce an actual dragon.');
+        assert.deepEqual(dragon.footprint, { width: 2, height: 2 });
+        if (action === 'spell') {
+          const chrono = unit('c_chrono');
+          systems.selectCombatCell(chrono.x, chrono.y);
+          choose('Cast Spell');
+          choose(/^MIJA /);
+        } else {
+          const occupiedCells = [[dragon.x, dragon.y], [dragon.x + 1, dragon.y], [dragon.x, dragon.y + 1], [dragon.x + 1, dragon.y + 1]];
+          const approach = record.snapshot.reachable.find(cell => cell.cost > 0
+            && occupiedCells.some(([x, y]) => Math.abs(cell.x - x) + Math.abs(cell.y - y) === 1));
+          assert.ok(approach, 'The warrior must be able to reach the dragon’s occupied edge.');
+          systems.selectCombatCell(approach.x, approach.y);
+          await flush();
+        }
+        assert.ok(record.snapshot.targetIds.includes(dragon.id), `The dragon must be available for ${action}.`);
+        setRandom(0.99);
+        systems.selectCombatCell(dragon.x + dx, dragon.y + dy);
+        assert.equal(record.snapshots.findLast(snapshot => !snapshot.busy).targetId, dragon.id, `${action} at footprint offset ${dx},${dy} must select the same monster.`);
+        assert.equal(record.snapshot.busy, true);
+        assert.equal(record.effects.length, 1);
+        assert.equal(record.effects[0].kind, action === 'attack' ? 'slash' : 'arrow');
+        assert.deepEqual(record.effects[0].targets, [{ id: dragon.id, x: dragon.x, y: dragon.y, team: 'monster', footprint: { width: 2, height: 2 } }], 'The effect must receive the whole target footprint, independent of which cell was clicked.');
+        assert.deepEqual(record.effects[0].source.footprint, { width: 1, height: 1 });
+        assert.equal(unit(dragon.id).hpCurrent, dragon.hpCurrent, 'Damage must wait for the visible effect.');
+        await flush();
+        assert.ok(unit(dragon.id).hpCurrent < dragon.hpCurrent, `${action} must damage the dragon selected through cell ${dx},${dy}.`);
+        assert.equal(record.snapshot.units.filter(entry => entry.id === dragon.id).length, 1, 'One large monster remains one combat entity.');
+      });
+    }
+  }
+});
+
 test('targeting an ally with healing takes priority over selecting that hero, while cancelling restores movement', async () => {
   await withCombat(async ({ systems, record, choose, flush, begin, unit }) => {
     await begin();
@@ -253,7 +318,7 @@ test('targeting an ally with healing takes priority over selecting that hero, wh
     systems.selectCombatCell(warrior.x, warrior.y);
     assert.equal(record.snapshot.activeId, paladin.id, 'An ally click casts the selected heal rather than switching active hero.');
     assert.equal(record.effects[0].kind, 'heal');
-    assert.deepEqual(record.effects[0].targets, [{ id: warrior.id, x: warrior.x, y: warrior.y, team: 'party' }]);
+    assert.deepEqual(record.effects[0].targets, [{ id: warrior.id, x: warrior.x, y: warrior.y, team: 'party', footprint: { width: 1, height: 1 } }]);
     assert.deepEqual(record.effects[0].rune, { style: 'holy', color: 0xf4d66a });
     await flush();
     assert.equal(unit(paladin.id).canAct, false);

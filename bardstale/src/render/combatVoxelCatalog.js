@@ -1,3 +1,4 @@
+import { footprintForKind } from '../combatFootprints.js';
 import { assembleCharacterParts, VOXEL_APPEARANCE_OPTIONS } from './voxelCharacterParts.js';
 import { assembleCreatureVoxelModel } from './voxelCreatureParts.js';
 
@@ -26,7 +27,7 @@ const PRESETS=Object.freeze({
   warrior:{...PERSON,torso:'chain',arms:'plate',legs:'armored',offhand:'round'},
   paladin:{...PERSON,head:'plumed',torso:'steel',arms:'plate',legs:'armored',offhand:'kite',palette:'steel'},
   rogue:{...PERSON,head:'hood',torso:'leather',arms:'leather',mainhand:'dagger',palette:'forest'},
-  bard:{...PERSON,head:'longHair',torso:'leather',mainhand:'shortSword',palette:'ochre'},
+  bard:{...PERSON,head:'longHair',torso:'leather',mainhand:'shortSword',back:'lute',palette:'ochre'},
   hunter:{...PERSON,torso:'leather',arms:'leather',mainhand:'bow',palette:'forest'},
   monk:{...PERSON,head:'bald',arms:'bare',legs:'skirt',mainhand:'none',palette:'ochre'},
   conjurer:{...CASTER,palette:'crimson'},
@@ -43,13 +44,12 @@ const PRESETS=Object.freeze({
   mage:{...CASTER,head:'wizardHat',palette:'azure'},
   enchantress:{...CASTER,head:'longHair',palette:'violet'},
   warlock:{...CASTER,head:'hood',palette:'crimson'},
-  ogre:{...PERSON,head:'ogre',torso:'leather',arms:'bare',legs:'skirt',mainhand:'club',palette:'ogre'},
   lich:{...CASTER,head:'skull',arms:'bones',palette:'bone'},
 });
-const CREATURES=Object.freeze(['serpent','rat_swarm','elemental']);
+const CREATURES=Object.freeze(['serpent','rat_swarm','elemental','dragon','ogre']);
 export const COMBAT_VOXEL_KINDS=Object.freeze([...Object.keys(PRESETS),...CREATURES]);
 
-const WEAPONS={sword_basic:'shortSword',longsword:'sword',dagger:'dagger',quarterstaff:'staff'};
+const WEAPONS={sword_basic:'shortSword',longsword:'sword',dagger:'dagger',quarterstaff:'staff',spear:'spear',halberd:'halberd'};
 const ARMOR={
   leather_armor:{torso:'leather',arms:'leather'},
   chain_armor:{torso:'chain',arms:'plate'},
@@ -76,6 +76,7 @@ export function getCombatVoxelAppearance({kind,equipment,appearance={}}) {
     if(equipment.offhand && equipment.offhand!=='shield_wood') throw new RangeError(`Unknown combat shield: ${equipment.offhand}`);
     result.mainhand=equipment.weapon?WEAPONS[equipment.weapon]:'none';
     result.offhand=equipment.offhand?'round':'none';
+    result.back=equipment.instrument==='lute'?'lute':'none';
     result.torso=PRESETS[key].torso==='robe'?'robe':'tunic';
     result.arms=PRESETS[key].arms==='bare'?'bare':'sleeves';
     Object.assign(result,ARMOR[equipment.body]);
@@ -94,14 +95,17 @@ const models=new Map();
 export function assembleCombatVoxelModel(descriptor) {
   const kind=normalizeKind(descriptor.kind);
   const appearance=getCombatVoxelAppearance({...descriptor,kind});
-  if(CREATURES.includes(kind)) return assembleCreatureVoxelModel(kind);
+  if(CREATURES.includes(kind)) {
+    if(!models.has(kind)) models.set(kind,Object.freeze({...assembleCreatureVoxelModel(kind),footprint:footprintForKind(kind)}));
+    return models.get(kind);
+  }
   const key=JSON.stringify([kind,appearance]);
   if(!models.has(key)) {
     const model=assembleCharacterParts(appearance,THEMES[appearance.palette]);
     const id=`${kind}/${model.recipe.id}`;
     const recipe=Object.freeze({...model.recipe,id});
     const assembly=Object.freeze({...model.assembly,id});
-    models.set(key,Object.freeze({...model,recipe,assembly,appearance:Object.freeze(appearance),scale:kind==='hobbit'?.74:kind==='ogre'?1.3:1}));
+    models.set(key,Object.freeze({...model,recipe,assembly,appearance:Object.freeze(appearance),footprint:footprintForKind(kind),scale:kind==='hobbit'?.74:1}));
   }
   return models.get(key);
 }

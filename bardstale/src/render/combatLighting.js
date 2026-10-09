@@ -1,3 +1,5 @@
+import { footprintCenter, normalizeFootprint } from '../combatFootprints.js';
+
 const TORCH_COLOR = 0xffc87a;
 const TORCH_INTENSITY = 1.86;
 const TORCH_DECAY = 2.2;
@@ -72,11 +74,12 @@ export function createCombatLighting(THREE, parent, cellSize) {
     const anchor = alive.find(unit => unit.id === activeId) || alive[0];
     // Nearby torches dominate the selected character's view. Bound cube-map work
     // independently of encounter size; every figure still casts into these maps.
-    const shadowIds = new Set(alive.sort((a, b) =>
-      (a.x - anchor.x) ** 2 + (a.y - anchor.y) ** 2
-      - (b.x - anchor.x) ** 2 - (b.y - anchor.y) ** 2
-      || String(a.id).localeCompare(String(b.id)),
-    ).slice(0, MAX_SHADOW_LIGHTS).map(unit => unit.id));
+    const distanceFromAnchor = unit => {
+      const from = footprintCenter(anchor), to = footprintCenter(unit);
+      return (to.x-from.x)**2+(to.y-from.y)**2;
+    };
+    const shadowIds = new Set(alive.sort((a,b) => distanceFromAnchor(a)-distanceFromAnchor(b)
+      || String(a.id).localeCompare(String(b.id))).slice(0,MAX_SHADOW_LIGHTS).map(unit=>unit.id));
     const ids = new Set(units.map((unit) => unit.id));
     for (const [id, entry] of entries) {
       if (ids.has(id)) continue;
@@ -89,8 +92,13 @@ export function createCombatLighting(THREE, parent, cellSize) {
         entry = createEntry(unit);
         entries.set(unit.id, entry);
       }
-      const x = (unit.x + 0.5) * cellSize;
-      const z = (unit.y + 0.5) * cellSize;
+      const center = footprintCenter(unit);
+      const { width, height } = normalizeFootprint(unit.footprint);
+      const x = center.x * cellSize, z = center.y * cellSize;
+      entry.offsetX = TORCH_OFFSET_X * cellSize * width;
+      entry.offsetZ = TORCH_OFFSET_Z * cellSize * height;
+      entry.lightScale = Math.max(width,height);
+      entry.shadow.scale.set(0.48*cellSize*width,0.38*cellSize*height,1);
       entry.shadow.position.set(x, 0.004 * cellSize, z);
       entry.targetOpacity = unit.alive ? SHADOW_OPACITY : DEFEATED_SHADOW_OPACITY;
       if (unit.alive) {
@@ -112,7 +120,10 @@ export function createCombatLighting(THREE, parent, cellSize) {
           entry.light.shadow.mapPass = null;
         }
         entry.light.castShadow = castsShadow;
-        entry.light.position.set(x + TORCH_OFFSET_X * cellSize, TORCH_HEIGHT * cellSize, z + TORCH_OFFSET_Z * cellSize);
+        entry.light.distance = 3.6*cellSize*entry.lightScale;
+        entry.light.shadow.camera.far = entry.light.distance;
+        entry.light.shadow.camera.updateProjectionMatrix();
+        entry.light.position.set(x+entry.offsetX,TORCH_HEIGHT*cellSize,z+entry.offsetZ);
       } else if (entry.light) {
         entry.light.shadow.dispose();
         group.remove(entry.light);
@@ -131,9 +142,9 @@ export function createCombatLighting(THREE, parent, cellSize) {
       entry.shadow.position.set(position.x, 0.004 * cellSize, position.z);
       entry.shadow.material.opacity += (entry.targetOpacity - entry.shadow.material.opacity) * fade;
       if (entry.light) {
-        entry.light.position.set(position.x + TORCH_OFFSET_X * cellSize, position.y + TORCH_HEIGHT * cellSize, position.z + TORCH_OFFSET_Z * cellSize);
+        entry.light.position.set(position.x+entry.offsetX,position.y+TORCH_HEIGHT*cellSize,position.z+entry.offsetZ);
         const flicker = Math.sin(seconds * 6.4 + entry.phase) * 0.04 + Math.sin(seconds * 13.1 + entry.phase * 1.7) * 0.025;
-        entry.light.intensity = baseIntensity * (1 + flicker);
+        entry.light.intensity = baseIntensity * entry.lightScale ** 2 * (1 + flicker);
       }
     }
   }

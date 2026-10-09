@@ -1,5 +1,6 @@
 import { DIR, DX, DY, WALL, getWall, leftOf, rightOf, backOf } from '../dungeon.js';
 import { COMBAT_CELLS_PER_MAP_TILE } from '../../config/combatSettings.js';
+import { footprintCells, normalizeFootprint, occupiesCell } from '../combatFootprints.js';
 
 export function createBattlefield(dungeon, heroes, monsters) {
   const { width: mapWidth, height: mapHeight, cells, x: mapX, y: mapY, dir } = dungeon;
@@ -43,13 +44,16 @@ export function createBattlefield(dungeon, heroes, monsters) {
     return result;
   }
 
-  const combatants = [
+  const units = [
     ...heroes.map((entity) => ({ team: 'party', entity })),
     ...monsters.map((entity) => ({ team: 'monster', entity })),
-  ];
-  if (new Set(combatants.map(({ entity }) => entity.id)).size !== combatants.length) {
+  ].map(({ team, entity }) => ({
+    id: entity.id, team, entity, footprint: normalizeFootprint(entity.footprint), x: 0, y: 0,
+  }));
+  if (new Set(units.map((unit) => unit.id)).size !== units.length) {
     throw new Error('Battlefield combatants must have unique ids.');
   }
+  const unitsById = new Map(units.map((unit) => [unit.id, unit]));
 
   function nearestCells(anchor, count, occupied = new Set()) {
     const pending = [anchor];
@@ -82,10 +86,66 @@ export function createBattlefield(dungeon, heroes, monsters) {
     y: (mapY + DY[entrance]) * COMBAT_CELLS_PER_MAP_TILE + center,
   };
   const frontDirection = entrance === undefined ? dir : entrance;
+
+  function validPlacement(unit, x, y, blocked) {
+    const occupied = footprintCells(unit, x, y);
+    for (const cell of occupied) {
+      if (!inBounds(cell.x, cell.y) || blocked.has(cellKey(cell.x, cell.y))) return false;
+      // A body cannot straddle a dungeon wall, even when its anchor is in an open cell.
+      if (cell.x > x && !openEdge(cell.x - 1, cell.y, cell.x, cell.y)) return false;
+      if (cell.y > y && !openEdge(cell.x, cell.y - 1, cell.x, cell.y)) return false;
+    }
+    return true;
+  }
+
+  const reserved = new Set();
+  const largeUnits = units.filter((unit) => unit.footprint.width * unit.footprint.height > 1)
+    .sort((a, b) => b.footprint.width * b.footprint.height - a.footprint.width * a.footprint.height);
+  const candidateAnchors = new Map();
+  function placementAnchors(team) {
+    if (candidateAnchors.has(team)) return candidateAnchors.get(team);
+    const anchor = team === 'party' ? origin : monsterAnchor;
+    const pending = [anchor];
+    const discovered = new Set([cellKey(anchor.x, anchor.y)]);
+    for (let index = 0; index < pending.length; index += 1) {
+      for (const next of neighbors(pending[index].x, pending[index].y)) {
+        const key = cellKey(next.x, next.y);
+        if (discovered.has(key)) continue;
+        discovered.add(key);
+        pending.push(next);
+      }
+    }
+    candidateAnchors.set(team, pending);
+    return pending;
+  }
+
+  function reserveLargeUnits(index) {
+    if (index === largeUnits.length) return true;
+    const unit = largeUnits[index];
+    for (const anchor of placementAnchors(unit.team)) {
+      if (!validPlacement(unit, anchor.x, anchor.y, reserved)) continue;
+      const keys = footprintCells(unit, anchor.x, anchor.y).map((cell) => cellKey(cell.x, cell.y));
+      for (const key of keys) reserved.add(key);
+      unit.x = anchor.x;
+      unit.y = anchor.y;
+      if (reserveLargeUnits(index + 1)) return true;
+      for (const key of keys) reserved.delete(key);
+    }
+    return false;
+  }
+  if (largeUnits.length && (placementAnchors('party').length < units.reduce((area, unit) => area + unit.footprint.width * unit.footprint.height, 0)
+    || !reserveLargeUnits(0))) {
+    throw new RangeError('The connected dungeon area is too small for these combatants.');
+  }
+
   // Keep the lead fighter on the front of the formation, with allies behind.
   // Assigning the leader to its center can seal all four of their exits.
-  const partyFootprint = nearestCells(origin, heroes.length);
-  const partyKeys = new Set(partyFootprint.map((cell) => cellKey(cell.x, cell.y)));
+  const unplacedParty = units.filter((unit) => unit.team === 'party' && unit.footprint.width * unit.footprint.height === 1);
+  const partyFootprint = nearestCells(origin, unplacedParty.length, reserved);
+  const partyKeys = new Set([
+    ...partyFootprint.map((cell) => cellKey(cell.x, cell.y)),
+    ...largeUnits.filter((unit) => unit.team === 'party').flatMap((unit) => footprintCells(unit).map((cell) => cellKey(cell.x, cell.y))),
+  ]);
   const isFrontier = (cell) => neighbors(cell.x, cell.y).some((next) => !partyKeys.has(cellKey(next.x, next.y)));
   const partyCells = partyFootprint.sort((a, b) => {
     const frontier = Number(isFrontier(b)) - Number(isFrontier(a));
@@ -94,15 +154,10 @@ export function createBattlefield(dungeon, heroes, monsters) {
     const forwardB = (b.x - origin.x) * DX[frontDirection] + (b.y - origin.y) * DY[frontDirection];
     return forwardB - forwardA;
   });
-  const formation = [...partyCells, ...nearestCells(monsterAnchor, monsters.length, partyKeys)];
-  const units = combatants.map(({ team, entity }, index) => ({
-    id: entity.id,
-    team,
-    x: formation[index].x,
-    y: formation[index].y,
-    entity,
-  }));
-  const unitsById = new Map(units.map((unit) => [unit.id, unit]));
+  unplacedParty.forEach((unit, index) => Object.assign(unit, partyCells[index]));
+  const unplacedMonsters = units.filter((unit) => unit.team === 'monster' && unit.footprint.width * unit.footprint.height === 1);
+  const monsterCells = nearestCells(monsterAnchor, unplacedMonsters.length, new Set([...reserved, ...partyKeys]));
+  unplacedMonsters.forEach((unit, index) => Object.assign(unit, monsterCells[index]));
 
   function position(id) {
     return unitsById.get(id) ?? null;
@@ -111,7 +166,25 @@ export function createBattlefield(dungeon, heroes, monsters) {
   function occupiedCells(actorId) {
     return new Set(units
       .filter((unit) => unit.id !== actorId && unit.entity.alive)
-      .map((unit) => cellKey(unit.x, unit.y)));
+      .flatMap((unit) => footprintCells(unit).map((cell) => cellKey(cell.x, cell.y))));
+  }
+
+  function occupies(id, x, y) {
+    const unit = position(id);
+    return !!unit && occupiesCell(unit, x, y);
+  }
+
+  function canPlace(id, x, y) {
+    const unit = position(id);
+    return !!unit && validPlacement(unit, x, y, occupiedCells(id));
+  }
+
+  function canStep(actor, current, next, blocked) {
+    if (!validPlacement(actor, next.x, next.y, blocked)) return false;
+    const dx = next.x - current.x;
+    const dy = next.y - current.y;
+    return footprintCells(actor, current.x, current.y)
+      .every((cell) => openEdge(cell.x, cell.y, cell.x + dx, cell.y + dy));
   }
 
   function search(actor, budget, goals = null) {
@@ -126,7 +199,7 @@ export function createBattlefield(dungeon, heroes, monsters) {
       if (current.cost >= budget) continue;
       for (const next of neighbors(current.x, current.y)) {
         const key = cellKey(next.x, next.y);
-        if (blocked.has(key) || reached.has(key)) continue;
+        if (reached.has(key) || !canStep(actor, current, next, blocked)) continue;
         const entry = { ...next, cost: current.cost + 1, previous: currentKey };
         reached.set(key, entry);
         pending.push(entry);
@@ -176,9 +249,18 @@ export function createBattlefield(dungeon, heroes, monsters) {
     const target = position(targetId);
     if (!actor?.entity.alive || !target?.entity.alive || actor.team === target.team || !(maxSteps > 0)) return [];
     const blocked = occupiedCells(actor.id);
-    const goals = new Set(neighbors(target.x, target.y)
-      .filter((cell) => !blocked.has(cellKey(cell.x, cell.y)))
-      .map((cell) => cellKey(cell.x, cell.y)));
+    const goals = new Set();
+    for (const targetCell of footprintCells(target)) {
+      for (const neighbor of neighbors(targetCell.x, targetCell.y)) {
+        for (let dy = 0; dy < actor.footprint.height; dy += 1) {
+          for (let dx = 0; dx < actor.footprint.width; dx += 1) {
+            const x = neighbor.x - dx;
+            const y = neighbor.y - dy;
+            if (validPlacement(actor, x, y, blocked)) goals.add(cellKey(x, y));
+          }
+        }
+      }
+    }
     if (!goals.size) return [];
     const { reached, destination } = search(actor, Infinity, goals);
     if (!destination) return [];
@@ -224,12 +306,16 @@ export function createBattlefield(dungeon, heroes, monsters) {
   function canTarget(actorId, targetId, { range = 1, melee = false } = {}) {
     const actor = position(actorId);
     const target = position(targetId);
-    if (!actor?.entity.alive || !target || !(range >= 0)) return false;
-    const distance = Math.abs(actor.x - target.x) + Math.abs(actor.y - target.y);
-    if (distance > range) return false;
-    if (melee) return distance === 1 && openEdge(actor.x, actor.y, target.x, target.y);
-    return hasLineOfSight(actor, target);
+    if (!actor?.entity.alive || !target || !(range >= 0) || (melee && actor === target)) return false;
+    for (const from of footprintCells(actor)) {
+      for (const to of footprintCells(target)) {
+        const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+        if (distance > range) continue;
+        if (melee ? distance === 1 && openEdge(from.x, from.y, to.x, to.y) : hasLineOfSight(from, to)) return true;
+      }
+    }
+    return false;
   }
 
-  return { width, height, origin, units, position, reachable, move, pathToCell, pathToAdjacent, canTarget };
+  return { width, height, origin, units, position, occupies, canPlace, reachable, move, pathToCell, pathToAdjacent, canTarget };
 }

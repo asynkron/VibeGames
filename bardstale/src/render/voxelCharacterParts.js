@@ -1,5 +1,6 @@
 import { defineVoxelPart, createCharacterRecipe, assembleVoxelCharacter } from './voxelParts.js';
 import { paintMainhand, paintOffhand } from './voxelEquipmentParts.js';
+import { paintHumanTorso, paintHumanArms, paintHumanLegs } from './voxelHumanoidBody.js';
 
 export const VOXEL_MATERIALS = {
   cloth: { roughness: 0.93, metalness: 0, envMapIntensity: 0.12 },
@@ -26,23 +27,23 @@ const PAINT = {
   slit: ['#16232c', 'steel'],
   bone: ['#e6d8af', 'bone'], shadowBone: ['#a59778', 'bone'],
   wood: ['#76503a', 'wood'], crystal: ['#68dcf0', 'crystal'],
+  maple: ['#d6a365', 'wood'], fretboard: ['#352822', 'wood'],
   string: ['#d2be9a', 'cloth'], goblinSkin: ['#789944', 'skin'], ogreSkin: ['#94916a', 'skin'],
 };
 
 export const DEFAULT_VOXEL_APPEARANCE = Object.freeze({ head: 'knight', torso: 'steel', arms: 'plate', legs: 'armored', back: 'none', mainhand: 'sword', offhand: 'kite' });
 export const VOXEL_APPEARANCE_OPTIONS = Object.freeze({
   head: [{ value: 'knight', label: 'Knight’s great helm' }, { value: 'plumed', label: 'Plumed great helm' }, { value: 'bare', label: 'Short hair' }, { value: 'bald', label: 'Shaven head' }, { value: 'hood', label: 'Deep hood' }, { value: 'wizardHat', label: 'Pointed wizard hat' }, { value: 'crown', label: 'Crowned head' }, { value: 'longHair', label: 'Long hair' }, { value: 'goblin', label: 'Goblin head' }, { value: 'ogre', label: 'Tusken ogre head' }, { value: 'skull', label: 'Skull' }],
-  torso: [{ value: 'teal', label: 'Teal brigandine' }, { value: 'crimson', label: 'Crimson coat' }, { value: 'steel', label: 'Steel cuirass' }, { value: 'chain', label: 'Chainmail hauberk' }, { value: 'leather', label: 'Leather jerkin' }, { value: 'tunic', label: 'Cloth tunic' }, { value: 'robe', label: 'Robed torso' }, { value: 'ribs', label: 'Rib cage' }],
+  torso: [{ value: 'bare', label: 'Bare torso' }, { value: 'teal', label: 'Teal brigandine' }, { value: 'crimson', label: 'Crimson coat' }, { value: 'steel', label: 'Steel cuirass' }, { value: 'chain', label: 'Chainmail hauberk' }, { value: 'leather', label: 'Leather jerkin' }, { value: 'tunic', label: 'Cloth tunic' }, { value: 'robe', label: 'Robed torso' }, { value: 'ribs', label: 'Rib cage' }],
   arms: [{ value: 'plate', label: 'Plate arms & gauntlets' }, { value: 'leather', label: 'Leather sleeves & gloves' }, { value: 'sleeves', label: 'Cloth sleeves' }, { value: 'bare', label: 'Bare arms' }, { value: 'bones', label: 'Skeletal arms' }],
-  legs: [{ value: 'armored', label: 'Armored boots' }, { value: 'ranger', label: 'Ranger leathers' }, { value: 'robe', label: 'Long robe' }, { value: 'skirt', label: 'Kilt & boots' }, { value: 'bare', label: 'Bare feet' }, { value: 'bones', label: 'Skeletal legs' }],
-  back: [{ value: 'none', label: 'No back item' }, { value: 'cape', label: 'Cloth cape' }, { value: 'backpack', label: 'Leather backpack' }],
-  mainhand: [{ value: 'sword', label: 'Longsword' }, { value: 'shortSword', label: 'Short sword' }, { value: 'dagger', label: 'Dagger' }, { value: 'axe', label: 'Battle axe' }, { value: 'mace', label: 'Spiked mace' }, { value: 'flail', label: 'Flail' }, { value: 'staff', label: 'Crystal staff' }, { value: 'bow', label: 'Longbow' }, { value: 'club', label: 'Ogre club' }, { value: 'none', label: 'Empty hand' }],
+  legs: [{ value: 'armored', label: 'Plate leggings & boots' }, { value: 'ranger', label: 'Leather trousers & boots' }, { value: 'robe', label: 'Long robe' }, { value: 'skirt', label: 'Kilt & boots' }, { value: 'bare', label: 'Shorts & bare feet' }, { value: 'bones', label: 'Skeletal legs' }],
+  back: [{ value: 'none', label: 'No back item' }, { value: 'cape', label: 'Cloth cape' }, { value: 'backpack', label: 'Leather backpack' }, { value: 'lute', label: 'Bard’s lute' }],
+  mainhand: [{ value: 'sword', label: 'Longsword' }, { value: 'shortSword', label: 'Short sword' }, { value: 'dagger', label: 'Dagger' }, { value: 'axe', label: 'Battle axe' }, { value: 'mace', label: 'Spiked mace' }, { value: 'flail', label: 'Flail' }, { value: 'staff', label: 'Tall crystal staff' }, { value: 'spear', label: 'Long spear' }, { value: 'halberd', label: 'Halberd' }, { value: 'bow', label: 'Longbow' }, { value: 'club', label: 'Ogre club' }, { value: 'none', label: 'Empty hand' }],
   offhand: [{ value: 'kite', label: 'Kite shield' }, { value: 'round', label: 'Round shield' }, { value: 'none', label: 'Empty hand' }],
 });
 
-// Optional horizontal cuts shape waist seams and hemlines in the authored figures.
-// The resulting parts have unrestricted coordinates and dimensions.
-function painter(minY = -Infinity, maxY = Infinity) {
+// All parts are authored in the same unrestricted character coordinates.
+function painter() {
   const cells = new Map();
   function put(x, y, z, surface) {
     if (![x, y, z].every(Number.isInteger)) throw new TypeError('Authored voxel coordinates must be integers');
@@ -51,7 +52,7 @@ function painter(minY = -Infinity, maxY = Infinity) {
   }
   function shape(min, max, inside, surface) {
     for (let x = Math.ceil(min[0] - 0.5); x <= Math.floor(max[0] - 0.5); x++) {
-      for (let y = Math.max(minY, Math.ceil(min[1] - 0.5)); y <= Math.min(maxY, Math.floor(max[1] - 0.5)); y++) {
+      for (let y = Math.ceil(min[1] - 0.5); y <= Math.floor(max[1] - 0.5); y++) {
         for (let z = Math.ceil(min[2] - 0.5); z <= Math.floor(max[2] - 0.5); z++) {
           if (inside(x + 0.5, y + 0.5, z + 0.5)) put(x, y, z, surface);
         }
@@ -75,110 +76,32 @@ function painter(minY = -Infinity, maxY = Infinity) {
   return { cells, put, oval, box, limb };
 }
 
-function makeLegs(style) {
-  const p = painter(0, 7);
-  if (style === 'bones') {
-    p.box([10,7,11],[14,8,13],'bone');
-    p.limb([10.5,7.5,11.5],[9.5,4.5,13.5],.65,'bone');
-    p.limb([13.5,7.5,11.5],[14.5,4.5,9.5],.65,'bone');
-    p.limb([9.5,4.5,13.5],[9.5,.5,13.5],.65,'bone');
-    p.limb([14.5,4.5,9.5],[14.5,.5,9.5],.65,'bone');
-    p.box([9,0,13],[11,1,16],'bone'); p.box([13,0,9],[15,1,12],'bone');
-    return p.cells;
-  }
-  if (style === 'robe') {
-    for (let y=1;y<8;y++) {
-      const width=y<4?4:3;
-      p.box([12-width,y,10],[12+width,y+1,14],'teal');
-      p.box([11,y,14],[13,y+1,15],'ivory');
-    }
-    p.box([8,0,11],[11,1,15],'leather'); p.box([13,0,11],[16,1,15],'leather');
-    p.box([8,1,10],[16,2,14],'gold');
-    return p.cells;
-  }
-  const trousers = style === 'ranger' ? 'olive' : 'indigo';
-  const shin = style === 'bare' || style === 'skirt' ? 'skin' : style === 'ranger' ? 'leather' : 'gunmetal';
-  p.limb([10.5,7.5,11.5],[9.5,4.5,13.5],1.3,trousers);
-  p.limb([12.5,7.5,11.5],[14.5,4.5,9.5],1.3,trousers);
-  p.limb([9.5,4.5,13.5],[9.5,1.5,13.5],1.05,shin);
-  p.limb([14.5,4.5,9.5],[14.5,1.5,9.5],1.05,shin);
-  if (style === 'armored' || style === 'ranger') {
-    p.oval([9.5,4.5,13.5],[1.3,.85,1.25],style === 'ranger' ? 'belt' : 'steel');
-    p.oval([14.5,4.5,9.5],[1.3,.85,1.25],style === 'ranger' ? 'belt' : 'steel');
-  }
-  p.box([8.5,0,12.5],[10.5,1.8,15.5],style === 'bare' ? 'skin' : 'leather');
-  p.box([13.5,0,8.5],[15.5,1.8,11.5],style === 'bare' ? 'skin' : 'leather');
-  if (style === 'skirt') {
-    p.box([8,5,10],[16,8,14],'teal');
-    p.box([9,4,13],[15,7,15],'teal');
-    p.box([11,4,14],[12,7,15],'gold');
-  }
+function makeBodyPart(slot, style) {
+  const p = painter();
+  ({ torso: paintHumanTorso, arms: paintHumanArms, legs: paintHumanLegs })[slot](p, style);
   return p.cells;
 }
 
-function makeTorso(style) {
-  const p = painter(8, 15);
-  if (style === 'ribs') {
-    p.box([11,8,11],[13,16,12],'shadowBone');
-    p.box([10,8,11],[14,10,14],'bone');
-    for (const y of [11,13,15]) {
-      p.box([9,y,11],[15,y+1,12],'bone');
-      p.box([9,y,12],[10,y+1,14],'bone'); p.box([14,y,12],[15,y+1,14],'bone');
-      p.box([10,y,14],[14,y+1,15],'bone');
-    }
-    p.box([11,11,14],[13,16,15],'bone');
-    p.box([8,14,11],[16,15,13],'bone');
-    return p.cells;
+function paintHumanHead(p, hair) {
+  // The jaw settles into a short neck, with a round cranium behind the face.
+  p.oval([12,17.7,12],[1.8,1.2,1.8],'skin');
+  p.oval([12,21,12],[2.9,2.7,2.5],'skin');
+  p.oval([12,19.2,12.5],[2.3,1.6,2.2],'skin');
+  p.box([10,19,13],[14,22,15],'skin');
+  for (const x of [9,14]) p.put(x,20,12,'skin');
+  p.put(10,21,14,'eyes'); p.put(13,21,14,'eyes');
+  p.put(11,20,15,'skin'); p.put(12,20,15,'skin');
+  p.put(11,19,14,'lips'); p.put(12,19,14,'lips');
+  if (hair) {
+    p.oval([12,21.3,11.6],[3,2.5,2.7],'hair',(x,y,z)=>y>=22 || z<10.6);
+    p.box([9,21,11],[10,23,14],'hair');
+    p.box([14,21,11],[15,23,13],'hair');
+    p.box([10,22,14],[12,23,15],'hair');
   }
-  const coat = { teal:'teal', crimson:'crimson', steel:'steel', chain:'gunmetal', leather:'leather', tunic:'teal', robe:'teal' }[style];
-  p.oval([12,8.6,12],[2.8,1.5,2],'indigo');
-  p.oval([12,12,12],[3.8,3.7,2.4],coat);
-  p.box([8,13,11],[16,15,13],coat);
-  for (const cell of p.cells.values()) {
-    if (style === 'chain' && (cell.x+cell.y+cell.z)%2 === 0) cell.surface='steel';
-    if (['teal','crimson','leather','tunic'].includes(style) && cell.y >= 10 && cell.z >= 13 && Math.abs(cell.x-11.5+(cell.y-12)*.65)<.6) cell.surface=style==='leather'?'belt':'ivory';
-    if (cell.y === 9) cell.surface='belt';
-  }
-  if (style === 'robe') {
-    p.box([9,8,10],[15,12,14],coat);
-    p.box([11,10,14],[13,15,15],'ivory');
-    p.put(11,14,15,'crystal'); p.put(12,14,15,'gold');
-  }
-  if (style === 'steel') {
-    p.box([10,11,14],[14,14,15],'steel');
-    p.box([11,11,14],[13,14,15],'silver');
-  }
-  p.box([11,9,14],[13,10,15],'gold');
-  p.box([10,15,10],[14,16,14],style==='steel'||style==='chain'?'gunmetal':coat);
-  return p.cells;
-}
-
-function makeArms(style) {
-  const p = painter(8, 15);
-  const armored = style === 'plate';
-  const sleeve = {plate:'gunmetal',leather:'midnight',sleeves:'teal',bare:'skin',bones:'bone'}[style];
-  const forearm = {plate:'steel',leather:'leather',sleeves:'teal',bare:'skin',bones:'bone'}[style];
-  const radius=style==='bones'?.65:1.05;
-  p.limb([6.5,14.5,12.5],[4.5,11.5,12.5],radius,sleeve);
-  p.limb([4.5,11.5,12.5],[5.5,13.5,14.5],radius,forearm);
-  p.limb([17.5,14.5,12.5],[19.5,11.5,12.5],radius,sleeve);
-  p.limb([19.5,11.5,12.5],[17.5,10.5,14.5],radius,forearm);
-  for (const x of [6,16]) {
-    if (style==='bones') p.box([x,14,12],[x+2,15,13],'bone');
-    else {
-      p.box([x,13,11],[x+2,16,14],forearm);
-      if (armored || style==='leather') p.box([x,15,11],[x+2,16,14],armored ? 'silver' : 'belt');
-    }
-  }
-  // Each complete hand includes its fingers; equipment attaches in front.
-  const hand=style==='sleeves'?'skin':forearm;
-  p.box([5,13,14],[7,15,16],hand);
-  p.box([16,10,14],[18,12,16],hand);
-  return p.cells;
 }
 
 function makeHead(style) {
-  const p = painter(16, 23);
+  const p = painter();
   if (style === 'skull') {
     p.box([11,16,11],[13,18,13],'shadowBone');
     p.box([9,19,10],[15,23,14],'bone');
@@ -207,48 +130,41 @@ function makeHead(style) {
     return p.cells;
   }
   if (style === 'hood') {
-    p.box([10,16,10],[14,19,14],'teal');
-    p.box([9,18,9],[15,22,14],'teal');
-    p.box([10,22,10],[14,24,14],'teal');
-    p.box([10,18,14],[14,22,15],'skin');
-    p.box([9,17,14],[10,22,15],'teal'); p.box([14,17,14],[15,22,15],'teal');
-    p.box([10,21,14],[14,23,15],'teal');
-    p.put(10,20,14,'eyes'); p.put(13,20,14,'eyes');
-    p.box([11,17,14],[13,18,15],'ivory');
+    paintHumanHead(p, false);
+    p.oval([12,20.5,11.5],[3.7,3.6,3.4],'teal',(x,y,z)=>z<13.5 || x<10 || x>14 || y>22);
+    p.box([9,18,13],[10,23,15],'teal');
+    p.box([14,18,13],[15,23,15],'teal');
+    p.limb([10.5,18.5,12.5],[11.5,17.5,14.5],.8,'teal');
+    p.limb([13.5,18.5,12.5],[12.5,17.5,14.5],.8,'teal');
+    p.box([10,22,14],[14,23,15],'midnight');
     return p.cells;
   }
   if (['bare','bald','longHair','crown','wizardHat'].includes(style)) {
-    p.box([11,16,11],[13,18,13],'skin');
-    p.box([10,18,10],[14,22,15],'skin');
-    p.box([9,19,11],[15,21,14],'skin');
-    p.box([10,22,10],[14,23,14],style==='bald'?'skin':'hair');
-    if (style!=='bald') {
-      p.box([9,21,10],[15,22,14],'hair');
-      p.box([9,19,9],[15,21,11],'hair');
-    }
+    paintHumanHead(p, style!=='bald');
     if (style==='longHair') {
-      p.box([9,16,9],[15,21,11],'hair');
-      p.box([9,17,11],[10,22,14],'hair'); p.box([14,17,11],[15,22,14],'hair');
+      p.oval([12,19,10],[3,3.4,1.5],'hair');
+      p.box([9,18,11],[10,22,14],'hair');
+      p.box([14,17,11],[15,22,13],'hair');
     }
-    p.put(10,20,14,'eyes'); p.put(13,20,14,'eyes');
-    p.put(11,19,15,'skin'); p.put(12,19,15,'skin');
-    p.put(11,18,14,'lips'); p.put(12,18,14,'lips');
     if (style==='crown') {
-      p.box([9,21,10],[15,22,15],'gold');
-      for (const x of [9,11,14]) p.box([x,22,13],[x+1,24,15],'gold');
-      p.put(11,22,14,'crystal');
+      p.oval([12,22.2,12],[3.3,.8,3.2],'gold',(x,y,z)=>z<10.5||z>13.5||x<10||x>14);
+      for (const x of [9,11,14]) p.box([x,23,13],[x+1,25,15],'gold');
+      p.put(11,23,14,'crystal');
     }
     if (style==='wizardHat') {
-      p.box([8,21,9],[16,22,15],'teal');
-      p.box([10,22,10],[14,23,14],'teal');
-      p.box([11,23,11],[13,24,13],'teal');
-      p.box([10,22,14],[14,23,15],'gold');
-      p.box([11,17,14],[13,19,15],'ivory');
+      p.oval([12,22.5,12],[4.8,.8,3.6],'teal');
+      p.oval([12,23.5,12],[3.1,1.4,2.6],'teal');
+      p.oval([11.5,25,11.8],[2.4,1.8,2.1],'teal');
+      p.oval([10.8,26.5,11.5],[1.7,1.5,1.5],'teal');
+      p.box([9,27,11],[11,29,13],'teal');
+      p.put(8,27,11,'teal');
+      p.box([10,23,14],[14,24,15],'gold');
+      p.put(12,23,15,'crystal');
     }
     return p.cells;
   }
 
-  p.box([11,16,11],[13,18,13],'gunmetal');
+  p.box([10,17,10],[14,18,14],'gunmetal');
   // Continuous chamfered steel shell, including temples, back and covered jaw.
   for (let y = 17; y <= 22; y++) {
     const inset = y === 17 || y === 22;
@@ -264,9 +180,16 @@ function makeHead(style) {
   p.box([11,21,14],[13,23,15],'silver');
   for (const x of [9,14]) p.put(x,19,12,'gold');
   if (style === 'plumed') {
-    p.box([11,22,10],[13,23,13],'burgundy');
-    p.box([11,23,9],[13,24,13],'crimson');
-    p.box([11,23,9],[13,24,10],'magenta');
+    p.box([11,23,10],[13,25,13],'gold');
+    const feather=painter();
+    feather.limb([12,24,11.5],[12,28,10.5],1.5,'burgundy');
+    feather.limb([12,28,10.5],[12,30,7],1.8,'burgundy');
+    feather.limb([12,30,7],[12,29,3],1.8,'burgundy');
+    feather.limb([12,29,3],[12,26,1],1.25,'burgundy');
+    for (const {x,y,z} of feather.cells.values()) {
+      const highlight=(y>=29&&z>=3)||(y>=27&&z>=10);
+      p.put(x,y,z,highlight?(x===11?'coral':'magenta'):'burgundy');
+    }
   }
   return p.cells;
 }
@@ -280,27 +203,70 @@ function makeEquipment(part, style) {
 function makeBack(style) {
   const p = painter();
   if (style === 'cape') {
-    p.box([8,14,8],[16,16,10],'teal');
-    for (let y=3;y<15;y++) {
-      const width=y<8?6:5;
+    p.oval([12,16,10],[4.5,1.8,1.6],'teal');
+    for (let y=3;y<17;y++) {
+      const width=y<7?5:y<13?4:3;
       const z=y<7?6:y<12?7:8;
-      p.box([12-width,y,z],[12+width,y+1,z+1],'teal');
-      for (const x of [9,12,15]) p.put(x,y,z-1,'midnight');
-      if (y===3) p.box([12-width,y,z],[12+width,y+1,z+1],'gold');
+      for (let x=12-width;x<12+width;x++) {
+        const fold=(x===9||x===12||x===15)?1:0;
+        p.put(x,y,z-fold,y===3?'gold':fold?'midnight':'teal');
+        if (fold) p.put(x,y,z,'teal');
+      }
     }
+    for (const x of [8.5,15.5]) p.limb([x,16,10],[x,16.5,14],.75,'teal');
+    p.put(8,16,14,'gold'); p.put(15,16,14,'gold');
   } else if (style === 'backpack') {
-    p.box([8,9,5],[16,15,9],'leather');
-    p.box([9,15,6],[15,16,9],'belt');
-    p.box([9,9,4],[15,12,5],'belt');
+    p.oval([12,12,7],[4,3.7,2.5],'leather');
+    p.box([9,10,5],[15,15,9],'leather');
+    p.oval([12,14.5,6],[3.5,1.5,2],'belt');
+    p.box([10,9,4],[14,12,6],'belt');
     for (const x of [9,14]) {
-      p.box([x,10,4],[x+1,15,6],'belt');
-      p.put(x,12,4,'gold');
+      p.limb([x+.5,14.5,7.5],[x+.5,17.5,11.5],.65,'belt');
+      p.limb([x+.5,17.5,11.5],[x+.5,15.5,14.5],.65,'belt');
+      p.limb([x+.5,15.5,14.5],[x+.5,11.5,14.5],.65,'belt');
+      p.put(x,13,14,'gold');
     }
-    p.box([9,16,6],[15,18,8],'ivory');
-    p.box([10,16,6],[11,18,8],'belt');
-    p.box([13,16,6],[14,18,8],'belt');
+    p.box([11,12,4],[13,15,5],'belt'); p.put(11,12,3,'gold');
+    p.limb([8.5,16,6.5],[15.5,16,6.5],1.3,'ivory');
+    p.box([10,15,5],[11,17,8],'belt');
+    p.box([13,15,5],[14,17,8],'belt');
+  } else if (style === 'lute') {
+    paintLute(p);
   }
   return p.cells;
+}
+
+function paintLute(p) {
+  // The soundboard faces away from the wearer; the round bowl rests on the back.
+  const bodyRows=[[5,9,11],[6,8,12],[7,7,13],[8,7,14],[9,7,14],[10,7,14],[11,8,14],[12,8,14],[13,9,13],[14,10,13],[15,11,13]];
+  for (const [y,left,right] of bodyRows) {
+    for (let x=left;x<=right;x++) {
+      p.box([x,y,4],[x+1,y+1,7],'wood');
+      p.put(x,y,3,x===left||x===right||y===5?'wood':'maple');
+      if (x>left&&x<right) p.put(x,y,7,'wood');
+    }
+  }
+  p.box([11,11,2],[13,13,3],'fretboard');
+  p.box([9,7,2],[13,8,3],'fretboard');
+  for (let y=8;y<26;y++) {
+    const x=Math.round(10+(y-8)*.36);
+    if (y>=15) {
+      p.box([x-1,y,4],[x+2,y+1,7],'wood');
+      p.box([x-1,y,3],[x+2,y+1,4],'fretboard');
+      if ([17,20,23].includes(y)) p.box([x-1,y,2],[x+2,y+1,3],'gold');
+    }
+    p.put(x,y,2,'string');
+    if (y<15) p.put(x+2,y,2,'string');
+  }
+  p.box([15,24,4],[18,27,7],'wood');
+  for (const y of [24,26]) {
+    p.box([14,y,5],[19,y+1,6],'gunmetal');
+    p.put(14,y,5,'gold'); p.put(18,y,5,'gold');
+  }
+  p.limb([8.5,15.5,9.5],[15.5,17.5,9.5],.65,'leather');
+  p.limb([8.5,15.5,9.5],[10.5,7.5,7.5],.85,'leather');
+  p.limb([15.5,17.5,9.5],[15.5,17.5,13.5],.65,'leather');
+  p.limb([15.5,17.5,13.5],[10.5,11.5,15.5],.65,'leather');
 }
 
 function voxelColor(cell) {
@@ -327,9 +293,9 @@ function registerPart(id, cells) {
 }
 
 export const VOXEL_PARTS = Object.freeze({
-  torso: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.torso.map(({value})=>[value,registerPart(`torso/${value}`,makeTorso(value))]))),
-  legs: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.legs.map(({value})=>[value,registerPart(`legs/${value}`,makeLegs(value))]))),
-  arms: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.arms.map(({value})=>[value,registerPart(`arms/${value}`,makeArms(value))]))),
+  torso: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.torso.map(({value})=>[value,registerPart(`torso/${value}`,makeBodyPart('torso',value))]))),
+  legs: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.legs.map(({value})=>[value,registerPart(`legs/${value}`,makeBodyPart('legs',value))]))),
+  arms: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.arms.map(({value})=>[value,registerPart(`arms/${value}`,makeBodyPart('arms',value))]))),
   head: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.head.map(({value})=>[value,registerPart(`head/${value}`,makeHead(value))]))),
   back: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.back.map(({value})=>[value,registerPart(`back/${value}`,makeBack(value))]))),
   offhand: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.offhand.map(({value})=>[value,registerPart(`offhand/${value}`,makeEquipment('offhand',value))]))),

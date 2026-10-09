@@ -12,6 +12,7 @@ const rotateButton = document.querySelector('#rotate');
 const gridButton = document.querySelector('#grid');
 const partBoundsButton = document.querySelector('#part-bounds');
 const explodeButton = document.querySelector('#explode');
+const referenceButton = document.querySelector('#human-reference');
 const caption = document.querySelector('#view-caption');
 
 try {
@@ -49,9 +50,23 @@ try {
   let overrides = {};
   let model = assembleCombatVoxelModel({ kind });
   let sculpture = createVoxelFigure(model, { layout: 'parts' });
+  sculpture.group.scale.setScalar(model.scale);
   let showPartBounds = false;
   let exploded = false;
+  let showReference = false;
   scene.add(sculpture.group);
+  const referenceModel = assembleCombatVoxelModel({kind:'warrior',appearance:{mainhand:'none',offhand:'none'}});
+  const referenceFigure = createVoxelFigure(referenceModel);
+  referenceFigure.group.visible = false;
+  referenceFigure.group.traverse(object => {
+    if (!object.isMesh) return;
+    object.castShadow = false;
+    object.material.vertexColors = false;
+    object.material.color.set('#a4ad9a');
+    object.material.metalness = 0;
+    object.material.roughness = 1;
+  });
+  scene.add(referenceFigure.group);
   const size = new THREE.Vector3();
   const center = new THREE.Vector3();
   let cameraDistance = 75;
@@ -61,6 +76,9 @@ try {
     document.querySelector('#part-count').textContent = sculpture.partCount;
     const { width, height, depth } = sculpture.dimensions;
     document.querySelector('#dimensions').textContent = `${width} × ${height} × ${depth}`;
+    const footprint = model.footprint;
+    const relativeHeight = height * model.scale / referenceModel.assembly.dimensions.height;
+    document.querySelector('#size-caption').textContent = `${footprint.width} × ${footprint.height} combat cells · ${relativeHeight.toFixed(1)}× human height`;
     const palette = document.querySelector('#palette');
     palette.replaceChildren(...sculpture.palette.map(({ name, color }) => {
       const swatch = document.createElement('i');
@@ -76,6 +94,7 @@ try {
   function showModel() {
     model = assembleCombatVoxelModel({ kind, appearance: overrides });
     const next = createVoxelFigure(model, { layout: 'parts' });
+    next.group.scale.setScalar(model.scale);
     next.setPartBounds(showPartBounds);
     next.setExploded(exploded);
     scene.remove(sculpture.group);
@@ -148,8 +167,9 @@ try {
     angle: new THREE.Vector3(36, 18, 68),
     front: new THREE.Vector3(0, 0.01, 75),
     side: new THREE.Vector3(75, 0.01, 0),
+    rear: new THREE.Vector3(0, 0.01, -75),
   };
-  const viewLabels = { angle: 'THREE-QUARTER VIEW', front: 'FRONT VIEW', side: 'SIDE VIEW' };
+  const viewLabels = { angle: 'THREE-QUARTER VIEW', front: 'FRONT VIEW', side: 'SIDE VIEW', rear: 'REAR VIEW' };
 
   function setAutoRotate(enabled) {
     controls.autoRotate = enabled;
@@ -171,6 +191,8 @@ try {
   }
 
   function reset() {
+    showReference = false;
+    referenceButton.setAttribute('aria-pressed', 'false');
     grid.visible = true;
     gridButton.setAttribute('aria-pressed', 'true');
     setPartBounds(false);
@@ -207,6 +229,11 @@ try {
   });
   partBoundsButton.addEventListener('click', () => setPartBounds(!showPartBounds));
   explodeButton.addEventListener('click', () => setExploded(!exploded));
+  referenceButton.addEventListener('click', () => {
+    showReference = !showReference;
+    referenceButton.setAttribute('aria-pressed', String(showReference));
+    frameFigure();
+  });
   document.querySelector('#reset').addEventListener('click', reset);
   controls.addEventListener('start', () => { setAutoRotate(false); markOrbit(); });
 
@@ -252,7 +279,16 @@ try {
   });
 
   function frameFigure() {
-    const { min, max } = sculpture.getDisplayBounds();
+    const bounds = sculpture.getDisplayBounds();
+    const min = new THREE.Vector3(bounds.min.x,bounds.min.y,bounds.min.z).multiplyScalar(model.scale);
+    const max = new THREE.Vector3(bounds.max.x,bounds.max.y,bounds.max.z).multiplyScalar(model.scale);
+    referenceFigure.group.visible = showReference;
+    if (showReference) {
+      const reference = referenceModel.assembly.bounds;
+      referenceFigure.group.position.set(min.x-reference.max.x-6,min.y-reference.min.y,(min.z+max.z-reference.min.z-reference.max.z)/2);
+      min.min(new THREE.Vector3(reference.min.x,reference.min.y,reference.min.z).add(referenceFigure.group.position));
+      max.max(new THREE.Vector3(reference.max.x,reference.max.y,reference.max.z).add(referenceFigure.group.position));
+    }
     const nextCenter = new THREE.Vector3((min.x+max.x)/2,(min.y+max.y)/2,(min.z+max.z)/2);
     const direction = camera.position.clone().sub(controls.target);
     if (direction.lengthSq() === 0) direction.set(36,18,68);
@@ -272,7 +308,7 @@ try {
     base.scale.set(radius*0.96,1,radius*0.96);
     base.position.set(center.x,min.y-1.36,center.z);
     floor.position.set(center.x,min.y-1.6,center.z);
-    floor.scale.setScalar(Math.max(1,extent/80));
+    floor.scale.setScalar(Math.max(1,cameraDistance/80));
     grid.position.set(center.x,min.y-1.57,center.z);
     grid.scale.setScalar(Math.max(1,extent/30));
     key.target.position.copy(center);
