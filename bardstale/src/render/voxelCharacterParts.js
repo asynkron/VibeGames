@@ -1,5 +1,5 @@
-import { defineVoxelBlock, createCharacterRecipe, assembleVoxelCharacter } from './voxelBlocks.js';
-import { paintWeapon, paintShield } from './voxelEquipmentParts.js';
+import { defineVoxelPart, createCharacterRecipe, assembleVoxelCharacter } from './voxelParts.js';
+import { paintMainhand, paintOffhand } from './voxelEquipmentParts.js';
 
 export const VOXEL_MATERIALS = {
   cloth: { roughness: 0.93, metalness: 0, envMapIntensity: 0.12 },
@@ -29,33 +29,30 @@ const PAINT = {
   string: ['#d2be9a', 'cloth'], goblinSkin: ['#789944', 'skin'], ogreSkin: ['#94916a', 'skin'],
 };
 
-export const DEFAULT_VOXEL_APPEARANCE = Object.freeze({ head: 'knight', torso: 'steel', arms: 'plate', legs: 'armored', weapon: 'sword', shield: 'kite' });
+export const DEFAULT_VOXEL_APPEARANCE = Object.freeze({ head: 'knight', torso: 'steel', arms: 'plate', legs: 'armored', back: 'none', mainhand: 'sword', offhand: 'kite' });
 export const VOXEL_APPEARANCE_OPTIONS = Object.freeze({
   head: [{ value: 'knight', label: 'Knight’s great helm' }, { value: 'plumed', label: 'Plumed great helm' }, { value: 'bare', label: 'Short hair' }, { value: 'bald', label: 'Shaven head' }, { value: 'hood', label: 'Deep hood' }, { value: 'wizardHat', label: 'Pointed wizard hat' }, { value: 'crown', label: 'Crowned head' }, { value: 'longHair', label: 'Long hair' }, { value: 'goblin', label: 'Goblin head' }, { value: 'ogre', label: 'Tusken ogre head' }, { value: 'skull', label: 'Skull' }],
   torso: [{ value: 'teal', label: 'Teal brigandine' }, { value: 'crimson', label: 'Crimson coat' }, { value: 'steel', label: 'Steel cuirass' }, { value: 'chain', label: 'Chainmail hauberk' }, { value: 'leather', label: 'Leather jerkin' }, { value: 'tunic', label: 'Cloth tunic' }, { value: 'robe', label: 'Robed torso' }, { value: 'ribs', label: 'Rib cage' }],
   arms: [{ value: 'plate', label: 'Plate arms & gauntlets' }, { value: 'leather', label: 'Leather sleeves & gloves' }, { value: 'sleeves', label: 'Cloth sleeves' }, { value: 'bare', label: 'Bare arms' }, { value: 'bones', label: 'Skeletal arms' }],
   legs: [{ value: 'armored', label: 'Armored boots' }, { value: 'ranger', label: 'Ranger leathers' }, { value: 'robe', label: 'Long robe' }, { value: 'skirt', label: 'Kilt & boots' }, { value: 'bare', label: 'Bare feet' }, { value: 'bones', label: 'Skeletal legs' }],
-  weapon: [{ value: 'sword', label: 'Longsword' }, { value: 'shortSword', label: 'Short sword' }, { value: 'dagger', label: 'Dagger' }, { value: 'axe', label: 'Battle axe' }, { value: 'mace', label: 'Spiked mace' }, { value: 'flail', label: 'Flail' }, { value: 'staff', label: 'Crystal staff' }, { value: 'bow', label: 'Longbow' }, { value: 'club', label: 'Ogre club' }, { value: 'none', label: 'Empty hand' }],
-  shield: [{ value: 'kite', label: 'Kite shield' }, { value: 'round', label: 'Round shield' }, { value: 'none', label: 'No shield' }],
+  back: [{ value: 'none', label: 'No back item' }, { value: 'cape', label: 'Cloth cape' }, { value: 'backpack', label: 'Leather backpack' }],
+  mainhand: [{ value: 'sword', label: 'Longsword' }, { value: 'shortSword', label: 'Short sword' }, { value: 'dagger', label: 'Dagger' }, { value: 'axe', label: 'Battle axe' }, { value: 'mace', label: 'Spiked mace' }, { value: 'flail', label: 'Flail' }, { value: 'staff', label: 'Crystal staff' }, { value: 'bow', label: 'Longbow' }, { value: 'club', label: 'Ogre club' }, { value: 'none', label: 'Empty hand' }],
+  offhand: [{ value: 'kite', label: 'Kite shield' }, { value: 'round', label: 'Round shield' }, { value: 'none', label: 'Empty hand' }],
 });
 
-// These are anatomical slots, so changing a torso can never replace an arm.
-const PART_SLOTS = {
-  head: ['1-2-1'], torso: ['1-1-1'], arms: ['0-1-1', '2-1-1'],
-  legs: ['1-0-1'], weapon: ['0-1-2', '0-2-2'], shield: ['2-1-2'],
-};
-
-// Author components in integer voxel space; each compiled asset owns only 8³ cells.
-function painter(minY = 0, maxY = 23) {
+// Optional horizontal cuts shape waist seams and hemlines in the authored figures.
+// The resulting parts have unrestricted coordinates and dimensions.
+function painter(minY = -Infinity, maxY = Infinity) {
   const cells = new Map();
   function put(x, y, z, surface) {
-    if (x < 0 || x > 23 || y < minY || y > maxY || z < 0 || z > 23) throw new RangeError('Authored voxel outside its component volume');
+    if (![x, y, z].every(Number.isInteger)) throw new TypeError('Authored voxel coordinates must be integers');
+    if (!PAINT[surface]) throw new RangeError(`Unknown voxel surface: ${surface}`);
     cells.set(`${x},${y},${z}`, { x, y, z, surface });
   }
   function shape(min, max, inside, surface) {
-    for (let x = Math.max(0, Math.ceil(min[0] - 0.5)); x <= Math.min(23, Math.floor(max[0] - 0.5)); x++) {
+    for (let x = Math.ceil(min[0] - 0.5); x <= Math.floor(max[0] - 0.5); x++) {
       for (let y = Math.max(minY, Math.ceil(min[1] - 0.5)); y <= Math.min(maxY, Math.floor(max[1] - 0.5)); y++) {
-        for (let z = Math.max(0, Math.ceil(min[2] - 0.5)); z <= Math.min(23, Math.floor(max[2] - 0.5)); z++) {
+        for (let z = Math.ceil(min[2] - 0.5); z <= Math.floor(max[2] - 0.5); z++) {
           if (inside(x + 0.5, y + 0.5, z + 0.5)) put(x, y, z, surface);
         }
       }
@@ -173,7 +170,7 @@ function makeArms(style) {
       if (armored || style==='leather') p.box([x,15,11],[x+2,16,14],armored ? 'silver' : 'belt');
     }
   }
-  // Each complete hand ends at its own block face; equipment attaches in front.
+  // Each complete hand includes its fingers; equipment attaches in front.
   const hand=style==='sleeves'?'skin':forearm;
   p.box([5,13,14],[7,15,16],hand);
   p.box([16,10,14],[18,12,16],hand);
@@ -275,8 +272,34 @@ function makeHead(style) {
 }
 
 function makeEquipment(part, style) {
-  const p = painter(8,23);
-  (part === 'weapon' ? paintWeapon : paintShield)(p,style);
+  const p = painter();
+  (part === 'mainhand' ? paintMainhand : paintOffhand)(p,style);
+  return p.cells;
+}
+
+function makeBack(style) {
+  const p = painter();
+  if (style === 'cape') {
+    p.box([8,14,8],[16,16,10],'teal');
+    for (let y=3;y<15;y++) {
+      const width=y<8?6:5;
+      const z=y<7?6:y<12?7:8;
+      p.box([12-width,y,z],[12+width,y+1,z+1],'teal');
+      for (const x of [9,12,15]) p.put(x,y,z-1,'midnight');
+      if (y===3) p.box([12-width,y,z],[12+width,y+1,z+1],'gold');
+    }
+  } else if (style === 'backpack') {
+    p.box([8,9,5],[16,15,9],'leather');
+    p.box([9,15,6],[15,16,9],'belt');
+    p.box([9,9,4],[15,12,5],'belt');
+    for (const x of [9,14]) {
+      p.box([x,10,4],[x+1,15,6],'belt');
+      p.put(x,12,4,'gold');
+    }
+    p.box([9,16,6],[15,18,8],'ivory');
+    p.box([10,16,6],[11,18,8],'belt');
+    p.box([13,16,6],[14,18,8],'belt');
+  }
   return p.cells;
 }
 
@@ -287,55 +310,43 @@ function voxelColor(cell) {
   return '#'+[1,3,5].map(i=>Math.max(0,Math.min(255,Math.round(parseInt(base.slice(i,i+2),16)+variation))).toString(16).padStart(2,'0')).join('');
 }
 
-export const VOXEL_BLOCKS = new Map();
-const signatures = new Map();
-const blockSurfaces = new Map();
-const themedBlocks = new Map();
+export const VOXEL_PART_LIBRARY = new Map();
+const partSurfaces = new Map();
+const themedParts = new Map();
 function registerPart(id, cells) {
-  const chunks = new Map();
-  for(const cell of cells.values()) {
-    const slot=[cell.x,cell.y,cell.z].map(v=>Math.floor(v/8));
-    const key=slot.join('-');
-    if (!PART_SLOTS[id.split('/')[0]].includes(key)) throw new RangeError(`${id} crosses its anatomical block boundary at ${key}`);
-    if(!chunks.has(key)) chunks.set(key,{slot,voxels:[]});
-    chunks.get(key).voxels.push({x:cell.x%8,y:cell.y%8,z:cell.z%8,color:voxelColor(cell),material:PAINT[cell.surface][1],surface:cell.surface});
-  }
-  const placements=[];
-  for(const [key,{slot,voxels}] of chunks) {
-    voxels.sort((a,b)=>a.x-b.x || a.y-b.y || a.z-b.z);
-    const signature=JSON.stringify(voxels);
-    let blockId=signatures.get(signature);
-    if(!blockId) {
-      blockId=`${id}/${key}`;
-      VOXEL_BLOCKS.set(blockId,defineVoxelBlock({id:blockId,name:id.replaceAll('/',' · '),voxels}));
-      blockSurfaces.set(blockId,voxels.map(voxel=>voxel.surface));
-      signatures.set(signature,blockId);
-    }
-    placements.push(Object.freeze({x:slot[0],y:slot[1],z:slot[2],blockId}));
-  }
-  return Object.freeze(placements);
+  if (cells.size === 0) return null;
+  const authored = [...cells.values()].sort((a,b)=>a.x-b.x || a.y-b.y || a.z-b.z);
+  const voxels = authored.map(cell => ({
+    x: cell.x-12, y: cell.y, z: cell.z-12,
+    color: voxelColor(cell), material: PAINT[cell.surface][1],
+  }));
+  const part = defineVoxelPart({ id, name:id.replaceAll('/',' · '), voxels });
+  VOXEL_PART_LIBRARY.set(id,part);
+  partSurfaces.set(id,authored.map(cell=>cell.surface));
+  return part;
 }
 
 export const VOXEL_PARTS = Object.freeze({
-  head: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.head.map(({value})=>[value,registerPart(`head/${value}`,makeHead(value))]))),
   torso: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.torso.map(({value})=>[value,registerPart(`torso/${value}`,makeTorso(value))]))),
-  arms: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.arms.map(({value})=>[value,registerPart(`arms/${value}`,makeArms(value))]))),
   legs: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.legs.map(({value})=>[value,registerPart(`legs/${value}`,makeLegs(value))]))),
-  weapon: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.weapon.map(({value})=>[value,registerPart(`weapon/${value}`,makeEquipment('weapon',value))]))),
-  shield: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.shield.map(({value})=>[value,registerPart(`shield/${value}`,makeEquipment('shield',value))]))),
+  arms: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.arms.map(({value})=>[value,registerPart(`arms/${value}`,makeArms(value))]))),
+  head: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.head.map(({value})=>[value,registerPart(`head/${value}`,makeHead(value))]))),
+  back: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.back.map(({value})=>[value,registerPart(`back/${value}`,makeBack(value))]))),
+  offhand: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.offhand.map(({value})=>[value,registerPart(`offhand/${value}`,makeEquipment('offhand',value))]))),
+  mainhand: Object.freeze(Object.fromEntries(VOXEL_APPEARANCE_OPTIONS.mainhand.map(({value})=>[value,registerPart(`mainhand/${value}`,makeEquipment('mainhand',value))]))),
 });
 
-// Themed assets retain the same geometry and reuse every unpainted block by reference.
-function themedBlock(blockId, colors) {
-  const source=VOXEL_BLOCKS.get(blockId);
-  const surfaces=blockSurfaces.get(blockId);
+// Themes recolor complete parts while preserving the authored shading and shape.
+function themedPart(partId, colors) {
+  const source=VOXEL_PART_LIBRARY.get(partId);
+  const surfaces=partSurfaces.get(partId);
   const used=Object.fromEntries([...new Set(surfaces)].filter(surface=>colors[surface]!==undefined).sort().map(surface=>[surface,colors[surface]]));
   if(Object.keys(used).length===0) return source;
   for(const [surface,color] of Object.entries(used)) {
     if(!/^#[0-9a-f]{6}$/i.test(color)) throw new TypeError(`Invalid ${surface} color: ${color}`);
   }
-  const key=`${blockId}/${Object.entries(used).map(([surface,color])=>`${surface}-${color.slice(1)}`).join('_')}`;
-  if(!themedBlocks.has(key)) {
+  const key=`${partId}/${Object.entries(used).map(([surface,color])=>`${surface}-${color.slice(1)}`).join('_')}`;
+  if(!themedParts.has(key)) {
     const voxels=source.voxels.map((voxel,index)=>{
       const surface=surfaces[index];
       if(!used[surface]) return voxel;
@@ -345,23 +356,22 @@ function themedBlock(blockId, colors) {
       }).join('');
       return {...voxel,color};
     });
-    themedBlocks.set(key,defineVoxelBlock({id:key,name:source.name,voxels}));
+    themedParts.set(key,defineVoxelPart({id:key,name:source.name,voxels}));
   }
-  return themedBlocks.get(key);
+  return themedParts.get(key);
 }
 
 export function assembleCharacterParts(appearance = DEFAULT_VOXEL_APPEARANCE, colors = {}) {
   const selected={...DEFAULT_VOXEL_APPEARANCE,...appearance};
-  const placements=[];
-  const blocks=new Map();
-  for(const part of Object.keys(VOXEL_PARTS)) {
-    if(!Object.hasOwn(VOXEL_PARTS[part],selected[part])) throw new RangeError(`Unknown ${part} variant: ${selected[part]}`);
-    for(const placement of VOXEL_PARTS[part][selected[part]]) {
-      const block=themedBlock(placement.blockId,colors);
-      blocks.set(block.id,block);
-      placements.push({...placement,blockId:block.id});
-    }
+  const references={};
+  const parts=new Map();
+  for(const slot of Object.keys(VOXEL_PARTS)) {
+    if(!Object.hasOwn(VOXEL_PARTS[slot],selected[slot])) throw new RangeError(`Unknown ${slot} variant: ${selected[slot]}`);
+    const source=VOXEL_PARTS[slot][selected[slot]];
+    const part=source?themedPart(source.id,colors):null;
+    if (part) parts.set(part.id,part);
+    references[slot]=part?{partId:part.id}:null;
   }
-  const recipe=createCharacterRecipe({id:[...Object.keys(VOXEL_PARTS).map(part=>selected[part]),selected.palette].filter(Boolean).join('-'),placements});
-  return { appearance:selected, recipe, blocks, assembly:assembleVoxelCharacter(recipe,blocks) };
+  const recipe=createCharacterRecipe({id:[...Object.keys(VOXEL_PARTS).map(slot=>selected[slot]),selected.palette].filter(Boolean).join('-'),parts:references});
+  return { appearance:selected, recipe, parts, assembly:assembleVoxelCharacter(recipe,parts) };
 }

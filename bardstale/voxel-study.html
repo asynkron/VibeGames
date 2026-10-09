@@ -26,7 +26,7 @@
     </header>
 
     <section class="intro">
-      <h1>Small blocks. <em>A whole party.</em></h1>
+      <h1>Mix the parts. <em>Make the party.</em></h1>
       <p class="intro-note">Build a hero. Meet the monsters.<br />The figures used in combat.</p>
     </section>
 
@@ -35,24 +35,25 @@
         <div class="section-heading"><h2>Character workshop</h2></div>
         <p class="description">Choose body parts and equipment.</p>
         <div class="part-selector roster-selector"><label for="character-kind">Hero or creature</label><select id="character-kind"></select></div>
-        <p class="reference-note" id="creature-note" hidden>This creature has its own body blocks. Rotate or separate them to inspect its shape.</p>
+        <p class="reference-note" id="creature-note" hidden>This custom creature uses one torso part for its whole body.</p>
         <fieldset class="part-selectors">
           <legend>Character</legend>
-          <div class="part-selector"><label for="head-variant">Head &amp; helmet</label><select id="head-variant" aria-describedby="block-note"></select></div>
-          <div class="part-selector"><label for="torso-variant">Torso</label><select id="torso-variant" aria-describedby="block-note"></select></div>
-          <div class="part-selector"><label for="arms-variant">Arms &amp; gauntlets</label><select id="arms-variant" aria-describedby="block-note"></select></div>
-          <div class="part-selector"><label for="legs-variant">Legs &amp; boots</label><select id="legs-variant" aria-describedby="block-note"></select></div>
-          <div class="part-selector"><label for="palette-variant">Colors</label><select id="palette-variant" aria-describedby="block-note"></select></div>
+          <div class="part-selector"><label for="head-variant">Head &amp; helmet</label><select id="head-variant" aria-describedby="part-note"></select></div>
+          <div class="part-selector"><label for="torso-variant">Torso</label><select id="torso-variant" aria-describedby="part-note"></select></div>
+          <div class="part-selector"><label for="arms-variant">Arms &amp; gauntlets</label><select id="arms-variant" aria-describedby="part-note"></select></div>
+          <div class="part-selector"><label for="legs-variant">Legs &amp; boots</label><select id="legs-variant" aria-describedby="part-note"></select></div>
+          <div class="part-selector"><label for="back-variant">Back</label><select id="back-variant" aria-describedby="part-note"></select></div>
+          <div class="part-selector"><label for="palette-variant">Colors</label><select id="palette-variant" aria-describedby="part-note"></select></div>
         </fieldset>
         <fieldset class="part-selectors equipment-selectors">
           <legend>Equipment</legend>
-          <div class="part-selector"><label for="weapon-variant">Weapon</label><select id="weapon-variant" aria-describedby="block-note"></select></div>
-          <div class="part-selector"><label for="shield-variant">Shield</label><select id="shield-variant" aria-describedby="block-note"></select></div>
+          <div class="part-selector"><label for="mainhand-variant">Main hand</label><select id="mainhand-variant" aria-describedby="part-note"></select></div>
+          <div class="part-selector"><label for="offhand-variant">Off hand</label><select id="offhand-variant" aria-describedby="part-note"></select></div>
         </fieldset>
         <details class="model-details">
           <summary>Model details &amp; source</summary>
-          <p class="reference-note" id="block-note">Each part uses 8 × 8 × 8 voxel blocks in a 3 × 3 × 3 grid.</p>
-          <dl class="model-stats"><div><dt>Blocks used</dt><dd id="block-count">— / 27</dd></div><div><dt>Voxel count</dt><dd id="voxel-count">—</dd></div><div><dt>Dimensions</dt><dd id="dimensions">24 × 24 × 24</dd></div></dl>
+          <p class="reference-note" id="part-note">Mix complete body parts and equipment. Each part can be any size; custom figures can use a single torso.</p>
+          <dl class="model-stats"><div><dt>Parts</dt><dd id="part-count">—</dd></div><div><dt>Voxel count</dt><dd id="voxel-count">—</dd></div><div><dt>Dimensions</dt><dd id="dimensions">—</dd></div></dl>
           <div class="palette-section"><span class="palette-label">MATERIALS &amp; COLORS</span><div class="palette" id="palette" aria-label="Cloth, leather, steel, gold, skin and feather colors"></div></div>
           <figure class="source-figure">
             <a href="./assets/voxel-study/source-sprite.png" target="_blank" rel="noopener" aria-label="Open original sprite at full size"><img src="./assets/voxel-study/source-sprite.png" width="328" height="322" alt="Original pixel sprite: a red and gold warrior with a white plume and a raised black flail with a white ball." /></a>
@@ -77,11 +78,11 @@
           </div>
           <div class="toggles"><button id="rotate" type="button" aria-pressed="false"><span class="rotate-icon" aria-hidden="true">↻</span> Auto-rotate</button><button id="grid" type="button" aria-pressed="true"><span class="grid-icon" aria-hidden="true">▦</span> Grid</button></div>
           <button id="reset" class="reset-button" type="button" title="Reset camera and display settings" aria-label="Reset view">↺</button>
-          <div class="block-tools" role="group" aria-label="Block assembly view"><button id="block-grid" type="button" aria-pressed="false">Block boundaries</button><button id="explode" type="button" aria-pressed="false">Separate blocks</button></div>
+          <div class="part-tools" role="group" aria-label="Body part assembly view"><button id="part-bounds" type="button" aria-pressed="false">Part bounds</button><button id="explode" type="button" aria-pressed="false">Separate parts</button></div>
         </div>
       </div>
     </section>
-    <footer><span><i class="tiny-cube"></i> FROM FLAT TO FULLY FORMED</span><div class="export-actions"><button id="save-image" type="button">Save image <span aria-hidden="true">↗</span></button><button id="export-recipe" type="button">Export blocks <span aria-hidden="true">↗</span></button></div><span class="footer-credit">A little experiment in Three.js</span></footer>
+    <footer><span><i class="tiny-cube"></i> FROM FLAT TO FULLY FORMED</span><div class="export-actions"><button id="save-image" type="button">Save image <span aria-hidden="true">↗</span></button><button id="export-recipe" type="button">Export parts <span aria-hidden="true">↗</span></button></div><span class="footer-credit">A little experiment in Three.js</span></footer>
     <p id="save-status" class="sr-only" role="status" aria-live="polite"></p>
     <p id="assembly-status" class="sr-only" role="status" aria-live="polite"></p>
   </main>

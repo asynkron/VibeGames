@@ -1,4 +1,4 @@
-// Equipment owns the front outer columns, leaving each arm and gauntlet intact.
+// Equipment is authored around the grips of the complete hands.
 function handle(p, top, surface = 'leather') {
   p.box([5, 12, 17], [6, top + 1, 18], surface);
   p.put(5, 13, 16, 'leather');
@@ -85,7 +85,7 @@ function club(p) {
 
 const weapons = { flail, sword, axe, mace, shortSword:p=>shortBlade(p,false), dagger:p=>shortBlade(p,true), staff, bow, club, none: () => {} };
 
-export function paintWeapon(p, style) {
+export function paintMainhand(p, style) {
   if (!Object.hasOwn(weapons, style)) throw new RangeError(`Unknown weapon variant: ${style}`);
   weapons[style](p);
 }
@@ -102,7 +102,7 @@ function shield(p, rows, surface, round) {
       if (!edge && (x === 19 || x === 20 || y === 13)) p.put(x, y, 18, 'gold');
     }
   }
-  // A short back strap meets the complete gauntlet in the adjacent arm block.
+  // A short back strap meets the complete gauntlet.
   p.put(16, 11, 16, 'steel');
   p.put(17, 11, 16, 'leather');
   p.put(18, 11, 16, 'leather');
@@ -115,7 +115,7 @@ const shields = {
   round: p => shield(p, [[15, 18, 21], [14, 17, 22], [13, 16, 23], [12, 16, 23], [11, 16, 23], [10, 17, 22], [9, 18, 21]], 'teal', true),
 };
 
-export function paintShield(p, style) {
+export function paintOffhand(p, style) {
   if (!Object.hasOwn(shields, style)) throw new RangeError(`Unknown shield variant: ${style}`);
   shields[style](p);
 }

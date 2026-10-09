@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { BLOCK_SIZE, CHARACTER_SIZE } from './voxelBlocks.js';
 import { VOXEL_MATERIALS } from './voxelCharacterParts.js';
 
 const FACES = [
@@ -53,51 +52,75 @@ function surfaceMeshes(voxels, materials, geometries) {
   });
 }
 
-/** The same assembled block recipe renders in combat and in the block workshop. */
+/** Combat and the workshop share the same assembled body parts and materials. */
 export function createVoxelFigure(model, { layout = 'figure' } = {}) {
-  if (layout !== 'figure' && layout !== 'blocks') throw new Error(`Unknown voxel layout: ${layout}`);
-  const { assembly, recipe, appearance, blocks: library } = model;
+  if (layout !== 'figure' && layout !== 'parts') throw new Error(`Unknown voxel layout: ${layout}`);
+  const { assembly, recipe, appearance, parts: library } = model;
   const group = new THREE.Group();
   group.name = recipe.id;
   const geometries = [];
   const materials = Object.fromEntries(Object.entries(VOXEL_MATERIALS).map(([kind, properties]) =>
     [kind,new THREE.MeshStandardMaterial({ ...properties, vertexColors: true })]));
+  const surface = new THREE.Group();
+  surface.name = 'assembled-figure';
+  surface.add(...surfaceMeshes(assembly.voxels,materials,geometries));
+  group.add(surface);
   const parts = [];
-  let outlineGeometry;
   let outlineMaterial;
+  let exploded = false;
+  const gap = Math.max(3, Math.max(...Object.values(assembly.dimensions)) * 0.16);
+  const separation = {
+    torso: [0,gap,0], legs: [0,0,0], arms: [0,gap,gap * 1.5],
+    head: [0,gap * 2,0], back: [0,gap,-gap * 1.5],
+    offhand: [gap * 1.5,gap,0], mainhand: [-gap * 1.5,gap,0],
+  };
 
-  if (layout === 'blocks') {
-    const box = new THREE.BoxGeometry(BLOCK_SIZE,BLOCK_SIZE,BLOCK_SIZE);
-    outlineGeometry = new THREE.EdgesGeometry(box);
-    box.dispose();
-    outlineMaterial = new THREE.LineBasicMaterial({color:'#e5c298',transparent:true,opacity:0.32});
-    for (const slot of assembly.slots) {
-      const block = new THREE.Group();
-      block.name = slot.blockId ?? `empty-${slot.x}-${slot.y}-${slot.z}`;
-      const outline = new THREE.LineSegments(outlineGeometry,outlineMaterial);
-      outline.position.setScalar(BLOCK_SIZE/2);
+  if (layout === 'parts') {
+    outlineMaterial = new THREE.LineBasicMaterial({color:'#e5c298',transparent:true,opacity:0.48});
+    for (const [slot, part] of Object.entries(assembly.parts)) {
+      if (!part || !part.voxels.length) continue;
+      const partGroup = new THREE.Group();
+      partGroup.name = `part-${slot}`;
+      const meshes = new THREE.Group();
+      meshes.add(...surfaceMeshes(part.voxels,materials,geometries));
+      meshes.visible = false;
+      const { width, height, depth } = part.dimensions;
+      const box = new THREE.BoxGeometry(width,height,depth);
+      const edges = new THREE.EdgesGeometry(box);
+      geometries.push(edges);
+      box.dispose();
+      const outline = new THREE.LineSegments(edges,outlineMaterial);
+      outline.position.set(
+        (part.bounds.min.x+part.bounds.max.x)/2,
+        (part.bounds.min.y+part.bounds.max.y)/2,
+        (part.bounds.min.z+part.bounds.max.z)/2,
+      );
       outline.visible = false;
-      block.add(outline);
-      if (slot.blockId !== null) block.add(...surfaceMeshes(library.get(slot.blockId).voxels,materials,geometries));
-      parts.push({...slot,group:block,outline});
-      group.add(block);
+      partGroup.add(meshes,outline);
+      parts.push({slot,...part,group:partGroup,meshes,outline});
+      group.add(partGroup);
     }
-  } else {
-    const surface = new THREE.Group();
-    surface.position.set(-CHARACTER_SIZE/2,0,-CHARACTER_SIZE/2);
-    surface.add(...surfaceMeshes(assembly.voxels,materials,geometries));
-    group.add(surface);
   }
 
   function setExploded(enabled) {
-    const gap = enabled ? 3 : 0;
-    for (const part of parts) part.group.position.set(
-      part.x*BLOCK_SIZE-CHARACTER_SIZE/2+(part.x-1)*gap,
-      part.y*(BLOCK_SIZE+gap),
-      part.z*BLOCK_SIZE-CHARACTER_SIZE/2+(part.z-1)*gap,
-    );
+    exploded = enabled && layout === 'parts';
+    surface.visible = !exploded;
+    for (const part of parts) {
+      part.group.position.fromArray(exploded ? separation[part.slot] : [0,0,0]);
+      part.meshes.visible = exploded;
+    }
   }
-  setExploded(false);
+
+  function getDisplayBounds() {
+    if (!exploded) return assembly.bounds;
+    const bounds = {min:{x:Infinity,y:Infinity,z:Infinity},max:{x:-Infinity,y:-Infinity,z:-Infinity}};
+    for (const part of parts) for (const axis of ['x','y','z']) {
+      bounds.min[axis] = Math.min(bounds.min[axis],part.bounds.min[axis]+part.group.position[axis]);
+      bounds.max[axis] = Math.max(bounds.max[axis],part.bounds.max[axis]+part.group.position[axis]);
+    }
+    return parts.length ? bounds : assembly.bounds;
+  }
+
   const swatches = new Map();
   for (const voxel of assembly.voxels) if (!swatches.has(voxel.material)) {
     swatches.set(voxel.material,{name:voxel.material,color:voxel.color});
@@ -105,19 +128,19 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
   return {
     group,recipe,appearance,assembly,
     voxelCount:assembly.voxels.length,
-    occupiedBlockCount:assembly.occupiedBlockCount,
+    partCount:assembly.partCount,
     dimensions:assembly.dimensions,
     palette:[...swatches.values()],
+    getDisplayBounds,
     setExploded,
-    setBlockBoundaries(visible) { parts.forEach(part=>{part.outline.visible=visible;}); },
+    setPartBounds(visible) { parts.forEach(part=>{part.outline.visible=visible;}); },
     exportData() {
-      const ids=[...new Set(recipe.slots.map(slot=>slot.blockId).filter(id=>id!==null))];
-      return {format:'voxel-character/1',blockSize:BLOCK_SIZE,gridSize:[3,3,3],appearance,recipe,blocks:ids.map(id=>library.get(id))};
+      const ids=[...new Set(Object.values(recipe.parts).filter(Boolean).map(part=>part.partId))];
+      return {format:'voxel-character/2',appearance,recipe,parts:ids.map(id=>library.get(id))};
     },
     dispose() {
       geometries.forEach(geometry=>geometry.dispose());
       Object.values(materials).forEach(material=>material.dispose());
-      outlineGeometry?.dispose();
       outlineMaterial?.dispose();
     },
   };

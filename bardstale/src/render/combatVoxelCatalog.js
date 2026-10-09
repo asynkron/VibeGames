@@ -20,15 +20,15 @@ export const COMBAT_VOXEL_APPEARANCE_OPTIONS=Object.freeze({
   palette:COMBAT_VOXEL_PALETTES,
 });
 
-const PERSON={head:'bare',torso:'tunic',arms:'sleeves',legs:'ranger',weapon:'sword',shield:'none',palette:'azure'};
-const CASTER={...PERSON,torso:'robe',legs:'robe',weapon:'staff'};
+const PERSON={head:'bare',torso:'tunic',arms:'sleeves',legs:'ranger',mainhand:'sword',offhand:'none',back:'none',palette:'azure'};
+const CASTER={...PERSON,torso:'robe',legs:'robe',mainhand:'staff'};
 const PRESETS=Object.freeze({
-  warrior:{...PERSON,torso:'chain',arms:'plate',legs:'armored',shield:'round'},
-  paladin:{...PERSON,head:'plumed',torso:'steel',arms:'plate',legs:'armored',shield:'kite',palette:'steel'},
-  rogue:{...PERSON,head:'hood',torso:'leather',arms:'leather',weapon:'dagger',palette:'forest'},
-  bard:{...PERSON,head:'longHair',torso:'leather',weapon:'shortSword',palette:'ochre'},
-  hunter:{...PERSON,torso:'leather',arms:'leather',weapon:'bow',palette:'forest'},
-  monk:{...PERSON,head:'bald',arms:'bare',legs:'skirt',weapon:'none',palette:'ochre'},
+  warrior:{...PERSON,torso:'chain',arms:'plate',legs:'armored',offhand:'round'},
+  paladin:{...PERSON,head:'plumed',torso:'steel',arms:'plate',legs:'armored',offhand:'kite',palette:'steel'},
+  rogue:{...PERSON,head:'hood',torso:'leather',arms:'leather',mainhand:'dagger',palette:'forest'},
+  bard:{...PERSON,head:'longHair',torso:'leather',mainhand:'shortSword',palette:'ochre'},
+  hunter:{...PERSON,torso:'leather',arms:'leather',mainhand:'bow',palette:'forest'},
+  monk:{...PERSON,head:'bald',arms:'bare',legs:'skirt',mainhand:'none',palette:'ochre'},
   conjurer:{...CASTER,palette:'crimson'},
   magician:{...CASTER,palette:'azure'},
   sorcerer:{...CASTER,head:'hood',palette:'violet'},
@@ -36,14 +36,14 @@ const PRESETS=Object.freeze({
   archmage:{...CASTER,head:'crown',palette:'crimson'},
   chronomancer:{...CASTER,head:'crown',palette:'violet'},
   geomancer:{...CASTER,head:'bald',palette:'forest'},
-  hobbit:{...PERSON,torso:'leather',legs:'bare',weapon:'dagger',palette:'ochre'},
-  hobgoblin:{...PERSON,head:'goblin',torso:'leather',arms:'bare',legs:'skirt',weapon:'axe',shield:'round',palette:'goblin'},
+  hobbit:{...PERSON,torso:'leather',legs:'bare',mainhand:'dagger',palette:'ochre'},
+  hobgoblin:{...PERSON,head:'goblin',torso:'leather',arms:'bare',legs:'skirt',mainhand:'axe',offhand:'round',palette:'goblin'},
   skeleton:{...PERSON,head:'skull',torso:'ribs',arms:'bones',legs:'bones',palette:'bone'},
-  knight:{...PERSON,head:'knight',torso:'steel',arms:'plate',legs:'armored',shield:'kite',palette:'crimson'},
+  knight:{...PERSON,head:'knight',torso:'steel',arms:'plate',legs:'armored',offhand:'kite',palette:'crimson'},
   mage:{...CASTER,head:'wizardHat',palette:'azure'},
   enchantress:{...CASTER,head:'longHair',palette:'violet'},
   warlock:{...CASTER,head:'hood',palette:'crimson'},
-  ogre:{...PERSON,head:'ogre',torso:'leather',arms:'bare',legs:'skirt',weapon:'club',palette:'ogre'},
+  ogre:{...PERSON,head:'ogre',torso:'leather',arms:'bare',legs:'skirt',mainhand:'club',palette:'ogre'},
   lich:{...CASTER,head:'skull',arms:'bones',palette:'bone'},
 });
 const CREATURES=Object.freeze(['serpent','rat_swarm','elemental']);
@@ -66,7 +66,7 @@ export function getCombatVoxelAppearance({kind,equipment,appearance={}}) {
   const key=normalizeKind(kind);
   if(CREATURES.includes(key)) {
     if(equipment && Object.values(equipment).some(Boolean)) throw new RangeError(`${key} does not use humanoid equipment`);
-    if(Object.keys(appearance).some(part=>part!=='form') || (appearance.form && appearance.form!==key)) throw new RangeError(`${key} does not use humanoid block variants`);
+    if(Object.keys(appearance).some(part=>part!=='form') || (appearance.form && appearance.form!==key)) throw new RangeError(`${key} does not use humanoid part variants`);
     return {form:key};
   }
   const result={...PRESETS[key]};
@@ -74,8 +74,8 @@ export function getCombatVoxelAppearance({kind,equipment,appearance={}}) {
     if(equipment.weapon && !Object.hasOwn(WEAPONS,equipment.weapon)) throw new RangeError(`Unknown combat weapon: ${equipment.weapon}`);
     if(equipment.body && !Object.hasOwn(ARMOR,equipment.body)) throw new RangeError(`Unknown combat armor: ${equipment.body}`);
     if(equipment.offhand && equipment.offhand!=='shield_wood') throw new RangeError(`Unknown combat shield: ${equipment.offhand}`);
-    result.weapon=equipment.weapon?WEAPONS[equipment.weapon]:'none';
-    result.shield=equipment.offhand?'round':'none';
+    result.mainhand=equipment.weapon?WEAPONS[equipment.weapon]:'none';
+    result.offhand=equipment.offhand?'round':'none';
     result.torso=PRESETS[key].torso==='robe'?'robe':'tunic';
     result.arms=PRESETS[key].arms==='bare'?'bare':'sleeves';
     Object.assign(result,ARMOR[equipment.body]);

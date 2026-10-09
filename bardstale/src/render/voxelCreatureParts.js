@@ -1,4 +1,4 @@
-import { BLOCK_SIZE, CHARACTER_SIZE, defineVoxelBlock, createCharacterRecipe, assembleVoxelCharacter } from './voxelBlocks.js';
+import { defineVoxelPart, createCharacterRecipe, assembleVoxelCharacter } from './voxelParts.js';
 
 const SURFACES = {
   scale: ['#367d55', 'skin'], scaleDark: ['#1b5141', 'skin'], scaleLight: ['#68a65c', 'skin'],
@@ -15,16 +15,14 @@ const SURFACES = {
 function sculpt() {
   const cells = new Map();
   function put(x, y, z, surface) {
-    if (![x, y, z].every(value => Number.isInteger(value) && value >= 0 && value < CHARACTER_SIZE)) {
-      throw new RangeError('Creature voxel must be inside its 24³ volume.');
-    }
+    if (![x, y, z].every(Number.isInteger)) throw new TypeError('Creature voxel coordinates must be integers.');
     if (!SURFACES[surface]) throw new Error(`Unknown creature surface: ${surface}.`);
     cells.set(`${x},${y},${z}`, { x, y, z, surface });
   }
   function shape(min, max, inside, surface) {
-    for (let x = Math.max(0, Math.ceil(min[0] - .5)); x <= Math.min(23, Math.floor(max[0] - .5)); x++) {
-      for (let y = Math.max(0, Math.ceil(min[1] - .5)); y <= Math.min(23, Math.floor(max[1] - .5)); y++) {
-        for (let z = Math.max(0, Math.ceil(min[2] - .5)); z <= Math.min(23, Math.floor(max[2] - .5)); z++) {
+    for (let x = Math.ceil(min[0] - .5); x <= Math.floor(max[0] - .5); x++) {
+      for (let y = Math.ceil(min[1] - .5); y <= Math.floor(max[1] - .5); y++) {
+        for (let z = Math.ceil(min[2] - .5); z <= Math.floor(max[2] - .5); z++) {
           if (inside(x + .5, y + .5, z + .5)) put(x, y, z, surface);
         }
       }
@@ -165,25 +163,17 @@ function colorFor(cell) {
 }
 
 function compile(kind, cells, scale) {
-  const chunks = new Map();
-  for (const cell of cells.values()) {
-    const slot = [cell.x,cell.y,cell.z].map(n => Math.floor(n / BLOCK_SIZE));
-    const key = slot.join('-');
-    if (!chunks.has(key)) chunks.set(key,{ slot, voxels: [] });
-    chunks.get(key).voxels.push({ x:cell.x % BLOCK_SIZE, y:cell.y % BLOCK_SIZE, z:cell.z % BLOCK_SIZE, ...colorFor(cell) });
-  }
-  const blocks = new Map();
-  const placements = [];
-  for (const [key, { slot, voxels }] of chunks) {
-    const id = `creature/${kind}/${key}`;
-    blocks.set(id,defineVoxelBlock({ id, name:`${kind.replaceAll('_',' ')} · ${key}`, voxels }));
-    placements.push({ x:slot[0], y:slot[1], z:slot[2], blockId:id });
-  }
-  const recipe = createCharacterRecipe({ id:`creature/${kind}`, placements });
+  const id = `creature/${kind}`;
+  const voxels = [...cells.values()].map(cell => ({
+    x:cell.x-12, y:cell.y, z:cell.z-12, ...colorFor(cell),
+  }));
+  const torso = defineVoxelPart({ id, name:kind.replaceAll('_',' '), voxels });
+  const parts = new Map([[id,torso]]);
+  const recipe = createCharacterRecipe({ id, parts:{torso:{partId:id}} });
   return Object.freeze({
     recipe,
-    assembly: assembleVoxelCharacter(recipe,blocks),
-    blocks,
+    assembly: assembleVoxelCharacter(recipe,parts),
+    parts,
     appearance: Object.freeze({ form:kind }),
     scale,
   });
@@ -196,7 +186,7 @@ const authors = new Map([
 ]);
 const models = new Map();
 
-/** Resolve immutable block assets for a creature, with +Z as its facing direction. */
+/** A custom creature is one complete torso part, with +Z as its facing direction. */
 export function assembleCreatureVoxelModel(kind) {
   const author = authors.get(kind);
   if (!author) throw new Error(`Unknown voxel creature: ${kind}.`);

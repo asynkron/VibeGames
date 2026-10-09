@@ -45,7 +45,8 @@ export function createCombatVoxelActors(parent, cellSize) {
     entry.modelKey = key;
     entry.bounds = new THREE.Box3().setFromObject(entry.figure.group);
     entry.pose.add(entry.figure.group);
-    entry.pose.scale.setScalar(0.96 * cellSize / 24 * model.scale);
+    // Keep voxel density stable when an item extends beyond the body.
+    entry.pose.scale.setScalar(0.04 * cellSize * model.scale);
     entry.materials = new Set();
     entry.figure.group.traverse(object => {
       if (!object.isMesh) return;

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createVoxelFigure } from './voxelFigure.js';
-import { CHARACTER_SIZE } from './voxelBlocks.js';
 import { VOXEL_APPEARANCE_OPTIONS } from './voxelCharacterParts.js';
 import { assembleCombatVoxelModel, COMBAT_VOXEL_KINDS, COMBAT_VOXEL_PALETTES } from './combatVoxelCatalog.js';
 
@@ -11,7 +10,7 @@ const loading = document.querySelector('#loading');
 const viewButtons = [...document.querySelectorAll('[data-view]')];
 const rotateButton = document.querySelector('#rotate');
 const gridButton = document.querySelector('#grid');
-const blockGridButton = document.querySelector('#block-grid');
+const partBoundsButton = document.querySelector('#part-bounds');
 const explodeButton = document.querySelector('#explode');
 const caption = document.querySelector('#view-caption');
 
@@ -49,17 +48,17 @@ try {
   let kind = 'paladin';
   let overrides = {};
   let model = assembleCombatVoxelModel({ kind });
-  let sculpture = createVoxelFigure(model, { layout: 'blocks' });
-  let showBlockBoundaries = false;
+  let sculpture = createVoxelFigure(model, { layout: 'parts' });
+  let showPartBounds = false;
   let exploded = false;
   scene.add(sculpture.group);
-  const size = new THREE.Vector3(CHARACTER_SIZE, CHARACTER_SIZE, CHARACTER_SIZE);
-  let targetHeight = CHARACTER_SIZE / 2;
-  controls.target.set(0, targetHeight, 0);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  let cameraDistance = 75;
 
   function updateStats() {
     document.querySelector('#voxel-count').textContent = sculpture.voxelCount.toLocaleString();
-    document.querySelector('#block-count').textContent = `${sculpture.occupiedBlockCount} / 27`;
+    document.querySelector('#part-count').textContent = sculpture.partCount;
     const { width, height, depth } = sculpture.dimensions;
     document.querySelector('#dimensions').textContent = `${width} × ${height} × ${depth}`;
     const palette = document.querySelector('#palette');
@@ -76,8 +75,8 @@ try {
     palette: COMBAT_VOXEL_PALETTES.map(value=>({value,label:value[0].toUpperCase()+value.slice(1)})) };
   function showModel() {
     model = assembleCombatVoxelModel({ kind, appearance: overrides });
-    const next = createVoxelFigure(model, { layout: 'blocks' });
-    next.setBlockBoundaries(showBlockBoundaries);
+    const next = createVoxelFigure(model, { layout: 'parts' });
+    next.setPartBounds(showPartBounds);
     next.setExploded(exploded);
     scene.remove(sculpture.group);
     sculpture.dispose();
@@ -90,8 +89,8 @@ try {
     }
     document.querySelector('#creature-note').hidden = !model.appearance.form;
     updateStats();
-    renderer.shadowMap.needsUpdate = true;
-    document.querySelector('#assembly-status').textContent = `${kind.replaceAll('_',' ')} assembled from ${sculpture.occupiedBlockCount} blocks.`;
+    frameFigure();
+    document.querySelector('#assembly-status').textContent = `${kind.replaceAll('_',' ')} assembled from ${sculpture.partCount} parts.`;
   }
   for (const [part, options] of Object.entries(partOptions)) {
     const select = document.querySelector(`#${part}-variant`);
@@ -130,12 +129,12 @@ try {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(14.7, 14.7, 1.2, 64), new THREE.MeshStandardMaterial({ color: '#59614d', roughness: 0.92, envMapIntensity: 0 }));
+  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.2, 64), new THREE.MeshStandardMaterial({ color: '#59614d', roughness: 0.92, envMapIntensity: 0 }));
   plinth.position.y = -0.62;
   plinth.receiveShadow = true;
   plinth.castShadow = true;
   scene.add(plinth);
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(14.1, 14.1, 0.3, 64), new THREE.MeshStandardMaterial({ color: '#20261e', roughness: 0.8, envMapIntensity: 0 }));
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.3, 64), new THREE.MeshStandardMaterial({ color: '#20261e', roughness: 0.8, envMapIntensity: 0 }));
   base.position.y = -1.36;
   scene.add(base);
 
@@ -161,8 +160,8 @@ try {
     setAutoRotate(false);
     controls.enableDamping = false;
     controls.update();
-    controls.target.set(0, targetHeight, 0);
-    camera.position.copy(viewPositions[name]).add(controls.target);
+    controls.target.copy(center);
+    camera.position.copy(viewPositions[name]).normalize().multiplyScalar(cameraDistance).add(center);
     camera.zoom = 1;
     camera.updateProjectionMatrix();
     controls.update();
@@ -174,29 +173,22 @@ try {
   function reset() {
     grid.visible = true;
     gridButton.setAttribute('aria-pressed', 'true');
-    setBlockBoundaries(false);
+    setPartBounds(false);
     setExploded(false);
     setView('angle');
   }
 
-  function setBlockBoundaries(enabled) {
-    showBlockBoundaries = enabled;
-    sculpture.setBlockBoundaries(enabled);
-    blockGridButton.setAttribute('aria-pressed', String(enabled));
+  function setPartBounds(enabled) {
+    showPartBounds = enabled;
+    sculpture.setPartBounds(enabled);
+    partBoundsButton.setAttribute('aria-pressed', String(enabled));
   }
 
   function setExploded(enabled) {
     exploded = enabled;
     sculpture.setExploded(enabled);
     explodeButton.setAttribute('aria-pressed', String(enabled));
-    const extent = CHARACTER_SIZE + (enabled ? 6 : 0);
-    const nextHeight = extent / 2;
-    camera.position.y += nextHeight - targetHeight;
-    targetHeight = nextHeight;
-    controls.target.y = targetHeight;
-    size.setScalar(extent);
-    resize();
-    renderer.shadowMap.needsUpdate = true;
+    frameFigure();
   }
 
   function markOrbit() {
@@ -213,7 +205,7 @@ try {
     grid.visible = !grid.visible;
     gridButton.setAttribute('aria-pressed', String(grid.visible));
   });
-  blockGridButton.addEventListener('click', () => setBlockBoundaries(!showBlockBoundaries));
+  partBoundsButton.addEventListener('click', () => setPartBounds(!showPartBounds));
   explodeButton.addEventListener('click', () => setExploded(!exploded));
   document.querySelector('#reset').addEventListener('click', reset);
   controls.addEventListener('start', () => { setAutoRotate(false); markOrbit(); });
@@ -256,21 +248,72 @@ try {
     link.href = url;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    document.querySelector('#save-status').textContent = 'Character recipe and reusable voxel blocks exported.';
+    document.querySelector('#save-status').textContent = 'Character recipe and reusable body parts exported.';
   });
 
-  function resize() {
-    const width = viewport.clientWidth;
-    const height = viewport.clientHeight;
-    const aspect = width / height;
-    const halfHeight = Math.max(size.y * 0.67, Math.hypot(size.x, size.z) * 0.6 / aspect);
-    camera.left = -halfHeight * aspect;
-    camera.right = halfHeight * aspect;
+  function frameFigure() {
+    const { min, max } = sculpture.getDisplayBounds();
+    const nextCenter = new THREE.Vector3((min.x+max.x)/2,(min.y+max.y)/2,(min.z+max.z)/2);
+    const direction = camera.position.clone().sub(controls.target);
+    if (direction.lengthSq() === 0) direction.set(36,18,68);
+    center.copy(nextCenter);
+    controls.target.copy(center);
+    size.set(max.x-min.x,max.y-min.y,max.z-min.z);
+    const extent = Math.max(1,size.x,size.y,size.z);
+    const radius = Math.max(4,Math.hypot(size.x,size.z)/2+2);
+    cameraDistance = Math.max(45,extent*3.2);
+    camera.position.copy(direction.normalize()).multiplyScalar(cameraDistance).add(center);
+    camera.far = cameraDistance*5;
+    scene.fog.near = cameraDistance*1.6;
+    scene.fog.far = cameraDistance*3;
+    camera.zoom = 1;
+    plinth.scale.set(radius,1,radius);
+    plinth.position.set(center.x,min.y-0.62,center.z);
+    base.scale.set(radius*0.96,1,radius*0.96);
+    base.position.set(center.x,min.y-1.36,center.z);
+    floor.position.set(center.x,min.y-1.6,center.z);
+    floor.scale.setScalar(Math.max(1,extent/80));
+    grid.position.set(center.x,min.y-1.57,center.z);
+    grid.scale.setScalar(Math.max(1,extent/30));
+    key.target.position.copy(center);
+    scene.add(key.target);
+    const lightScale = Math.max(1,extent/24);
+    key.position.set(-25,48,38).multiplyScalar(lightScale).add(center);
+    const shadowExtent = Math.max(radius,extent)*1.5;
+    Object.assign(key.shadow.camera,{
+      left:-shadowExtent,right:shadowExtent,top:shadowExtent,bottom:-shadowExtent,
+      far:cameraDistance*3,
+    });
+    key.shadow.camera.updateProjectionMatrix();
+    renderer.shadowMap.needsUpdate = true;
+    resize();
+  }
+
+  function fitCamera(width, height) {
+    const aspect = width/height;
+    const diagonal = Math.hypot(size.x,size.z);
+    const direction = camera.position.clone().sub(controls.target).normalize();
+    const right = new THREE.Vector3().crossVectors(camera.up,direction).normalize();
+    const up = new THREE.Vector3().crossVectors(direction,right).normalize();
+    // Project the bounding box onto the view axes, including long parts seen from above.
+    const projectedWidth = (Math.abs(right.x)*size.x+Math.abs(right.y)*size.y+Math.abs(right.z)*size.z)/2;
+    const projectedHeight = (Math.abs(up.x)*size.x+Math.abs(up.y)*size.y+Math.abs(up.z)*size.z)/2;
+    const halfHeight = Math.max(5,size.y*0.7,diagonal*0.65/aspect,diagonal*0.38,
+      projectedHeight*1.15,projectedWidth*1.15/aspect);
+    camera.left = -halfHeight*aspect;
+    camera.right = halfHeight*aspect;
     camera.top = halfHeight;
     camera.bottom = -halfHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(width, height);
   }
+
+  function resize() {
+    const width = Math.max(1,viewport.clientWidth);
+    const height = Math.max(1,viewport.clientHeight);
+    fitCamera(width,height);
+    renderer.setSize(width,height);
+  }
+  controls.addEventListener('change',()=>fitCamera(Math.max(1,viewport.clientWidth),Math.max(1,viewport.clientHeight)));
   new ResizeObserver(resize).observe(viewport);
   resize();
   reset();
