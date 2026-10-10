@@ -5,6 +5,7 @@ export const VOXEL_PART_SLOTS = Object.freeze([
 ]);
 
 const AXES = ['x', 'y', 'z'];
+const JOINTS = new Set(['body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg']);
 const cellKey = ({ x, y, z }) => `${x},${y},${z}`;
 
 function requireText(value, label) {
@@ -52,10 +53,12 @@ export function defineVoxelPart({ id, name, voxels }) {
       throw new TypeError('Voxel color must be a six-digit hex color.');
     }
     requireText(voxel.material, 'Voxel material');
+    if (voxel.joint !== undefined && !JOINTS.has(voxel.joint)) throw new RangeError(`Unknown voxel joint: ${voxel.joint}.`);
     const key = cellKey(voxel);
     if (occupied.has(key)) throw new Error(`Duplicate voxel at ${key}.`);
     occupied.add(key);
-    return Object.freeze({ x: voxel.x, y: voxel.y, z: voxel.z, color: voxel.color, material: voxel.material });
+    return Object.freeze({ x: voxel.x, y: voxel.y, z: voxel.z, color: voxel.color, material: voxel.material,
+      ...(voxel.joint === undefined ? {} : { joint: voxel.joint }) });
   });
   return Object.freeze({ id, name, voxels: Object.freeze(cells), ...measure(cells) });
 }

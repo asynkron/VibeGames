@@ -14,20 +14,21 @@ function envelope(effect) {
   const { min, max } = effect.bounds, a = effect.anchor;
   const width=max.x-min.x, depth=max.z-min.z;
   if (effect.kind === 'orbit' || effect.kind === 'glow') {
-    const radius=effect.kind === 'orbit' ? (Math.max(width,depth)/2+2)*1.56 : 4.2;
+    // A billboard keeps facing the camera while its emitting limb rotates.
+    const radius=effect.kind === 'orbit' ? (Math.max(width,depth)/2+2)*2.21 : 5.9;
     return {min:{x:a.x-radius,y:a.y-radius,z:a.z-radius},max:{x:a.x+radius,y:a.y+radius,z:a.z+radius}};
   }
   if (effect.kind === 'mist') {
-    const halo=(Math.max(width,depth)+5)*.52;
+    const halo=(Math.max(width,depth)+5)*.74;
     const rise=Math.max(5.5,(max.y-min.y)*.35+3);
     return {
-      min:{x:Math.min(min.x-5.6,a.x-halo),y:Math.min(min.y-1,a.y-halo),z:Math.min(max.z-2.2,a.z-halo)},
-      max:{x:Math.max(max.x+5.6,a.x+halo),y:Math.max(max.y+rise+3,a.y+halo),z:Math.max(max.z+6.4,a.z+halo)},
+      min:{x:Math.min(min.x-6.9,a.x-halo),y:Math.min(min.y-4.3,a.y-halo),z:Math.min(max.z-3.5,a.z-halo)},
+      max:{x:Math.max(max.x+6.9,a.x+halo),y:Math.max(max.y+rise+4.3,a.y+halo),z:Math.max(max.z+7.7,a.z+halo)},
     };
   }
   // Include the diagonal of the tallest flame billboard from any camera angle.
-  const x=width*.45+5.3, z=depth*.48+4.9;
-  return {min:{x:a.x-x,y:min.y-4.2,z:a.z-z},max:{x:a.x+x,y:max.y+9,z:a.z+z}};
+  const x=width*.45+5.9, z=depth*.48+5.5;
+  return {min:{x:a.x-x,y:min.y-4.8,z:a.z-z},max:{x:a.x+x,y:max.y+9.3,z:a.z+z}};
 }
 
 /** Persistent, item-local particles. One small unshadowed light per figure. */
@@ -40,6 +41,13 @@ export function createItemEffects(descriptors) {
   const entries = [];
   const scale = new THREE.Vector3();
   let disposed = false;
+  let partOffsets = {};
+
+  function positionEntry(entry) {
+    const offset = partOffsets[entry.effect.slot] || [0,0,0];
+    const pivot = entry.attachment?.pivot || [0,0,0];
+    entry.group.position.set(offset[0]-pivot[0],offset[1]-pivot[1],offset[2]-pivot[2]);
+  }
 
   function texture(kind) {
     if (textures.has(kind)) return textures.get(kind);
@@ -154,6 +162,8 @@ export function createItemEffects(descriptors) {
   function update(now, { reducedMotion=false, active=true } = {}) {
     if (disposed) return;
     group.visible = active;
+    // Attached effects are children of the moving limb, rather than this container.
+    for (const entry of entries) entry.group.visible = active;
     if (light) light.visible = active;
     if (!active) return;
     const seconds = reducedMotion ? 2.25 : now/1000;
@@ -212,7 +222,7 @@ export function createItemEffects(descriptors) {
       entry.rings.forEach((ring,i)=>{ring.rotation.y=time*.2*(i?-1:1);});
     }
     if (light) {
-      group.getWorldScale(scale);
+      lightEntry.group.getWorldScale(scale);
       const density=Math.max(scale.x,scale.y,scale.z);
       light.distance=22*density;
       const strength=lightEntry.effect.kind==='flame'?95:lightEntry.effect.kind==='mist'?25:65;
@@ -223,15 +233,25 @@ export function createItemEffects(descriptors) {
   return {
     group,
     update,
-    setPartOffsets(offsets) {
-      for (const entry of entries) entry.group.position.fromArray(offsets[entry.effect.slot] || [0,0,0]);
+    setAttachments(resolve) {
+      for (const entry of entries) {
+        entry.attachment = resolve?.(entry.effect.slot) || null;
+        (entry.attachment?.group || group).add(entry.group);
+        positionEntry(entry);
+      }
     },
+    setPartOffsets(offsets) {
+      partOffsets = offsets;
+      for (const entry of entries) positionEntry(entry);
+    },
+    getBoundsBySlot() { return entries.map(entry=>({slot:entry.effect.slot,bounds:entry.bounds})); },
     getBounds() {
       if (!entries.length) return null;
       const bounds={min:{x:Infinity,y:Infinity,z:Infinity},max:{x:-Infinity,y:-Infinity,z:-Infinity}};
-      for (const entry of entries) for (const axis of ['x','y','z']) {
-        bounds.min[axis]=Math.min(bounds.min[axis],entry.bounds.min[axis]+entry.group.position[axis]);
-        bounds.max[axis]=Math.max(bounds.max[axis],entry.bounds.max[axis]+entry.group.position[axis]);
+      for (const entry of entries) for (const [index,axis] of ['x','y','z'].entries()) {
+        const offset = partOffsets[entry.effect.slot]?.[index] || 0;
+        bounds.min[axis]=Math.min(bounds.min[axis],entry.bounds.min[axis]+offset);
+        bounds.max[axis]=Math.max(bounds.max[axis],entry.bounds.max[axis]+offset);
       }
       return bounds;
     },
@@ -241,6 +261,10 @@ export function createItemEffects(descriptors) {
       for (const material of materials) material.dispose();
       for (const geometry of geometries) geometry.dispose();
       for (const map of textures.values()) map.dispose();
+      for (const entry of entries) {
+        entry.group.removeFromParent();
+        entry.group.clear();
+      }
       group.clear();
     },
   };

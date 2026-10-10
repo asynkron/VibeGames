@@ -109,7 +109,8 @@ export function createCombatVoxelActors(parent, cellSize) {
         group.add(root);
         entry = { root, facing, pose, from: center.clone(), to: center.clone(), stepStart: now,
           direction: initialDirection(unit, snapshot.units), alive: unit.alive,
-          fall: unit.alive ? 0 : 1, fallFrom: unit.alive ? 0 : 1, fallStart: now, action: null };
+          fall: unit.alive ? 0 : 1, fallFrom: unit.alive ? 0 : 1, fallStart: now, action: null,
+          walkPhase: 0, walkAmount: 0, lastUpdate: now };
         entries.set(unit.id, entry);
         replaceFigure(entry, model, key);
       } else if (entry.modelKey !== key) {
@@ -144,7 +145,7 @@ export function createCombatVoxelActors(parent, cellSize) {
     const target = effect.targets.find(unit => unit.id !== effect.source.id);
     if (source?.alive) {
       if (target) face(source, directionBetween(effect.source,target));
-      source.action = { kind: effect.kind === 'slash' || effect.kind === 'arrow' ? 'attack' : 'cast',
+      source.action = { kind: effect.kind === 'slash' || effect.kind === 'arrow' ? effect.kind : 'cast',
         start: now, duration: POSE_DURATIONS[effect.kind] };
     }
     if (effect.kind === 'heal' || effect.kind === 'buff') return;
@@ -156,37 +157,61 @@ export function createCombatVoxelActors(parent, cellSize) {
   }
 
   function update(now) {
+    const reducedMotion = motionPreference.matches;
     for (const entry of entries.values()) {
+      const elapsed = Math.max(0, now - entry.lastUpdate);
+      entry.lastUpdate = now;
       const step = Math.min(1, Math.max(0, (now - entry.stepStart) / STEP_DURATION));
       const eased = step * step * (3 - 2 * step);
+      const previousX = entry.root.position.x, previousZ = entry.root.position.z;
       entry.root.position.lerpVectors(entry.from, entry.to, eased);
       const walking = entry.from.distanceToSquared(entry.to) > 0.000001 && step < 1 && entry.alive;
-      entry.root.position.y = cellSize * (0.012 + (walking ? Math.sin(step * Math.PI) * 0.04 : 0));
-      const fallTime = Math.min(1, Math.max(0, (now - entry.fallStart) / FALL_DURATION));
+      const travelled = Math.hypot(entry.root.position.x - previousX, entry.root.position.z - previousZ);
+      // A continuous distance-driven stride survives the next cell arriving before this step finishes.
+      if (entry.alive) entry.walkPhase = (entry.walkPhase + travelled / cellSize * Math.PI) % (Math.PI * 2);
+      const walkTarget = walking && !reducedMotion ? 1 : 0;
+      entry.walkAmount = entry.alive && !reducedMotion
+        ? THREE.MathUtils.lerp(entry.walkAmount, walkTarget, 1 - Math.exp(-elapsed / 55)) : 0;
+      if (entry.walkAmount < 0.001) entry.walkAmount = 0;
+      entry.root.position.y = cellSize * (0.012 + Math.abs(Math.sin(entry.walkPhase)) * entry.walkAmount * 0.025);
+      const fallTime = reducedMotion ? 1 : Math.min(1, Math.max(0, (now - entry.fallStart) / FALL_DURATION));
       entry.fall = THREE.MathUtils.lerp(entry.fallFrom, entry.alive ? 0 : 1, fallTime);
       let tilt = -entry.fall * Math.PI / 2;
       let lunge = 0;
       let lift = 0;
+      let motionAction = null;
+      let motionProgress = 0;
       const action = entry.action;
       if (action && entry.alive) {
         const progress = (now - action.start) / action.duration;
         if (progress >= 1) entry.action = null;
         else if (progress >= 0) {
-          const pulse = Math.sin(progress * Math.PI);
-          if (action.kind === 'attack') { tilt = pulse * 0.18; lunge = pulse * 0.09 * cellSize; }
-          else if (action.kind === 'recoil') { tilt = -pulse * 0.2; lunge = -pulse * 0.045 * cellSize; }
-          else { tilt = -pulse * 0.08; lift = pulse * 0.025 * cellSize; }
+          motionAction = action.kind;
+          motionProgress = progress;
+          if (!reducedMotion) {
+            // Melee contact occurs at 90 ms, when the target starts its recoil.
+            const pulse = action.kind === 'slash'
+              ? Math.sin(Math.min(1, progress / 0.25) * Math.PI / 2) * (1 - Math.max(0, (progress - 0.25) / 0.75))
+              : Math.sin(progress * Math.PI);
+            if (action.kind === 'slash') { tilt += pulse * 0.12; lunge = pulse * 0.09 * cellSize; }
+            else if (action.kind === 'arrow') { tilt -= pulse * 0.04; }
+            else if (action.kind === 'recoil') { tilt -= pulse * 0.2; lunge = -pulse * 0.045 * cellSize; }
+            else { tilt -= pulse * 0.08; lift = pulse * 0.025 * cellSize; }
+          }
         }
       }
+      entry.figure.setMotion({ walkPhase: entry.walkPhase, walkAmount: entry.walkAmount,
+        action: motionAction, progress: motionProgress, reducedMotion, active: entry.alive });
       entry.pose.position.set(0, lift, lunge);
       entry.figure.group.rotation.x = tilt;
-      // Keep the lowest voxel on the floor even as a defeated figure tips onto its back.
-      const { min, max } = entry.bounds;
+      // Ground the posed limbs, including a defeated figure tipping onto its back.
+      const { min, max } = entry.figure.getPoseBounds();
       const cosine = Math.cos(tilt), sine = Math.sin(tilt);
-      entry.figure.group.position.y = -Math.min(min.y * cosine - min.z * sine, min.y * cosine - max.z * sine);
+      entry.figure.group.position.y = entry.alive ? -entry.figure.getGroundHeight(tilt)
+        : -Math.min(min.y * cosine - min.z * sine, min.y * cosine - max.z * sine);
       const shade = 1 - entry.fall * 0.58;
       for (const material of entry.materials) material.color.setRGB(shade, shade, shade);
-      entry.figure.updateEffects(now, { reducedMotion: motionPreference.matches, active: entry.alive });
+      entry.figure.updateEffects(now, { reducedMotion, active: entry.alive });
     }
   }
 

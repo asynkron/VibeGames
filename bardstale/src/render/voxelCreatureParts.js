@@ -23,10 +23,11 @@ const SURFACES = {
 
 function sculpt() {
   const cells = new Map();
+  let joint;
   function put(x, y, z, surface) {
     if (![x, y, z].every(Number.isInteger)) throw new TypeError('Creature voxel coordinates must be integers.');
     if (!SURFACES[surface]) throw new Error(`Unknown creature surface: ${surface}.`);
-    cells.set(`${x},${y},${z}`, { x, y, z, surface });
+    cells.set(`${x},${y},${z}`, { x, y, z, surface, ...(joint ? { joint } : {}) });
   }
   function shape(min, max, inside, surface) {
     for (let x = Math.ceil(min[0] - .5); x <= Math.floor(max[0] - .5); x++) {
@@ -70,7 +71,7 @@ function sculpt() {
         return s >= -.015 && t >= -.015 && s + t <= 1.015;
       }, surface);
   }
-  return { cells, put, oval, limb, box, triangle };
+  return { cells, put, oval, limb, box, triangle, setJoint(value) { joint = value; } };
 }
 
 function serpent() {
@@ -271,6 +272,7 @@ function ogre() {
 
   // Unequal bent legs and broad, bare feet hold a heavy, forward-leaning body.
   for (const side of [-1, 1]) {
+    p.setJoint(side < 0 ? 'rightLeg' : 'leftLeg');
     const x = 12 + side*6;
     const z = side < 0 ? 14 : 11;
     p.limb([x,19,z], [x+side,10,z+1], 4.15, 'ogreSkin');
@@ -283,6 +285,7 @@ function ogre() {
         [Math.floor(x+side*1.5+toe)+1,2,Math.floor(z+8)+1], 'hornBase');
     }
   }
+  p.setJoint('body');
   p.oval([12,23,13.5], [9.2,8.2,6.7], 'ogreSkin');
   p.oval([12,30,12], [10.8,8.3,6.8], 'ogreSkin');
   p.oval([12,25.5,16.5], [9.5,7.9,6.2], 'ogreSkin');
@@ -290,11 +293,13 @@ function ogre() {
   p.oval([12,36,14], [4.3,5,4.5], 'ogreSkin');
 
   // The club arm hangs lower; the open hand reaches forward with separate fingers.
+  p.setJoint('rightArm');
   p.oval([2.5,33,12], [5.3,5.6,5.5], 'ogreSkin');
   p.limb([2,33,13], [-1,25,14], 4.2, 'ogreSkin');
   p.oval([-1,25,14], [4.4,4.5,4.5], 'ogreSkin');
   p.limb([-1,25,14], [-4.5,18,18], 3.55, 'ogreSkin');
   p.oval([-5.3,17.2,19.3], [3.6,3.6,3.6], 'ogreSkin');
+  p.setJoint('leftArm');
   p.oval([21.5,34,11], [5.3,5.3,5.7], 'ogreSkin');
   p.limb([22,33,12], [25,25,14], 4.05, 'ogreSkin');
   p.limb([25,25,14], [28,18,17], 3.4, 'ogreSkin');
@@ -312,6 +317,7 @@ function ogre() {
     else if ((cell.x*3 + cell.y*7 + cell.z*11) % 31 === 0) cell.surface = 'ogreShadow';
     else if (cell.z < 8) cell.surface = 'ogreShadow';
   }
+  p.setJoint('body');
   p.put(12,23,22,'ogreShadow');
   p.put(13,23,22,'ogreShadow');
 
@@ -334,12 +340,16 @@ function ogre() {
   }
   p.limb([5,35,17], [16,25,21], 1.25, 'hideDark');
   p.limb([5,35,7], [16,24,6], 1.25, 'hideDark');
+  p.setJoint('leftArm');
   p.oval([22,35,10.5], [5.7,3.4,6], 'hide');
   for (const [x,y,z] of [[20,37,14],[23,36,15],[26,35,14],[21,38,10]]) p.put(x,y,z,'iron');
+  p.setJoint('rightArm');
   p.limb([-3,22,16], [-4,20,17], 3.7, 'hideDark');
+  p.setJoint('leftArm');
   p.limb([27,20,16], [27.5,18,17], 3.55, 'hideDark');
 
   // The head is small relative to the shoulders, with a hanging jaw and deep brow.
+  p.setJoint('body');
   p.oval([12,41,16.5], [5.7,5.7,5.4], 'ogreSkin');
   p.oval([12,37.7,19], [5.2,3.1,4.3], 'ogreSkin');
   for (const side of [-1, 1]) {
@@ -368,6 +378,7 @@ function ogre() {
   p.put(5,40,17,'brass');
 
   // A rough tapered log sits on a narrow wrapped grip inside the closed fist.
+  p.setJoint('rightArm');
   p.limb([-4.3,8,21], [-8,28,17.5], 1.15, 'clubDark');
   p.limb([-8,27,17.5], [-10,38,15.5], 3.6, 'club');
   p.oval([-10,38,15.5], [3.8,3,3.6], 'club');
@@ -401,7 +412,7 @@ function colorFor(cell) {
 function compile(kind, cells, scale) {
   const id = `creature/${kind}`;
   const voxels = [...cells.values()].map(cell => ({
-    x:cell.x-12, y:cell.y, z:cell.z-12, ...colorFor(cell),
+    x:cell.x-12, y:cell.y, z:cell.z-12, ...colorFor(cell), ...(cell.joint ? { joint:cell.joint } : {}),
   }));
   const torso = defineVoxelPart({ id, name:kind.replaceAll('_',' '), voxels });
   const parts = new Map([[id,torso]]);

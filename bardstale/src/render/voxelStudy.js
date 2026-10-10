@@ -13,6 +13,8 @@ const gridButton = document.querySelector('#grid');
 const partBoundsButton = document.querySelector('#part-bounds');
 const explodeButton = document.querySelector('#explode');
 const referenceButton = document.querySelector('#human-reference');
+const walkButton = document.querySelector('#walk');
+const swingButton = document.querySelector('#swing');
 const caption = document.querySelector('#view-caption');
 
 try {
@@ -54,6 +56,8 @@ try {
   let showPartBounds = false;
   let exploded = false;
   let showReference = false;
+  let walking = false;
+  let swingStarted = null;
   scene.add(sculpture.group);
   const referenceModel = assembleCombatVoxelModel({kind:'warrior',appearance:{mainhand:'none',offhand:'none'}});
   const referenceFigure = createVoxelFigure(referenceModel);
@@ -101,6 +105,7 @@ try {
     sculpture.dispose();
     sculpture = next;
     scene.add(sculpture.group);
+    updateMotionControls();
     for (const part of Object.keys(partOptions)) {
       const select = document.querySelector(`#${part}-variant`);
       select.disabled = Boolean(model.appearance.form);
@@ -197,6 +202,9 @@ try {
     gridButton.setAttribute('aria-pressed', 'true');
     setPartBounds(false);
     setExploded(false);
+    walking = false;
+    swingStarted = null;
+    updateMotionControls();
     setView('angle');
   }
 
@@ -210,8 +218,24 @@ try {
     exploded = enabled;
     sculpture.setExploded(enabled);
     explodeButton.setAttribute('aria-pressed', String(enabled));
+    updateMotionControls();
     frameFigure();
   }
+
+  function updateMotionControls() {
+    const available = sculpture.hasJoints && !exploded;
+    if (!available) { walking = false; swingStarted = null; }
+    walkButton.disabled = !available;
+    swingButton.disabled = !available;
+    walkButton.setAttribute('aria-pressed', String(walking));
+  }
+
+  walkButton.addEventListener('click', () => {
+    walking = !walking;
+    walkButton.setAttribute('aria-pressed', String(walking));
+    renderer.shadowMap.needsUpdate = true;
+  });
+  swingButton.addEventListener('click', () => { swingStarted = performance.now(); });
 
   function markOrbit() {
     viewButtons.forEach(button => button.setAttribute('aria-pressed', 'false'));
@@ -280,6 +304,7 @@ try {
 
   function frameFigure() {
     const bounds = sculpture.getDisplayBounds();
+    const ground = (exploded ? bounds.min.y : sculpture.assembly.bounds.min.y) * model.scale;
     const min = new THREE.Vector3(bounds.min.x,bounds.min.y,bounds.min.z).multiplyScalar(model.scale);
     const max = new THREE.Vector3(bounds.max.x,bounds.max.y,bounds.max.z).multiplyScalar(model.scale);
     referenceFigure.group.visible = showReference;
@@ -304,12 +329,12 @@ try {
     scene.fog.far = cameraDistance*3;
     camera.zoom = 1;
     plinth.scale.set(radius,1,radius);
-    plinth.position.set(center.x,min.y-0.62,center.z);
+    plinth.position.set(center.x,ground-0.62,center.z);
     base.scale.set(radius*0.96,1,radius*0.96);
-    base.position.set(center.x,min.y-1.36,center.z);
-    floor.position.set(center.x,min.y-1.6,center.z);
+    base.position.set(center.x,ground-1.36,center.z);
+    floor.position.set(center.x,ground-1.6,center.z);
     floor.scale.setScalar(Math.max(1,cameraDistance/80));
-    grid.position.set(center.x,min.y-1.57,center.z);
+    grid.position.set(center.x,ground-1.57,center.z);
     grid.scale.setScalar(Math.max(1,extent/30));
     key.target.position.copy(center);
     scene.add(key.target);
@@ -359,6 +384,14 @@ try {
   renderer.shadowMap.needsUpdate = true;
   renderer.setAnimationLoop(now => {
     controls.update(Math.min(clock.getDelta(), 0.1));
+    const progress = swingStarted === null ? 1 : (now-swingStarted)/720;
+    const wasSwinging = swingStarted !== null;
+    if (progress >= 1) swingStarted = null;
+    const action = sculpture.appearance.mainhand === 'bow' ? 'arrow' : 'slash';
+    sculpture.setMotion({ walkPhase:now*.008, walkAmount:walking?1:0,
+      action:swingStarted === null ? null : action, progress, reducedMotion:motionPreference.matches });
+    sculpture.group.position.y = exploded ? 0 : (sculpture.assembly.bounds.min.y-sculpture.getGroundHeight())*model.scale;
+    if (walking || wasSwinging) renderer.shadowMap.needsUpdate = true;
     sculpture.updateEffects(now, { reducedMotion: motionPreference.matches });
     if (referenceFigure.group.visible) referenceFigure.updateEffects(now, { reducedMotion: motionPreference.matches });
     renderer.render(scene, camera);

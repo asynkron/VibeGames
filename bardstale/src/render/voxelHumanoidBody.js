@@ -11,6 +11,12 @@ const FRAME = Object.freeze({
   ],
 });
 
+// The rigid hinges use the same authored joints as the anatomy and equipment.
+export const HUMAN_JOINT_PIVOTS = Object.freeze(Object.fromEntries([
+  ['rightArm', FRAME.arms[0].shoulder], ['leftArm', FRAME.arms[1].shoulder],
+  ['rightLeg', FRAME.legs[0].hip], ['leftLeg', FRAME.legs[1].hip],
+].map(([name, [x,y,z]]) => [name, Object.freeze([x-12,y,z-12])])));
+
 function sculptHuman() {
   const cells = new Map();
   function sample(min, max, inside, owner, region) {
@@ -73,7 +79,7 @@ const HUMAN_BODY = sculptHuman();
 
 function paintBodyPart(p,owner,surfaceFor) {
   for (const cell of HUMAN_BODY) {
-    if (cell.owner===owner) p.put(cell.x,cell.y,cell.z,surfaceFor(cell));
+    if (cell.owner===owner) p.put(cell.x,cell.y,cell.z,surfaceFor(cell),cell.region==='pelvis'?'body':undefined);
   }
 }
 
@@ -170,6 +176,7 @@ function paintSkeletalLegs(p) {
   p.limb([9.5,9.5,12.5],[12,8.5,13],.75,'bone');
   p.limb([14.5,9.5,12.5],[12,8.5,13],.75,'bone');
   p.box([10,10,10],[14,11,12],'bone');
+  for (const cell of p.cells.values()) cell.joint='body';
   for (const leg of FRAME.legs) {
     p.limb(leg.hip,leg.knee,.85,'bone');
     p.oval(leg.knee,[1.1,.9,1.05],'bone');
@@ -184,11 +191,15 @@ function paintHem(p,bottom,top,surface) {
     const t=(y-bottom)/(top-bottom),width=4.3-t*1.1,depth=2.8-t*.65;
     for (let x=7;x<17;x++) for (let z=9;z<16;z++) {
       const u=(x+.5-12)/width,v=(z+.5-12)/depth;
-      if (u*u+v*v<=1) p.put(x,y,z,surface);
+      // Leave the legs intact inside a one-voxel cloth shell. The garment hangs
+      // from the hips while the rigid legs can swing underneath it.
+      const inside=(px,pz)=>((px-12)/width)**2+((pz-12)/depth)**2<=1;
+      const edge=[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dz])=>!inside(x+.5+dx,z+.5+dz));
+      if (u*u+v*v<=1 && (edge || y>=10)) p.put(x,y,z,surface,'body');
     }
     for (const x of [9,12,14]) {
       const dx=x+.5-12,z=Math.floor(12+depth*Math.sqrt(Math.max(0,1-(dx/width)**2))-.5);
-      if (Math.abs(dx)<width) p.put(x,y,z,x===12?'ivory':'midnight');
+      if (Math.abs(dx)<width) p.put(x,y,z,x===12?'ivory':'midnight','body');
     }
   }
 }
@@ -216,10 +227,10 @@ export function paintHumanLegs(p,style) {
     for (const leg of FRAME.legs) p.oval([leg.knee[0],5.2,leg.knee[2]],[1.4,.65,1.35],'belt');
   } else if (style==='robe') {
     paintHem(p,1,12,'teal');
-    for (let x=8;x<16;x++) p.put(x,1,14,'gold');
+    for (let x=8;x<16;x++) p.put(x,1,14,'gold','body');
   } else if (style==='skirt') {
     paintHem(p,6,12,'teal');
-    for (let x=8;x<16;x++) p.put(x,6,14,'gold');
+    for (let x=8;x<16;x++) p.put(x,6,14,'gold','body');
   }
 }
 

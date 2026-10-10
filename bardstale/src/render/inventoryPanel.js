@@ -224,7 +224,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     renderer.setSize(width, height, false);
     pivot.rotation.y = angle;
     pivot.updateWorldMatrix(true, true);
-    const displayBounds = figure.getDisplayBounds();
+    const displayBounds = figure.getDisplayBounds({ motion: false });
     const bounds = new THREE.Box3(
       new THREE.Vector3(displayBounds.min.x, displayBounds.min.y, displayBounds.min.z),
       new THREE.Vector3(displayBounds.max.x, displayBounds.max.y, displayBounds.max.z),

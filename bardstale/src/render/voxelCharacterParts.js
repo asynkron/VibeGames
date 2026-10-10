@@ -56,10 +56,10 @@ export const VOXEL_APPEARANCE_OPTIONS = Object.freeze({
 // All parts are authored in the same unrestricted character coordinates.
 function painter() {
   const cells = new Map();
-  function put(x, y, z, surface) {
+  function put(x, y, z, surface, joint) {
     if (![x, y, z].every(Number.isInteger)) throw new TypeError('Authored voxel coordinates must be integers');
     if (!PAINT[surface]) throw new RangeError(`Unknown voxel surface: ${surface}`);
-    cells.set(`${x},${y},${z}`, { x, y, z, surface });
+    cells.set(`${x},${y},${z}`, { x, y, z, surface, ...(joint === undefined ? {} : { joint }) });
   }
   function shape(min, max, inside, surface) {
     for (let x = Math.ceil(min[0] - 0.5); x <= Math.floor(max[0] - 0.5); x++) {
@@ -302,6 +302,7 @@ function registerPart(id, cells) {
   const voxels = authored.map(cell => ({
     x: cell.x-12, y: cell.y, z: cell.z-12,
     color: voxelColor(cell), material: PAINT[cell.surface][1],
+    ...(cell.joint === undefined ? {} : { joint: cell.joint }),
   }));
   const part = defineVoxelPart({ id, name:id.replaceAll('/',' · '), voxels });
   VOXEL_PART_LIBRARY.set(id,part);
