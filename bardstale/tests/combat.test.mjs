@@ -7,7 +7,7 @@ function openDungeon() {
   const width = 12;
   const height = 12;
   return {
-    width, height, x: 8, y: 8, dir: DIR.E,
+    width, height, x: 8, y: 8, dir: DIR.E, objects: [],
     cells: Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({
       n: y === 0 ? WALL.WALL : WALL.OPEN,
       e: x === width - 1 ? WALL.WALL : WALL.OPEN,

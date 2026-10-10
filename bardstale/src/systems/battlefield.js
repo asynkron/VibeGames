@@ -1,6 +1,7 @@
 import { DIR, DX, DY, WALL, getWall, leftOf, rightOf, backOf } from '../dungeon.js';
 import { COMBAT_CELLS_PER_MAP_TILE } from '../../config/combatSettings.js';
 import { footprintCells, normalizeFootprint, occupiesCell } from '../combatFootprints.js';
+import { OBJECT_DEFINITIONS } from '../worldObjects.js';
 
 export function createBattlefield(dungeon, heroes, monsters) {
   const { width: mapWidth, height: mapHeight, cells, x: mapX, y: mapY, dir } = dungeon;
@@ -21,6 +22,10 @@ export function createBattlefield(dungeon, heroes, monsters) {
   if (!Number.isInteger(mapX) || !Number.isInteger(mapY) || mapX < 0 || mapY < 0 || mapX >= mapWidth || mapY >= mapHeight || !Number.isInteger(dir) || dir < DIR.N || dir > DIR.W) {
     throw new RangeError('A battlefield must begin at a valid dungeon cell and heading.');
   }
+  const furnitureCells = new Set(dungeon.objects.map(({ x, y }) => cellKey(x, y)));
+  const sightBlockers = new Set(dungeon.objects
+    .filter(({ kind }) => OBJECT_DEFINITIONS[kind].blocksSight)
+    .map(({ x, y }) => cellKey(x, y)));
 
   function openEdge(fromX, fromY, toX, toY) {
     if (!inBounds(fromX, fromY) || !inBounds(toX, toY)) return false;
@@ -39,7 +44,7 @@ export function createBattlefield(dungeon, heroes, monsters) {
     for (const direction of directions) {
       const nx = cx + DX[direction];
       const ny = cy + DY[direction];
-      if (openEdge(cx, cy, nx, ny)) result.push({ x: nx, y: ny });
+      if (!furnitureCells.has(cellKey(nx, ny)) && openEdge(cx, cy, nx, ny)) result.push({ x: nx, y: ny });
     }
     return result;
   }
@@ -61,7 +66,8 @@ export function createBattlefield(dungeon, heroes, monsters) {
     const available = [];
     for (let index = 0; index < pending.length && available.length < count; index += 1) {
       const current = pending[index];
-      if (!occupied.has(cellKey(current.x, current.y))) available.push(current);
+      const currentKey = cellKey(current.x, current.y);
+      if (!furnitureCells.has(currentKey) && !occupied.has(currentKey)) available.push(current);
       for (const next of neighbors(current.x, current.y)) {
         const key = cellKey(next.x, next.y);
         if (discovered.has(key)) continue;
@@ -90,7 +96,7 @@ export function createBattlefield(dungeon, heroes, monsters) {
   function validPlacement(unit, x, y, blocked) {
     const occupied = footprintCells(unit, x, y);
     for (const cell of occupied) {
-      if (!inBounds(cell.x, cell.y) || blocked.has(cellKey(cell.x, cell.y))) return false;
+      if (!inBounds(cell.x, cell.y) || furnitureCells.has(cellKey(cell.x, cell.y)) || blocked.has(cellKey(cell.x, cell.y))) return false;
       // A body cannot straddle a dungeon wall, even when its anchor is in an open cell.
       if (cell.x > x && !openEdge(cell.x - 1, cell.y, cell.x, cell.y)) return false;
       if (cell.y > y && !openEdge(cell.x, cell.y - 1, cell.x, cell.y)) return false;
@@ -115,8 +121,9 @@ export function createBattlefield(dungeon, heroes, monsters) {
         pending.push(next);
       }
     }
-    candidateAnchors.set(team, pending);
-    return pending;
+    const available = pending.filter(({ x, y }) => !furnitureCells.has(cellKey(x, y)));
+    candidateAnchors.set(team, available);
+    return available;
   }
 
   function reserveLargeUnits(index) {
@@ -276,24 +283,26 @@ export function createBattlefield(dungeon, heroes, monsters) {
     let cy = actor.y;
     let crossedX = 0;
     let crossedY = 0;
+    const visibleEdge = (fromX, fromY, toX, toY) => openEdge(fromX, fromY, toX, toY)
+      && !sightBlockers.has(cellKey(fromX, fromY)) && !sightBlockers.has(cellKey(toX, toY));
 
     // Compare grid-boundary times as integer ratios; corner crossings cover all four touching cells.
     while (cx !== target.x || cy !== target.y) {
       const crossingX = distanceX ? (crossedX * 2 + 1) * distanceY : Infinity;
       const crossingY = distanceY ? (crossedY * 2 + 1) * distanceX : Infinity;
       if (crossingX < crossingY) {
-        if (!openEdge(cx, cy, cx + stepX, cy)) return false;
+        if (!visibleEdge(cx, cy, cx + stepX, cy)) return false;
         cx += stepX;
         crossedX += 1;
       } else if (crossingY < crossingX) {
-        if (!openEdge(cx, cy, cx, cy + stepY)) return false;
+        if (!visibleEdge(cx, cy, cx, cy + stepY)) return false;
         cy += stepY;
         crossedY += 1;
       } else {
-        if (!openEdge(cx, cy, cx + stepX, cy)
-          || !openEdge(cx, cy, cx, cy + stepY)
-          || !openEdge(cx + stepX, cy, cx + stepX, cy + stepY)
-          || !openEdge(cx, cy + stepY, cx + stepX, cy + stepY)) return false;
+        if (!visibleEdge(cx, cy, cx + stepX, cy)
+          || !visibleEdge(cx, cy, cx, cy + stepY)
+          || !visibleEdge(cx + stepX, cy, cx + stepX, cy + stepY)
+          || !visibleEdge(cx, cy + stepY, cx + stepX, cy + stepY)) return false;
         cx += stepX;
         cy += stepY;
         crossedX += 1;

@@ -1,4 +1,5 @@
 import { rngFromSeed } from '../../shared/utils/random.js';
+import { COMBAT_CELLS_PER_MAP_TILE } from '../config/combatSettings.js';
 
 export const DIR = { N: 0, E: 1, S: 2, W: 3 };
 export const DX = [0, 1, 0, -1];
@@ -50,6 +51,65 @@ function shuffleInPlace(arr, rnd) {
   }
 }
 
+function furnishDungeon({ width, height, cells, start, seed }, rooms) {
+  // A separate stream keeps furniture changes from changing the dungeon layout.
+  const rnd = rngFromSeed(`${seed}:furniture`);
+  const themes = [
+    ['table', 'chair', 'bench', 'lamp'],
+    ['barrel', 'crate', 'chest', 'lamp'],
+    ['statue', 'urn', 'pottedPlant', 'brazier'],
+    ['bookshelf', 'chair', 'pottedPlant', 'lamp'],
+  ];
+  const corridorKinds = ['barrel', 'urn', 'chest', 'pottedPlant', 'lamp', 'brazier', 'statue'];
+  // Two corners on the same edge leave a clear 2x2 region for large creatures.
+  // Keeping the center cross empty also preserves first-person walking routes.
+  const edgeCorners = [
+    [[0, 0], [2, 0]], [[2, 0], [2, 2]],
+    [[2, 2], [0, 2]], [[0, 2], [0, 0]],
+  ];
+  const objects = [];
+  const add = (kind, mx, my, corner, rotation) => {
+    const x = mx * COMBAT_CELLS_PER_MAP_TILE + corner[0];
+    const y = my * COMBAT_CELLS_PER_MAP_TILE + corner[1];
+    objects.push({ id: `object:${x}:${y}`, kind, x, y, rotation });
+  };
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const roomIndex = rooms.findIndex(room => x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height);
+      const nearStart = Math.abs(x - start.x) + Math.abs(y - start.y) <= 1;
+      if (rnd.next() > (nearStart ? 1 : roomIndex >= 0 ? 0.55 : 0.27)) continue;
+      const wallEdges = [DIR.N, DIR.E, DIR.S, DIR.W].filter(d => getWall(cells, width, height, x, y, d) === WALL.WALL);
+      const edge = rnd.choice(wallEdges.length ? wallEdges : [DIR.N, DIR.E, DIR.S, DIR.W]);
+      const corners = edgeCorners[edge];
+      const kinds = roomIndex >= 0 ? themes[roomIndex % themes.length] : corridorKinds;
+      // Facing inward: model fronts point toward +Z at rotation zero.
+      const rotation = (4 - edge) % 4;
+      const first = rnd.int(0, 1);
+      const kind = nearStart && x === start.x && y === start.y ? 'lamp' : rnd.choice(kinds);
+      add(kind, x, y, corners[first], rotation);
+      if (nearStart || rnd.next() < (roomIndex >= 0 ? 0.45 : 0.2)) {
+        add(kind === 'table' ? 'chair' : rnd.choice(kinds), x, y, corners[1 - first], rotation);
+      }
+    }
+  }
+  // Keep a two-cell-wide crossing at every open map edge. Free 2x2 pockets
+  // alone are insufficient: opposing corner props can seal a dragon's route.
+  const occupied = new Map(objects.map(object => [`${object.x},${object.y}`, object]));
+  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+    for (const edge of [DIR.E, DIR.S]) {
+      if (getWall(cells, width, height, x, y, edge) === WALL.WALL) continue;
+      const alternatives = [0, 2].map(corner => edge === DIR.E
+        ? [`${x * 3 + 2},${y * 3 + corner}`, `${x * 3 + 3},${y * 3 + corner}`]
+        : [`${x * 3 + corner},${y * 3 + 2}`, `${x * 3 + corner},${y * 3 + 3}`]);
+      const blockers = alternatives.map(keys => keys.filter(key => occupied.has(key)));
+      if (blockers.every(keys => keys.length > 0)) {
+        for (const key of blockers[blockers[0].length <= blockers[1].length ? 0 : 1]) occupied.delete(key);
+      }
+    }
+  }
+  return objects.filter(object => occupied.has(`${object.x},${object.y}`));
+}
+
 export function buildDungeon(opts = {}) {
   const width = Math.max(8, Math.min(128, Math.floor(Number.isFinite(opts.width) ? opts.width : 48)));
   const height = Math.max(8, Math.min(128, Math.floor(Number.isFinite(opts.height) ? opts.height : 32)));
@@ -90,12 +150,14 @@ export function buildDungeon(opts = {}) {
   }
 
   // Add rooms
+  const rooms = [];
   const roomCount = Math.min(14, Math.max(4, Math.floor((width * height) / 200)));
   for (let r = 0; r < roomCount; r++) {
     const rw = rnd.int(3, Math.min(8, width - 2));
     const rh = rnd.int(3, Math.min(7, height - 2));
     const rx = rnd.int(1, Math.max(1, width - rw - 2));
     const ry = rnd.int(1, Math.max(1, height - rh - 2));
+    rooms.push({ x: rx, y: ry, width: rw, height: rh });
 
     // Clear interior walls within the room to OPEN
     for (let y = ry; y < ry + rh; y++) {
@@ -153,7 +215,8 @@ export function buildDungeon(opts = {}) {
     }
   }
 
-  return { width, height, cells, start, seed: rnd.seed };
+  const dungeon = { width, height, cells, start, seed: rnd.seed };
+  return { ...dungeon, objects: furnishDungeon(dungeon, rooms) };
 }
 
 export function yawForDir(dir) {

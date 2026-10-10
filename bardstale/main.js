@@ -20,8 +20,8 @@ function parseOptsFromURL() {
 
 function main() {
   const opts = parseOptsFromURL();
-  const { width, height, cells, start, seed } = buildDungeon(opts);
-  const state = { width, height, cells, x: start.x, y: start.y, dir: start.dir, seed };
+const { width, height, cells, start, seed, objects } = buildDungeon(opts);
+const state = { width, height, cells, objects, x: start.x, y: start.y, dir: start.dir, seed };
   cells[state.y][state.x].visited = true;
 
   const hudCanvas = document.getElementById('hud');

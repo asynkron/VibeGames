@@ -5,6 +5,7 @@ import { COMBAT_CELLS_PER_MAP_TILE } from '../../config/combatSettings.js';
 import { createCombatVoxelActors } from './combatVoxelActors.js';
 import { createCombatEffects } from './combatEffects.js';
 import { createCombatLighting } from './combatLighting.js';
+import { createVoxelEnvironment } from './voxelEnvironment.js';
 import { footprintCells, occupiesCell } from '../combatFootprints.js';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = UI_SETTINGS.resolution;
@@ -138,6 +139,9 @@ export function buildScene(state, stage) {
   player.position.set(state.x + 0.5, 0, state.y + 0.5);
   player.rotation.y = yawForDir(state.dir);
   scene.add(player);
+
+  // Furnishings belong to the dungeon and persist across camera modes.
+  const environmentObjects = createVoxelEnvironment(scene, state.objects, { cellSize: COMBAT_CELL_SIZE });
 
   // Warm point light that follows the party to mimic a handheld torch.
   const torchAnchor = new THREE.Object3D();
@@ -445,8 +449,9 @@ export function buildScene(state, stage) {
   }
 
   function render() {
+    const now = performance.now();
+    environmentObjects.update({ now, focus: battleActive && battleView ? battleView : player.position });
     if (battleActive) {
-      const now = performance.now();
       combatActors.update(now);
       combatEffects.update(now);
       combatLighting.update(now, combatActors.positionFor);

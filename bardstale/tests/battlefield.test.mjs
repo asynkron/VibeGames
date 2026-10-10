@@ -9,7 +9,7 @@ const combatant = (id) => ({ id, alive: true });
 
 function dungeon(width, height, { x = 0, y = 0, dir = DIR.E } = {}) {
   return {
-    width, height, x, y, dir,
+    width, height, x, y, dir, objects: [],
     cells: Array.from({ length: height }, () => Array.from({ length: width }, () => ({
       n: WALL.WALL, e: WALL.WALL, s: WALL.WALL, w: WALL.WALL, visited: false,
     }))),
@@ -51,6 +51,79 @@ test('one original dungeon tile holds nine distinct combatants without changing 
   }
   assert.deepEqual(map, before);
   assert.throws(() => createBattlefield(map, heroes, [...monsters, combatant('tenth')]), RangeError);
+});
+
+test('furniture persists through deployment and consumes combat-cell capacity', () => {
+  const map = dungeon(1, 1);
+  map.objects.push({ id: 'chest', kind: 'chest', x: 0, y: 0, rotation: 0 });
+  const before = structuredClone(map);
+  const heroes = Array.from({ length: 5 }, (_, i) => combatant(`hero${i}`));
+  const monsters = Array.from({ length: 3 }, (_, i) => combatant(`foe${i}`));
+  const board = createBattlefield(map, heroes, monsters);
+
+  assert.equal(board.units.length, 8);
+  assert.ok(board.units.every((unit) => unit.x !== 0 || unit.y !== 0));
+  assert.equal(new Set(board.units.map((unit) => `${unit.x},${unit.y}`)).size, 8);
+  assert.throws(() => createBattlefield(map, heroes, [...monsters, combatant('extra')]), RangeError);
+  const dragon = { ...combatant('dragon'), footprint: { width: 2, height: 2 } };
+  assert.throws(() => createBattlefield(map, heroes, [dragon]), RangeError);
+  const largeBoard = createBattlefield(map, heroes.slice(0, 4), [dragon]);
+  assert.ok(largeBoard.units.flatMap((unit) => footprintCells(unit)).every(({ x, y }) => x !== 0 || y !== 0));
+  assert.deepEqual(map, before, 'Deployment must not remove or relocate dungeon furniture.');
+});
+
+test('furniture blocks destinations and forces movement and AI approach paths around it', () => {
+  const map = room(3, 1);
+  map.objects.push({ id: 'table', kind: 'table', x: 2, y: 1, rotation: 0 });
+  const board = createBattlefield(map, [combatant('hero')], [combatant('foe')]);
+
+  assert.equal(board.canPlace('hero', 2, 1), false);
+  assert.ok(board.reachable('hero', 10).every(({ x, y }) => x !== 2 || y !== 1));
+  assert.deepEqual(board.move('hero', 2, 1, 10), { moved: false, cost: 0 });
+  assert.deepEqual(board.pathToCell('hero', 3, 1, 3), []);
+  const route = board.pathToCell('hero', 3, 1, 4);
+  const approach = board.pathToAdjacent('hero', 'foe');
+  assert.equal(route.length, 4);
+  assert.equal(approach.length, 4);
+  for (const path of [route, approach]) {
+    assert.ok(path.every(({ x, y }) => x !== 2 || y !== 1));
+  }
+  assert.deepEqual(board.move('hero', 3, 1, 3), { moved: false, cost: 0 });
+  for (const step of approach) assert.equal(board.move('hero', step.x, step.y, 1).moved, true);
+  assert.equal(board.canTarget('hero', 'foe', { melee: true }), true);
+});
+
+test('furniture-separated spaces cannot receive combatants from the other side', () => {
+  const map = room(3, 1);
+  map.objects.push(...[0, 1, 2].map((y) => ({ id: `barrel${y}`, kind: 'barrel', x: 2, y, rotation: 0 })));
+  const heroes = Array.from({ length: 7 }, (_, i) => combatant(`hero${i}`));
+  assert.throws(() => createBattlefield(map, heroes, []), RangeError,
+    'Only six cells are connected to the party origin; free cells beyond the barrels cannot be used.');
+});
+
+test('large bodies cannot overlap furniture or squeeze through its one-cell opening', () => {
+  const map = room(3, 1);
+  map.objects.push(...[0, 2].map((y) => ({ id: `barrel${y}`, kind: 'barrel', x: 3, y, rotation: 0 })));
+  const dragon = { ...combatant('dragon'), footprint: { width: 2, height: 2 } };
+  const board = createBattlefield(map, [], [dragon]);
+
+  assert.equal(board.canPlace('dragon', 2, 1), false, 'The far side of the body overlaps the lower barrel.');
+  assert.ok(board.reachable('dragon', 30).every(({ x }) => x >= 4));
+  assert.deepEqual(board.pathToCell('dragon', 0, 1, 30), []);
+  assert.deepEqual(board.move('dragon', 0, 1, 30), { moved: false, cost: 0 });
+});
+
+test('tall furniture blocks ranged sight and low furniture can be shot over', () => {
+  for (const [kind, visible] of [['chest', true], ['table', true], ['statue', false], ['bookshelf', false]]) {
+    const map = room(3, 2);
+    map.objects.push({ id: 'obstacle', kind, x: 2, y: 1, rotation: 0 });
+    const board = createBattlefield(map, [combatant('hero')], [combatant('foe')]);
+    assert.equal(board.canTarget('hero', 'foe', { range: 3 }), visible, kind);
+    assert.equal(board.canTarget('foe', 'hero', { range: 3 }), visible, `${kind} in reverse`);
+    assert.equal(board.move('foe', 2, 2, 10).moved, true);
+    assert.equal(board.canTarget('hero', 'foe', { range: 2 }), visible, `${kind} at a diagonal corner`);
+    assert.equal(board.canTarget('foe', 'hero', { range: 2 }), visible, `${kind} diagonal in reverse`);
+  }
 });
 
 test('edge encounters keep the party together in its original map tile and put the lead on an exposed front', () => {
