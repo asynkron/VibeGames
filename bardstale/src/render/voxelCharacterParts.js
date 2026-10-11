@@ -3,33 +3,35 @@ import { paintMainhand, paintOffhand } from './voxelEquipmentParts.js';
 import { paintHumanTorso, paintHumanArms, paintHumanLegs, paintHumanOverlay } from './voxelHumanoidBody.js';
 
 export const VOXEL_MATERIALS = {
-  cloth: { roughness: 0.93, metalness: 0, envMapIntensity: 0.12 },
-  leather: { roughness: 0.78, metalness: 0, envMapIntensity: 0.12 },
-  skin: { roughness: 0.72, metalness: 0, envMapIntensity: 0.12 },
-  steel: { roughness: 0.36, metalness: 0.72, envMapIntensity: 0.45 },
-  gold: { roughness: 0.3, metalness: 0.78, envMapIntensity: 0.45 },
-  feather: { roughness: 0.96, metalness: 0, envMapIntensity: 0.12 },
-  bone: { roughness: 0.8, metalness: 0, envMapIntensity: 0.12 },
-  fur: { roughness: 1, metalness: 0, envMapIntensity: 0.1 },
-  stone: { roughness: 0.92, metalness: 0.05, envMapIntensity: 0.12 },
-  flame: { roughness: 0.75, metalness: 0, emissive: '#fa4d0b', emissiveIntensity: 0.6, envMapIntensity: 0 },
-  wood: { roughness: 0.9, metalness: 0, envMapIntensity: 0.1 },
-  crystal: { roughness: 0.24, metalness: 0.3, emissive: '#31576a', emissiveIntensity: 0.25, envMapIntensity: 0.5 },
+  cloth: { roughness: 0.86, metalness: 0, envMapIntensity: 0.2 },
+  leather: { roughness: 0.66, metalness: 0, envMapIntensity: 0.3 },
+  skin: { roughness: 0.75, metalness: 0, envMapIntensity: 0.18 },
+  steel: { roughness: 0.3, metalness: 0.8, envMapIntensity: 0.85 },
+  gold: { roughness: 0.28, metalness: 0.75, envMapIntensity: 0.9 },
+  feather: { roughness: 0.88, metalness: 0, envMapIntensity: 0.15 },
+  bone: { roughness: 0.75, metalness: 0, envMapIntensity: 0.2 },
+  fur: { roughness: 0.97, metalness: 0, envMapIntensity: 0.12 },
+  stone: { roughness: 0.94, metalness: 0, envMapIntensity: 0.18 },
+  ceramic: { roughness: 0.27, metalness: 0.02, envMapIntensity: 0.45 },
+  foliage: { roughness: 0.83, metalness: 0, envMapIntensity: 0.15 },
+  flame: { roughness: 0.75, metalness: 0, emissive: '#ffffff', emissiveIntensity: 0.6, envMapIntensity: 0 },
+  wood: { roughness: 0.78, metalness: 0, envMapIntensity: 0.25 },
+  crystal: { roughness: 0.19, metalness: 0.18, emissive: '#ffffff', emissiveIntensity: 0.25, envMapIntensity: 0.8 },
 };
 const PAINT = {
-  teal: ['#087f82', 'cloth'], indigo: ['#293e67', 'cloth'], midnight: ['#20546c', 'cloth'],
-  leather: ['#593326', 'leather'], belt: ['#743d31', 'leather'], ivory: ['#e7d7b4', 'cloth'],
-  steel: ['#95b4c5', 'steel'], gunmetal: ['#475d73', 'steel'], silver: ['#d7e5ec', 'steel'],
-  gold: ['#dfa743', 'gold'], skin: ['#d7946b', 'skin'], lips: ['#844c45', 'skin'],
-  eyes: ['#22212c', 'skin'], burgundy: ['#75254e', 'feather'], magenta: ['#cf4b88', 'feather'],
-  coral: ['#ffc38c', 'feather'], crimson: ['#a93640', 'cloth'], copper: ['#b97843', 'gold'],
-  hair: ['#4f3028', 'leather'], olive: ['#526743', 'cloth'],
-  slit: ['#16232c', 'steel'],
-  bone: ['#e6d8af', 'bone'], shadowBone: ['#a59778', 'bone'],
-  wood: ['#76503a', 'wood'], crystal: ['#68dcf0', 'crystal'],
-  ruby: ['#e63b65', 'crystal'], sapphire: ['#367aff', 'crystal'],
-  maple: ['#d6a365', 'wood'], fretboard: ['#352822', 'wood'],
-  string: ['#d2be9a', 'cloth'], goblinSkin: ['#789944', 'skin'], ogreSkin: ['#94916a', 'skin'],
+  teal: ['#356f75', 'cloth'], indigo: ['#41465d', 'cloth'], midnight: ['#284954', 'cloth'],
+  leather: ['#654636', 'leather'], belt: ['#916443', 'leather'], ivory: ['#d9ceb3', 'cloth'],
+  steel: ['#a7b2b7', 'steel'], gunmetal: ['#606c75', 'steel'], silver: ['#e1e3db', 'steel'],
+  gold: ['#d3ad64', 'gold'], skin: ['#c99172', 'skin'], lips: ['#a56560', 'skin'],
+  eyes: ['#282827', 'skin'], burgundy: ['#602936', 'feather'], magenta: ['#ad4754', 'feather'],
+  coral: ['#de8f77', 'feather'], crimson: ['#983c46', 'cloth'], copper: ['#a77b51', 'gold'],
+  hair: ['#483328', 'leather'], olive: ['#697050', 'cloth'],
+  slit: ['#1c2429', 'steel'],
+  bone: ['#dfd7bf', 'bone'], shadowBone: ['#a89f88', 'bone'],
+  wood: ['#86613f', 'wood'], crystal: ['#87cdd3', 'crystal'],
+  ruby: ['#ad3d64', 'crystal'], sapphire: ['#557fc4', 'crystal'],
+  maple: ['#ceac70', 'wood'], fretboard: ['#372c22', 'wood'],
+  string: ['#c9b990', 'cloth'], goblinSkin: ['#8b9b62', 'skin'], ogreSkin: ['#9b997b', 'skin'],
 };
 
 export const EMPTY_VOXEL_GEAR = Object.freeze({ shoulders:'none', hands:'none', feet:'none', waist:'none', neck:'none', ring1:'none', ring2:'none' });
@@ -286,11 +288,20 @@ function paintLute(p) {
   p.limb([15.5,17.5,13.5],[10.5,11.5,15.5],.65,'leather');
 }
 
-function voxelColor(cell) {
+function voxelColor(cell, partId) {
   const base = PAINT[cell.surface][0];
-  const n = Math.sin(cell.x*127.1+cell.y*311.7+cell.z*74.7)*43758.5453;
-  const variation = (n-Math.floor(n)-.5)*9;
-  return '#'+[1,3,5].map(i=>Math.max(0,Math.min(255,Math.round(parseInt(base.slice(i,i+2),16)+variation))).toString(16).padStart(2,'0')).join('');
+  if (!['skin', 'goblinSkin', 'ogreSkin'].includes(cell.surface)) return base;
+  const head = partId.startsWith('head/');
+  // Complexion follows the anatomy: warm cheeks and knuckles, a cooler neck.
+  // Fine material grain is added by the shared renderer, without baking noise
+  // into every voxel or tinting all three color channels by the same amount.
+  const warmth = head
+    ? Math.max(0, 1 - Math.abs(cell.y - 20) / 2) * Math.max(0, 1 - Math.abs(cell.z - 14) / 3)
+    : Math.max(0, Math.min(1, (cell.z - 12) / 4));
+  const neck = head && cell.y < 19 ? (19 - cell.y) / 3 : 0;
+  const tint = [7 * warmth - 8 * neck, -3 * warmth - 7 * neck, -4 * warmth - 3 * neck];
+  return '#' + [1, 3, 5].map((offset, channel) => Math.max(0, Math.min(255,
+    Math.round(parseInt(base.slice(offset, offset + 2), 16) + tint[channel]))).toString(16).padStart(2, '0')).join('');
 }
 
 export const VOXEL_PART_LIBRARY = new Map();
@@ -301,7 +312,7 @@ function registerPart(id, cells) {
   const authored = [...cells.values()].sort((a,b)=>a.x-b.x || a.y-b.y || a.z-b.z);
   const voxels = authored.map(cell => ({
     x: cell.x-12, y: cell.y, z: cell.z-12,
-    color: voxelColor(cell), material: PAINT[cell.surface][1],
+    color: voxelColor(cell, id), material: PAINT[cell.surface][1],
     ...(cell.joint === undefined ? {} : { joint: cell.joint }),
   }));
   const part = defineVoxelPart({ id, name:id.replaceAll('/',' · '), voxels });

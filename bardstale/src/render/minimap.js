@@ -1,3 +1,4 @@
+import { getEnvironment } from '../environments.js';
 import { DIR, WALL, getWall } from '../dungeon.js';
 import { UI_SETTINGS } from '../../config/uiSettings.js';
 import { createTilePainter } from './tiles.js';
@@ -64,7 +65,7 @@ export function createMinimapOverlay(screenElement, state) {
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, resolution.width, resolution.height);
     painter.frame(0, 0, columns, rows);
-    painter.text('EXPLORED DUNGEON', 3, 2, colors.yellow, mapColumns);
+    painter.text(`EXPLORED ${getEnvironment(state.environment).name.toUpperCase()}`, 3, 2, colors.yellow, mapColumns);
 
     const visibleColumns = Math.min(state.width, mapColumns);
     const visibleRows = Math.min(state.height, mapRows);
@@ -88,6 +89,16 @@ export function createMinimapOverlay(screenElement, state) {
       }
     }
 
+    for (const exit of state.exits) {
+      if (exit.x < firstX || exit.y < firstY || exit.x >= firstX + visibleColumns || exit.y >= firstY + visibleRows) continue;
+      const px = mapLeft + (exit.x - firstX) * tileSize;
+      const py = mapTop + (exit.y - firstY) * tileSize;
+      ctx.fillStyle = colors.yellow;
+      ctx.fillRect(px + 2, py + 2, tileSize - 4, tileSize - 4);
+    }
+    const exits = state.exits.map(exit => `${getEnvironment(exit.target).name} ${exit.x+1},${exit.y+1}`).join(' / ');
+    painter.text(`EXITS: ${exits.toUpperCase()}`, 3, 3, colors.yellow, mapColumns);
+
     drawHeading(mapLeft + (state.x - firstX) * tileSize, mapTop + (state.y - firstY) * tileSize);
     painter.text('PASSAGE', 3, rows - 4, colors.cyan, 9);
     painter.text('DOOR', 15, rows - 4, colors.yellow, 6);
@@ -99,7 +110,7 @@ export function createMinimapOverlay(screenElement, state) {
       : '';
     painter.text(position + view, 3, rows - 3, colors.text, mapColumns);
     painter.text('M / ESC / CLICK TO CLOSE', 3, rows - 2, colors.yellow, mapColumns);
-    canvas.setAttribute('aria-label', `Explored dungeon. Party at ${state.x + 1}, ${state.y + 1}, facing ${HEADING_NAMES[state.dir].toLowerCase()}. Press M or Escape, or click, to close.`);
+    canvas.setAttribute('aria-label', `Explored ${getEnvironment(state.environment).name}. Party at ${state.x + 1}, ${state.y + 1}, facing ${HEADING_NAMES[state.dir].toLowerCase()}. Known exits: ${exits}. Press M or Escape, or click, to close.`);
   }
 
   function show() {

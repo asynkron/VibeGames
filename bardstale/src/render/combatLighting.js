@@ -1,7 +1,7 @@
 import { footprintCenter, normalizeFootprint } from '../combatFootprints.js';
 
-const TORCH_COLOR = 0xffc87a;
-const TORCH_INTENSITY = 1.86;
+const TORCH_COLOR = 0xffddb0;
+const TORCH_INTENSITY = 1.45;
 const TORCH_DECAY = 2.2;
 const SHADOW_OPACITY = 0.24;
 const DEFEATED_SHADOW_OPACITY = 0.12;

@@ -1,6 +1,6 @@
 // Serve the VibeGames root over HTTP so shared modules are available.
 import { clamp } from '../shared/utils/math.js';
-import { DX, DY, WALL, buildDungeon, getWall, leftOf, rightOf, backOf, yawForDir } from './src/dungeon.js';
+import { DX, DY, WALL, getWall, leftOf, rightOf, backOf, yawForDir } from './src/dungeon.js';
 import { createHudRenderer } from './src/render/hud.js';
 import { createMinimapOverlay } from './src/render/minimap.js';
 import { buildScene } from './src/render/scene.js';
@@ -8,6 +8,8 @@ import { createCombatMapControls } from './src/render/combatMapControls.js';
 import { createInventoryPanel } from './src/render/inventoryPanel.js';
 import { initBt3Systems } from './src/systems/core.js';
 import { UI_SETTINGS } from './config/uiSettings.js';
+import { getEnvironment } from './src/environments.js';
+import { createWorldJourney } from './src/worldTravel.js';
 
 function parseOptsFromURL() {
   const p = new URLSearchParams(window.location.search);
@@ -15,14 +17,19 @@ function parseOptsFromURL() {
   const h = parseInt(p.get('h') || p.get('height') || '0', 10) || undefined;
   const seed = p.get('seed') || undefined;
   const depth = p.has('depth') ? clamp(parseInt(p.get('depth'), 10) || 1, 1, 5) : undefined;
-  return { width: w, height: h, seed, depth };
+  return { width: w, height: h, seed, depth, environment: p.get('environment') || 'dungeon' };
 }
 
 function main() {
   const opts = parseOptsFromURL();
-const { width, height, cells, start, seed, objects } = buildDungeon(opts);
-const state = { width, height, cells, objects, x: start.x, y: start.y, dir: start.dir, seed };
-  cells[state.y][state.x].visited = true;
+  const journey = createWorldJourney(opts);
+  const state = { ...journey.initialArea };
+  state.cells[state.y][state.x].visited = true;
+  const travelBar = document.getElementById('travel-bar');
+  const areaName = document.getElementById('area-name');
+  const areaDescription = document.getElementById('area-description');
+  const travelButton = document.getElementById('travel-button');
+  let travelling = false;
 
   const hudCanvas = document.getElementById('hud');
   const stageElement = document.getElementById('stage');
@@ -42,16 +49,18 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
 
   function sizeScreen() {
     const { resolution, tileSize, layout } = UI_SETTINGS;
+    const barHeight = travelBar.offsetHeight;
+    const availableHeight = window.innerHeight - barHeight;
     const scale = Math.max(1, Math.floor(Math.min(
       window.innerWidth / resolution.width,
-      window.innerHeight / resolution.height,
+      availableHeight / resolution.height,
     )));
     const width = resolution.width * scale;
     const height = resolution.height * scale;
     Object.assign(screenElement.style, {
       width: `${width}px`, height: `${height}px`,
       left: `${Math.max(0, Math.floor((window.innerWidth - width) / 2))}px`,
-      top: `${Math.max(0, Math.floor((window.innerHeight - height) / 2))}px`,
+      top: `${barHeight + Math.max(0, Math.floor((availableHeight - height) / 2))}px`,
     });
     const view = combatLayoutActive ? UI_SETTINGS.combatLayout.viewport : layout.viewport;
     Object.assign(stageElement.style, {
@@ -65,7 +74,7 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
   window.addEventListener('resize', sizeScreen);
   hud.setLocation(state);
 
-  const g = buildScene(state, stageElement);
+  let g = buildScene(state, stageElement);
   const minimap = createMinimapOverlay(screenElement, state);
   const combatView = {
     playEffect(effect) {
@@ -78,6 +87,7 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
         sizeScreen();
       }
       hud.setCombatStatus(snapshot);
+      updateTravelPrompt();
       g.setBattle(snapshot);
     },
     hide() {
@@ -87,6 +97,7 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
       sizeScreen();
       hud.setCombatStatus(null);
       g.clearBattle();
+      updateTravelPrompt();
     },
   };
   const systems = initBt3Systems({ hud, combatView, dungeon: state });
@@ -95,6 +106,7 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
     systems,
     onClose() {
       screenElement.inert = false;
+      updateTravelPrompt();
       hudCanvas.focus({ preventScroll: true });
     },
   });
@@ -104,12 +116,12 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
       const rect = stageElement.getBoundingClientRect();
       return clientX >= rect.left && clientX < rect.right && clientY >= rect.top && clientY < rect.bottom;
     },
-    pan: g.panBattle,
-    rotate: g.rotateBattle,
-    zoom: g.zoomBattle,
-    reset: g.resetBattleView,
+    pan: (...args) => g.panBattle(...args),
+    rotate: (...args) => g.rotateBattle(...args),
+    zoom: (...args) => g.zoomBattle(...args),
+    reset: () => g.resetBattleView(),
   });
-  hud.appendLog('The party enters the dungeon.');
+  hud.appendLog(`The party enters ${getEnvironment(state.environment).name}.`);
 
   // Animation state
   let anim = null; // {type:'move'|'turn', start, duration, fromPos:{x,z}, toPos:{x,z}, fromYaw, toYaw}
@@ -119,6 +131,7 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
   let torchPhase = Math.random() * Math.PI * 2;
 
   function openInventory(characterId) {
+    if (travelling) return;
     minimap.hide();
     mapControls.cancel();
     keyQueued = null;
@@ -129,12 +142,58 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
     }
     inventory.open(targetId);
     screenElement.inert = true;
+    updateTravelPrompt();
   }
 
-  function startMove(dirSign) { // +1 forward, -1 backward
+  function exitAtParty() {
+    return state.exits.find(exit => exit.x === state.x && exit.y === state.y);
+  }
+
+  function updateTravelPrompt() {
+    const area = getEnvironment(state.environment);
+    const exit = exitAtParty();
+    areaName.textContent = area.name;
+    areaDescription.textContent = exit ? `Way out to ${getEnvironment(exit.target).name}.` : area.description;
+    travelButton.disabled = !exit || travelling || systems.isCombatActive || inventory.isOpen() || Boolean(anim);
+    travelButton.textContent = exit ? `Travel to ${getEnvironment(exit.target).name} [Enter]` : 'Find a waymarked exit';
+  }
+
+  async function travel() {
+    const exit = exitAtParty();
+    if (!exit || travelling || anim || systems.isCombatActive || inventory.isOpen()) return;
+    travelling = true;
+    keyQueued = null;
+    travelButton.disabled = true;
+    areaDescription.textContent = `Travelling to ${getEnvironment(exit.target).name}…`;
+    minimap.hide();
+    mapControls.cancel();
+    // Let the travel status paint before generating and meshing the next area.
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    const previous = state.environment;
+    Object.assign(journey.areaFor(previous), { x:state.x, y:state.y, dir:state.dir });
+    const next = journey.areaFor(exit.target);
+    const arrival = journey.arrivalFor(previous, exit.target);
+    g.dispose();
+    Object.assign(state, next, arrival);
+    state.cells[state.y][state.x].visited = true;
+    g = buildScene(state, stageElement);
+    hud.setLocation(state);
+    hud.appendLog(`The party arrives in ${getEnvironment(state.environment).name}.`);
+    const url = new URL(window.location.href);
+    url.searchParams.set('environment', state.environment);
+    history.replaceState(null, '', url);
+    travelling = false;
+    lastFrameTime = performance.now();
+    updateTravelPrompt();
+    hudCanvas.focus({ preventScroll:true });
+  }
+  travelButton.addEventListener('click', travel);
+  updateTravelPrompt();
+
+  function startMove(dirSign) { // +1 forward, -1 reverse
     if (anim || systems.isCombatActive || minimap.isVisible()) return;
     const dirToUse = (dirSign === 1) ? state.dir : backOf(state.dir);
-    if (getWall(cells, width, height, state.x, state.y, dirToUse) === WALL.WALL) return;
+    if (getWall(state.cells, state.width, state.height, state.x, state.y, dirToUse) === WALL.WALL) return;
 
     const nx = state.x + DX[dirToUse];
     const ny = state.y + DY[dirToUse];
@@ -144,8 +203,9 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
 
     anim = { type: 'move', start: performance.now(), duration: 280, fromPos, toPos };
     // Track the destination while the camera animates toward it.
-    state.x = nx; state.y = ny; cells[state.y][state.x].visited = true;
+    state.x = nx; state.y = ny; state.cells[state.y][state.x].visited = true;
     hud.setLocation(state);
+    updateTravelPrompt();
   }
 
   function startTurn(left) {
@@ -159,6 +219,7 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
     while (delta > Math.PI) delta -= 2 * Math.PI;
     while (delta < -Math.PI) delta += 2 * Math.PI;
     anim = { type: 'turn', start: performance.now(), duration: 220, fromYaw, toYaw: fromYaw + delta };
+    updateTravelPrompt();
   }
 
   const navigation = {
@@ -169,6 +230,18 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
   };
 
   function onKey(ev) {
+    if (ev.key === 'Enter' && ev.repeat && !systems.isCombatActive && !inventory.isOpen()) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      return;
+    }
+    if (travelBar.contains(ev.target) || travelling) return;
+    if (ev.key === 'Enter' && exitAtParty() && !systems.isCombatActive && !inventory.isOpen() && !minimap.isVisible()) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      travel();
+      return;
+    }
     if (inventory.isOpen() || inventoryQueuedFor !== null) return;
     if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
     if (ev.key.toLowerCase() === 'i') {
@@ -227,7 +300,8 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
       if (t >= 1) {
         const wasMove = anim.type === 'move';
         anim = null;
-        if (wasMove) systems.onStepComplete(opts.depth);
+        if (wasMove && !exitAtParty()) systems.onStepComplete(opts.depth);
+        updateTravelPrompt();
         if (inventoryQueuedFor !== null) {
           const targetId = inventoryQueuedFor;
           inventoryQueuedFor = null;
@@ -252,7 +326,7 @@ const state = { width, height, cells, objects, x: start.x, y: start.y, dir: star
     g.torchAnchor.position.x = offset.x + Math.sin(torchPhase * 2.4) * 0.035;
     g.torchAnchor.position.y = offset.y + Math.cos(torchPhase * 3.1) * 0.018;
 
-    if (!inventory.isOpen()) g.render();
+    if (!inventory.isOpen() && !travelling) g.render();
     requestAnimationFrame(step);
   }
 

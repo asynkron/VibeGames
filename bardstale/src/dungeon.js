@@ -1,5 +1,6 @@
 import { rngFromSeed } from '../../shared/utils/random.js';
 import { COMBAT_CELLS_PER_MAP_TILE } from '../config/combatSettings.js';
+import { getEnvironment } from './environments.js';
 
 export const DIR = { N: 0, E: 1, S: 2, W: 3 };
 export const DX = [0, 1, 0, -1];
@@ -12,7 +13,7 @@ export function backOf(dir) { return (dir + 2) % 4; }
 export function inBounds(x, y, w, h) { return x >= 0 && x < w && y >= 0 && y < h; }
 
 function createCell() {
-  return { n: WALL.WALL, e: WALL.WALL, s: WALL.WALL, w: WALL.WALL, visited: false };
+  return { n: WALL.WALL, e: WALL.WALL, s: WALL.WALL, w: WALL.WALL, visited: false, building: null };
 }
 
 function setWall(cells, w, h, x, y, dir, type) {
@@ -51,7 +52,7 @@ function shuffleInPlace(arr, rnd) {
   }
 }
 
-function furnishDungeon({ width, height, cells, start, seed }, rooms) {
+function furnishDungeon({ width, height, cells, start, seed, environment }, rooms) {
   // A separate stream keeps furniture changes from changing the dungeon layout.
   const rnd = rngFromSeed(`${seed}:furniture`);
   const themes = [
@@ -77,17 +78,25 @@ function furnishDungeon({ width, height, cells, start, seed }, rooms) {
     for (let x = 1; x < width - 1; x++) {
       const roomIndex = rooms.findIndex(room => x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height);
       const nearStart = Math.abs(x - start.x) + Math.abs(y - start.y) <= 1;
-      if (rnd.next() > (nearStart ? 1 : roomIndex >= 0 ? 0.55 : 0.27)) continue;
+      const building = cells[y][x].building;
+      const density = environment === 'forest' ? 0.94 : environment === 'cave' ? 0.55
+        : environment === 'village' ? (building ? 1 : 0.42) : roomIndex >= 0 ? 0.55 : 0.27;
+      if (rnd.next() > (nearStart ? 1 : density)) continue;
       const wallEdges = [DIR.N, DIR.E, DIR.S, DIR.W].filter(d => getWall(cells, width, height, x, y, d) === WALL.WALL);
       const edge = rnd.choice(wallEdges.length ? wallEdges : [DIR.N, DIR.E, DIR.S, DIR.W]);
       const corners = edgeCorners[edge];
-      const kinds = roomIndex >= 0 ? themes[roomIndex % themes.length] : corridorKinds;
+      const kinds = environment === 'forest' ? ['oakTree', 'pineTree', 'oakTree', 'fern', 'mushrooms', 'boulder']
+        : environment === 'cave' ? ['boulder', 'boulder', 'crystals', 'crystals', 'mushrooms']
+          : environment === 'village' ? (building ? themes[(x + y) % themes.length]
+            : ['lamp', 'barrel', 'pottedPlant', 'bench', 'oakTree', 'crate'])
+            : roomIndex >= 0 ? themes[roomIndex % themes.length] : corridorKinds;
       // Facing inward: model fronts point toward +Z at rotation zero.
       const rotation = (4 - edge) % 4;
       const first = rnd.int(0, 1);
-      const kind = nearStart && x === start.x && y === start.y ? 'lamp' : rnd.choice(kinds);
+      const startKind = environment === 'forest' ? 'fern' : environment === 'cave' ? 'crystals' : 'lamp';
+      const kind = nearStart && x === start.x && y === start.y ? startKind : rnd.choice(kinds);
       add(kind, x, y, corners[first], rotation);
-      if (nearStart || rnd.next() < (roomIndex >= 0 ? 0.45 : 0.2)) {
+      if (nearStart || rnd.next() < (environment === 'forest' ? 0.8 : building ? 0.9 : roomIndex >= 0 ? 0.45 : 0.2)) {
         add(kind === 'table' ? 'chair' : rnd.choice(kinds), x, y, corners[1 - first], rotation);
       }
     }
@@ -110,12 +119,61 @@ function furnishDungeon({ width, height, cells, start, seed }, rooms) {
   return objects.filter(object => occupied.has(`${object.x},${object.y}`));
 }
 
+function carveLandscape(cells, width, height, rnd, environment) {
+  const start = { x: Math.floor(width / 2), y: Math.floor(height / 2), dir: DIR.N };
+  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+    if (x < width - 2) setWall(cells, width, height, x, y, DIR.E, WALL.OPEN);
+    if (y < height - 2) setWall(cells, width, height, x, y, DIR.S, WALL.OPEN);
+  }
+  if (environment === 'forest') {
+    // Isolated thicket edges leave continuous north/south paths and an open
+    // central clearing, so every clearing remains reachable without a maze.
+    for (let y = 2; y < height - 2; y++) for (let x = 2; x < width - 3; x++) {
+      if (Math.abs(y - start.y) <= 1 || rnd.next() >= 0.1) continue;
+      setWall(cells, width, height, x, y, DIR.E, WALL.WALL);
+    }
+    return start;
+  }
+
+  const styles = ['timber', 'plaster', 'brick', 'stone'];
+  const addHouse = (x, y, style, stories, door) => {
+    if (x < 2 || y < 2 || x > width - 3 || y > height - 3 || (x === start.x && y === start.y)) return;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (cells[y + dy][x + dx].building) return;
+    }
+    cells[y][x].building = { id: `house:${x}:${y}`, style, stories };
+    for (const direction of [DIR.N, DIR.E, DIR.S, DIR.W]) {
+      setWall(cells, width, height, x, y, direction, direction === door ? WALL.DOOR : WALL.WALL);
+    }
+  };
+  // Stand across a market square so the first view includes street, facades,
+  // and rooflines instead of looking directly through a nearby open doorway.
+  const facadeRow = Math.max(2, start.y - 4);
+  addHouse(start.x, facadeRow, 'timber', 2, DIR.S);
+  addHouse(start.x - 2, facadeRow, 'plaster', 1, DIR.S);
+  addHouse(start.x + 2, facadeRow, 'brick', 3, DIR.S);
+  addHouse(start.x - 4, facadeRow + 2, 'stone', 2, DIR.E);
+  for (let y = 2; y < height - 2; y++) for (let x = 2; x < width - 2; x++) {
+    const inSquare = Math.abs(x - start.x) <= 2 && y > facadeRow && y <= start.y + 1;
+    if (inSquare || Math.abs(x - start.x) + Math.abs(y - start.y) <= 2 || rnd.next() >= 0.26) continue;
+    addHouse(x, y, rnd.choice(styles), rnd.int(1, 3), rnd.int(0, 3));
+  }
+  return start;
+}
+
 export function buildDungeon(opts = {}) {
   const width = Math.max(8, Math.min(128, Math.floor(Number.isFinite(opts.width) ? opts.width : 48)));
   const height = Math.max(8, Math.min(128, Math.floor(Number.isFinite(opts.height) ? opts.height : 32)));
   const rnd = rngFromSeed(opts.seed || 'bt3');
+  const environment = getEnvironment(opts.environment ?? 'dungeon');
 
   const cells = Array.from({ length: height }, () => Array.from({ length: width }, createCell));
+
+  if (environment.outdoors) {
+    const start = carveLandscape(cells, width, height, rnd, environment.id);
+    const dungeon = { width, height, cells, start, seed: rnd.seed, environment: environment.id };
+    return { ...dungeon, objects: furnishDungeon(dungeon, []) };
+  }
 
   // Ensure outer ring is closed (already walls), interior will be carved.
   const visited = Array.from({ length: height }, () => Array.from({ length: width }, () => false));
@@ -153,8 +211,8 @@ export function buildDungeon(opts = {}) {
   const rooms = [];
   const roomCount = Math.min(14, Math.max(4, Math.floor((width * height) / 200)));
   for (let r = 0; r < roomCount; r++) {
-    const rw = rnd.int(3, Math.min(8, width - 2));
-    const rh = rnd.int(3, Math.min(7, height - 2));
+    const rw = rnd.int(3, Math.min(environment.id === 'cave' ? 13 : 8, width - 2));
+    const rh = rnd.int(3, Math.min(environment.id === 'cave' ? 11 : 7, height - 2));
     const rx = rnd.int(1, Math.max(1, width - rw - 2));
     const ry = rnd.int(1, Math.max(1, height - rh - 2));
     rooms.push({ x: rx, y: ry, width: rw, height: rh });
@@ -163,8 +221,12 @@ export function buildDungeon(opts = {}) {
     for (let y = ry; y < ry + rh; y++) {
       for (let x = rx; x < rx + rw; x++) {
         // Open links inside the room horizontally/vertically
-        if (x < rx + rw - 1) setWall(cells, width, height, x, y, DIR.E, WALL.OPEN);
-        if (y < ry + rh - 1) setWall(cells, width, height, x, y, DIR.S, WALL.OPEN);
+        const inChamber = (px, py) => environment.id !== 'cave'
+          || ((px - rx - (rw - 1) / 2) / (rw / 2)) ** 2 + ((py - ry - (rh - 1) / 2) / (rh / 2)) ** 2 <= 1.05;
+        if (inChamber(x, y)) {
+          if (x < rx + rw - 1 && inChamber(x + 1, y)) setWall(cells, width, height, x, y, DIR.E, WALL.OPEN);
+          if (y < ry + rh - 1 && inChamber(x, y + 1)) setWall(cells, width, height, x, y, DIR.S, WALL.OPEN);
+        }
         visited[y][x] = true; // mark as carved
       }
     }
@@ -185,6 +247,18 @@ export function buildDungeon(opts = {}) {
     }
   }
 
+  if (environment.id === 'cave') {
+    // Erosion opens the connecting tunnels while leaving irregular rock spurs.
+    for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+      for (const direction of [DIR.E, DIR.S]) {
+        if (x + DX[direction] >= width - 1 || y + DY[direction] >= height - 1) continue;
+        if (getWall(cells, width, height, x, y, direction) === WALL.WALL && rnd.next() < 0.37) {
+          setWall(cells, width, height, x, y, direction, WALL.OPEN);
+        }
+      }
+    }
+  }
+
   // Sprinkle a few doors in corridors
   const doorBudget = Math.floor((width * height) / 120);
   for (let i = 0; i < doorBudget; i++) {
@@ -198,10 +272,8 @@ export function buildDungeon(opts = {}) {
 
   // Choose start near center with at least one open neighbor
   function hasOpenNeighbor(x, y) {
-    for (const d of [DIR.N, DIR.E, DIR.S, DIR.W]) {
-      if (getWall(cells, width, height, x, y, d) !== WALL.WALL) return true;
-    }
-    return false;
+    const exits = [DIR.N, DIR.E, DIR.S, DIR.W].filter(d => getWall(cells, width, height, x, y, d) !== WALL.WALL);
+    return exits.length >= (environment.id === 'cave' ? 3 : 1);
   }
   let cx = Math.floor(width / 2), cy = Math.floor(height / 2);
   let start = { x: cx, y: cy, dir: DIR.N };
@@ -215,7 +287,11 @@ export function buildDungeon(opts = {}) {
     }
   }
 
-  const dungeon = { width, height, cells, start, seed: rnd.seed };
+  if (environment.id === 'cave') {
+    start.dir = [DIR.N, DIR.E, DIR.S, DIR.W].find(direction =>
+      getWall(cells, width, height, start.x, start.y, direction) !== WALL.WALL);
+  }
+  const dungeon = { width, height, cells, start, seed: rnd.seed, environment: environment.id };
   return { ...dungeon, objects: furnishDungeon(dungeon, rooms) };
 }
 

@@ -12,4 +12,10 @@ export const OBJECT_DEFINITIONS = Object.freeze(Object.fromEntries(Object.entrie
   brazier: { name: 'Ember brazier', blocksSight: false, light: Object.freeze({ color: '#ff772e', intensity: 0.16, range: 0.85 }) },
   bench: { name: 'Wooden bench', blocksSight: false },
   urn: { name: 'Glazed urn', blocksSight: false },
+  oakTree: { name: 'Oak tree', blocksSight: true, cutawayHeight: 45 },
+  pineTree: { name: 'Pine tree', blocksSight: true, cutawayHeight: 45 },
+  boulder: { name: 'Mossy boulder', blocksSight: true },
+  fern: { name: 'Wild fern', blocksSight: false },
+  mushrooms: { name: 'Woodland mushrooms', blocksSight: false },
+  crystals: { name: 'Quartz crystals', blocksSight: false },
 }).map(([kind, definition]) => [kind, Object.freeze(definition)])));

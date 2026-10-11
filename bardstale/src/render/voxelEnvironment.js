@@ -2,14 +2,18 @@ import * as THREE from 'three';
 import { COMBAT_CELLS_PER_MAP_TILE } from '../../config/combatSettings.js';
 import { OBJECT_DEFINITIONS } from '../worldObjects.js';
 import { VOXEL_MATERIALS } from './voxelCharacterParts.js';
+import { createVoxelMaterial } from './voxelMaterials.js';
 import { assembleVoxelObjectModel } from './voxelObjectCatalog.js';
 import { createVoxelSurfaces } from './voxelSurface.js';
+import { WALL } from '../dungeon.js';
+import { MASONRY_VOXELS_PER_TILE, MASONRY_WALL_HALF_DEPTH } from './voxelMasonryModels.js';
 
 const CHUNK_MAP_TILES = 8;
 const MAX_LIGHTS = 4;
 
 /** Static prop geometry is shared by kind, with instance batches small enough to cull. */
-export function createVoxelEnvironment(parent, objects, { cellSize }) {
+export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
+  const { objects } = dungeon;
   const group = new THREE.Group();
   group.name = 'voxel-environment';
   group.userData.objectCount = objects.length;
@@ -20,8 +24,7 @@ export function createVoxelEnvironment(parent, objects, { cellSize }) {
   const prototypes = new Map();
   const chunks = new Map();
   const batches = [];
-  const materials = Object.fromEntries(Object.entries(VOXEL_MATERIALS).map(([kind,properties]) =>
-    [kind,new THREE.MeshStandardMaterial({ ...properties,vertexColors:true })]));
+  const materials = Object.fromEntries(Object.keys(VOXEL_MATERIALS).map(kind => [kind, createVoxelMaterial(kind)]));
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3().setScalar(voxelSize);
@@ -38,7 +41,15 @@ export function createVoxelEnvironment(parent, objects, { cellSize }) {
     }
     const { min,max } = model.assembly.bounds;
     const origin = new THREE.Matrix4().makeTranslation(-(min.x+max.x)/2,-min.y,-(min.z+max.z)/2);
-    const prototype = { surfaces:createVoxelSurfaces(model.assembly.voxels),origin,lightAnchor:model.lightAnchor };
+    const cutawayHeight = OBJECT_DEFINITIONS[kind].cutawayHeight;
+    const surfaces = cutawayHeight === undefined ? createVoxelSurfaces(model.assembly.voxels)
+      : [false, true].flatMap(upper => createVoxelSurfaces(model.assembly.voxels.filter(voxel =>
+        (voxel.y >= cutawayHeight) === upper)).map(surface => ({ ...surface, upper })));
+    const footprintVoxels = cutawayHeight === undefined ? model.assembly.voxels
+      : model.assembly.voxels.filter(voxel => voxel.y < cutawayHeight);
+    const span = axis => Math.max(...footprintVoxels.map(voxel => voxel[axis] + 1)) - Math.min(...footprintVoxels.map(voxel => voxel[axis]));
+    const prototype = { surfaces,origin,lightAnchor:model.lightAnchor,
+      width:span('x')*voxelSize,depth:span('z')*voxelSize };
     prototypes.set(kind,prototype);
     return prototype;
   }
@@ -63,10 +74,11 @@ export function createVoxelEnvironment(parent, objects, { cellSize }) {
     for (const [kind,entries] of chunk.kinds) {
       const prototype = prototypeFor(kind);
       const ids = entries.map(object=>object.id);
-      const meshes = prototype.surfaces.map(({ material,geometry }) => {
+      const meshes = prototype.surfaces.map(({ material,geometry,upper }) => {
         const mesh = new THREE.InstancedMesh(geometry,materials[material],entries.length);
         mesh.name = `voxel-object-${kind}-${material}`;
         mesh.userData.objectIds = ids;
+        mesh.userData.cutaway = Boolean(upper);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         chunk.group.add(mesh);
@@ -75,6 +87,20 @@ export function createVoxelEnvironment(parent, objects, { cellSize }) {
       });
       entries.forEach((object,index) => {
         position.set((object.x+0.5)*cellSize-chunk.group.position.x,0,(object.y+0.5)*cellSize-chunk.group.position.z);
+        const tileX = Math.floor(object.x / COMBAT_CELLS_PER_MAP_TILE);
+        const tileY = Math.floor(object.y / COMBAT_CELLS_PER_MAP_TILE);
+        const tile = dungeon.cells[tileY][tileX];
+        const localX = object.x % COMBAT_CELLS_PER_MAP_TILE;
+        const localY = object.y % COMBAT_CELLS_PER_MAP_TILE;
+        const halfX = (object.rotation % 2 ? prototype.depth : prototype.width) / 2;
+        const halfZ = (object.rotation % 2 ? prototype.width : prototype.depth) / 2;
+        const wallDepth = (dungeon.environment === 'dungeon' ? MASONRY_WALL_HALF_DEPTH : 5) / MASONRY_VOXELS_PER_TILE;
+        const insetX = Math.max(0, wallDepth + halfX - cellSize / 2);
+        const insetZ = Math.max(0, wallDepth + halfZ - cellSize / 2);
+        if (localX === 0 && tile.w !== WALL.OPEN) position.x += insetX;
+        if (localX === COMBAT_CELLS_PER_MAP_TILE - 1 && tile.e !== WALL.OPEN) position.x -= insetX;
+        if (localY === 0 && tile.n !== WALL.OPEN) position.z += insetZ;
+        if (localY === COMBAT_CELLS_PER_MAP_TILE - 1 && tile.s !== WALL.OPEN) position.z -= insetZ;
         rotation.setFromAxisAngle(vertical,object.rotation*Math.PI/2);
         matrix.compose(position,rotation,scale).multiply(prototype.origin);
         for (const mesh of meshes) mesh.setMatrixAt(index,matrix);
@@ -106,8 +132,17 @@ export function createVoxelEnvironment(parent, objects, { cellSize }) {
   const nearest = new Array(MAX_LIGHTS).fill(null);
   const distances = new Array(MAX_LIGHTS).fill(Infinity);
 
-  function update({ now,focus }) {
+  function setCombat(active) {
+    for (const mesh of batches) if (mesh.userData.cutaway) mesh.visible = !active;
+  }
+
+  function update({ now,focus,radius = 20 }) {
     if (disposed) return;
+    for (const chunk of chunks.values()) {
+      const dx = Math.max(chunk.group.position.x - focus.x, 0, focus.x - chunk.group.position.x - chunkSize);
+      const dz = Math.max(chunk.group.position.z - focus.z, 0, focus.z - chunk.group.position.z - chunkSize);
+      chunk.group.visible = dx * dx + dz * dz <= radius * radius;
+    }
     nearest.fill(null);
     distances.fill(Infinity);
     const minX = Math.floor((focus.x-maxLightRange)/chunkSize);
@@ -161,5 +196,5 @@ export function createVoxelEnvironment(parent, objects, { cellSize }) {
     nearest.fill(null);
   }
 
-  return { group,update,dispose };
+  return { group,setCombat,update,dispose };
 }

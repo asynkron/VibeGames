@@ -5,15 +5,15 @@ import { assembleCreatureVoxelModel } from './voxelCreatureParts.js';
 
 // Themes supply unrestricted RGB paint to shared geometric assets.
 const THEMES = Object.freeze({
-  azure: { teal:'#326aab', crimson:'#326aab', midnight:'#344c70', indigo:'#293e67', ivory:'#e8dbb7', crystal:'#6bdcef' },
-  steel: { teal:'#f0e1bb', crimson:'#ede0bd', midnight:'#53647c', indigo:'#395981', ivory:'#4f79ab', hair:'#d5ccb6', crystal:'#91e2fb' },
-  forest: { teal:'#486a43', crimson:'#486a43', midnight:'#405339', indigo:'#626a46', ivory:'#c6c68b', hair:'#66412a', crystal:'#a6d471' },
-  ochre: { teal:'#b07538', crimson:'#b07538', midnight:'#82612c', indigo:'#643e30', ivory:'#efd7a1', hair:'#673728', crystal:'#efc25b' },
-  violet: { teal:'#7051a8', crimson:'#7051a8', midnight:'#453d69', indigo:'#4d385f', ivory:'#d1b5e9', hair:'#d1c4b8', crystal:'#dd9de9' },
-  crimson: { teal:'#a83845', crimson:'#a83845', midnight:'#653642', indigo:'#443340', ivory:'#e6c486', hair:'#342b32', crystal:'#ff9071' },
-  bone: { teal:'#343e52', crimson:'#343e52', midnight:'#303347', indigo:'#343346', ivory:'#ad9470', crystal:'#74dda6', gold:'#b9a56d' },
-  goblin: { teal:'#98713b', crimson:'#98713b', midnight:'#626144', indigo:'#656039', ivory:'#bbaa74', skin:'#789944', hair:'#303927', crystal:'#c6d468' },
-  ogre: { teal:'#776e4a', crimson:'#776e4a', midnight:'#65543b', indigo:'#6a593b', ivory:'#ad9470', skin:'#94916a', hair:'#3d3929' },
+  azure: { teal:'#456b88', crimson:'#456b88', midnight:'#354751', indigo:'#414961', ivory:'#ded2b6', skin:'#bf8d73', hair:'#49392f', crystal:'#8dcbd3' },
+  steel: { teal:'#ded5bf', crimson:'#ded5bf', midnight:'#626979', indigo:'#465d72', ivory:'#60839b', skin:'#c8a083', hair:'#c3bbaa', crystal:'#a6d6dc' },
+  forest: { teal:'#586e51', crimson:'#586e51', midnight:'#3c5148', indigo:'#697259', ivory:'#c5bea0', skin:'#b48365', hair:'#69462e', crystal:'#a6b97e' },
+  ochre: { teal:'#b1844f', crimson:'#b1844f', midnight:'#795d41', indigo:'#68503f', ivory:'#dec59c', skin:'#c39676', hair:'#6d4434', crystal:'#d4b577' },
+  violet: { teal:'#786180', crimson:'#786180', midnight:'#4b455b', indigo:'#584c66', ivory:'#c8b7c6', skin:'#b99b88', hair:'#b5aaa0', crystal:'#bfa8d7' },
+  crimson: { teal:'#994852', crimson:'#994852', midnight:'#5f3946', indigo:'#4e4352', ivory:'#d6ba90', skin:'#ad816e', hair:'#382f30', crystal:'#d79582' },
+  bone: { teal:'#414c5b', crimson:'#414c5b', midnight:'#333d49', indigo:'#4d4b58', ivory:'#ad9e7d', crystal:'#94c6aa', gold:'#b4a277' },
+  goblin: { teal:'#987d4f', crimson:'#987d4f', midnight:'#60684f', indigo:'#706b50', ivory:'#c0b58d', skin:'#8b9b62', hair:'#424736', crystal:'#b6bc87' },
+  ogre: { teal:'#827958', crimson:'#827958', midnight:'#685942', indigo:'#746349', ivory:'#b5a080', skin:'#9b997b', hair:'#484335' },
 });
 
 export const COMBAT_VOXEL_PALETTES=Object.freeze(Object.keys(THEMES));

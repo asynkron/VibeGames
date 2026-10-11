@@ -1,24 +1,24 @@
 import { defineVoxelPart, createCharacterRecipe, assembleVoxelCharacter } from './voxelParts.js';
 
 const SURFACES = {
-  scale: ['#367d55', 'skin'], scaleDark: ['#1b5141', 'skin'], scaleLight: ['#68a65c', 'skin'],
-  belly: ['#d7bd78', 'skin'], snakeEye: ['#edb740', 'gold'], black: ['#171719', 'skin'],
-  tongue: ['#d35468', 'skin'], tooth: ['#eee3bb', 'bone'],
-  brownFur: ['#765747', 'fur'], grayFur: ['#6e767b', 'fur'], darkFur: ['#494344', 'fur'],
-  muzzle: ['#b7a28e', 'fur'], paws: ['#ae7c7d', 'skin'], ears: ['#ca8b88', 'skin'],
-  tail: ['#9d7776', 'skin'], ratEye: ['#e6a454', 'skin'], nose: ['#463033', 'skin'],
-  basalt: ['#3c3a49', 'stone'], rockLight: ['#64616f', 'stone'], rockDark: ['#242732', 'stone'],
-  lava: ['#fc6729', 'flame'], ember: ['#df371c', 'flame'], fire: ['#ffa643', 'flame'],
-  hot: ['#ffe6a0', 'flame'],
-  dragonScale: ['#a63632', 'skin'], dragonLight: ['#ce6240', 'skin'], dragonDark: ['#652e32', 'skin'],
-  dragonBelly: ['#d39d62', 'skin'], dragonPlate: ['#e8bb76', 'skin'],
-  wing: ['#bd7746', 'leather'], wingLight: ['#dda568', 'leather'], wingDark: ['#9f543b', 'leather'],
-  horn: ['#eee0b3', 'bone'], hornBase: ['#bca574', 'bone'], dragonEye: ['#ffd15a', 'gold'],
-  ogreSkin: ['#90976b', 'skin'], ogreLight: ['#adb082', 'skin'], ogreShadow: ['#6d7854', 'skin'],
-  ogreBrow: ['#505840', 'skin'], ogreLip: ['#6c6751', 'skin'], ogreEye: ['#edcb79', 'skin'],
-  hide: ['#6a4a37', 'leather'], hideLight: ['#8d684b', 'leather'], hideDark: ['#49382d', 'leather'],
-  stitching: ['#c8ac77', 'cloth'], iron: ['#787c7c', 'steel'], brass: ['#b79551', 'gold'],
-  club: ['#785039', 'wood'], clubLight: ['#a4774b', 'wood'], clubDark: ['#4f392d', 'wood'],
+  scale: ['#66806a', 'skin'], scaleDark: ['#3a5751', 'skin'], scaleLight: ['#93a179', 'skin'],
+  belly: ['#c5bb91', 'skin'], snakeEye: ['#be974f', 'gold'], black: ['#26262b', 'skin'],
+  tongue: ['#a56b76', 'skin'], tooth: ['#ded9c2', 'bone'],
+  brownFur: ['#796756', 'fur'], grayFur: ['#7d8480', 'fur'], darkFur: ['#514d51', 'fur'],
+  muzzle: ['#b4aa96', 'fur'], paws: ['#a58986', 'skin'], ears: ['#bd9992', 'skin'],
+  tail: ['#aa9289', 'skin'], ratEye: ['#bb9168', 'skin'], nose: ['#594344', 'skin'],
+  basalt: ['#4c4b54', 'stone'], rockLight: ['#757279', 'stone'], rockDark: ['#303943', 'stone'],
+  lava: ['#ea733b', 'flame'], ember: ['#b7462a', 'flame'], fire: ['#f5b563', 'flame'],
+  hot: ['#fff0bf', 'flame'],
+  dragonScale: ['#995746', 'skin'], dragonLight: ['#ba8056', 'skin'], dragonDark: ['#614843', 'skin'],
+  dragonBelly: ['#bea678', 'skin'], dragonPlate: ['#dcc79b', 'skin'],
+  wing: ['#9b6256', 'leather'], wingLight: ['#bc8b70', 'leather'], wingDark: ['#674847', 'leather'],
+  horn: ['#ddd6be', 'bone'], hornBase: ['#a69a78', 'bone'], dragonEye: ['#e1b76f', 'gold'],
+  ogreSkin: ['#929779', 'skin'], ogreLight: ['#b0ae8e', 'skin'], ogreShadow: ['#737e69', 'skin'],
+  ogreBrow: ['#58624f', 'skin'], ogreLip: ['#89806c', 'skin'], ogreEye: ['#cabc8b', 'skin'],
+  hide: ['#796047', 'leather'], hideLight: ['#aa8761', 'leather'], hideDark: ['#584638', 'leather'],
+  stitching: ['#c5b392', 'cloth'], iron: ['#8a9698', 'steel'], brass: ['#bb9d64', 'gold'],
+  club: ['#87694c', 'wood'], clubLight: ['#b1966c', 'wood'], clubDark: ['#5b4b3a', 'wood'],
 };
 
 function sculpt() {
@@ -91,8 +91,12 @@ function serpent() {
   p.limb([15.5,12.5,14.5],[13.5,16,16],1.8,'scale');
   for (const cell of p.cells.values()) {
     if (cell.y <= 1 || (cell.y >= 5 && cell.z >= 15 && (cell.y % 3 !== 0))) cell.surface = 'belly';
-    else if ((cell.x + cell.z + cell.y * 2) % 7 <= 1) cell.surface = 'scaleDark';
-    else if ((cell.x * 3 + cell.z + cell.y) % 11 <= 1) cell.surface = 'scaleLight';
+    else {
+      // Broad connected markings follow the coil instead of scattered pixels.
+      const marking = Math.sin(cell.x * .46 + cell.z * .32) * Math.cos(cell.z * .38 - cell.y * .24);
+      if (marking > .5) cell.surface = 'scaleDark';
+      else if (marking < -.55) cell.surface = 'scaleLight';
+    }
   }
   p.oval([13.5,17,17],[3.3,2.2,3.4],'scale');
   p.oval([13.5,15.8,18],[2.5,.8,2.7],'belly');
@@ -233,9 +237,9 @@ function dragon() {
   p.limb([12,23,23.7], [12,27,28.5], 1.65, 'dragonBelly');
   for (const cell of p.cells.values()) {
     if (cell.surface === 'dragonScale') {
-      const fleck = ((cell.x * 3 + cell.y * 5 + cell.z * 7) % 19 + 19) % 19;
-      if (fleck === 0 || fleck === 1) cell.surface = 'dragonLight';
-      else if (fleck === 18) cell.surface = 'dragonDark';
+      const flank = Math.sin(cell.x * .3 + cell.z * .21) * Math.cos(cell.y * .25);
+      if (flank > .66) cell.surface = 'dragonLight';
+      else if (flank < -.68 || (Math.abs(cell.x - 11.5) < 2 && cell.y > 15 && cell.z < 23)) cell.surface = 'dragonDark';
     }
     if (cell.surface === 'dragonBelly' && cell.y % 3 === 0) cell.surface = 'dragonPlate';
   }
@@ -314,8 +318,7 @@ function ogre() {
   for (const cell of p.cells.values()) {
     if (cell.surface !== 'ogreSkin') continue;
     if (cell.z > 18 && cell.y > 20 && cell.y < 30) cell.surface = 'ogreLight';
-    else if ((cell.x*3 + cell.y*7 + cell.z*11) % 31 === 0) cell.surface = 'ogreShadow';
-    else if (cell.z < 8) cell.surface = 'ogreShadow';
+    else if (cell.z < 8 || (cell.y < 5 && cell.z < 17)) cell.surface = 'ogreShadow';
   }
   p.setJoint('body');
   p.put(12,23,22,'ogreShadow');
@@ -401,10 +404,19 @@ function ogre() {
 }
 
 function colorFor(cell) {
-  const [color, material] = SURFACES[cell.surface];
-  const noise = ((cell.x * 13 + cell.y * 7 + cell.z * 17) % 9) - 4;
+  const [base, material] = SURFACES[cell.surface];
+  let tint = [0, 0, 0];
+  if (material === 'fur') {
+    // Guard hairs darken across the back; the undercoat stays warmer and paler.
+    const back = Math.max(0, Math.min(1, (cell.y - 1) / 5));
+    tint = [7 - back * 14, 4 - back * 11, -1 - back * 6];
+  } else if (cell.surface.startsWith('ogre') && material === 'skin') {
+    const warmth = Math.max(0, 1 - Math.abs(cell.z - 21) / 7);
+    tint = [8 * warmth, 1 - 3 * warmth, -4 * warmth];
+  }
   return {
-    color: '#' + [1,3,5].map(index => Math.max(0,Math.min(255,parseInt(color.slice(index,index+2),16) + noise)).toString(16).padStart(2,'0')).join(''),
+    color: '#' + [1, 3, 5].map((offset, channel) => Math.max(0, Math.min(255,
+      Math.round(parseInt(base.slice(offset, offset + 2), 16) + tint[channel]))).toString(16).padStart(2, '0')).join(''),
     material,
   };
 }

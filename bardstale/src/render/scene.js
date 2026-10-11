@@ -1,138 +1,79 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { DIR, DX, DY, WALL, yawForDir } from '../dungeon.js';
+import { yawForDir } from '../dungeon.js';
 import { UI_SETTINGS } from '../../config/uiSettings.js';
 import { COMBAT_CELLS_PER_MAP_TILE } from '../../config/combatSettings.js';
 import { createCombatVoxelActors } from './combatVoxelActors.js';
 import { createCombatEffects } from './combatEffects.js';
 import { createCombatLighting } from './combatLighting.js';
 import { createVoxelEnvironment } from './voxelEnvironment.js';
+import { createVoxelWorld } from './voxelWorld.js';
+import { createVoxelTravelExits } from './voxelTravelExits.js';
+import { getEnvironment } from '../environments.js';
+import { createVoxelReflectionMap } from './voxelMaterials.js';
 import { footprintCells, occupiesCell } from '../combatFootprints.js';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = UI_SETTINGS.resolution;
-
-const textureLoader = new THREE.TextureLoader();
-
-function loadTexture(relativePath, options = {}) {
-  const { repeatX = 1, repeatY = 1, anisotropy = 1 } = options;
-  const texture = textureLoader.load(new URL(relativePath, import.meta.url).href);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.magFilter = THREE.LinearFilter;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.generateMipmaps = true;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(repeatX, repeatY);
-  if (anisotropy > 1) {
-    texture.anisotropy = anisotropy;
-  }
-  return texture;
-}
 
 // Render the 3D viewport to a fixed low-resolution buffer so the browser upscales it.
 const VIEWPORT_RENDER_SIZE = 256;
 const COMBAT_VIEWPORT_WIDTH = UI_SETTINGS.combatLayout.viewport.columns * UI_SETTINGS.tileSize;
 const COMBAT_VIEWPORT_HEIGHT = UI_SETTINGS.combatLayout.viewport.rows * UI_SETTINGS.tileSize;
 const COMBAT_ASPECT = COMBAT_VIEWPORT_WIDTH / COMBAT_VIEWPORT_HEIGHT;
-const COMBAT_WALL_HEIGHT = 0.8;
 const COMBAT_CELL_SIZE = 1 / COMBAT_CELLS_PER_MAP_TILE;
 const COMBAT_RENDER_SCALE = 2;
 const COMBAT_CAMERA_ELEVATION_SINE = Math.sqrt(2 / 3);
 const COMBAT_CAMERA_ELEVATION_COSINE = Math.sqrt(1 / 3);
 
 export function buildScene(state, stage) {
+  const environment = getEnvironment(state.environment);
+  const lighting = {
+    dungeon: { sky:0x0a0c10, fog:[4.5,20], ambient:.38, hemisphere:.65, sun:.95, ground:0x34303b, torch:1.55 },
+    cave: { sky:0x101719, fog:[3,14], ambient:.26, hemisphere:.45, sun:.55, ground:0x253d39, torch:1.7 },
+    forest: { sky:0xb8cbd0, fog:[5,18], ambient:.42, hemisphere:1.15, sun:2.3, ground:0x55653e, torch:.12 },
+    village: { sky:0xc5d9e8, fog:[8,25], ambient:.4, hemisphere:1.1, sun:2.5, ground:0x7a6955, torch:.12 },
+  }[environment.id];
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0c10);
-  scene.fog = new THREE.Fog(0x0a0c10, 4.5, 20);
+  scene.background = new THREE.Color(lighting.sky);
+  scene.fog = new THREE.Fog(lighting.sky, ...lighting.fog);
 
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   renderer.shadowMap.enabled = true; // Torch should cast real-time shadows onto nearby geometry.
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  const reflections = createVoxelReflectionMap(renderer);
+  scene.environment = reflections.texture;
   stage.appendChild(renderer.domElement);
   renderer.domElement.classList.add('pixel-canvas');
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
   renderer.domElement.style.imageRendering = 'pixelated';
 
-  const maxAnisotropy = Math.max(1, renderer.capabilities.getMaxAnisotropy());
-  // Lean on hardware texture filtering without changing the requested render resolution.
+  const camera = new THREE.PerspectiveCamera(environment.outdoors ? 70 : 60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
 
-  const camera = new THREE.PerspectiveCamera(60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
-
-  // Fill the maze with a soft base light so darker corners remain readable.
-  // Bump the global and accent lighting so the dungeon reads ~20% brighter overall.
-  const ambient = new THREE.AmbientLight(0xbcb6a8, 0.7); // Leave gentle fill lighting so shadowed areas stay readable.
-  // Hemisphere light lifts the vertical surfaces without over-exposing the floor.
-  const hemiLight = new THREE.HemisphereLight(0xd9d0c0, 0x111318, 0.46);
-  const dirLight = new THREE.DirectionalLight(0xfdf6e4, 0.6);
+  // Neutral skylight and cool shadow fill preserve material colors under warm torches.
+  const ambient = new THREE.AmbientLight(0xd5dfea, lighting.ambient);
+  const hemiLight = new THREE.HemisphereLight(0xcbdced, lighting.ground, lighting.hemisphere);
+  const dirLight = new THREE.DirectionalLight(0xfff2df, lighting.sun);
   dirLight.position.set(3.5, 4.5, 2.5);
-  scene.add(ambient, hemiLight, dirLight);
+  dirLight.castShadow = environment.outdoors;
+  dirLight.shadow.mapSize.set(2048, 2048);
+  Object.assign(dirLight.shadow.camera, { left:-6, right:6, top:6, bottom:-6, near:.1, far:25 });
+  dirLight.shadow.camera.updateProjectionMatrix();
+  dirLight.shadow.bias = -.0003;
+  dirLight.shadow.normalBias = .005;
+  scene.add(ambient, hemiLight, dirLight, dirLight.target);
   const explorationLighting = {
     ambient: ambient.intensity,
     hemisphere: hemiLight.intensity,
     directional: dirLight.intensity,
   };
 
-  const tileSize = 1.0;
-  const wallHeight = tileSize;
-  const eye = tileSize * 0.55;
-
-  const wallTexture = loadTexture('../../assets/monsters/green-wall.png', { anisotropy: maxAnisotropy });
-  const floorTexture = loadTexture('../../assets/monsters/floor.png', {
-    // Repeat across the dungeon grid so each tile gets the proper texel density.
-    repeatX: state.width,
-    repeatY: state.height,
-    anisotropy: maxAnisotropy,
-  });
-  const ceilingTexture = loadTexture('../../assets/monsters/ceiling.png', {
-    repeatX: state.width,
-    repeatY: state.height,
-    anisotropy: maxAnisotropy,
-  });
-  const doorTexture = loadTexture('../../assets/monsters/green-wall-door.png', { anisotropy: maxAnisotropy });
-
-  const wallMat = new THREE.MeshLambertMaterial({ map: wallTexture, color: 0xffffff, side: THREE.DoubleSide });
-  const doorMat = new THREE.MeshLambertMaterial({ map: doorTexture, color: 0xffffff, side: THREE.DoubleSide });
-  const floorMat = new THREE.MeshLambertMaterial({ map: floorTexture, color: 0xffffff, side: THREE.DoubleSide });
-  const ceilMat  = new THREE.MeshLambertMaterial({ map: ceilingTexture, color: 0xffffff, side: THREE.DoubleSide });
-
-  // Floor and ceiling
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(state.width * tileSize, state.height * tileSize), floorMat);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(state.width * tileSize / 2, 0, state.height * tileSize / 2);
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(state.width * tileSize, state.height * tileSize), ceilMat);
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.set(state.width * tileSize / 2, wallHeight, state.height * tileSize / 2);
-  ceiling.receiveShadow = true;
-  scene.add(ceiling);
-
-  const wallsGroup = new THREE.Group();
-  scene.add(wallsGroup);
-
-  const wallGeometry = new THREE.PlaneGeometry(tileSize, wallHeight);
-
-  function addWallPanel(x, y, dir, type) {
-    const mesh = new THREE.Mesh(wallGeometry, type === WALL.DOOR ? doorMat : wallMat);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.position.set(x + 0.5 + DX[dir] / 2, wallHeight / 2, y + 0.5 + DY[dir] / 2);
-    mesh.rotation.y = yawForDir(dir);
-    wallsGroup.add(mesh);
-  }
-
-  // Build edges without duplicates: add N and W for every cell, plus outermost E/S edges
-  for (let y = 0; y < state.height; y++) {
-    for (let x = 0; x < state.width; x++) {
-      const c = state.cells[y][x];
-      if (c.n !== WALL.OPEN) addWallPanel(x, y, DIR.N, c.n);
-      if (c.w !== WALL.OPEN) addWallPanel(x, y, DIR.W, c.w);
-      if (x === state.width - 1 && c.e !== WALL.OPEN) addWallPanel(x, y, DIR.E, c.e);
-      if (y === state.height - 1 && c.s !== WALL.OPEN) addWallPanel(x, y, DIR.S, c.s);
-    }
-  }
+  const eye = 0.55;
+  const worldGeometry = createVoxelWorld(scene, state);
+  const travelExits = createVoxelTravelExits(scene, state);
 
   // Player rig
   const player = new THREE.Object3D();
@@ -141,15 +82,15 @@ export function buildScene(state, stage) {
   scene.add(player);
 
   // Furnishings belong to the dungeon and persist across camera modes.
-  const environmentObjects = createVoxelEnvironment(scene, state.objects, { cellSize: COMBAT_CELL_SIZE });
+  const environmentObjects = createVoxelEnvironment(scene, state, { cellSize: COMBAT_CELL_SIZE });
 
   // Warm point light that follows the party to mimic a handheld torch.
   const torchAnchor = new THREE.Object3D();
   const torchOffset = { x: 0.28, y: eye - 0.08, z: -0.32 };
   torchAnchor.position.set(torchOffset.x, torchOffset.y, torchOffset.z);
   torchAnchor.userData.baseOffset = torchOffset;
-  const torch = new THREE.PointLight(0xffc87a, 1.86, 7.5, 2.2);
-  torch.castShadow = true; // The party's torch now paints dynamic shadows on the surrounding walls.
+  const torch = new THREE.PointLight(0xffdfb4, lighting.torch, 7.5, 2.2);
+  torch.castShadow = !environment.outdoors; // The party's torch now paints dynamic shadows on the surrounding walls.
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.0012;
   torch.shadow.normalBias = 0.02;
@@ -162,6 +103,7 @@ export function buildScene(state, stage) {
   player.add(torchAnchor);
 
   camera.position.set(0, eye, 0);
+  camera.rotation.x = environment.outdoors ? .08 : 0;
   player.add(camera);
 
   const explorationFog = scene.fog;
@@ -174,7 +116,7 @@ export function buildScene(state, stage) {
   const combatEffects = createCombatEffects(THREE, battleGroup, COMBAT_CELL_SIZE, combatActors);
   const combatLighting = createCombatLighting(THREE, battleGroup, COMBAT_CELL_SIZE);
   // A dim key keeps voxel faces and cast shadows readable while local light dominates.
-  const combatKey = new THREE.DirectionalLight(0xe7eaff, 0.28);
+  const combatKey = new THREE.DirectionalLight(environment.outdoors ? 0xfff1d7 : 0xd9e6ff, environment.outdoors ? 2.3 : .8);
   combatKey.castShadow = true;
   combatKey.shadow.mapSize.set(2048, 2048);
   combatKey.shadow.bias = -0.0002;
@@ -182,27 +124,12 @@ export function buildScene(state, stage) {
   combatKey.shadow.camera.near = 0.1;
   combatKey.shadow.camera.far = 40;
   battleGroup.add(combatKey, combatKey.target);
-  // Stone caps define the taller combat walls without changing the exploration mesh.
-  const wallCaps = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(1, 0.04 * COMBAT_CELL_SIZE, 0.12 * COMBAT_CELL_SIZE),
-    new THREE.MeshLambertMaterial({ color: 0xffffff }),
-    wallsGroup.children.length,
-  );
-  const capTransform = new THREE.Object3D();
-  wallsGroup.children.forEach((wall, index) => {
-    capTransform.position.set(wall.position.x, COMBAT_WALL_HEIGHT + 0.02 * COMBAT_CELL_SIZE, wall.position.z);
-    capTransform.rotation.y = wall.rotation.y;
-    capTransform.updateMatrix();
-    wallCaps.setMatrixAt(index, capTransform.matrix);
-    wallCaps.setColorAt(index, new THREE.Color(wall.material === doorMat ? 0xb38b52 : 0xa59d8c));
-  });
-  wallCaps.castShadow = true;
-  wallCaps.receiveShadow = true;
-  battleGroup.add(wallCaps);
   const markers = new THREE.Group();
   battleGroup.add(markers);
   const markerGeometry = new THREE.PlaneGeometry(0.96 * COMBAT_CELL_SIZE, 0.96 * COMBAT_CELL_SIZE);
   const raycaster = new THREE.Raycaster();
+  const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const floorHit = new THREE.Vector3();
   let battleActive = false;
   let battleView = null;
   let battleSnapshot = null;
@@ -254,12 +181,11 @@ export function buildScene(state, stage) {
   gridTexture.wrapT = THREE.RepeatWrapping;
   gridTexture.repeat.set(state.width * COMBAT_CELLS_PER_MAP_TILE, state.height * COMBAT_CELLS_PER_MAP_TILE);
   const grid = new THREE.Mesh(
-    floor.geometry,
+    new THREE.PlaneGeometry(state.width, state.height),
     new THREE.MeshBasicMaterial({ map: gridTexture, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }),
   );
-  grid.rotation.copy(floor.rotation);
-  grid.position.copy(floor.position);
-  grid.position.y = 0.012 * COMBAT_CELL_SIZE;
+  grid.rotation.x = -Math.PI / 2;
+  grid.position.set(state.width / 2, 0.012 * COMBAT_CELL_SIZE, state.height / 2);
   grid.renderOrder = 1;
   battleGroup.add(grid);
 
@@ -392,13 +318,15 @@ export function buildScene(state, stage) {
     if (!battleActive) {
       battleActive = true;
       battleView = null;
-      ceiling.visible = false;
-      wallsGroup.scale.y = COMBAT_WALL_HEIGHT;
+      worldGeometry.setCombat(true);
+      environmentObjects.setCombat(true);
+      travelExits.setCombat(true);
+      dirLight.castShadow = false;
       scene.fog = null;
       torch.visible = false;
-      ambient.intensity = 0.14;
-      hemiLight.intensity = 0.18;
-      dirLight.intensity = 0.08;
+      ambient.intensity = environment.outdoors ? lighting.ambient : .26;
+      hemiLight.intensity = environment.outdoors ? lighting.hemisphere : .4;
+      dirLight.intensity = .15;
       battleGroup.visible = true;
       onResize();
     }
@@ -439,8 +367,10 @@ export function buildScene(state, stage) {
     ambient.intensity = explorationLighting.ambient;
     hemiLight.intensity = explorationLighting.hemisphere;
     dirLight.intensity = explorationLighting.directional;
-    ceiling.visible = true;
-    wallsGroup.scale.y = 1;
+    worldGeometry.setCombat(false);
+    environmentObjects.setCombat(false);
+    travelExits.setCombat(false);
+    dirLight.castShadow = environment.outdoors;
     scene.fog = explorationFog;
     torch.visible = true;
     markers.clear();
@@ -450,7 +380,16 @@ export function buildScene(state, stage) {
 
   function render() {
     const now = performance.now();
-    environmentObjects.update({ now, focus: battleActive && battleView ? battleView : player.position });
+    const focus = battleActive && battleView ? battleView : player.position;
+    const radius = battleActive && battleView
+      ? Math.hypot(battleView.halfSpan * COMBAT_ASPECT, battleView.halfSpan / COMBAT_CAMERA_ELEVATION_SINE) + 4
+      : lighting.fog[1];
+    if (environment.outdoors) {
+      dirLight.position.set(focus.x - 4, 8, focus.z + 3);
+      dirLight.target.position.set(focus.x, 0, focus.z);
+    }
+    worldGeometry.update({ focus, radius });
+    environmentObjects.update({ now, focus, radius });
     if (battleActive) {
       combatActors.update(now);
       combatEffects.update(now);
@@ -477,10 +416,9 @@ export function buildScene(state, stage) {
     raycaster.setFromCamera(point, battleCamera);
     const actorCell = combatActors.pick(raycaster);
     if (actorCell) return actorCell;
-    const hit = raycaster.intersectObject(floor, false)[0];
-    if (!hit) return null;
-    const x = Math.floor(hit.point.x * COMBAT_CELLS_PER_MAP_TILE);
-    const y = Math.floor(hit.point.z * COMBAT_CELLS_PER_MAP_TILE);
+    if (!raycaster.ray.intersectPlane(floorPlane, floorHit)) return null;
+    const x = Math.floor(floorHit.x * COMBAT_CELLS_PER_MAP_TILE);
+    const y = Math.floor(floorHit.z * COMBAT_CELLS_PER_MAP_TILE);
     return x >= 0 && y >= 0 && x < state.width * COMBAT_CELLS_PER_MAP_TILE && y < state.height * COMBAT_CELLS_PER_MAP_TILE ? { x, y } : null;
   }
 
@@ -498,5 +436,29 @@ export function buildScene(state, stage) {
   onResize();
   window.addEventListener('resize', onResize);
 
-  return { scene, renderer, camera, player, torch, torchAnchor, setBattle, clearBattle, render, pickBattleCell, panBattle, rotateBattle, zoomBattle, resetBattleView, playBattleEffect };
+  function dispose() {
+    window.removeEventListener('resize', onResize);
+    combatEffects.clear();
+    combatActors.clear();
+    combatLighting.clear();
+    worldGeometry.dispose();
+    environmentObjects.dispose();
+    travelExits.dispose();
+    markerGeometry.dispose();
+    for (const material of Object.values(markerMaterials)) {
+      material.map.dispose();
+      material.dispose();
+    }
+    gridTexture.dispose();
+    grid.geometry.dispose();
+    grid.material.dispose();
+    for (const light of [torch, dirLight, combatKey]) light.shadow.dispose();
+    reflections.dispose();
+    scene.clear();
+    renderer.dispose();
+    renderer.forceContextLoss();
+    renderer.domElement.remove();
+  }
+
+  return { scene, renderer, camera, player, torch, dispose, torchAnchor, setBattle, clearBattle, render, pickBattleCell, panBattle, rotateBattle, zoomBattle, resetBattleView, playBattleEffect };
 }

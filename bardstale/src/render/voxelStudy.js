@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { createVoxelReflectionMap } from './voxelMaterials.js';
 import { createVoxelFigure } from './voxelFigure.js';
 import { VOXEL_APPEARANCE_OPTIONS } from './voxelCharacterParts.js';
 import { assembleCombatVoxelModel, COMBAT_VOXEL_KINDS, COMBAT_VOXEL_PALETTES } from './combatVoxelCatalog.js';
@@ -31,11 +31,7 @@ try {
   viewport.prepend(renderer.domElement);
 
   const scene = new THREE.Scene();
-  const studio = new RoomEnvironment(renderer);
-  const environment = new THREE.PMREMGenerator(renderer);
-  scene.environment = environment.fromScene(studio, 0.04).texture;
-  studio.dispose();
-  environment.dispose();
+  scene.environment = createVoxelReflectionMap(renderer).texture;
   scene.background = new THREE.Color('#292e27');
   scene.fog = new THREE.Fog('#292e27', 95, 160);
   const camera = new THREE.OrthographicCamera(-22, 22, 22, -22, 0.1, 240);
@@ -130,8 +126,8 @@ try {
   kindSelect.value = kind;
   kindSelect.addEventListener('change',()=>{kind=kindSelect.value;overrides={};showModel();});
 
-  scene.add(new THREE.HemisphereLight(0xfff8e8, 0x6d7d61, 1.7));
-  const key = new THREE.DirectionalLight(0xffedcc, 2.8);
+  scene.add(new THREE.HemisphereLight(0xeaf0ff, 0x554d47, 1.5));
+  const key = new THREE.DirectionalLight(0xfff0df, 2.5);
   key.position.set(-25, 48, 38);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -140,7 +136,7 @@ try {
   key.shadow.bias = -0.0001;
   key.shadow.radius = 4;
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xe6f4d6, 1.8);
+  const rim = new THREE.DirectionalLight(0xc5dcf7, 1.4);
   rim.position.set(25, 25, -20);
   scene.add(rim);
   const fill = new THREE.DirectionalLight(0xe0e8fa, 0.7);

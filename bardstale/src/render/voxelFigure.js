@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VOXEL_MATERIALS } from './voxelCharacterParts.js';
+import { createVoxelMaterial } from './voxelMaterials.js';
 import { createItemEffects } from './itemEffects.js';
 import { createVoxelRig } from './voxelRig.js';
 import { createVoxelSurfaces } from './voxelSurface.js';
@@ -85,8 +86,7 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
   const group = new THREE.Group();
   group.name = recipe.id;
   const geometries = [];
-  const materials = Object.fromEntries(Object.entries(VOXEL_MATERIALS).map(([kind, properties]) =>
-    [kind,new THREE.MeshStandardMaterial({ ...properties, vertexColors: true })]));
+  const materials = Object.fromEntries(Object.keys(VOXEL_MATERIALS).map(kind => [kind, createVoxelMaterial(kind)]));
   const rig = createVoxelRig(model);
   const joints = {};
   const surface = new THREE.Group();

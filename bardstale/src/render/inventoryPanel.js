@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ITEM_DB, EQUIPMENT_SLOTS } from '../items.js';
 import { assembleCombatVoxelModel } from './combatVoxelCatalog.js';
 import { createVoxelFigure } from './voxelFigure.js';
+import { createVoxelReflectionMap } from './voxelMaterials.js';
 
 const LEFT_SLOTS = ['head', 'neck', 'shoulders', 'chest', 'hands', 'waist', 'legs'];
 const RIGHT_SLOTS = ['back', 'mainhand', 'offhand', 'ring1', 'ring2', 'feet'];
@@ -135,6 +136,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
   let modelKey;
   let figure;
   let renderer;
+  let reflections;
   let scene;
   let camera;
   let pivot;
@@ -180,18 +182,20 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4;
+    renderer.toneMappingExposure = 1.1;
     renderer.domElement.setAttribute('aria-hidden', 'true');
     viewport.append(renderer.domElement);
     scene = new THREE.Scene();
+    reflections = createVoxelReflectionMap(renderer);
+    scene.environment = reflections.texture;
     camera = new THREE.OrthographicCamera(-20, 20, 24, -24, .1, 300);
     pivot = new THREE.Group();
     scene.add(pivot);
-    scene.add(new THREE.HemisphereLight(0xe4f5ff, 0x644b43, 2));
-    const key = new THREE.DirectionalLight(0xffead1, 3.5);
+    scene.add(new THREE.HemisphereLight(0xe5efff, 0x51463f, 1.5));
+    const key = new THREE.DirectionalLight(0xfff2e2, 2.4);
     key.position.set(-25, 50, 45);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0x7cbbff, 2);
+    const rim = new THREE.DirectionalLight(0xaecbf4, 1.1);
     rim.position.set(30, 20, -30);
     scene.add(rim);
     resizeObserver = new ResizeObserver(renderPreview);
@@ -530,6 +534,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
       document.removeEventListener('visibilitychange', onPreviewActivityChange);
       resizeObserver?.disconnect();
       figure?.dispose();
+      reflections?.dispose();
       renderer?.dispose();
       screen.remove();
     },
