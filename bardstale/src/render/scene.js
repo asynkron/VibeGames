@@ -9,51 +9,40 @@ import { createVoxelEnvironment } from './voxelEnvironment.js';
 import { createVoxelWorld } from './voxelWorld.js';
 import { createVoxelTravelExits } from './voxelTravelExits.js';
 import { getEnvironment } from '../environments.js';
-import { createVoxelReflectionMap } from './voxelMaterials.js';
 import { footprintCells, occupiesCell } from '../combatFootprints.js';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = UI_SETTINGS.resolution;
-
-// Render the 3D viewport to a fixed low-resolution buffer so the browser upscales it.
-const VIEWPORT_RENDER_SIZE = 256;
 const COMBAT_VIEWPORT_WIDTH = UI_SETTINGS.combatLayout.viewport.columns * UI_SETTINGS.tileSize;
 const COMBAT_VIEWPORT_HEIGHT = UI_SETTINGS.combatLayout.viewport.rows * UI_SETTINGS.tileSize;
 const COMBAT_ASPECT = COMBAT_VIEWPORT_WIDTH / COMBAT_VIEWPORT_HEIGHT;
 const COMBAT_CELL_SIZE = 1 / COMBAT_CELLS_PER_MAP_TILE;
-const COMBAT_RENDER_SCALE = 2;
 const COMBAT_CAMERA_ELEVATION_SINE = Math.sqrt(2 / 3);
 const COMBAT_CAMERA_ELEVATION_COSINE = Math.sqrt(1 / 3);
 
 export function buildScene(state, stage) {
   const environment = getEnvironment(state.environment);
   const lighting = {
-    dungeon: { sky:0x0a0c10, fog:[4.5,20], ambient:.38, hemisphere:.65, sun:.95, ground:0x34303b, torch:1.55 },
-    cave: { sky:0x101719, fog:[3,14], ambient:.26, hemisphere:.45, sun:.55, ground:0x253d39, torch:1.7 },
-    forest: { sky:0xb8cbd0, fog:[5,18], ambient:.42, hemisphere:1.15, sun:2.3, ground:0x55653e, torch:.12 },
-    village: { sky:0xc5d9e8, fog:[8,25], ambient:.4, hemisphere:1.1, sun:2.5, ground:0x7a6955, torch:.12 },
+    dungeon: { sky:0x040507, fog:[4.5,16], ambient:.025, hemisphere:.045, sun:0, ground:0x16151b, torch:1.55 },
+    cave: { sky:0x030506, fog:[3,12], ambient:.018, hemisphere:.03, sun:0, ground:0x13201e, torch:1.7 },
+    forest: { sky:0x101b28, fog:[5,18], ambient:.045, hemisphere:.14, sun:.18, ground:0x1f2920, torch:1.1 },
+    village: { sky:0x182334, fog:[8,25], ambient:.05, hemisphere:.16, sun:.22, ground:0x29251f, torch:1.15 },
   }[environment.id];
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(lighting.sky);
   scene.fog = new THREE.Fog(lighting.sky, ...lighting.fog);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.shadowMap.enabled = true; // Torch should cast real-time shadows onto nearby geometry.
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
-  const reflections = createVoxelReflectionMap(renderer);
-  scene.environment = reflections.texture;
+  renderer.toneMappingExposure = 1;
   stage.appendChild(renderer.domElement);
-  renderer.domElement.classList.add('pixel-canvas');
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
-  renderer.domElement.style.imageRendering = 'pixelated';
 
-  const camera = new THREE.PerspectiveCamera(environment.outdoors ? 70 : 60, SCREEN_WIDTH / SCREEN_HEIGHT, 0.05, 200);
+  const camera = new THREE.PerspectiveCamera(environment.outdoors ? 70 : 60, 1, 0.05, 200);
 
-  // Neutral skylight and cool shadow fill preserve material colors under warm torches.
+  // A faint cool fill preserves silhouettes outside the party's pools of torchlight.
   const ambient = new THREE.AmbientLight(0xd5dfea, lighting.ambient);
   const hemiLight = new THREE.HemisphereLight(0xcbdced, lighting.ground, lighting.hemisphere);
   const dirLight = new THREE.DirectionalLight(0xfff2df, lighting.sun);
@@ -65,11 +54,6 @@ export function buildScene(state, stage) {
   dirLight.shadow.bias = -.0003;
   dirLight.shadow.normalBias = .005;
   scene.add(ambient, hemiLight, dirLight, dirLight.target);
-  const explorationLighting = {
-    ambient: ambient.intensity,
-    hemisphere: hemiLight.intensity,
-    directional: dirLight.intensity,
-  };
 
   const eye = 0.55;
   const worldGeometry = createVoxelWorld(scene, state);
@@ -89,8 +73,8 @@ export function buildScene(state, stage) {
   const torchOffset = { x: 0.28, y: eye - 0.08, z: -0.32 };
   torchAnchor.position.set(torchOffset.x, torchOffset.y, torchOffset.z);
   torchAnchor.userData.baseOffset = torchOffset;
-  const torch = new THREE.PointLight(0xffdfb4, lighting.torch, 7.5, 2.2);
-  torch.castShadow = !environment.outdoors; // The party's torch now paints dynamic shadows on the surrounding walls.
+  const torch = new THREE.PointLight(0xffcf91, lighting.torch, 4.8, 2.2);
+  torch.castShadow = true;
   torch.shadow.mapSize.set(512, 512);
   torch.shadow.bias = -0.0012;
   torch.shadow.normalBias = 0.02;
@@ -116,8 +100,8 @@ export function buildScene(state, stage) {
   const combatEffects = createCombatEffects(THREE, battleGroup, COMBAT_CELL_SIZE, combatActors);
   const combatLighting = createCombatLighting(THREE, battleGroup, COMBAT_CELL_SIZE);
   // A dim key keeps voxel faces and cast shadows readable while local light dominates.
-  const combatKey = new THREE.DirectionalLight(environment.outdoors ? 0xfff1d7 : 0xd9e6ff, environment.outdoors ? 2.3 : .8);
-  combatKey.castShadow = true;
+  const combatKey = new THREE.DirectionalLight(0xbdcee4, environment.outdoors ? lighting.sun : .025);
+  combatKey.castShadow = environment.outdoors;
   combatKey.shadow.mapSize.set(2048, 2048);
   combatKey.shadow.bias = -0.0002;
   combatKey.shadow.normalBias = 0.008 * COMBAT_CELL_SIZE;
@@ -324,9 +308,7 @@ export function buildScene(state, stage) {
       dirLight.castShadow = false;
       scene.fog = null;
       torch.visible = false;
-      ambient.intensity = environment.outdoors ? lighting.ambient : .26;
-      hemiLight.intensity = environment.outdoors ? lighting.hemisphere : .4;
-      dirLight.intensity = .15;
+      dirLight.intensity = 0;
       battleGroup.visible = true;
       onResize();
     }
@@ -364,9 +346,7 @@ export function buildScene(state, stage) {
     combatEffects.clear();
     combatLighting.clear();
     battleGroup.visible = false;
-    ambient.intensity = explorationLighting.ambient;
-    hemiLight.intensity = explorationLighting.hemisphere;
-    dirLight.intensity = explorationLighting.directional;
+    dirLight.intensity = lighting.sun;
     worldGeometry.setCombat(false);
     environmentObjects.setCombat(false);
     travelExits.setCombat(false);
@@ -379,6 +359,7 @@ export function buildScene(state, stage) {
   }
 
   function render() {
+    if (renderer.getPixelRatio() !== window.devicePixelRatio) onResize();
     const now = performance.now();
     const focus = battleActive && battleView ? battleView : player.position;
     const radius = battleActive && battleView
@@ -424,20 +405,19 @@ export function buildScene(state, stage) {
 
   function onResize() {
     const rect = stage.getBoundingClientRect();
-    const w = Math.max(1, rect.width || SCREEN_WIDTH);
-    const h = Math.max(1, rect.height || SCREEN_HEIGHT);
-    // Keep the camera aspect tied to the DOM size while rendering to a fixed buffer.
-    renderer.setSize(battleActive ? COMBAT_VIEWPORT_WIDTH * COMBAT_RENDER_SCALE : VIEWPORT_RENDER_SIZE, battleActive ? COMBAT_VIEWPORT_HEIGHT * COMBAT_RENDER_SCALE : VIEWPORT_RENDER_SIZE, false);
-    renderer.domElement.style.width = '100%';
-    renderer.domElement.style.height = '100%';
+    const w = Math.max(1, rect.width);
+    const h = Math.max(1, rect.height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
   onResize();
-  window.addEventListener('resize', onResize);
+  const resizeObserver = new ResizeObserver(onResize);
+  resizeObserver.observe(stage);
 
   function dispose() {
-    window.removeEventListener('resize', onResize);
+    resizeObserver.disconnect();
     combatEffects.clear();
     combatActors.clear();
     combatLighting.clear();
@@ -453,7 +433,6 @@ export function buildScene(state, stage) {
     grid.geometry.dispose();
     grid.material.dispose();
     for (const light of [torch, dirLight, combatKey]) light.shadow.dispose();
-    reflections.dispose();
     scene.clear();
     renderer.dispose();
     renderer.forceContextLoss();

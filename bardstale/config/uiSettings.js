@@ -20,6 +20,7 @@ export const UI_SETTINGS = Object.freeze({
     dividerColumn: 33,
     dividerRow: 33,
     viewport: Object.freeze({ column: 1, row: 1, columns: 32, rows: 32 }),
+    portrait: Object.freeze({ column: 35, row: 18, columns: 12, rows: 12 }),
   }),
   combatLayout: Object.freeze({
     dividerColumn: 46,

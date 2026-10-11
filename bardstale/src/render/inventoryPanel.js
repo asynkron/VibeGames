@@ -1,8 +1,5 @@
-import * as THREE from 'three';
 import { ITEM_DB, EQUIPMENT_SLOTS } from '../items.js';
-import { assembleCombatVoxelModel } from './combatVoxelCatalog.js';
-import { createVoxelFigure } from './voxelFigure.js';
-import { createVoxelReflectionMap } from './voxelMaterials.js';
+import { createVoxelCharacterPreview } from './voxelCharacterPreview.js';
 
 const LEFT_SLOTS = ['head', 'neck', 'shoulders', 'chest', 'hands', 'waist', 'legs'];
 const RIGHT_SLOTS = ['back', 'mainhand', 'offhand', 'ring1', 'ring2', 'feet'];
@@ -101,8 +98,8 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
   viewport.setAttribute('role', 'img');
   viewport.setAttribute('aria-label', 'Live voxel character wearing equipped items');
   const rotateControls = element('div', 'inventory-rotate');
-  const leftRotate = button('↶', () => rotate(-Math.PI / 4));
-  const rightRotate = button('↷', () => rotate(Math.PI / 4));
+  const leftRotate = button('↶', () => characterPreview.rotate(-Math.PI / 4));
+  const rightRotate = button('↷', () => characterPreview.rotate(Math.PI / 4));
   leftRotate.setAttribute('aria-label', 'Rotate character left');
   rightRotate.setAttribute('aria-label', 'Rotate character right');
   rotateControls.append(leftRotate, element('span', '', 'Rotate'), rightRotate);
@@ -133,124 +130,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
   let chosenSlot;
   let previousFocus;
   let unsubscribe;
-  let modelKey;
-  let figure;
-  let renderer;
-  let reflections;
-  let scene;
-  let camera;
-  let pivot;
-  let angle = -Math.PI / 7;
-  let resizeObserver;
-  let animationFrame = null;
-  const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-  function stopPreviewAnimation() {
-    if (animationFrame !== null) cancelAnimationFrame(animationFrame);
-    animationFrame = null;
-  }
-
-  function schedulePreviewAnimation() {
-    if (animationFrame !== null || screen.hidden || document.hidden || !figure?.hasEffects || motionPreference.matches) return;
-    animationFrame = requestAnimationFrame(animatePreview);
-  }
-
-  function drawPreview(now = performance.now()) {
-    if (screen.hidden || document.hidden || !figure || !renderer) return;
-    figure.updateEffects(now, { reducedMotion: motionPreference.matches });
-    renderer.render(scene, camera);
-  }
-
-  function animatePreview(now) {
-    animationFrame = null;
-    if (screen.hidden || document.hidden || motionPreference.matches || !figure?.hasEffects) return;
-    drawPreview(now);
-    schedulePreviewAnimation();
-  }
-
-  function onPreviewActivityChange() {
-    stopPreviewAnimation();
-    renderPreview();
-  }
-
-  motionPreference.addEventListener('change', onPreviewActivityChange);
-  document.addEventListener('visibilitychange', onPreviewActivityChange);
-
-  function initializePreview() {
-    if (renderer) return;
-    renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
-    renderer.domElement.setAttribute('aria-hidden', 'true');
-    viewport.append(renderer.domElement);
-    scene = new THREE.Scene();
-    reflections = createVoxelReflectionMap(renderer);
-    scene.environment = reflections.texture;
-    camera = new THREE.OrthographicCamera(-20, 20, 24, -24, .1, 300);
-    pivot = new THREE.Group();
-    scene.add(pivot);
-    scene.add(new THREE.HemisphereLight(0xe5efff, 0x51463f, 1.5));
-    const key = new THREE.DirectionalLight(0xfff2e2, 2.4);
-    key.position.set(-25, 50, 45);
-    scene.add(key);
-    const rim = new THREE.DirectionalLight(0xaecbf4, 1.1);
-    rim.position.set(30, 20, -30);
-    scene.add(rim);
-    resizeObserver = new ResizeObserver(renderPreview);
-    resizeObserver.observe(viewport);
-  }
-
-  function refreshFigure() {
-    const descriptor = { kind: snapshot.character.classType, equipment: snapshot.equipment };
-    const nextKey = JSON.stringify(descriptor);
-    viewport.setAttribute('aria-label', `${snapshot.character.name}, live voxel character wearing equipped items. Use the rotate buttons to inspect the back.`);
-    if (modelKey === nextKey) return;
-    initializePreview();
-    stopPreviewAnimation();
-    if (figure) {
-      pivot.remove(figure.group);
-      figure.dispose();
-    }
-    const model = assembleCombatVoxelModel(descriptor);
-    figure = createVoxelFigure(model);
-    figure.group.scale.setScalar(model.scale);
-    pivot.add(figure.group);
-    modelKey = nextKey;
-    renderPreview();
-  }
-
-  function renderPreview() {
-    if (screen.hidden || document.hidden || !figure || !renderer) return;
-    const width = viewport.clientWidth, height = viewport.clientHeight;
-    if (!width || !height) return;
-    renderer.setSize(width, height, false);
-    pivot.rotation.y = angle;
-    pivot.updateWorldMatrix(true, true);
-    const displayBounds = figure.getDisplayBounds({ motion: false });
-    const bounds = new THREE.Box3(
-      new THREE.Vector3(displayBounds.min.x, displayBounds.min.y, displayBounds.min.z),
-      new THREE.Vector3(displayBounds.max.x, displayBounds.max.y, displayBounds.max.z),
-    ).applyMatrix4(figure.group.matrixWorld);
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = bounds.getSize(new THREE.Vector3());
-    const vertical = Math.max(size.y * 1.2, (size.x + size.z * .2) / (width / height) * 1.15);
-    camera.left = -vertical * width / height / 2;
-    camera.right = -camera.left;
-    camera.top = vertical / 2;
-    camera.bottom = -camera.top;
-    camera.position.set(center.x, center.y + 8, center.z + 80);
-    camera.lookAt(center);
-    camera.updateProjectionMatrix();
-    drawPreview();
-    schedulePreviewAnimation();
-  }
-
-  function rotate(delta) {
-    angle += delta;
-    renderPreview();
-  }
+  const characterPreview = createVoxelCharacterPreview(viewport);
 
   function select(next) {
     selection = next;
@@ -471,7 +351,10 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     renderBag();
     renderStats();
     renderDetails();
-    refreshFigure();
+    characterPreview.setCharacter(
+      { kind: snapshot.character.classType, equipment: snapshot.equipment },
+      `${snapshot.character.name}, live voxel character wearing equipped items. Use the rotate buttons to inspect the back.`,
+    );
     if (focusKey) {
       const target = [...screen.querySelectorAll('[data-focus-key]')].find(node => node.dataset.focusKey === focusKey);
       if (target && !target.disabled) target.focus({ preventScroll: true });
@@ -497,13 +380,13 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     unsubscribe = systems.subscribeInventory(refresh);
     refresh();
     closeButton.focus({ preventScroll: true });
-    renderPreview();
+    characterPreview.setActive(true);
   }
 
   function close() {
     if (screen.hidden) return;
     screen.hidden = true;
-    stopPreviewAnimation();
+    characterPreview.setActive(false);
     document.body.classList.remove('inventory-open');
     unsubscribe?.();
     unsubscribe = undefined;
@@ -530,12 +413,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     isOpen: () => !screen.hidden,
     dispose() {
       close();
-      motionPreference.removeEventListener('change', onPreviewActivityChange);
-      document.removeEventListener('visibilitychange', onPreviewActivityChange);
-      resizeObserver?.disconnect();
-      figure?.dispose();
-      reflections?.dispose();
-      renderer?.dispose();
+      characterPreview.dispose();
       screen.remove();
     },
   };

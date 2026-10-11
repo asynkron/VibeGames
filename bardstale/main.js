@@ -326,6 +326,7 @@ function main() {
     g.torchAnchor.position.x = offset.x + Math.sin(torchPhase * 2.4) * 0.035;
     g.torchAnchor.position.y = offset.y + Math.cos(torchPhase * 3.1) * 0.018;
 
+    hud.setObscured(inventory.isOpen() || minimap.isVisible() || travelling);
     if (!inventory.isOpen() && !travelling) g.render();
     requestAnimationFrame(step);
   }

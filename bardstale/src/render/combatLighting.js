@@ -71,14 +71,15 @@ export function createCombatLighting(THREE, parent, cellSize) {
 
   function sync({ units, activeId }) {
     const alive = units.filter(unit => unit.alive);
+    const torchBearers = alive.filter(unit => unit.team === 'party');
     const anchor = alive.find(unit => unit.id === activeId) || alive[0];
-    // Nearby torches dominate the selected character's view. Bound cube-map work
+    // Nearby party torches dominate the selected character's view. Bound cube-map work
     // independently of encounter size; every figure still casts into these maps.
     const distanceFromAnchor = unit => {
       const from = footprintCenter(anchor), to = footprintCenter(unit);
       return (to.x-from.x)**2+(to.y-from.y)**2;
     };
-    const shadowIds = new Set(alive.sort((a,b) => distanceFromAnchor(a)-distanceFromAnchor(b)
+    const shadowIds = new Set(torchBearers.sort((a,b) => distanceFromAnchor(a)-distanceFromAnchor(b)
       || String(a.id).localeCompare(String(b.id))).slice(0,MAX_SHADOW_LIGHTS).map(unit=>unit.id));
     const ids = new Set(units.map((unit) => unit.id));
     for (const [id, entry] of entries) {
@@ -101,7 +102,7 @@ export function createCombatLighting(THREE, parent, cellSize) {
       entry.shadow.scale.set(0.48*cellSize*width,0.38*cellSize*height,1);
       entry.shadow.position.set(x, 0.004 * cellSize, z);
       entry.targetOpacity = unit.alive ? SHADOW_OPACITY : DEFEATED_SHADOW_OPACITY;
-      if (unit.alive) {
+      if (unit.alive && unit.team === 'party') {
         if (!entry.light) {
           entry.light = new THREE.PointLight(TORCH_COLOR, baseIntensity, 3.6 * cellSize, TORCH_DECAY);
           entry.light.shadow.mapSize.set(512, 512);

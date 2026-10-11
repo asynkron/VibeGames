@@ -1,5 +1,6 @@
 import { UI_SETTINGS } from '../../config/uiSettings.js';
 import { createTilePainter, wrapText } from './tiles.js';
+import { createVoxelCharacterPreview } from './voxelCharacterPreview.js';
 
 const ACTION_ROWS = 8;
 const DETAIL_ROWS = 12;
@@ -15,7 +16,18 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
   ctx.imageSmoothingEnabled = false;
   const tiles = createTilePainter(ctx);
   const accessibility = document.getElementById('ui-accessibility');
-  const portraits = new Map();
+  const portraitViewport = document.createElement('div');
+  portraitViewport.id = 'character-portrait';
+  portraitViewport.hidden = true;
+  const portraitLayout = layout.portrait;
+  Object.assign(portraitViewport.style, {
+    left: `${portraitLayout.column / columns * 100}%`,
+    top: `${portraitLayout.row / rows * 100}%`,
+    width: `${portraitLayout.columns / columns * 100}%`,
+    height: `${portraitLayout.rows / rows * 100}%`,
+  });
+  canvas.before(portraitViewport);
+  const portrait = createVoxelCharacterPreview(portraitViewport);
   const state = {
     log: [],
     party: [],
@@ -33,31 +45,7 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
   let visibleCommands = [];
   let detailPageCount = 1;
   let framePending = false;
-
-  function getPortraitImage(path) {
-    if (!path) return null;
-    let image = portraits.get(path);
-    if (!image) {
-      image = new Image();
-      image.decoding = 'async';
-      image.addEventListener('load', render, { once: true });
-      image.addEventListener('error', render, { once: true });
-      portraits.set(path, image);
-      image.src = path;
-    }
-    return image.complete && image.naturalWidth > 0 && image.naturalHeight > 0 ? image : null;
-  }
-
-  function drawContainedImage(image, column, row, widthInCells, heightInCells) {
-    const width = widthInCells * tileSize;
-    const height = heightInCells * tileSize;
-    const ratio = Math.min(width / image.naturalWidth, height / image.naturalHeight);
-    const imageWidth = Math.max(1, Math.round(image.naturalWidth * ratio));
-    const imageHeight = Math.max(1, Math.round(image.naturalHeight * ratio));
-    const x = column * tileSize + Math.floor((width - imageWidth) / 2);
-    const y = row * tileSize + Math.floor((height - imageHeight) / 2);
-    ctx.drawImage(image, x, y, imageWidth, imageHeight);
-  }
+  let obscured = false;
 
   function addZone(column, row, widthInCells, heightInCells, onSelect) {
     zones.push({
@@ -142,9 +130,13 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
   function drawCharacter() {
     const member = inspectedMember();
     if (!member && !state.active) return;
-    tiles.frame(34, 17, 14, 14);
-    const portrait = getPortraitImage(state.active?.portrait || member?.portrait);
-    if (portrait) drawContainedImage(portrait, 35, 18, 12, 12);
+    tiles.frame(portraitLayout.column - 1, portraitLayout.row - 1, portraitLayout.columns + 2, portraitLayout.rows + 2);
+    if (member) {
+      ctx.clearRect(portraitLayout.column * tileSize, portraitLayout.row * tileSize,
+        portraitLayout.columns * tileSize, portraitLayout.rows * tileSize);
+      portrait.setCharacter({ kind: member.classType, equipment: member.equipment },
+        `${member.name}, ${member.classType}, wearing equipped items.`);
+    }
     const lines = characterDetailLines(member);
     detailPageCount = Math.max(1, Math.ceil(lines.length / DETAIL_ROWS));
     state.detailPage = Math.min(state.detailPage, detailPageCount - 1);
@@ -345,6 +337,8 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
   }
 
   function paint() {
+    portraitViewport.hidden = Boolean(state.combat) || !inspectedMember();
+    portrait.setActive(!portraitViewport.hidden && !obscured);
     ctx.clearRect(0, 0, resolution.width, resolution.height);
     ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, resolution.width, resolution.height);
@@ -425,6 +419,11 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
 
   render();
   return {
+    setObscured(value) {
+      if (obscured === value) return;
+      obscured = value;
+      portrait.setActive(!portraitViewport.hidden && !obscured);
+    },
     getInspectedCharacterId() { return inspectedMember()?.id || state.party[0]?.id; },
     appendLog(message) {
       state.log.push(String(message));

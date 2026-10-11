@@ -116,7 +116,45 @@ function furnishDungeon({ width, height, cells, start, seed, environment }, room
       }
     }
   }
-  return objects.filter(object => occupied.has(`${object.x},${object.y}`));
+  const furniture = objects.filter(object => occupied.has(`${object.x},${object.y}`));
+  return [...furniture, ...decorateWalls({ width, height, cells, start, seed, environment })];
+}
+
+function decorateWalls({ width, height, cells, start, seed, environment }) {
+  if (environment === 'forest') return [];
+  const rnd = rngFromSeed(`${seed}:wall-torches`);
+  const candidates = [];
+  const edgeCenters = [[1, 0], [2, 1], [1, 2], [0, 1]];
+  for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
+    const walls = [DIR.N, DIR.E, DIR.S, DIR.W].filter(wall => {
+      const nx = x + DX[wall], ny = y + DY[wall];
+      if (nx < 1 || ny < 1 || nx >= width - 1 || ny >= height - 1) return false;
+      if (getWall(cells, width, height, x, y, wall) !== WALL.WALL) return false;
+      return environment !== 'village' || cells[y][x].building || cells[ny][nx].building;
+    });
+    if (walls.length) candidates.push({ x, y, wall: rnd.choice(walls) });
+  }
+  if (!candidates.length) return [];
+  const distanceToStart = candidate => Math.abs(candidate.x - start.x) + Math.abs(candidate.y - start.y);
+  const nearest = candidates.reduce((a, b) => distanceToStart(a) <= distanceToStart(b) ? a : b);
+  const selected = [nearest];
+  const decorated = new Set([`${nearest.x},${nearest.y}`]);
+  const density = environment === 'cave' ? 0.12 : environment === 'village' ? 0.35 : 0.22;
+  for (const candidate of candidates) {
+    if (rnd.next() > density) continue;
+    if (decorated.has(`${candidate.x},${candidate.y}`)
+      || [DIR.N, DIR.E, DIR.S, DIR.W].some(direction => decorated.has(`${candidate.x + DX[direction]},${candidate.y + DY[direction]}`))) continue;
+    selected.push(candidate);
+    decorated.add(`${candidate.x},${candidate.y}`);
+  }
+  // These fixtures hang above the edge-center lanes. Furniture stays in the
+  // corners, so the wall decorations never displace a floor object or passage.
+  return selected.map(({ x: mx, y: my, wall }) => {
+    const [dx, dy] = edgeCenters[wall];
+    const x = mx * COMBAT_CELLS_PER_MAP_TILE + dx;
+    const y = my * COMBAT_CELLS_PER_MAP_TILE + dy;
+    return { id: `object:${x}:${y}`, kind: 'wallTorch', x, y, rotation: (4 - wall) % 4, wall };
+  });
 }
 
 function carveLandscape(cells, width, height, rnd, environment) {

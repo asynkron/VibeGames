@@ -29,7 +29,7 @@ const PAINT = Object.freeze({
   ember: ['#df542b', 'flame'], fire: ['#ffb24c', 'flame'], light: ['#fff0c3', 'flame'],
 });
 
-// Coordinates describe voxel corners, with the floor at y=0 and the front at +z.
+// Coordinates describe voxel corners, with the mounting origin at y=0 and the front at +z.
 // Props share the character voxel size; their silhouettes fit one combat cell.
 function painter() {
   const cells = new Map();
@@ -176,6 +176,32 @@ function lamp(p) {
   p.box([-3, 21, 3], [-1, 22, 4], 'patina');
   p.box([1, 29, 3], [4, 30, 4], 'patina');
   p.box([-4, 28, 4], [4, 29, 5], 'ironLight');
+}
+
+function wallTorch(p) {
+  // Riveted shield-shaped plate, with the back against the wall at -z.
+  p.box([-2, 0, -5], [2, 15, -3], 'ironDark');
+  p.box([-3, 2, -5], [3, 13, -3], 'iron');
+  p.box([-2, 14, -4], [2, 15, -3], 'ironLight');
+  for (const x of [-2, 1]) for (const y of [3, 11]) p.put(x, y, -3, 'ironLight');
+  p.put(-2, 4, -3, 'rust');
+  // A bent iron arm supports a wood handle tilted out from the stone.
+  p.box([-1, 5, -3], [1, 7, 3], 'iron');
+  p.beam([0, 3, -3], [0, 6, 3], 0.9, 'ironDark');
+  p.beam([0, 3, 1], [0, 16, 5], 1.2, 'walnut');
+  p.beam([-0.5, 5, 2], [-0.5, 14, 5], 0.6, 'honey');
+  p.box([-2, 6, 1], [2, 8, 4], 'iron');
+  p.box([-2, 13, 3], [2, 15, 7], 'bronze');
+  p.box([-3, 15, 2], [3, 17, 8], 'iron');
+  p.box([-2, 16, 3], [2, 17, 7], 'charcoal');
+  for (const x of [-3, 2]) p.box([x, 16, 3], [x + 1, 18, 7], 'ironLight');
+  // Uneven tongues and an ivory core give the fire a readable voxel silhouette.
+  p.oval([0, 18, 5], [2.7, 2.8, 2.4], 'ember');
+  p.beam([-1, 17, 5], [-2, 21, 5], 1.2, 'fire');
+  p.beam([1, 18, 5], [2, 23, 6], 1.1, 'fire');
+  p.beam([0, 18, 6], [-1, 24, 6], 0.8, 'fire');
+  p.oval([0, 18, 6], [1.4, 2, 1.2], 'light');
+  p.beam([0, 19, 6], [0, 22, 6], 0.6, 'light');
 }
 
 function barrel(p) {
@@ -328,8 +354,14 @@ function urn(p) {
   p.put(6, 8, 0, 'patina');
 }
 
-const BUILDERS = Object.freeze({ chest, chair, table, pottedPlant, lamp, barrel, statue, crate, bookshelf, brazier, bench, urn, ...NATURE_OBJECT_BUILDERS });
+const BUILDERS = Object.freeze({ chest, chair, table, pottedPlant, lamp, wallTorch, barrel, statue, crate, bookshelf, brazier, bench, urn, ...NATURE_OBJECT_BUILDERS });
 const MODELS = new Map();
+// Keep emitters outside opaque flame and metal voxels so props can cast shadows.
+const LIGHT_ANCHORS = Object.freeze({
+  lamp: Object.freeze([0, 26, 5]),
+  wallTorch: Object.freeze([0, 26, 8]),
+  brazier: Object.freeze([0, 24, 0]),
+});
 
 /** Cached, immutable voxel geometry shared by exploration and combat scenery. */
 export function assembleVoxelObjectModel(kind) {
@@ -341,7 +373,7 @@ export function assembleVoxelObjectModel(kind) {
     const parts = new Map([[part.id, part]]);
     const recipe = createCharacterRecipe({ id: `object:${kind}`, parts: { torso: { partId: part.id } } });
     const assembly = assembleVoxelCharacter(recipe, parts);
-    const lightAnchor = kind === 'lamp' ? Object.freeze([0, 25, 0]) : kind === 'brazier' ? Object.freeze([0, 14, 0]) : undefined;
+    const lightAnchor = LIGHT_ANCHORS[kind];
     MODELS.set(kind, Object.freeze({ recipe, assembly, parts, appearance: Object.freeze({ form: kind }), scale: 1,
       itemEffects: Object.freeze([]), ...(lightAnchor ? { lightAnchor } : {}) }));
   }

@@ -5,7 +5,7 @@ import { VOXEL_MATERIALS } from './voxelCharacterParts.js';
 import { createVoxelMaterial } from './voxelMaterials.js';
 import { assembleVoxelObjectModel } from './voxelObjectCatalog.js';
 import { createVoxelSurfaces } from './voxelSurface.js';
-import { WALL } from '../dungeon.js';
+import { DX, DY, WALL } from '../dungeon.js';
 import { MASONRY_VOXELS_PER_TILE, MASONRY_WALL_HALF_DEPTH } from './voxelMasonryModels.js';
 
 const CHUNK_MAP_TILES = 8;
@@ -31,6 +31,7 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
   const rotation = new THREE.Quaternion();
   const vertical = new THREE.Vector3(0,1,0);
   let maxLightRange = 0;
+  let combat = false;
   let disposed = false;
 
   function prototypeFor(kind) {
@@ -86,6 +87,7 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
         return mesh;
       });
       entries.forEach((object,index) => {
+        const definition = OBJECT_DEFINITIONS[kind];
         position.set((object.x+0.5)*cellSize-chunk.group.position.x,0,(object.y+0.5)*cellSize-chunk.group.position.z);
         const tileX = Math.floor(object.x / COMBAT_CELLS_PER_MAP_TILE);
         const tileY = Math.floor(object.y / COMBAT_CELLS_PER_MAP_TILE);
@@ -95,16 +97,25 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
         const halfX = (object.rotation % 2 ? prototype.depth : prototype.width) / 2;
         const halfZ = (object.rotation % 2 ? prototype.width : prototype.depth) / 2;
         const wallDepth = (dungeon.environment === 'dungeon' ? MASONRY_WALL_HALF_DEPTH : 5) / MASONRY_VOXELS_PER_TILE;
-        const insetX = Math.max(0, wallDepth + halfX - cellSize / 2);
-        const insetZ = Math.max(0, wallDepth + halfZ - cellSize / 2);
-        if (localX === 0 && tile.w !== WALL.OPEN) position.x += insetX;
-        if (localX === COMBAT_CELLS_PER_MAP_TILE - 1 && tile.e !== WALL.OPEN) position.x -= insetX;
-        if (localY === 0 && tile.n !== WALL.OPEN) position.z += insetZ;
-        if (localY === COMBAT_CELLS_PER_MAP_TILE - 1 && tile.s !== WALL.OPEN) position.z -= insetZ;
+        if (definition.mount === 'wall') {
+          // Sink the mounting base into the relief so recessed stone courses
+          // cannot leave a gap behind the bracket.
+          const offset = cellSize / 2 - wallDepth - prototype.depth / 2 + 3 * voxelSize;
+          position.x += DX[object.wall] * offset;
+          position.z += DY[object.wall] * offset;
+          position.y = definition.mountHeight * voxelSize;
+        } else {
+          const insetX = Math.max(0, wallDepth + halfX - cellSize / 2);
+          const insetZ = Math.max(0, wallDepth + halfZ - cellSize / 2);
+          if (localX === 0 && tile.w !== WALL.OPEN) position.x += insetX;
+          if (localX === COMBAT_CELLS_PER_MAP_TILE - 1 && tile.e !== WALL.OPEN) position.x -= insetX;
+          if (localY === 0 && tile.n !== WALL.OPEN) position.z += insetZ;
+          if (localY === COMBAT_CELLS_PER_MAP_TILE - 1 && tile.s !== WALL.OPEN) position.z -= insetZ;
+        }
         rotation.setFromAxisAngle(vertical,object.rotation*Math.PI/2);
         matrix.compose(position,rotation,scale).multiply(prototype.origin);
         for (const mesh of meshes) mesh.setMatrixAt(index,matrix);
-        const light = OBJECT_DEFINITIONS[kind].light;
+        const light = definition.light;
         if (light) {
           const anchor = new THREE.Vector3().fromArray(prototype.lightAnchor).applyMatrix4(matrix).add(chunk.group.position);
           let phase = 0;
@@ -121,11 +132,17 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
     chunk.kinds.clear();
   }
 
-  // Keep the shader light count fixed as the party moves past different lamps.
+  // A fixed local-light pool bounds GPU cost. Static exploration shadows are
+  // reused until a source changes; combat refreshes them for moving figures.
   const lights = Array.from({ length:MAX_LIGHTS },(_,index) => {
     const light = new THREE.PointLight(0xffc87a,0,1,2);
     light.name = `voxel-environment-light-${index}`;
-    light.castShadow = false;
+    light.castShadow = true;
+    light.shadow.mapSize.set(256,256);
+    light.shadow.camera.near = 0.02;
+    light.shadow.bias = -0.0004;
+    light.shadow.normalBias = 0.002;
+    light.shadow.autoUpdate = false;
     group.add(light);
     return light;
   });
@@ -133,6 +150,8 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
   const distances = new Array(MAX_LIGHTS).fill(Infinity);
 
   function setCombat(active) {
+    combat = active;
+    for (const light of lights) light.shadow.needsUpdate = true;
     for (const mesh of batches) if (mesh.userData.cutaway) mesh.visible = !active;
   }
 
@@ -169,11 +188,18 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
       const light = lights[index], source = nearest[index];
       if (!source) {
         light.intensity = 0;
+        light.shadow.autoUpdate = false;
         delete light.userData.objectId;
         continue;
       }
       const fade = Math.min(1,(1-Math.sqrt(distances[index])/source.range)/0.2);
       const flicker = 1+Math.sin(now*0.003+source.phase)*0.035;
+      if (light.userData.objectId !== source.id) {
+        light.shadow.camera.far = source.range;
+        light.shadow.camera.updateProjectionMatrix();
+        light.shadow.needsUpdate = true;
+      }
+      light.shadow.autoUpdate = combat;
       light.position.copy(source.position);
       light.color.set(source.color);
       light.distance = source.range;
@@ -189,6 +215,7 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
     for (const mesh of batches) mesh.dispose();
     for (const prototype of prototypes.values()) for (const {geometry} of prototype.surfaces) geometry.dispose();
     for (const material of Object.values(materials)) material.dispose();
+    for (const light of lights) light.shadow.dispose();
     group.clear();
     chunks.clear();
     prototypes.clear();

@@ -3,8 +3,6 @@ import { footprintForKind } from '../combatFootprints.js';
 import { INVENTORY_CAPACITY } from '../items.js';
 import { createInventory, createEquipment, addInventoryItem, equipCarriedItem, unequipItem, transferCarriedItem, useCarriedItem, getEquippedItem, computeCharacterStats } from './inventory.js';
 
-const assetUrl = (path) => new URL(`../../assets/${path}`, import.meta.url).href;
-
 export function initBt3Systems({ hud, combatView, dungeon }) {
   function roll(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -54,7 +52,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 2,
       damageBonus: 3,
       ability: 'warrior_power_strike',
-      portrait: assetUrl('portraits/warrior.png'),
       description: 'Battle-hardened veteran who wields heavy weapons with crushing force.'
     },
     Paladin: {
@@ -65,7 +62,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 1,
       damageBonus: 2,
       ability: 'paladin_lay_on_hands',
-      portrait: assetUrl('portraits/paladin.png'),
       description: 'Holy knight capable of bolstering allies with restorative miracles.'
     },
     Rogue: {
@@ -76,7 +72,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 1,
       damageBonus: 1,
       ability: 'rogue_backstab',
-      portrait: assetUrl('portraits/rogue.png'),
       description: 'Shadowy specialist who excels at striking distracted foes.'
     },
     Bard: {
@@ -87,7 +82,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 0,
       damageBonus: 1,
       songs: ['TRAV', 'ROGU', 'SEEK', 'WACH', 'DEST', 'FALK'],
-      portrait: assetUrl('portraits/bard.png'),
       description: 'Wandering minstrel whose songs fortify, heal, and confound.'
     },
     Hunter: {
@@ -98,7 +92,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 2,
       damageBonus: 2,
       ability: 'hunter_aimed_shot',
-      portrait: assetUrl('portraits/hunter.png'),
       description: 'Keen-eyed archer whose critical strikes can fell the mightiest foes.'
     },
     Monk: {
@@ -109,7 +102,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 2,
       damageBonus: 2,
       ability: 'monk_stunning_blow',
-      portrait: assetUrl('portraits/monk.png'),
       description: 'Unarmored martial artist whose disciplined strikes stagger enemies.'
     },
     Conjurer: {
@@ -120,7 +112,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 0,
       damageBonus: 0,
       spellList: ['MAFL', 'ARFI', 'TRZP', 'FRFO', 'MACO', 'WOHL', 'LEVI', 'WAST'],
-      portrait: assetUrl('portraits/conjurer.png'),
       description: 'Elemental scholar focused on direct evocation and exploration magic.'
     },
     Magician: {
@@ -131,7 +122,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 0,
       damageBonus: 0,
       spellList: ['SCSI', 'HOWA', 'STLI', 'PHBL', 'MAGA', 'AREN', 'GRRE', 'WAWA'],
-      portrait: assetUrl('portraits/magician.png'),
       description: 'Offensive mage specializing in weapon enchantments and holy damage.'
     },
     Sorcerer: {
@@ -142,7 +132,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 0,
       damageBonus: 0,
       spellList: ['MIJA', 'PHDO', 'YAWR', 'MAGM', 'OGST', 'INWO', 'FLCO', 'MAMA'],
-      portrait: assetUrl('portraits/sorcerer.png'),
       description: 'Illusionist whose reality-bending magics disable and devastate.'
     },
     Wizard: {
@@ -153,7 +142,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       baseToHit: 0,
       damageBonus: 0,
       spellList: ['MIBL', 'INVI', 'GRSU', 'ANMA', 'FLRE', 'REST', 'WZWA', 'APAR'],
-      portrait: assetUrl('portraits/wizard.png'),
       description: 'Master of high sorcery wielding mind blades and protective wards.'
     },
     Archmage: {
@@ -165,7 +153,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       damageBonus: 0,
       spellList: ['SOSI', 'MORT', 'DEMI', 'SPTO', 'WIZB', 'APAR', 'REST', 'BLAZ'],
       inherits: ['Conjurer', 'Magician', 'Sorcerer', 'Wizard'],
-      portrait: assetUrl('portraits/archmage.png'),
       description: 'Spell-archivist who commands the full repertoire of lesser disciplines.'
     },
     Chronomancer: {
@@ -177,7 +164,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       damageBonus: 0,
       spellList: ['DELV', 'HAST', 'SLOW', 'TARD', 'ROTL', 'DIVA', 'TIME', 'STAS'],
       inherits: ['Sorcerer', 'Wizard'],
-      portrait: assetUrl('portraits/chronomancer.png'),
       description: 'Guardian of time who hastens allies and suspends enemies in stasis.'
     },
     Geomancer: {
@@ -189,7 +175,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       damageBonus: 1,
       spellList: ['QUAK', 'STON', 'VINE', 'LAVA', 'SAND', 'GAEA', 'TOXF', 'BREA'],
       inherits: ['Conjurer', 'Magician'],
-      portrait: assetUrl('portraits/geomancer.png'),
       description: 'Earth-shaper blending primal fury with protective wards.'
     },
   };
@@ -371,7 +356,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       knownSpells: getClassSpellList(classType),
       knownSongs: def.songs ? def.songs.slice() : [],
       abilityId: def.ability || '',
-      portrait: def.portrait,
       description: def.description,
       alive: true,
     };
@@ -526,7 +510,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
         damageMin: stats.minDamage,
         damageMax: stats.maxDamage,
         alive: member.alive,
-        portrait: member.portrait,
+        equipment: { ...member.equipment },
         attributes: { ...member.attributes },
         statusText: describeStatuses(member),
       };
@@ -542,7 +526,7 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       character: {
         id: member.id, name: member.name, classType: member.classType, level: member.level,
         hpCurrent: member.hpCurrent, hpMax: member.hpMax, spCurrent: member.spCurrent, spMax: member.spMax,
-        alive: member.alive, portrait: member.portrait, attributes: { ...member.attributes },
+        alive: member.alive, attributes: { ...member.attributes },
       },
       equipment: { ...member.equipment },
       inventory: member.inventory.map(entry => entry ? { ...entry } : null),
@@ -1285,7 +1269,6 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
       })),
       active: {
         id: actor.id,
-        portrait: actor.portrait,
         heading: `${actor.name} — ${actor.classType}`,
         details: `MOVE ${state.heroTurns.get(actor.id).movementRemaining}/4  SP ${actor.spCurrent}/${actor.spMax}. ${details}`,
       },

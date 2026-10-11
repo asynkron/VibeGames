@@ -22,7 +22,9 @@ export function createBattlefield(dungeon, heroes, monsters) {
   if (!Number.isInteger(mapX) || !Number.isInteger(mapY) || mapX < 0 || mapY < 0 || mapX >= mapWidth || mapY >= mapHeight || !Number.isInteger(dir) || dir < DIR.N || dir > DIR.W) {
     throw new RangeError('A battlefield must begin at a valid dungeon cell and heading.');
   }
-  const furnitureCells = new Set(dungeon.objects.map(({ x, y }) => cellKey(x, y)));
+  const furnitureCells = new Set(dungeon.objects
+    .filter(({ kind }) => OBJECT_DEFINITIONS[kind].blocksMovement)
+    .map(({ x, y }) => cellKey(x, y)));
   const sightBlockers = new Set(dungeon.objects
     .filter(({ kind }) => OBJECT_DEFINITIONS[kind].blocksSight)
     .map(({ x, y }) => cellKey(x, y)));
