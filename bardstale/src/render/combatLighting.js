@@ -14,6 +14,7 @@ export function createCombatLighting(THREE, parent, cellSize) {
   const group = new THREE.Group();
   parent.add(group);
   const entries = new Map();
+  const shadowSlots = [];
   // Compensate for the raised torch so its pool of floor light keeps its warmth.
   const baseIntensity = TORCH_INTENSITY * Math.pow(cellSize, TORCH_DECAY) * 2;
   let resources = null;
@@ -67,6 +68,41 @@ export function createCombatLighting(THREE, parent, cellSize) {
       entry.light.shadow.dispose();
       group.remove(entry.light);
     }
+    for (const slot of shadowSlots) {
+      if (slot.entry !== entry) continue;
+      slot.entry = null;
+      slot.light.visible = false;
+      slot.light.shadow.needsUpdate = false;
+    }
+  }
+
+  function createTorchLight(castsShadow) {
+    const light = new THREE.PointLight(TORCH_COLOR, baseIntensity, 3.6 * cellSize, TORCH_DECAY);
+    light.castShadow = castsShadow;
+    light.shadow.autoUpdate = false;
+    light.shadow.mapSize.set(512, 512);
+    light.shadow.camera.near = 0.025 * cellSize;
+    light.shadow.camera.far = light.distance;
+    light.shadow.camera.updateProjectionMatrix();
+    light.shadow.bias = -0.0004;
+    light.shadow.normalBias = 0.004 * cellSize;
+    light.shadow.radius = 1.5;
+    group.add(light);
+    return light;
+  }
+
+  function configureTorch(light, entry, x, y, z) {
+    const range = 3.6 * cellSize * entry.lightScale;
+    if (light.distance !== range) {
+      light.distance = range;
+      light.shadow.camera.far = range;
+      light.shadow.camera.updateProjectionMatrix();
+      if (light.castShadow) light.shadow.needsUpdate = true;
+    }
+    if (light.position.x !== x || light.position.y !== y || light.position.z !== z) {
+      light.position.set(x, y, z);
+      if (light.castShadow) light.shadow.needsUpdate = true;
+    }
   }
 
   function sync({ units, activeId }) {
@@ -103,37 +139,54 @@ export function createCombatLighting(THREE, parent, cellSize) {
       entry.shadow.position.set(x, 0.004 * cellSize, z);
       entry.targetOpacity = unit.alive ? SHADOW_OPACITY : DEFEATED_SHADOW_OPACITY;
       if (unit.alive && unit.team === 'party') {
-        if (!entry.light) {
-          entry.light = new THREE.PointLight(TORCH_COLOR, baseIntensity, 3.6 * cellSize, TORCH_DECAY);
-          entry.light.shadow.mapSize.set(512, 512);
-          entry.light.shadow.camera.near = 0.025 * cellSize;
-          entry.light.shadow.camera.far = entry.light.distance;
-          entry.light.shadow.camera.updateProjectionMatrix();
-          entry.light.shadow.bias = -0.0004;
-          entry.light.shadow.normalBias = 0.004 * cellSize;
-          entry.light.shadow.radius = 1.5;
-          group.add(entry.light);
-        }
-        const castsShadow = shadowIds.has(unit.id);
-        if (entry.light.castShadow && !castsShadow) {
-          entry.light.shadow.dispose();
-          entry.light.shadow.map = null;
-          entry.light.shadow.mapPass = null;
-        }
-        entry.light.castShadow = castsShadow;
-        entry.light.distance = 3.6*cellSize*entry.lightScale;
-        entry.light.shadow.camera.far = entry.light.distance;
-        entry.light.shadow.camera.updateProjectionMatrix();
-        entry.light.position.set(x+entry.offsetX,TORCH_HEIGHT*cellSize,z+entry.offsetZ);
+        if (!entry.light) entry.light = createTorchLight(false);
       } else if (entry.light) {
         entry.light.shadow.dispose();
         group.remove(entry.light);
         entry.light = null;
       }
+      entry.shadowLight = null;
+    }
+    if (shadowIds.size && !shadowSlots.length) {
+      for (let index = 0; index < MAX_SHADOW_LIGHTS; index++) {
+        const light = createTorchLight(true);
+        light.visible = false;
+        light.shadow.needsUpdate = false;
+        shadowSlots.push({ light, entry: null });
+      }
+    }
+    // Keep each retained source in its slot. Selecting another character only
+    // replaces sources that leave the nearest-three set, reusing their maps.
+    const selectedEntries = new Set([...shadowIds].map(id => entries.get(id)));
+    for (const slot of shadowSlots) {
+      if (!selectedEntries.has(slot.entry)) {
+        slot.entry = null;
+        slot.light.visible = false;
+        slot.light.shadow.needsUpdate = false;
+      } else {
+        slot.entry.shadowLight = slot.light;
+      }
+    }
+    for (const entry of selectedEntries) {
+      if (entry.shadowLight) continue;
+      const slot = shadowSlots.find(candidate => !candidate.entry);
+      slot.entry = entry;
+      slot.light.visible = true;
+      slot.light.shadow.needsUpdate = true;
+      entry.shadowLight = slot.light;
+    }
+    for (const unit of units) {
+      const entry = entries.get(unit.id);
+      if (!entry.light) continue;
+      entry.light.visible = !entry.shadowLight;
+      const center = footprintCenter(unit);
+      configureTorch(entry.shadowLight || entry.light, entry,
+        center.x * cellSize + entry.offsetX, TORCH_HEIGHT * cellSize,
+        center.y * cellSize + entry.offsetZ);
     }
   }
 
-  function update(now, positionFor) {
+  function update(now, positionFor, { shadowDirty = false } = {}) {
     const elapsed = previousTime === null ? 0 : Math.min(100, Math.max(0, now - previousTime));
     previousTime = now;
     const fade = 1 - Math.exp(-elapsed / 140);
@@ -143,9 +196,12 @@ export function createCombatLighting(THREE, parent, cellSize) {
       entry.shadow.position.set(position.x, 0.004 * cellSize, position.z);
       entry.shadow.material.opacity += (entry.targetOpacity - entry.shadow.material.opacity) * fade;
       if (entry.light) {
-        entry.light.position.set(position.x+entry.offsetX,position.y+TORCH_HEIGHT*cellSize,position.z+entry.offsetZ);
+        const light = entry.shadowLight || entry.light;
+        configureTorch(light, entry, position.x+entry.offsetX,
+          position.y+TORCH_HEIGHT*cellSize,position.z+entry.offsetZ);
+        if (shadowDirty && light.castShadow) light.shadow.needsUpdate = true;
         const flicker = Math.sin(seconds * 6.4 + entry.phase) * 0.04 + Math.sin(seconds * 13.1 + entry.phase * 1.7) * 0.025;
-        entry.light.intensity = baseIntensity * entry.lightScale ** 2 * (1 + flicker);
+        light.intensity = baseIntensity * entry.lightScale ** 2 * (1 + flicker);
       }
     }
   }
@@ -153,6 +209,11 @@ export function createCombatLighting(THREE, parent, cellSize) {
   function clear() {
     for (const entry of entries.values()) removeEntry(entry);
     entries.clear();
+    for (const { light } of shadowSlots) {
+      light.shadow.dispose();
+      group.remove(light);
+    }
+    shadowSlots.length = 0;
     if (resources) {
       resources.texture.dispose();
       resources.geometry.dispose();

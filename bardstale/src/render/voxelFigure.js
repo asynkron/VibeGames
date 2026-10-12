@@ -5,13 +5,12 @@ import { createItemEffects } from './itemEffects.js';
 import { createVoxelRig } from './voxelRig.js';
 import { createVoxelSurfaces } from './voxelSurface.js';
 
-// Merge exposed faces: combat figures need one draw per material and hinge.
-function surfaceMeshes(voxels, materials, geometries) {
-  for (const voxel of voxels) {
-    if (!materials[voxel.material]) throw new Error(`Unknown voxel material: ${voxel.material}`);
-  }
-  return createVoxelSurfaces(voxels).map(({material:kind,geometry}) => {
-    geometries.push(geometry);
+// Catalog models are immutable and shared by combat, portraits and previews.
+const preparedModels = new WeakMap();
+
+function surfaceMeshes(surfaces, materials) {
+  return surfaces.map(({material:kind,geometry}) => {
+    materials[kind] ??= createVoxelMaterial(kind);
     const mesh = new THREE.Mesh(geometry, materials[kind]);
     mesh.name = `voxel-${kind}`;
     mesh.castShadow = true;
@@ -25,6 +24,22 @@ function boxFromBounds(bounds) {
     new THREE.Vector3(bounds.min.x,bounds.min.y,bounds.min.z),
     new THREE.Vector3(bounds.max.x,bounds.max.y,bounds.max.z),
   );
+}
+
+function immutableBounds(bounds) {
+  return Object.freeze({
+    min:Object.freeze({x:bounds.min.x,y:bounds.min.y,z:bounds.min.z}),
+    max:Object.freeze({x:bounds.max.x,y:bounds.max.y,z:bounds.max.z}),
+  });
+}
+
+function prepareSurfaces(voxels, geometries) {
+  for (const voxel of voxels) {
+    if (!Object.hasOwn(VOXEL_MATERIALS,voxel.material)) throw new Error(`Unknown voxel material: ${voxel.material}`);
+  }
+  const surfaces = createVoxelSurfaces(voxels);
+  geometries.push(...surfaces.map(surface=>surface.geometry));
+  return Object.freeze(surfaces.map(Object.freeze));
 }
 
 function voxelBounds(voxels) {
@@ -79,32 +94,77 @@ function hingeEnvelope(bounds, pivot, [from,to]) {
   return result;
 }
 
+function prepareModel(model) {
+  let prepared = preparedModels.get(model);
+  if (prepared) return prepared;
+  const rig = createVoxelRig(model);
+  const geometries = [];
+  const motionBounds = new THREE.Box3();
+  const joints = Object.fromEntries(Object.entries(rig.joints).map(([name,joint]) => {
+    const bounds = voxelBounds(joint.voxels);
+    if (!bounds.isEmpty()) motionBounds.union(hingeEnvelope(bounds,joint.pivot,joint.angleRange));
+    bounds.translate(new THREE.Vector3().fromArray(joint.pivot).negate());
+    return [name,Object.freeze({
+      pivot:Object.freeze([...joint.pivot]),
+      angleRange:Object.freeze([...joint.angleRange]),
+      voxels:Object.freeze(joint.voxels),
+      surfaces:prepareSurfaces(joint.voxels,geometries),
+      bounds:immutableBounds(bounds),
+      support:Object.freeze(supportHull(joint.voxels,joint.pivot).map(Object.freeze)),
+    })];
+  }));
+  const swatches = new Map();
+  for (const voxel of model.assembly.voxels) if (!swatches.has(voxel.material)) {
+    swatches.set(voxel.material,Object.freeze({name:voxel.material,color:voxel.color}));
+  }
+  prepared = {
+    rig,joints:Object.freeze(joints),geometries,references:0,parts:null,displayBounds:null,
+    motionBounds:immutableBounds(motionBounds),
+    palette:Object.freeze([...swatches.values()]),
+  };
+  preparedModels.set(model,prepared);
+  return prepared;
+}
+
+// Exploded workshop geometry has different boundaries from the articulated figure.
+// Prepare it only when a caller actually requests that layout.
+function prepareParts(model, prepared) {
+  if (prepared.parts) return prepared.parts;
+  prepared.parts = Object.freeze(Object.entries(model.assembly.parts).flatMap(([slot,part]) => {
+    if (!part || !part.voxels.length) return [];
+    const {width,height,depth} = part.dimensions;
+    const box = new THREE.BoxGeometry(width,height,depth);
+    const edges = new THREE.EdgesGeometry(box);
+    box.dispose();
+    prepared.geometries.push(edges);
+    return [Object.freeze({slot,part,edges,surfaces:prepareSurfaces(part.voxels,prepared.geometries)})];
+  }));
+  return prepared.parts;
+}
+
 /** Combat and the workshop share the same assembled body parts and materials. */
 export function createVoxelFigure(model, { layout = 'figure' } = {}) {
   if (layout !== 'figure' && layout !== 'parts') throw new Error(`Unknown voxel layout: ${layout}`);
   const { assembly, recipe, appearance, parts: library } = model;
   const group = new THREE.Group();
   group.name = recipe.id;
-  const geometries = [];
-  const materials = Object.fromEntries(Object.keys(VOXEL_MATERIALS).map(kind => [kind, createVoxelMaterial(kind)]));
-  const rig = createVoxelRig(model);
+  const prepared = prepareModel(model);
+  const materials = {};
+  const {rig} = prepared;
   const joints = {};
   const surface = new THREE.Group();
   surface.name = 'assembled-figure';
-  const motionBounds = new THREE.Box3();
-  for (const [name,joint] of Object.entries(rig.joints)) {
+  for (const [name,joint] of Object.entries(prepared.joints)) {
     const pivot = new THREE.Group();
     pivot.name = `joint-${name}`;
     pivot.position.fromArray(joint.pivot);
     const meshes = new THREE.Group();
     meshes.position.copy(pivot.position).negate();
     // Each hinge owns all its boundary faces, including faces hidden at rest.
-    meshes.add(...surfaceMeshes(joint.voxels,materials,geometries));
+    meshes.add(...surfaceMeshes(joint.surfaces,materials));
     pivot.add(meshes);
     surface.add(pivot);
-    const bounds = voxelBounds(joint.voxels);
-    if (!bounds.isEmpty()) motionBounds.union(hingeEnvelope(bounds,joint.pivot,joint.angleRange));
-    joints[name] = { ...joint,group:pivot,bounds:bounds.translate(pivot.position.clone().negate()),support:supportHull(joint.voxels,joint.pivot) };
+    joints[name] = { ...joint,group:pivot,bounds:boxFromBounds(joint.bounds) };
   }
   const jointEntries = Object.entries(joints);
   const hasLegs = jointEntries.some(([name,joint])=>name.endsWith('Leg')&&joint.voxels.length);
@@ -116,13 +176,21 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
   const effectAttachment = slot => joints[rig.effectJoint(slot)];
   effects.setAttachments(effectAttachment);
   const restSolidBounds = boxFromBounds(assembly.bounds);
-  const restDisplayBounds = restSolidBounds.clone();
-  for (const {slot,bounds} of effects.getBoundsBySlot()) {
-    const joint = effectAttachment(slot);
-    restDisplayBounds.union(boxFromBounds(bounds));
-    motionBounds.union(hingeEnvelope(boxFromBounds(bounds),joint.pivot,joint.angleRange));
+  if (!prepared.displayBounds) {
+    const restDisplayBounds = restSolidBounds.clone();
+    const motionBounds = boxFromBounds(prepared.motionBounds);
+    for (const {slot,bounds} of effects.getBoundsBySlot()) {
+      const joint = prepared.joints[rig.effectJoint(slot)];
+      restDisplayBounds.union(boxFromBounds(bounds));
+      motionBounds.union(hingeEnvelope(boxFromBounds(bounds),joint.pivot,joint.angleRange));
+    }
+    if (motionBounds.isEmpty()) motionBounds.copy(restSolidBounds);
+    prepared.displayBounds = Object.freeze({
+      rest:immutableBounds(restDisplayBounds),motion:immutableBounds(motionBounds),
+    });
   }
-  if (motionBounds.isEmpty()) motionBounds.copy(restSolidBounds);
+  const restDisplayBounds = boxFromBounds(prepared.displayBounds.rest);
+  const motionBounds = boxFromBounds(prepared.displayBounds.motion);
   const poseBounds = new THREE.Box3();
   const jointBounds = new THREE.Box3();
   const parts = [];
@@ -140,18 +208,12 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
 
   if (layout === 'parts') {
     outlineMaterial = new THREE.LineBasicMaterial({color:'#e5c298',transparent:true,opacity:0.48});
-    for (const [slot, part] of Object.entries(assembly.parts)) {
-      if (!part || !part.voxels.length) continue;
+    for (const {slot,part,edges,surfaces} of prepareParts(model,prepared)) {
       const partGroup = new THREE.Group();
       partGroup.name = `part-${slot}`;
       const meshes = new THREE.Group();
-      meshes.add(...surfaceMeshes(part.voxels,materials,geometries));
+      meshes.add(...surfaceMeshes(surfaces,materials));
       meshes.visible = false;
-      const { width, height, depth } = part.dimensions;
-      const box = new THREE.BoxGeometry(width,height,depth);
-      const edges = new THREE.EdgesGeometry(box);
-      geometries.push(edges);
-      box.dispose();
       const outline = new THREE.LineSegments(edges,outlineMaterial);
       outline.position.set(
         (part.bounds.min.x+part.bounds.max.x)/2,
@@ -234,10 +296,8 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
     };
   }
 
-  const swatches = new Map();
-  for (const voxel of assembly.voxels) if (!swatches.has(voxel.material)) {
-    swatches.set(voxel.material,{name:voxel.material,color:voxel.color});
-  }
+  prepared.references++;
+  let disposed = false;
   return {
     group,recipe,appearance,assembly,
     surfaceMaterials:Object.values(materials),
@@ -247,7 +307,7 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
     voxelCount:assembly.voxels.length,
     partCount:assembly.partCount,
     dimensions:assembly.dimensions,
-    palette:[...swatches.values()],
+    palette:prepared.palette,
     getDisplayBounds,
     getPoseBounds,
     getGroundHeight,
@@ -259,10 +319,14 @@ export function createVoxelFigure(model, { layout = 'figure' } = {}) {
       return {format:'voxel-character/2',appearance,scale:model.scale,footprint:model.footprint,recipe,parts:ids.map(id=>library.get(id)),itemEffects};
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       effects.dispose();
-      geometries.forEach(geometry=>geometry.dispose());
       Object.values(materials).forEach(material=>material.dispose());
       outlineMaterial?.dispose();
+      // Three releases GPU buffers on dispose and reuploads the retained typed
+      // arrays when these same geometries are rendered in a later encounter.
+      if (--prepared.references === 0) prepared.geometries.forEach(geometry=>geometry.dispose());
     },
   };
 }

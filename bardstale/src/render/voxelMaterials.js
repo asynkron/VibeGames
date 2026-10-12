@@ -77,7 +77,18 @@ const DETAIL = {
   flame: `tint = vec3(1.0) + vec3(.04, .08, .025) * fine;`,
 };
 
+const MATERIAL_KINDS = Object.keys(DETAIL);
+const SHADER_DETAIL = MATERIAL_KINDS.map((kind,index) =>
+  `${index ? 'else ' : ''}if (voxelMaterialKind == ${index}) {
+    float fine = voxelHash(cell + 11.7) - .5;
+    float mottle = voxelNoise(p * .19);
+    float broad = voxelNoise(p * .075 + 4.3);
+    ${DETAIL[kind]}
+  }`,
+).join('\n');
+
 const SHADER_COMMON = /* glsl */`
+uniform int voxelMaterialKind;
 varying vec3 vVoxelPosition;
 varying vec3 vVoxelNormal;
 float voxelHash(vec3 p) {
@@ -102,8 +113,13 @@ export function createVoxelMaterial(kind) {
   }
   const material = new THREE.MeshStandardMaterial({ ...VOXEL_MATERIALS[kind], vertexColors: true });
   material.name = `voxel-material-${kind}`;
-  material.customProgramCacheKey = () => `voxel-surface-${kind}`;
+  // Material response remains per draw; equal scene defines share one GPU program.
+  // Three uploads this material's uniforms whenever the material changes, even
+  // when its compiled program is also used by the preceding material.
+  const materialKind = {value:MATERIAL_KINDS.indexOf(kind)};
+  material.customProgramCacheKey = () => 'voxel-surface';
   material.onBeforeCompile = shader => {
+    shader.uniforms.voxelMaterialKind = materialKind;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vVoxelPosition;\nvarying vec3 vVoxelNormal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvVoxelPosition = position;\nvVoxelNormal = normal;');
@@ -112,12 +128,9 @@ export function createVoxelMaterial(kind) {
       .replace('#include <color_fragment>', `#include <color_fragment>
         vec3 cell = floor(vVoxelPosition - vVoxelNormal * .002);
         vec3 p = cell + .5;
-        float fine = voxelHash(cell + 11.7) - .5;
-        float mottle = voxelNoise(p * .19);
-        float broad = voxelNoise(p * .075 + 4.3);
         float roughVariation = 0.0;
         vec3 tint = vec3(1.0);
-        ${DETAIL[kind]}
+        ${SHADER_DETAIL}
         diffuseColor.rgb = clamp(diffuseColor.rgb * tint, vec3(0.0), vec3(1.0));
       `)
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= diffuseColor.rgb;')

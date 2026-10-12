@@ -6,6 +6,7 @@ import { footprintCenter } from '../combatFootprints.js';
 const STEP_DURATION = 150;
 const FALL_DURATION = 240;
 const POSE_DURATIONS = { slash: 360, arrow: 640, bolt: 720, heal: 900, burst: 780, buff: 850 };
+const MAX_IDLE_FIGURES = 16;
 
 function directionBetween(source, target) {
   const from = footprintCenter(source), to = footprintCenter(target);
@@ -35,6 +36,7 @@ export function createCombatVoxelActors(parent, cellSize) {
   parent.add(group);
   const entries = new Map();
   const models = new Map();
+  const idleFigures = [];
   const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   function boxFromBounds(bounds) {
@@ -56,7 +58,11 @@ export function createCombatVoxelActors(parent, cellSize) {
       entry.pose.remove(entry.figure.group);
       entry.figure.dispose();
     }
-    entry.figure = createVoxelFigure(model, { layout: 'figure' });
+    const cached = idleFigures.findIndex(figure => figure.key === key);
+    entry.figure = cached < 0 ? createVoxelFigure(model, { layout: 'figure' })
+      : idleFigures.splice(cached,1)[0].figure;
+    entry.figure.group.rotation.set(0,0,0);
+    entry.figure.group.position.set(0,0,0);
     entry.modelKey = key;
     entry.bounds = boxFromBounds(entry.figure.assembly.bounds);
     entry.displayBounds = boxFromBounds(entry.figure.getDisplayBounds());
@@ -73,7 +79,9 @@ export function createCombatVoxelActors(parent, cellSize) {
 
   function release(entry) {
     group.remove(entry.root);
-    entry.figure.dispose();
+    entry.pose.remove(entry.figure.group);
+    idleFigures.push({ key:entry.modelKey,figure:entry.figure });
+    if (idleFigures.length > MAX_IDLE_FIGURES) idleFigures.shift().figure.dispose();
   }
 
   function face(entry, direction) {
@@ -158,6 +166,7 @@ export function createCombatVoxelActors(parent, cellSize) {
 
   function update(now) {
     const reducedMotion = motionPreference.matches;
+    let shadowDirty = false;
     for (const entry of entries.values()) {
       const elapsed = Math.max(0, now - entry.lastUpdate);
       entry.lastUpdate = now;
@@ -212,7 +221,11 @@ export function createCombatVoxelActors(parent, cellSize) {
       const shade = 1 - entry.fall * 0.58;
       for (const material of entry.materials) material.color.setRGB(shade, shade, shade);
       entry.figure.updateEffects(now, { reducedMotion, active: entry.alive });
+      const animated = entry.walkAmount > 0 || motionAction !== null || entry.fall !== (entry.alive ? 0 : 1);
+      if (animated || entry.shadowAnimated || previousX !== entry.root.position.x || previousZ !== entry.root.position.z) shadowDirty = true;
+      entry.shadowAnimated = animated;
     }
+    return shadowDirty;
   }
 
   function pick(raycaster) {
@@ -237,6 +250,13 @@ export function createCombatVoxelActors(parent, cellSize) {
     for (const entry of entries.values()) release(entry);
     entries.clear();
     models.clear();
+  }
+
+  function dispose() {
+    clear();
+    for (const {figure} of idleFigures) figure.dispose();
+    idleFigures.length = 0;
+    group.removeFromParent();
   }
 
   function positionFor(id) {
@@ -268,5 +288,5 @@ export function createCombatVoxelActors(parent, cellSize) {
       THREE.MathUtils.lerp(body.min.y,body.max.y,fraction),entry.root.position.z);
   }
 
-  return { sync, update, play, pick, clear, positionFor, boundsFor, framingBounds, effectAnchorFor };
+  return { sync, update, play, pick, clear, dispose, positionFor, boundsFor, framingBounds, effectAnchorFor };
 }

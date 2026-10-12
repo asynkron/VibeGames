@@ -4,11 +4,11 @@ import { OBJECT_DEFINITIONS } from '../worldObjects.js';
 import { VOXEL_MATERIALS } from './voxelCharacterParts.js';
 import { createVoxelMaterial } from './voxelMaterials.js';
 import { assembleVoxelObjectModel } from './voxelObjectCatalog.js';
-import { createVoxelSurfaces } from './voxelSurface.js';
+import { acquireVoxelSurfaces } from './voxelGeometryCache.js';
 import { DX, DY, WALL } from '../dungeon.js';
 import { MASONRY_VOXELS_PER_TILE, MASONRY_WALL_HALF_DEPTH } from './voxelMasonryModels.js';
 
-const CHUNK_MAP_TILES = 8;
+const CHUNK_MAP_TILES = 4;
 const MAX_LIGHTS = 4;
 
 /** Static prop geometry is shared by kind, with instance batches small enough to cull. */
@@ -43,13 +43,16 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
     const { min,max } = model.assembly.bounds;
     const origin = new THREE.Matrix4().makeTranslation(-(min.x+max.x)/2,-min.y,-(min.z+max.z)/2);
     const cutawayHeight = OBJECT_DEFINITIONS[kind].cutawayHeight;
-    const surfaces = cutawayHeight === undefined ? createVoxelSurfaces(model.assembly.voxels)
-      : [false, true].flatMap(upper => createVoxelSurfaces(model.assembly.voxels.filter(voxel =>
-        (voxel.y >= cutawayHeight) === upper)).map(surface => ({ ...surface, upper })));
+    const leases = cutawayHeight === undefined
+      ? [acquireVoxelSurfaces(model,'full',() => model.assembly.voxels)]
+      : [false,true].map(upper => acquireVoxelSurfaces(model,upper?'upper':'lower',() =>
+        model.assembly.voxels.filter(voxel => (voxel.y >= cutawayHeight) === upper)));
+    const surfaces = cutawayHeight === undefined ? leases[0].surfaces
+      : leases.flatMap((lease,index) => lease.surfaces.map(surface => ({...surface,upper:Boolean(index)})));
     const footprintVoxels = cutawayHeight === undefined ? model.assembly.voxels
       : model.assembly.voxels.filter(voxel => voxel.y < cutawayHeight);
     const span = axis => Math.max(...footprintVoxels.map(voxel => voxel[axis] + 1)) - Math.min(...footprintVoxels.map(voxel => voxel[axis]));
-    const prototype = { surfaces,origin,lightAnchor:model.lightAnchor,
+    const prototype = { surfaces,origin,leases,lightAnchor:model.lightAnchor,
       width:span('x')*voxelSize,depth:span('z')*voxelSize };
     prototypes.set(kind,prototype);
     return prototype;
@@ -132,11 +135,13 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
     chunk.kinds.clear();
   }
 
-  // A fixed local-light pool bounds GPU cost. Static exploration shadows are
-  // reused until a source changes; combat refreshes them for moving figures.
+  // A fixed local-light pool reuses shadow maps until a source or caster moves.
   const lights = Array.from({ length:MAX_LIGHTS },(_,index) => {
     const light = new THREE.PointLight(0xffc87a,0,1,2);
     light.name = `voxel-environment-light-${index}`;
+    // Zero-intensity slots keep the shader's light count stable while cached
+    // shadow maps remain untouched until a real source is assigned.
+    light.visible = true;
     light.castShadow = true;
     light.shadow.mapSize.set(256,256);
     light.shadow.camera.near = 0.02;
@@ -148,19 +153,26 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
   });
   const nearest = new Array(MAX_LIGHTS).fill(null);
   const distances = new Array(MAX_LIGHTS).fill(Infinity);
+  const sourcesBySlot = new Array(MAX_LIGHTS).fill(null);
+  const distancesBySlot = new Array(MAX_LIGHTS).fill(Infinity);
+  const claimedSources = new Array(MAX_LIGHTS).fill(false);
 
   function setCombat(active) {
+    if (combat === active) return;
     combat = active;
-    for (const light of lights) light.shadow.needsUpdate = true;
+    for (const light of lights) if (light.visible) light.shadow.needsUpdate = true;
     for (const mesh of batches) if (mesh.userData.cutaway) mesh.visible = !active;
   }
 
-  function update({ now,focus,radius = 20 }) {
+  function update({ now,focus,radius = 20,shadowDirty = false }) {
     if (disposed) return;
+    let changed = false;
     for (const chunk of chunks.values()) {
       const dx = Math.max(chunk.group.position.x - focus.x, 0, focus.x - chunk.group.position.x - chunkSize);
       const dz = Math.max(chunk.group.position.z - focus.z, 0, focus.z - chunk.group.position.z - chunkSize);
-      chunk.group.visible = dx * dx + dz * dz <= radius * radius;
+      const visible = dx * dx + dz * dz <= radius * radius;
+      if (chunk.group.visible !== visible) changed = true;
+      chunk.group.visible = visible;
     }
     nearest.fill(null);
     distances.fill(Infinity);
@@ -184,28 +196,53 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
         distances[index] = distance;
       }
     }
+    // Retain selected sources in their existing slots, even when their distance
+    // order changes. Walking between two lanterns need not rebuild both maps.
+    sourcesBySlot.fill(null);
+    distancesBySlot.fill(Infinity);
+    claimedSources.fill(false);
+    for (let slot = 0; slot < MAX_LIGHTS; slot++) {
+      const sourceIndex = nearest.findIndex(source => source && source.id === lights[slot].userData.objectId);
+      if (sourceIndex < 0) continue;
+      sourcesBySlot[slot] = nearest[sourceIndex];
+      distancesBySlot[slot] = distances[sourceIndex];
+      claimedSources[sourceIndex] = true;
+    }
+    for (let slot = 0; slot < MAX_LIGHTS; slot++) {
+      if (sourcesBySlot[slot]) continue;
+      const sourceIndex = nearest.findIndex((source,index) => source && !claimedSources[index]);
+      if (sourceIndex < 0) continue;
+      sourcesBySlot[slot] = nearest[sourceIndex];
+      distancesBySlot[slot] = distances[sourceIndex];
+      claimedSources[sourceIndex] = true;
+    }
     for (let index=0;index<MAX_LIGHTS;index++) {
-      const light = lights[index], source = nearest[index];
+      const light = lights[index], source = sourcesBySlot[index];
       if (!source) {
         light.intensity = 0;
-        light.shadow.autoUpdate = false;
+        light.visible = true;
+        light.shadow.needsUpdate = false;
         delete light.userData.objectId;
         continue;
       }
-      const fade = Math.min(1,(1-Math.sqrt(distances[index])/source.range)/0.2);
+      const fade = Math.min(1,(1-Math.sqrt(distancesBySlot[index])/source.range)/0.2);
       const flicker = 1+Math.sin(now*0.003+source.phase)*0.035;
-      if (light.userData.objectId !== source.id) {
+      const sourceChanged = light.userData.objectId !== source.id;
+      const positionChanged = !light.position.equals(source.position);
+      const rangeChanged = light.distance !== source.range;
+      if (rangeChanged) {
         light.shadow.camera.far = source.range;
         light.shadow.camera.updateProjectionMatrix();
-        light.shadow.needsUpdate = true;
       }
-      light.shadow.autoUpdate = combat;
+      if (sourceChanged || positionChanged || rangeChanged || shadowDirty || changed) light.shadow.needsUpdate = true;
+      light.visible = true;
       light.position.copy(source.position);
       light.color.set(source.color);
       light.distance = source.range;
       light.intensity = source.intensity*fade*flicker;
       light.userData.objectId = source.id;
     }
+    return changed;
   }
 
   function dispose() {
@@ -213,7 +250,7 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
     disposed = true;
     group.removeFromParent();
     for (const mesh of batches) mesh.dispose();
-    for (const prototype of prototypes.values()) for (const {geometry} of prototype.surfaces) geometry.dispose();
+    for (const prototype of prototypes.values()) for (const lease of prototype.leases) lease.release();
     for (const material of Object.values(materials)) material.dispose();
     for (const light of lights) light.shadow.dispose();
     group.clear();
@@ -221,6 +258,7 @@ export function createVoxelEnvironment(parent, dungeon, { cellSize }) {
     prototypes.clear();
     batches.length = 0;
     nearest.fill(null);
+    sourcesBySlot.fill(null);
   }
 
   return { group,setCombat,update,dispose };

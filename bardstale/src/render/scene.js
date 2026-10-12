@@ -53,6 +53,7 @@ export function buildScene(state, stage) {
   dirLight.shadow.camera.updateProjectionMatrix();
   dirLight.shadow.bias = -.0003;
   dirLight.shadow.normalBias = .005;
+  dirLight.shadow.autoUpdate = false;
   scene.add(ambient, hemiLight, dirLight, dirLight.target);
 
   const eye = 0.55;
@@ -90,7 +91,6 @@ export function buildScene(state, stage) {
   camera.rotation.x = environment.outdoors ? .08 : 0;
   player.add(camera);
 
-  const explorationFog = scene.fog;
   const battleCamera = new THREE.OrthographicCamera(-5 * COMBAT_CELL_SIZE, 5 * COMBAT_CELL_SIZE, 5 * COMBAT_CELL_SIZE, -5 * COMBAT_CELL_SIZE, 0.05, 200);
   scene.add(battleCamera);
   const battleGroup = new THREE.Group();
@@ -107,6 +107,7 @@ export function buildScene(state, stage) {
   combatKey.shadow.normalBias = 0.008 * COMBAT_CELL_SIZE;
   combatKey.shadow.camera.near = 0.1;
   combatKey.shadow.camera.far = 40;
+  combatKey.shadow.autoUpdate = false;
   battleGroup.add(combatKey, combatKey.target);
   const markers = new THREE.Group();
   battleGroup.add(markers);
@@ -117,6 +118,8 @@ export function buildScene(state, stage) {
   let battleActive = false;
   let battleView = null;
   let battleSnapshot = null;
+  let combatShadowDirty = false;
+  const sunFocus = new THREE.Vector3(Infinity,Infinity,Infinity);
 
   function pixelTexture(canvas) {
     const texture = new THREE.CanvasTexture(canvas);
@@ -262,6 +265,7 @@ export function buildScene(state, stage) {
     const shadowSpan = Math.max(4 * COMBAT_CELL_SIZE, Math.min(halfSpan * 1.4, 12));
     Object.assign(combatKey.shadow.camera, { left: -shadowSpan, right: shadowSpan, top: shadowSpan, bottom: -shadowSpan });
     combatKey.shadow.camera.updateProjectionMatrix();
+    combatKey.shadow.needsUpdate = true;
   }
 
   function panBattle(dx, dy) {
@@ -306,13 +310,16 @@ export function buildScene(state, stage) {
       environmentObjects.setCombat(true);
       travelExits.setCombat(true);
       dirLight.castShadow = false;
-      scene.fog = null;
+      // Keep the fog shader variant stable; its range is beyond the combat camera.
+      scene.fog.near = 1000;
+      scene.fog.far = 1100;
       torch.visible = false;
       dirLight.intensity = 0;
       battleGroup.visible = true;
       onResize();
     }
     battleSnapshot = snapshot;
+    combatShadowDirty = true;
     combatActors.sync(snapshot);
     combatLighting.sync(snapshot);
     combatEffects.sync(snapshot.units);
@@ -351,7 +358,9 @@ export function buildScene(state, stage) {
     environmentObjects.setCombat(false);
     travelExits.setCombat(false);
     dirLight.castShadow = environment.outdoors;
-    scene.fog = explorationFog;
+    scene.fog.near = lighting.fog[0];
+    scene.fog.far = lighting.fog[1];
+    dirLight.shadow.needsUpdate = true;
     torch.visible = true;
     markers.clear();
     combatActors.clear();
@@ -368,14 +377,22 @@ export function buildScene(state, stage) {
     if (environment.outdoors) {
       dirLight.position.set(focus.x - 4, 8, focus.z + 3);
       dirLight.target.position.set(focus.x, 0, focus.z);
+      if (sunFocus.x !== focus.x || sunFocus.z !== focus.z) {
+        dirLight.shadow.needsUpdate = true;
+        sunFocus.set(focus.x,0,focus.z);
+      }
     }
-    worldGeometry.update({ focus, radius });
-    environmentObjects.update({ now, focus, radius });
+    let shadowDirty = worldGeometry.update({ focus, radius }) || combatShadowDirty;
     if (battleActive) {
-      combatActors.update(now);
+      shadowDirty = combatActors.update(now) || shadowDirty;
       combatEffects.update(now);
-      combatLighting.update(now, combatActors.positionFor);
     }
+    shadowDirty = environmentObjects.update({ now, focus, radius, shadowDirty }) || shadowDirty;
+    if (battleActive) {
+      combatLighting.update(now, combatActors.positionFor, { shadowDirty });
+      if (shadowDirty) combatKey.shadow.needsUpdate = true;
+    } else if (shadowDirty) dirLight.shadow.needsUpdate = true;
+    combatShadowDirty = false;
     renderer.render(scene, battleActive ? battleCamera : camera);
   }
 
@@ -419,7 +436,7 @@ export function buildScene(state, stage) {
   function dispose() {
     resizeObserver.disconnect();
     combatEffects.clear();
-    combatActors.clear();
+    combatActors.dispose();
     combatLighting.clear();
     worldGeometry.dispose();
     environmentObjects.dispose();

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { WALL } from '../dungeon.js';
-import { createVoxelSurfaces } from './voxelSurface.js';
+import { acquireVoxelSurfaces } from './voxelGeometryCache.js';
 import { MASONRY_VOXELS_PER_TILE, assembleMasonryModel } from './voxelMasonryModels.js';
 import { createVoxelMaterial } from './voxelMaterials.js';
 import { assembleLandscapeModel } from './voxelLandscapeModels.js';
 import { assembleBuildingModel } from './voxelBuildingModels.js';
 import { getEnvironment } from '../environments.js';
 
-const CHUNK_TILES = 8;
+const CHUNK_TILES = 4;
 const VARIANT_COUNT = 4;
 const COMBAT_WALL_VOXELS = 60;
 const VOXEL_SIZE = 1 / MASONRY_VOXELS_PER_TILE;
@@ -149,17 +149,17 @@ export function createVoxelWorld(parent, state) {
 
   function prototypeFor(source, kind, variant, layer) {
     const key = `${sourceKey(source)}:${kind}:${source.building ? 0 : variant}:${layer}`;
-    if (prototypes.has(key)) return prototypes.get(key);
+    if (prototypes.has(key)) return prototypes.get(key).surfaces;
     const model = source.building ? assembleBuildingModel(kind, source.building.style, source.building.stories)
       : environment.id === 'dungeon' ? assembleMasonryModel(kind, variant)
       : assembleLandscapeModel(environment.id, kind, variant);
     const { voxels } = model;
     const isWall = kind === 'wall' || kind === 'door';
-    const visible = isWall && layer === 'lower' ? voxels.filter(voxel => voxel.y < COMBAT_WALL_VOXELS)
-      : isWall && layer === 'upper' ? voxels.filter(voxel => voxel.y >= COMBAT_WALL_VOXELS) : voxels;
-    const surfaces = createVoxelSurfaces(visible);
-    prototypes.set(key, surfaces);
-    return surfaces;
+    const prototype = acquireVoxelSurfaces(model,isWall ? layer : 'full',() =>
+      isWall && layer === 'lower' ? voxels.filter(voxel => voxel.y < COMBAT_WALL_VOXELS)
+        : isWall && layer === 'upper' ? voxels.filter(voxel => voxel.y >= COMBAT_WALL_VOXELS) : voxels);
+    prototypes.set(key,prototype);
+    return prototype.surfaces;
   }
 
   for (const chunk of chunks.values()) {
@@ -197,13 +197,17 @@ export function createVoxelWorld(parent, state) {
 
   function update({ focus, radius }) {
     if (disposed) return;
+    let changed = false;
     const radiusSquared = radius * radius;
     for (const chunk of chunks.values()) {
       const { minX, maxX, minZ, maxZ } = chunk.bounds;
       const dx = Math.max(minX - focus.x, 0, focus.x - maxX);
       const dz = Math.max(minZ - focus.z, 0, focus.z - maxZ);
-      chunk.group.visible = dx * dx + dz * dz <= radiusSquared;
+      const visible = dx * dx + dz * dz <= radiusSquared;
+      if (chunk.group.visible !== visible) changed = true;
+      chunk.group.visible = visible;
     }
+    return changed;
   }
 
   function dispose() {
@@ -211,7 +215,7 @@ export function createVoxelWorld(parent, state) {
     disposed = true;
     group.removeFromParent();
     for (const mesh of batches) mesh.dispose();
-    for (const surfaces of prototypes.values()) for (const { geometry } of surfaces) geometry.dispose();
+    for (const prototype of prototypes.values()) prototype.release();
     for (const material of materials.values()) material.dispose();
     materials.clear();
     group.clear();
