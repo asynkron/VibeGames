@@ -314,11 +314,9 @@ export function createBattlefield(dungeon, heroes, monsters) {
     return true;
   }
 
-  function canTarget(actorId, targetId, { range = 1, melee = false } = {}) {
-    const actor = position(actorId);
-    const target = position(targetId);
+  function canTargetFrom(actor, target, { range = 1, melee = false } = {}, x = actor?.x, y = actor?.y) {
     if (!actor?.entity.alive || !target || !(range >= 0) || (melee && actor === target)) return false;
-    for (const from of footprintCells(actor)) {
+    for (const from of footprintCells(actor, x, y)) {
       for (const to of footprintCells(target)) {
         const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
         if (distance > range) continue;
@@ -328,5 +326,27 @@ export function createBattlefield(dungeon, heroes, monsters) {
     return false;
   }
 
-  return { width, height, origin, units, position, occupies, canPlace, reachable, move, pathToCell, pathToAdjacent, canTarget };
+  function canTarget(actorId, targetId, targeting) {
+    return canTargetFrom(position(actorId), position(targetId), targeting);
+  }
+
+  function pathsToTargets(actorId, targetIds, budget, targeting) {
+    const actor = position(actorId);
+    const paths = new Map();
+    if (!actor?.entity.alive || !(budget >= 0)) return paths;
+    const candidates = targetIds.map(position).filter(target => target?.entity.alive && target.team !== actor.team);
+    if (!candidates.length) return paths;
+    const { reached } = search(actor, Math.floor(budget));
+    for (const cell of reached.values()) {
+      for (const target of candidates) {
+        if (!paths.has(target.id) && canTargetFrom(actor, target, targeting, cell.x, cell.y)) {
+          paths.set(target.id, reconstructPath(reached, cell));
+        }
+      }
+      if (paths.size === candidates.length) break;
+    }
+    return paths;
+  }
+
+  return { width, height, origin, units, position, occupies, canPlace, reachable, move, pathToCell, pathToAdjacent, canTarget, pathsToTargets };
 }

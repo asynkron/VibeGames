@@ -25,10 +25,6 @@ function main() {
   const journey = createWorldJourney(opts);
   const state = { ...journey.initialArea };
   state.cells[state.y][state.x].visited = true;
-  const travelBar = document.getElementById('travel-bar');
-  const areaName = document.getElementById('area-name');
-  const areaDescription = document.getElementById('area-description');
-  const travelButton = document.getElementById('travel-button');
   let travelling = false;
 
   const hudCanvas = document.getElementById('hud');
@@ -49,18 +45,16 @@ function main() {
 
   function sizeScreen() {
     const { resolution, tileSize, layout } = UI_SETTINGS;
-    const barHeight = travelBar.offsetHeight;
-    const availableHeight = window.innerHeight - barHeight;
     const scale = Math.max(1, Math.floor(Math.min(
       window.innerWidth / resolution.width,
-      availableHeight / resolution.height,
+      window.innerHeight / resolution.height,
     )));
     const width = resolution.width * scale;
     const height = resolution.height * scale;
     Object.assign(screenElement.style, {
       width: `${width}px`, height: `${height}px`,
       left: `${Math.max(0, Math.floor((window.innerWidth - width) / 2))}px`,
-      top: `${barHeight + Math.max(0, Math.floor((availableHeight - height) / 2))}px`,
+      top: `${Math.max(0, Math.floor((window.innerHeight - height) / 2))}px`,
     });
     const view = combatLayoutActive ? UI_SETTINGS.combatLayout.viewport : layout.viewport;
     Object.assign(stageElement.style, {
@@ -87,7 +81,6 @@ function main() {
         sizeScreen();
       }
       hud.setCombatStatus(snapshot);
-      updateTravelPrompt();
       g.setBattle(snapshot);
     },
     hide() {
@@ -97,7 +90,6 @@ function main() {
       sizeScreen();
       hud.setCombatStatus(null);
       g.clearBattle();
-      updateTravelPrompt();
     },
   };
   const systems = initBt3Systems({ hud, combatView, dungeon: state });
@@ -106,7 +98,6 @@ function main() {
     systems,
     onClose() {
       screenElement.inert = false;
-      updateTravelPrompt();
       hudCanvas.focus({ preventScroll: true });
     },
   });
@@ -142,20 +133,10 @@ function main() {
     }
     inventory.open(targetId);
     screenElement.inert = true;
-    updateTravelPrompt();
   }
 
   function exitAtParty() {
     return state.exits.find(exit => exit.x === state.x && exit.y === state.y);
-  }
-
-  function updateTravelPrompt() {
-    const area = getEnvironment(state.environment);
-    const exit = exitAtParty();
-    areaName.textContent = area.name;
-    areaDescription.textContent = exit ? `Way out to ${getEnvironment(exit.target).name}.` : area.description;
-    travelButton.disabled = !exit || travelling || systems.isCombatActive || inventory.isOpen() || Boolean(anim);
-    travelButton.textContent = exit ? `Travel to ${getEnvironment(exit.target).name} [Enter]` : 'Find a waymarked exit';
   }
 
   async function travel() {
@@ -163,11 +144,9 @@ function main() {
     if (!exit || travelling || anim || systems.isCombatActive || inventory.isOpen()) return;
     travelling = true;
     keyQueued = null;
-    travelButton.disabled = true;
-    areaDescription.textContent = `Travelling to ${getEnvironment(exit.target).name}…`;
     minimap.hide();
     mapControls.cancel();
-    // Let the travel status paint before generating and meshing the next area.
+    // Yield a frame before generating and meshing the next area.
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
     const previous = state.environment;
     Object.assign(journey.areaFor(previous), { x:state.x, y:state.y, dir:state.dir });
@@ -184,11 +163,8 @@ function main() {
     history.replaceState(null, '', url);
     travelling = false;
     lastFrameTime = performance.now();
-    updateTravelPrompt();
     hudCanvas.focus({ preventScroll:true });
   }
-  travelButton.addEventListener('click', travel);
-  updateTravelPrompt();
 
   function startMove(dirSign) { // +1 forward, -1 reverse
     if (anim || systems.isCombatActive || minimap.isVisible()) return;
@@ -205,7 +181,6 @@ function main() {
     // Track the destination while the camera animates toward it.
     state.x = nx; state.y = ny; state.cells[state.y][state.x].visited = true;
     hud.setLocation(state);
-    updateTravelPrompt();
   }
 
   function startTurn(left) {
@@ -219,7 +194,6 @@ function main() {
     while (delta > Math.PI) delta -= 2 * Math.PI;
     while (delta < -Math.PI) delta += 2 * Math.PI;
     anim = { type: 'turn', start: performance.now(), duration: 220, fromYaw, toYaw: fromYaw + delta };
-    updateTravelPrompt();
   }
 
   const navigation = {
@@ -235,7 +209,7 @@ function main() {
       ev.stopImmediatePropagation();
       return;
     }
-    if (travelBar.contains(ev.target) || travelling) return;
+    if (travelling) return;
     if (ev.key === 'Enter' && exitAtParty() && !systems.isCombatActive && !inventory.isOpen() && !minimap.isVisible()) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
@@ -301,7 +275,6 @@ function main() {
         const wasMove = anim.type === 'move';
         anim = null;
         if (wasMove && !exitAtParty()) systems.onStepComplete(opts.depth);
-        updateTravelPrompt();
         if (inventoryQueuedFor !== null) {
           const targetId = inventoryQueuedFor;
           inventoryQueuedFor = null;

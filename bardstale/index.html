@@ -12,14 +12,10 @@
   </script>
 </head>
 <body>
-  <nav id="travel-bar" aria-label="Area and travel">
-    <div class="area-copy"><strong id="area-name"></strong><span id="area-description" role="status"></span></div>
-    <button id="travel-button" type="button" disabled>Find a waymarked exit</button>
-  </nav>
   <main id="screen" class="screen" aria-label="Bard's Tale">
     <div id="stage" aria-hidden="true"></div>
     <canvas id="hud" width="640" height="400" tabindex="0" aria-label="Bard's Tale character interface" aria-describedby="controls"></canvas>
-    <p id="controls" class="sr-only">Arrow keys move and turn while exploring. Follow named waymarkers to an exit, then press Enter or the travel button to enter the connected area with your party. M opens the map; M or Escape closes it. Click a party member to inspect their portrait and statistics. I opens their inventory, with equipment, carried items, and a live character preview. Escape closes inventory. Gear changes and potion use are available outside combat. In combat, click a character to select them. Green cells show where they can move; click one to walk there. Red frames mark enemies you can attack by clicking. Choose a spell, then click a target with a cyan frame to cast it. Selecting another hero preserves each hero's remaining movement and action. Arrow keys also move the selected hero. Drag the map to pan; right-drag or Shift-drag rotates it. The mouse wheel zooms. Q and E rotate, plus and minus zoom, and Home restores the view. Combat commands use numbers 1 through 8; 0 returns to the previous menu. Page Up and Page Down turn command pages. D turns character detail pages.</p>
+    <p id="controls" class="sr-only">Arrow keys move and turn while exploring. Follow named waymarkers to an exit, then press Enter to enter the connected area with your party. M opens the map; M or Escape closes it. Click a party member to inspect their portrait and statistics. I opens their inventory, with equipment, carried items, and a live character preview. Escape closes inventory. Gear changes and potion use are available outside combat. In combat, click a character to select them. Green cells show where they can move; click one to walk there. Red cells mark enemies you can reach and attack this turn; click one to move into weapon range and strike. Choose a spell, then click a target with a cyan frame to cast it. Selecting another hero preserves each hero's remaining movement and action. Arrow keys also move the selected hero. Drag the map to pan; right-drag or Shift-drag rotates it. The mouse wheel zooms. Q and E rotate, plus and minus zoom, and Home restores the view. Combat commands use numbers 1 through 8; 0 returns to the previous menu. Page Up and Page Down turn command pages. D turns character detail pages.</p>
     <div id="ui-accessibility" class="sr-only"></div>
   </main>
   <script type="module" src="./main.js"></script>

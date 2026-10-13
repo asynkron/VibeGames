@@ -94,38 +94,3 @@ canvas {
   white-space: nowrap;
   border: 0;
 }
-
-#travel-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 4;
-  box-sizing: border-box;
-  min-height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 10px 20px;
-  border-bottom: 1px solid #364443;
-  background: #0b1213;
-  color: #d9e2d4;
-  font: 13px/1.4 monospace;
-}
-.area-copy { display: flex; flex-direction: column; gap: 2px; }
-#area-name { color: #f0d293; font-size: 15px; }
-#area-description { color: #aabbb7; }
-#travel-button {
-  flex-shrink: 0;
-  padding: 9px 12px;
-  border: 1px solid #a99568;
-  border-radius: 2px;
-  background: #263831;
-  color: #f4e2b8;
-  font: inherit;
-  cursor: pointer;
-}
-#travel-button:hover:enabled { background: #3a5042; }
-#travel-button:focus-visible { outline: 2px solid #fff0a1; outline-offset: 3px; }
-#travel-button:disabled { color: #889590; border-color: #394642; background: #101b1a; cursor: default; }

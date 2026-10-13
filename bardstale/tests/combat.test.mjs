@@ -54,9 +54,10 @@ async function withCombat(run) {
     },
   };
 
-  async function flush() {
+  async function flush(until = () => false) {
     for (let count = 0; count < 1000; count += 1) {
       for (let microtask = 0; microtask < 8; microtask += 1) await Promise.resolve();
+      if (until()) return;
       const next = [...timers.entries()].sort(([idA, a], [idB, b]) => a.due - b.due || idA - idB)[0];
       if (!next) return;
       const [id, timer] = next;
@@ -174,18 +175,87 @@ test('clicking heroes shows movement immediately and walks legal cells while pre
   });
 });
 
+test('movement preview highlights reachable foes and one click walks into range before attacking with input locked', async () => {
+  await withCombat(async ({ systems, record, begin, unit, flush, setRandom }) => {
+    await begin();
+    const warrior = unit('c_warrior');
+    const start = { x: warrior.x, y: warrior.y };
+    const target = record.snapshot.units.find(entry => entry.team === 'monster' && entry.alive
+      && Math.abs(entry.x - start.x) + Math.abs(entry.y - start.y) > 1
+      && record.snapshot.reachable.some(cell => Math.abs(entry.x - cell.x) + Math.abs(entry.y - cell.y) === 1));
+    assert.ok(target, 'The encounter must contain a foe reachable within this turn’s movement.');
+    assert.ok(record.snapshot.reachable.some(cell => cell.cost > 0), 'Green movement cells and red attack targets coexist.');
+    assert.ok(record.snapshot.targetIds.includes(target.id), 'A foe is highlighted before the hero walks into melee range.');
+    const stalePass = record.actions.buttons.find(button => button.label === 'End Turn').onSelect;
+    const firstSnapshot = record.snapshots.length;
+    setRandom(0.99);
+    systems.selectCombatCell(target.x, target.y);
+    assert.equal(record.snapshot.busy, true);
+    assert.equal(record.snapshot.activeId, warrior.id);
+    assert.equal(record.actions, null);
+    assert.equal(record.effects.length, 0, 'The weapon cannot strike while the hero is still approaching.');
+    assert.equal(unit(target.id).hpCurrent, target.hpCurrent);
+    const movingPosition = { x: unit(warrior.id).x, y: unit(warrior.id).y };
+    const paladin = unit('c_paladin');
+    systems.selectCombatCell(paladin.x, paladin.y);
+    systems.selectCombatCell(target.x, target.y);
+    systems.handleCombatKey('ArrowDown');
+    stalePass();
+    assert.deepEqual({ x: unit(warrior.id).x, y: unit(warrior.id).y }, movingPosition);
+    assert.equal(record.snapshot.activeId, warrior.id);
+    await flush();
+    assert.equal(record.effects.length, 1, 'The entire click resolves exactly one strike.');
+    const effect = record.effects[0];
+    assert.equal(effect.kind, 'slash');
+    assert.equal(Math.abs(effect.source.x - target.x) + Math.abs(effect.source.y - target.y), 1, 'Movement ends adjacent to the selected enemy.');
+    assert.equal(effect.snapshot.units.find(entry => entry.id === target.id).hpCurrent, target.hpCurrent, 'Damage waits until the approach and visible strike finish.');
+    const cost = 4 - unit(warrior.id).movementRemaining;
+    assert.ok(cost > 0 && cost <= 4);
+    const clicked = record.snapshots.slice(firstSnapshot);
+    const approach = clicked.slice(clicked.findIndex(snapshot => snapshot.busy)).filter(snapshot => snapshot.activeId === warrior.id);
+    assert.ok(approach.every(snapshot => snapshot.busy), 'There is no unlocked command menu between walking and attacking.');
+    assert.ok(unit(target.id).hpCurrent < target.hpCurrent);
+    assert.equal(unit(warrior.id).canAct, false);
+    assert.equal(record.snapshot.activeId, paladin.id);
+  });
+});
+
+test('exhausted movement removes distant attack previews and an unreachable enemy click spends nothing', async () => {
+  await withCombat(async ({ systems, record, begin, unit, flush }) => {
+    await begin();
+    const warrior = unit('c_warrior');
+    const monsters = record.snapshot.units.filter(entry => entry.team === 'monster' && entry.alive);
+    const retreat = record.snapshot.reachable.filter(cell => cell.cost === 4)
+      .sort((a, b) => Math.min(...monsters.map(foe => Math.abs(foe.x - b.x) + Math.abs(foe.y - b.y)))
+        - Math.min(...monsters.map(foe => Math.abs(foe.x - a.x) + Math.abs(foe.y - a.y))))[0];
+    assert.ok(retreat);
+    systems.selectCombatCell(retreat.x, retreat.y);
+    await flush();
+    assert.equal(unit(warrior.id).movementRemaining, 0);
+    assert.deepEqual(record.snapshot.targetIds, [], 'No enemy remains in range after this retreat.');
+    const settled = structuredClone(record.snapshot);
+    systems.selectCombatCell(monsters[0].x, monsters[0].y);
+    await flush();
+    assert.deepEqual(record.snapshot, settled);
+    assert.equal(record.effects.length, 0);
+    assert.equal(unit(warrior.id).canAct, true, 'An impossible attack never spends the action.');
+  });
+});
+
 test('clicking highlighted enemies attacks after its effect and rejects duplicate actions before advancing once', async () => {
   await withCombat(async ({ systems, record, choose, flush, begin, unit }) => {
     await begin();
     const monsters = record.snapshot.units.filter((entry) => entry.team === 'monster' && entry.alive);
-    if (!record.snapshot.targetIds.length) {
+    const warrior = unit('c_warrior');
+    if (!monsters.some(monster => Math.abs(monster.x - warrior.x) + Math.abs(monster.y - warrior.y) === 1)) {
       const approach = record.snapshot.reachable.find((cell) => cell.cost > 0 && monsters.some((monster) => Math.abs(monster.x - cell.x) + Math.abs(monster.y - cell.y) === 1));
       assert.ok(approach);
       systems.selectCombatCell(approach.x, approach.y);
       await flush();
     }
     assert.equal(record.snapshot.targetKind, 'attack');
-    const target = unit(record.snapshot.targetIds[0]);
+    const target = record.snapshot.targetIds.map(unit).find(monster => Math.abs(monster.x - unit(warrior.id).x) + Math.abs(monster.y - unit(warrior.id).y) === 1);
+    assert.ok(target);
     const previousHp = target.hpCurrent;
     const stalePass = record.actions.buttons.find((button) => button.label === 'End Turn').onSelect;
     systems.selectCombatCell(target.x, target.y);
@@ -280,19 +350,13 @@ test('all four cells of a dragon resolve to one target for melee and spell actio
           systems.selectCombatCell(chrono.x, chrono.y);
           choose('Cast Spell');
           choose(/^MIJA /);
-        } else {
-          const occupiedCells = [[dragon.x, dragon.y], [dragon.x + 1, dragon.y], [dragon.x, dragon.y + 1], [dragon.x + 1, dragon.y + 1]];
-          const approach = record.snapshot.reachable.find(cell => cell.cost > 0
-            && occupiedCells.some(([x, y]) => Math.abs(cell.x - x) + Math.abs(cell.y - y) === 1));
-          assert.ok(approach, 'The warrior must be able to reach the dragon’s occupied edge.');
-          systems.selectCombatCell(approach.x, approach.y);
-          await flush();
         }
         assert.ok(record.snapshot.targetIds.includes(dragon.id), `The dragon must be available for ${action}.`);
         setRandom(0.99);
         systems.selectCombatCell(dragon.x + dx, dragon.y + dy);
         assert.equal(record.snapshots.findLast(snapshot => !snapshot.busy).targetId, dragon.id, `${action} at footprint offset ${dx},${dy} must select the same monster.`);
         assert.equal(record.snapshot.busy, true);
+        await flush(() => record.effects.length > 0);
         assert.equal(record.effects.length, 1);
         assert.equal(record.effects[0].kind, action === 'attack' ? 'slash' : 'arrow');
         assert.deepEqual(record.effects[0].targets, [{ id: dragon.id, x: dragon.x, y: dragon.y, team: 'monster', footprint: { width: 2, height: 2 } }], 'The effect must receive the whole target footprint, independent of which cell was clicked.');
@@ -436,14 +500,16 @@ test('missed attacks and resisted spells publish effects without inventing damag
   await withCombat(async ({ systems, record, choose, flush, begin, unit, setRandom }) => {
     await begin();
     const monsters = record.snapshot.units.filter((entry) => entry.team === 'monster' && entry.alive);
-    if (!record.snapshot.targetIds.length) {
+    const warrior = unit('c_warrior');
+    if (!monsters.some(monster => Math.abs(monster.x - warrior.x) + Math.abs(monster.y - warrior.y) === 1)) {
       const approach = record.snapshot.reachable.find((cell) => cell.cost > 0 && monsters.some((monster) => Math.abs(monster.x - cell.x) + Math.abs(monster.y - cell.y) === 1));
       assert.ok(approach);
       systems.selectCombatCell(approach.x, approach.y);
       await flush();
     }
     setRandom(0);
-    const target = unit(record.snapshot.targetIds[0]);
+    const target = record.snapshot.targetIds.map(unit).find(monster => Math.abs(monster.x - unit(warrior.id).x) + Math.abs(monster.y - unit(warrior.id).y) === 1);
+    assert.ok(target);
     const beforeStrike = record.snapshots.length;
     systems.selectCombatCell(target.x, target.y);
     await flush();

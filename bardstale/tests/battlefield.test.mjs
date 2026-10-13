@@ -83,9 +83,13 @@ test('furniture blocks destinations and forces movement and AI approach paths ar
   assert.deepEqual(board.pathToCell('hero', 3, 1, 3), []);
   const route = board.pathToCell('hero', 3, 1, 4);
   const approach = board.pathToAdjacent('hero', 'foe');
+  assert.equal(board.pathsToTargets('hero', ['foe'], 3, { melee: true }).has('foe'), false,
+    'A partial approach never advertises an attack that cannot finish within the movement budget.');
+  const attackRoute = board.pathsToTargets('hero', ['foe'], 4, { melee: true }).get('foe');
   assert.equal(route.length, 4);
   assert.equal(approach.length, 4);
-  for (const path of [route, approach]) {
+  assert.equal(attackRoute.length, 4);
+  for (const path of [route, approach, attackRoute]) {
     assert.ok(path.every(({ x, y }) => x !== 2 || y !== 1));
   }
   assert.deepEqual(board.move('hero', 3, 1, 3), { moved: false, cost: 0 });
@@ -469,4 +473,13 @@ test('ranged targeting uses one exposed cell pair that satisfies both distance a
     assert.equal(board.canTarget(actor, target, { range: 2 }), false);
     assert.equal(board.canTarget(actor, target, { range: 3 }), true);
   }
+  const before = { x: board.position('hero').x, y: board.position('hero').y };
+  assert.equal(board.pathsToTargets('hero', ['dragon'], 0, { range: 2 }).has('dragon'), false);
+  assert.deepEqual(board.pathsToTargets('hero', ['dragon'], 0, { range: 3 }).get('dragon'), [],
+    'The exposed far corner permits a direct shot without spending movement.');
+  const firingRoute = board.pathsToTargets('hero', ['dragon'], 1, { range: 2 }).get('dragon');
+  assert.deepEqual(firingRoute, [{ x: 1, y: 3 }], 'A one-step approach uses the prospective firing position and an unobstructed footprint corner.');
+  assert.deepEqual({ x: board.position('hero').x, y: board.position('hero').y }, before, 'Planning must leave combatants in their current positions.');
+  for (const step of firingRoute) assert.equal(board.move('hero', step.x, step.y, 1).moved, true);
+  assert.equal(board.canTarget('hero', 'dragon', { range: 2 }), true);
 });

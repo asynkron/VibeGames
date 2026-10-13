@@ -1205,7 +1205,9 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
   }
 
   function attackableMonsters(state, actor) {
-    return livingMonsters(state.monsters).filter((monster) => state.board.canTarget(actor.id, monster.id, weaponTargeting(actor)));
+    const monsters = livingMonsters(state.monsters);
+    const paths = state.board.pathsToTargets(actor.id, monsters.map(monster => monster.id), state.heroTurns.get(actor.id).movementRemaining, weaponTargeting(actor));
+    return monsters.filter(monster => paths.has(monster.id));
   }
 
   function targetKind(action) {
@@ -1293,24 +1295,34 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     showActionMenu(state, actor, prompt, buttons);
   }
 
-  async function moveHero(state, actor, x, y) {
-    if (!heroCanSelect(state, actor) || state.mode !== 'ready') return;
-    const turn = state.heroTurns.get(actor.id);
-    const path = state.board.pathToCell(actor.id, x, y, turn.movementRemaining);
-    if (!path.length) return;
+  function lockHeroResolution(state) {
     state.busy = true;
     state.mode = 'resolving';
     state.targeting = null;
     hud.clearActions();
+  }
+
+  async function walkHeroPath(state, actor, path) {
+    const turn = state.heroTurns.get(actor.id);
     for (const cell of path) {
-      if (!isCurrentBattle(state)) return;
+      if (!isCurrentBattle(state)) return false;
       const result = state.board.move(actor.id, cell.x, cell.y, 1);
-      if (!result.moved) break;
+      if (!result.moved) return false;
       turn.movementRemaining -= result.cost;
       state.cursor = { ...cell };
       publishBattle(state);
       await new Promise((resolve) => setTimeout(resolve, 120));
     }
+    return isCurrentBattle(state);
+  }
+
+  async function moveHero(state, actor, x, y) {
+    if (!heroCanSelect(state, actor) || state.mode !== 'ready') return;
+    const turn = state.heroTurns.get(actor.id);
+    const path = state.board.pathToCell(actor.id, x, y, turn.movementRemaining);
+    if (!path.length) return;
+    lockHeroResolution(state);
+    await walkHeroPath(state, actor, path);
     if (!isCurrentBattle(state)) return;
     state.busy = false;
     promptMainAction(state, actor);
@@ -1478,24 +1490,31 @@ export function initBt3Systems({ hud, combatView, dungeon }) {
     if (!heroCanSelect(state, actor)) return;
     let performed = false;
     if (action.type === 'attack') {
-      const target = state.monsters.find((monster) => monster.id === action.targetId && monster.alive && state.board.canTarget(actor.id, monster.id, weaponTargeting(actor)));
-      if (!target) {
+      const target = state.monsters.find(monster => monster.id === action.targetId && monster.alive);
+      const targeting = weaponTargeting(actor);
+      const path = target && state.board.pathsToTargets(actor.id, [target.id], state.heroTurns.get(actor.id).movementRemaining, targeting).get(target.id);
+      if (!path) {
+        promptMainAction(state, actor, 'The target cannot be reached this turn.');
+        return;
+      }
+      lockHeroResolution(state);
+      if (path.length && !await walkHeroPath(state, actor, path)) {
+        if (!isCurrentBattle(state)) return;
+        state.busy = false;
+        promptMainAction(state, actor, 'The approach is blocked. Choose another action.');
+        return;
+      }
+      publishBattle(state);
+      if (!state.board.canTarget(actor.id, target.id, targeting)) {
+        state.busy = false;
         promptMainAction(state, actor, 'The target is no longer in weapon range.');
         return;
       }
-      state.busy = true;
-      state.mode = 'resolving';
-      state.targeting = null;
-      hud.clearActions();
-      publishBattle(state);
-      if (!await playBattleEffect(state, weaponTargeting(actor).range > 1 ? 'arrow' : 'slash', actor, [target], 0xffd26b)) return;
+      if (!await playBattleEffect(state, targeting.range > 1 ? 'arrow' : 'slash', actor, [target], 0xffd26b)) return;
       performAttack(actor, target);
       performed = true;
     } else {
-      state.busy = true;
-      state.mode = 'resolving';
-      state.targeting = null;
-      hud.clearActions();
+      lockHeroResolution(state);
       publishBattle(state);
       if (action.type === 'spell') performed = await castSpell(state, actor, action.spellCode, action.targetId);
       else if (action.type === 'song') performed = await performSong(state, actor, action.songId);

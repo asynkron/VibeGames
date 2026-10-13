@@ -9,7 +9,7 @@ import { createVoxelEnvironment } from './voxelEnvironment.js';
 import { createVoxelWorld } from './voxelWorld.js';
 import { createVoxelTravelExits } from './voxelTravelExits.js';
 import { getEnvironment } from '../environments.js';
-import { footprintCells, occupiesCell } from '../combatFootprints.js';
+import { createCombatIndicators } from './combatIndicators.js';
 
 const COMBAT_VIEWPORT_WIDTH = UI_SETTINGS.combatLayout.viewport.columns * UI_SETTINGS.tileSize;
 const COMBAT_VIEWPORT_HEIGHT = UI_SETTINGS.combatLayout.viewport.rows * UI_SETTINGS.tileSize;
@@ -109,9 +109,7 @@ export function buildScene(state, stage) {
   combatKey.shadow.camera.far = 40;
   combatKey.shadow.autoUpdate = false;
   battleGroup.add(combatKey, combatKey.target);
-  const markers = new THREE.Group();
-  battleGroup.add(markers);
-  const markerGeometry = new THREE.PlaneGeometry(0.96 * COMBAT_CELL_SIZE, 0.96 * COMBAT_CELL_SIZE);
+  const combatIndicators = createCombatIndicators(battleGroup, COMBAT_CELL_SIZE);
   const raycaster = new THREE.Raycaster();
   const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const floorHit = new THREE.Vector3();
@@ -121,76 +119,11 @@ export function buildScene(state, stage) {
   let combatShadowDirty = false;
   const sunFocus = new THREE.Vector3(Infinity,Infinity,Infinity);
 
-  function pixelTexture(canvas) {
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    texture.generateMipmaps = false;
-    return texture;
-  }
-
-  function createMarkerTexture(color, filled = false) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 8;
-    canvas.height = 8;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = color;
-    if (filled) {
-      for (let y = 1; y < 7; y += 2) {
-        for (let x = 1; x < 7; x += 2) ctx.fillRect(x, y, 1, 1);
-      }
-    }
-    ctx.fillRect(0, 0, 8, 1);
-    ctx.fillRect(0, 7, 8, 1);
-    ctx.fillRect(0, 1, 1, 6);
-    ctx.fillRect(7, 1, 1, 6);
-    return pixelTexture(canvas);
-  }
-
-  const markerMaterials = {
-    reachable: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#55ff55', true), transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }),
-    selected: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#ffff55'), transparent: true, depthWrite: false, side: THREE.DoubleSide }),
-    target: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#ff5555'), transparent: true, depthWrite: false, side: THREE.DoubleSide }),
-    spellTarget: new THREE.MeshBasicMaterial({ map: createMarkerTexture('#55ffff'), transparent: true, depthWrite: false, side: THREE.DoubleSide }),
-  };
-
-  const gridCanvas = document.createElement('canvas');
-  gridCanvas.width = 8;
-  gridCanvas.height = 8;
-  const gridContext = gridCanvas.getContext('2d');
-  gridContext.fillStyle = '#172a28';
-  gridContext.fillRect(0, 0, 8, 1);
-  gridContext.fillRect(0, 0, 1, 8);
-  const gridTexture = pixelTexture(gridCanvas);
-  gridTexture.wrapS = THREE.RepeatWrapping;
-  gridTexture.wrapT = THREE.RepeatWrapping;
-  gridTexture.repeat.set(state.width * COMBAT_CELLS_PER_MAP_TILE, state.height * COMBAT_CELLS_PER_MAP_TILE);
-  const grid = new THREE.Mesh(
-    new THREE.PlaneGeometry(state.width, state.height),
-    new THREE.MeshBasicMaterial({ map: gridTexture, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }),
-  );
-  grid.rotation.x = -Math.PI / 2;
-  grid.position.set(state.width / 2, 0.012 * COMBAT_CELL_SIZE, state.height / 2);
-  grid.renderOrder = 1;
-  battleGroup.add(grid);
-
   function combatCellCenter(cell) {
     return {
       x: (cell.x + 0.5) * COMBAT_CELL_SIZE,
       z: (cell.y + 0.5) * COMBAT_CELL_SIZE,
     };
-  }
-
-  function addMarker(cell, material, height) {
-    if (!cell || cell.x < 0 || cell.y < 0 || cell.x >= state.width * COMBAT_CELLS_PER_MAP_TILE || cell.y >= state.height * COMBAT_CELLS_PER_MAP_TILE) return;
-    const center = combatCellCenter(cell);
-    const marker = new THREE.Mesh(markerGeometry, material);
-    marker.rotation.x = -Math.PI / 2;
-    marker.position.set(center.x, height * COMBAT_CELL_SIZE, center.z);
-    marker.renderOrder = 2;
-    markers.add(marker);
   }
 
   function projectedPoint({ x, y, z }) {
@@ -315,6 +248,8 @@ export function buildScene(state, stage) {
       scene.fog.far = 1100;
       torch.visible = false;
       dirLight.intensity = 0;
+      ambient.intensity = Math.max(lighting.ambient, .16);
+      hemiLight.intensity = Math.max(lighting.hemisphere, .24);
       battleGroup.visible = true;
       onResize();
     }
@@ -325,24 +260,7 @@ export function buildScene(state, stage) {
     combatEffects.sync(snapshot.units);
     frameBattle(snapshot);
     updateBattleCamera();
-    const active = snapshot.units.find((unit) => unit.id === snapshot.activeId && unit.alive);
-    markers.clear();
-    for (const cell of snapshot.reachable) {
-      if (cell.cost > 0) addMarker(cell, markerMaterials.reachable, 0.022);
-    }
-    if (active) for (const cell of footprintCells(active)) addMarker(cell, markerMaterials.selected, 0.03);
-    const targetMaterial = snapshot.targetKind === 'attack' ? markerMaterials.target : markerMaterials.spellTarget;
-    for (const unit of snapshot.units) {
-      if (snapshot.targetIds.includes(unit.id)) {
-        for (const cell of footprintCells(unit)) addMarker(cell, targetMaterial, 0.032);
-      }
-    }
-    if (snapshot.mode === 'target' && snapshot.cursor) {
-      const underCursor = snapshot.units.find(unit => unit.alive && occupiesCell(unit,snapshot.cursor.x,snapshot.cursor.y));
-      for (const cell of underCursor ? footprintCells(underCursor) : [snapshot.cursor]) {
-        addMarker(cell, markerMaterials.selected, 0.034);
-      }
-    }
+    combatIndicators.sync(snapshot);
   }
 
   function clearBattle() {
@@ -354,6 +272,8 @@ export function buildScene(state, stage) {
     combatLighting.clear();
     battleGroup.visible = false;
     dirLight.intensity = lighting.sun;
+    ambient.intensity = lighting.ambient;
+    hemiLight.intensity = lighting.hemisphere;
     worldGeometry.setCombat(false);
     environmentObjects.setCombat(false);
     travelExits.setCombat(false);
@@ -362,7 +282,7 @@ export function buildScene(state, stage) {
     scene.fog.far = lighting.fog[1];
     dirLight.shadow.needsUpdate = true;
     torch.visible = true;
-    markers.clear();
+    combatIndicators.clear();
     combatActors.clear();
     onResize();
   }
@@ -441,14 +361,7 @@ export function buildScene(state, stage) {
     worldGeometry.dispose();
     environmentObjects.dispose();
     travelExits.dispose();
-    markerGeometry.dispose();
-    for (const material of Object.values(markerMaterials)) {
-      material.map.dispose();
-      material.dispose();
-    }
-    gridTexture.dispose();
-    grid.geometry.dispose();
-    grid.material.dispose();
+    combatIndicators.dispose();
     for (const light of [torch, dirLight, combatKey]) light.shadow.dispose();
     scene.clear();
     renderer.dispose();
