@@ -3,19 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bard's Tale</title>
+  <title>Bardstale · Phlan</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./inventory.css" />
+  <link rel="stylesheet" href="./character-creation.css" />
   <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
   </script>
 </head>
 <body>
-  <main id="screen" class="screen" aria-label="Bard's Tale">
+  <main id="screen" class="screen" aria-label="Bardstale · Phlan">
     <div id="stage" aria-hidden="true"></div>
-    <canvas id="hud" width="640" height="400" tabindex="0" aria-label="Bard's Tale character interface" aria-describedby="controls"></canvas>
-    <p id="controls" class="sr-only">Arrow keys move and turn while exploring. Follow named waymarkers to an exit, then press Enter to enter the connected area with your party. M opens the map; M or Escape closes it. Click a party member to inspect their portrait and statistics. I opens their inventory, with equipment, carried items, and a live character preview. Escape closes inventory. Gear changes and potion use are available outside combat. In combat, click a character to select them. Green cells show where they can move; click one to walk there. Red cells mark enemies you can reach and attack this turn; click one to move into weapon range and strike. Choose a spell, then click a target with a cyan frame to cast it. Selecting another hero preserves each hero's remaining movement and action. Arrow keys also move the selected hero. Drag the map to pan; right-drag or Shift-drag rotates it. The mouse wheel zooms. Q and E rotate, plus and minus zoom, and Home restores the view. Combat commands use numbers 1 through 8; 0 returns to the previous menu. Page Up and Page Down turn command pages. D turns character detail pages.</p>
+    <canvas id="hud" width="640" height="400" tabindex="0" aria-label="Bardstale · Phlan character interface" aria-describedby="controls"></canvas>
+    <p id="controls" class="sr-only">Arrow keys move and turn while exploring. Begin at the harbor in New Phlan. Visit its council for commissions, shops for equipment, temples for healing, and trainers to gain levels. Rest and prepare spells at the inn. The dueling hall offers safe practice. Press Enter or click the interaction prompt to use a service on your tile. Escape or 0 leaves a service menu. Follow named waymarkers to an exit, then press Enter to enter the connected beginner area with your party. A full party defeat returns everyone to the city temple with health and prepared spells restored. M opens the map; M or Escape closes it. Click a party member to inspect their portrait and statistics. N opens character creation for a new party. R opens camp for spells and spell preparation. I opens their inventory, with equipment, carried items, and a live character preview. Escape closes inventory. Gear changes and potion use are available outside combat. In combat, click a character to select them. Green cells show where they can move; click one to walk there. Red cells mark enemies you can reach and attack this turn; click one to move into weapon range and strike. Choose a spell, then click a target with a cyan frame to cast it. Selecting another hero preserves each hero's remaining movement and action. Arrow keys also move the selected hero. Drag the map to pan; right-drag or Shift-drag rotates it. The mouse wheel zooms. Q and E rotate, plus and minus zoom, and Home restores the view. Combat commands use numbers 1 through 8; 0 returns to the previous menu. Page Up and Page Down turn command pages. D turns character detail pages.</p>
     <div id="ui-accessibility" class="sr-only"></div>
   </main>
   <script type="module" src="./main.js"></script>

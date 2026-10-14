@@ -8,7 +8,7 @@ const DETAIL_COLUMNS = 29;
 const ROSTER_FIRST_ROW = 5;
 const ROSTER_ROW_STRIDE = 2;
 
-export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, onInventoryClick }) {
+export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, onInventoryClick, onExploreInteraction, onCreateParty, onCamp }) {
   const { resolution, colors, layout, combatLayout, tileSize, columns, rows } = UI_SETTINGS;
   canvas.width = resolution.width;
   canvas.height = resolution.height;
@@ -33,6 +33,7 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     party: [],
     gold: 0,
     location: null,
+    interaction: { label: '', enabled: false },
     inspectedCharacterId: '',
     active: null,
     prompt: '',
@@ -77,23 +78,24 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
   function characterDetailLines(member) {
     if (!member && !state.active) return [];
     const active = state.active;
-    const paragraphs = [active?.heading || active?.name || (member ? `${member.name} - ${member.classType}` : '')];
+    const paragraphs = [active?.heading || active?.name || (member ? `${member.name} - ${member.displayClass || member.classType}` : '')];
     if (member) {
       paragraphs.push(
-        `LEVEL ${member.level}  AC ${member.ac}`,
-        `HP ${member.hpCurrent}/${member.hpMax}  SP ${member.spCurrent}/${member.spMax}`,
-        `TO HIT ${member.toHit}  DAMAGE ${member.damageMin}-${member.damageMax}`,
+        `LEVEL ${member.levelText || member.level}  AC ${member.ac}`,
+        `XP ${member.xp}  NEXT ${member.nextLevelXp ?? 'MAX LEVEL'}`,
+        `HP ${member.hpCurrent}/${member.hpMax}  SPELLS ${member.preparedCount}/${member.spellCapacity}`,
+        `THAC0 ${member.thac0}  DAMAGE ${member.damageMin}-${member.damageMax}`,
       );
       const attributes = member.attributes || {};
       const attributeLabels = [
-        ['STR', 'strength'], ['INT', 'intelligence'], ['DEX', 'dexterity'],
-        ['CON', 'constitution'], ['LCK', 'luck'],
+        ['STR', 'strength'], ['INT', 'intelligence'], ['WIS', 'wisdom'],
+        ['DEX', 'dexterity'], ['CON', 'constitution'], ['CHA', 'charisma'],
       ];
       const attributeText = attributeLabels
         .filter(([, key]) => attributes[key] !== undefined)
         .map(([label, key]) => `${label} ${attributes[key]}`);
       if (attributeText.length) paragraphs.push(attributeText.join('  '));
-      if (!member.alive) paragraphs.push('DEAD');
+      if (!member.alive) paragraphs.push(member.statusText);
       else if (member.statusText) paragraphs.push(member.statusText);
     }
     if (active?.details) paragraphs.push(active.details);
@@ -110,13 +112,15 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
       if (row + 1 >= 17) return;
       if (member.id === selected?.id) tiles.text('>', 34, row, colors.yellow);
       tiles.text(member.name, 35, row, member.alive ? colors.cyan : colors.red, 12);
-      tiles.text(member.classType, 48, row, colors.text, 12);
+      const classText=member.displayClass || member.classType;
+      const classLabel=classText.includes('/') ? classText.split('/').map(name=>name.trim()[0]).join('/') : classText;
+      tiles.text(classLabel, 48, row, colors.text, 12);
       drawRightAligned(member.level, 62, row, 2);
       drawRightAligned(member.ac, 66, row, 3);
       const hpColor = !member.alive ? colors.red : member.hpCurrent * 2 <= member.hpMax ? colors.yellow : colors.green;
       drawRightAligned(`${member.hpCurrent}/${member.hpMax}`, 71, row, 7, hpColor);
-      tiles.text(member.alive ? member.statusText || '' : 'DEAD', 35, row + 1, member.alive ? colors.yellow : colors.red, 12);
-      tiles.text(`SP ${member.spCurrent}/${member.spMax}`, 48, row + 1, colors.green, 12);
+      tiles.text(member.statusText || '', 35, row + 1, member.alive ? colors.yellow : colors.red, 12);
+      if (member.spellCapacity) tiles.text(`SPELLS ${member.preparedCount}/${member.spellCapacity}`, 48, row + 1, colors.green, 12);
       if (!state.combat && !state.buttons.length) addZone(34, row, 44, 2, () => inspectMember(member));
     });
   }
@@ -150,6 +154,12 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     if (member) {
       tiles.text('[I] GEAR', 49, 31, colors.yellow);
       addZone(49, 31, 12, 1, () => onInventoryClick(member.id));
+      if (!state.combat) {
+        tiles.text('[R] CAMP',60,31,colors.yellow);
+        addZone(60,31,9,1,onCamp);
+        tiles.text('[N] PARTY',70,31,colors.yellow,9);
+        addZone(70,31,9,1,onCreateParty);
+      }
     }
   }
 
@@ -222,10 +232,8 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     tiles.text(unit.kind.replace(/_/g, ' '), 48, 3, colors.green, 30);
     tiles.text('HP', 48, 5, colors.green);
     tiles.text(`${unit.hpCurrent}/${unit.hpMax}`, 51, 5, colors.text, 27);
-    if (unit.spMax > 0) {
-      tiles.text('SP', 48, 6, colors.green);
-      tiles.text(`${unit.spCurrent}/${unit.spMax}`, 51, 6, colors.text, 27);
-    }
+    tiles.text('THAC0', 48, 6, colors.green);
+    tiles.text(unit.thac0, 54, 6, colors.text, 24);
     tiles.text('AC', 48, 7, colors.green);
     tiles.text(unit.ac, 51, 7, colors.text, 27);
     tiles.text('[I] GEAR', 69, 7, colors.yellow, 9);
@@ -278,7 +286,7 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     if (!accessibility) return;
     const fragment = document.createDocumentFragment();
     const status = document.createElement('p');
-    const phase = state.combat ? `Combat round ${state.combat.round}` : "Bard's Tale exploration";
+    const phase = state.combat ? `Combat round ${state.combat.round}` : 'Phlan exploration';
     status.textContent = `${state.prompt || phase}. Gold ${state.gold}.`;
     fragment.append(status);
     if (state.combat) {
@@ -290,10 +298,10 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
       }
     }
     for (const member of state.party) {
-      const label = `${member.name}, ${member.classType}, level ${member.level}, AC ${member.ac}, HP ${member.hpCurrent}/${member.hpMax}, SP ${member.spCurrent}/${member.spMax}${member.statusText ? `, ${member.statusText}` : ''}${member.alive ? '' : ', dead'}`;
+      const label = `${member.name}, ${member.displayClass || member.classType}, level ${member.level}, AC ${member.ac}, THAC0 ${member.thac0}, HP ${member.hpCurrent}/${member.hpMax}, prepared spells ${member.preparedCount}/${member.spellCapacity}${member.statusText ? `, ${member.statusText}` : ''}`;
       const combatUnit = state.combat?.units.find((unit) => unit.id === member.id);
       if (combatUnit?.canAct && !state.combat.busy) {
-        appendAccessibleButton(fragment, `Select ${label}, movement ${combatUnit.movementRemaining}/4`, () => onCombatCellClick(combatUnit.x, combatUnit.y));
+        appendAccessibleButton(fragment, `Select ${label}, ${combatUnit.movementRemaining} movement remaining`, () => onCombatCellClick(combatUnit.x, combatUnit.y));
       } else if (state.combat || state.buttons.length) {
         const entry = document.createElement('p');
         entry.textContent = label;
@@ -309,6 +317,13 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
         const action = state.combat.targetKind === 'attack' ? 'Attack' : 'Cast on';
         appendAccessibleButton(fragment, `${action} ${unit.name}, HP ${unit.hpCurrent}/${unit.hpMax}`, () => onCombatCellClick(unit.x, unit.y));
       }
+    }
+    if (!state.combat && !state.buttons.length && state.interaction.enabled) {
+      appendAccessibleButton(fragment, state.interaction.label, onExploreInteraction);
+    }
+    if (!state.combat) {
+      appendAccessibleButton(fragment,'Create a new party',onCreateParty);
+      appendAccessibleButton(fragment,'Camp and spells',onCamp);
     }
     const details = document.createElement('p');
     details.textContent = characterDetailLines(inspectedMember()).join(' ');
@@ -367,6 +382,13 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
       const facing = ['N', 'E', 'S', 'W'][state.location.dir];
       tiles.text(`${state.location.x + 1},${state.location.y + 1} ${facing}   GOLD ${state.gold}`, 35, layout.dividerRow - 1, colors.green, 43);
     } else tiles.text(`GOLD ${state.gold}`, 35, layout.dividerRow - 1, colors.green, 43);
+    if (state.location) {
+      const context = state.interaction.enabled && !state.buttons.length
+        ? `[ENTER] ${state.interaction.label}`
+        : `${state.location.name} - ${state.location.safe ? 'SAFE CITY' : 'BEGINNER AREA'}  [M] MAP`;
+      tiles.text(context, 2, layout.dividerRow + 1, colors.yellow, 76);
+      if (state.interaction.enabled && !state.buttons.length) addZone(2, layout.dividerRow + 1, 76, 1, onExploreInteraction);
+    }
     drawMessagesAndActions();
     syncAccessibility();
   }
@@ -389,6 +411,7 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
   });
 
   window.addEventListener('keydown', (event) => {
+    if (obscured) return;
     if (event.ctrlKey || event.altKey || event.metaKey || event.defaultPrevented) return;
     const key = event.key.toLowerCase();
     if (key === 'd' && detailPageCount > 1) {
@@ -399,7 +422,7 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     if (!state.buttons.length) {
       if (state.combat) return;
       const member = state.party[Number(key) - 1];
-      if (/^[1-5]$/.test(key) && member) {
+      if (/^[1-6]$/.test(key) && member) {
         event.preventDefault();
         inspectMember(member);
       }
@@ -456,7 +479,12 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
       render();
     },
     setLocation(location) {
-      state.location = { x: location.x, y: location.y, dir: location.dir };
+      state.location = { x: location.x, y: location.y, dir: location.dir, name: location.name, safe: location.encounters === null };
+      render();
+    },
+    setInteraction(interaction) {
+      if (state.interaction.label === interaction.label && state.interaction.enabled === interaction.enabled) return;
+      state.interaction = { ...interaction };
       render();
     },
     setCombatStatus(snapshot) {

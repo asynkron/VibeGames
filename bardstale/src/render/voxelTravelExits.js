@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { getEnvironment } from '../environments.js';
+import { getWorldAreaDefinition } from '../worldAreas.js';
+import { createWorldLabel } from './worldLabels.js';
 import { createVoxelSurfaces } from './voxelSurface.js';
 import { createVoxelMaterial } from './voxelMaterials.js';
 
@@ -42,32 +43,6 @@ function markerVoxels(color) {
   return [...cells.values()];
 }
 
-function destinationLabel(name, color) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 768;
-  canvas.height = 160;
-  const context = canvas.getContext('2d');
-  context.fillStyle = 'rgba(22, 29, 34, 0.9)';
-  context.beginPath();
-  context.roundRect(3, 3, 762, 151, 22);
-  context.fill();
-  context.strokeStyle = color;
-  context.lineWidth = 3;
-  context.stroke();
-  context.fillStyle = '#f1eee5';
-  context.font = '500 55px Georgia, serif';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(name, 384, 76, 710);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false });
-  const sprite = new THREE.Sprite(material);
-  sprite.name = `travel-label-${name}`;
-  sprite.scale.set(1.05, 1.05 * canvas.height / canvas.width, 1);
-  return { sprite, texture, material };
-}
-
 /** Physical floor markers and readable destinations; travel itself belongs to game state. */
 export function createVoxelTravelExits(parent, world) {
   const group = new THREE.Group();
@@ -78,8 +53,8 @@ export function createVoxelTravelExits(parent, world) {
   const labels = [];
   let disposed = false;
   for (const exit of world.exits) {
-    const destination = getEnvironment(exit.target);
-    const color = DESTINATION_COLORS[exit.target];
+    const destination = getWorldAreaDefinition(exit.target);
+    const color = DESTINATION_COLORS[destination.environment];
     const marker = new THREE.Group();
     marker.name = `travel-exit-${exit.id}`;
     marker.userData.destination = exit.target;
@@ -93,7 +68,7 @@ export function createVoxelTravelExits(parent, world) {
       marker.add(mesh);
     }
     group.add(marker);
-    const label = destinationLabel(destination.name, color);
+    const label = createWorldLabel(destination.name, color);
     label.sprite.position.set(exit.x + 0.5, 0.85, exit.y + 0.5);
     group.add(label.sprite);
     labels.push(label);

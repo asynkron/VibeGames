@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DIR, WALL } from '../src/dungeon.js';
-import { initBt3Systems } from '../src/systems/core.js';
+import { createGameSystems } from '../src/systems/core.js';
+import { validateParty, rollAbilityScores, availableClassOptions } from '../src/rules/characters.js';
+import { attackRoll, rollDice, savingThrow } from '../src/rules/dice.js';
+import { getCityService } from '../src/cityServices.js';
 
 function openDungeon() {
   const width = 12;
   const height = 12;
   return {
+    id: 'combat-room', name: 'Combat Room', biome: 'dungeon', services: [], encounters: { tier: 1, monsterArea: 'Slums', maxEnemies: 3 },
     width, height, x: 8, y: 8, dir: DIR.E, objects: [],
     cells: Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => ({
       n: y === 0 ? WALL.WALL : WALL.OPEN,
@@ -18,7 +22,7 @@ function openDungeon() {
   };
 }
 
-async function withCombat(run) {
+async function withCombat(run, characters) {
   const originalRandom = Math.random;
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
@@ -35,7 +39,8 @@ async function withCombat(run) {
 
   const dungeon = openDungeon();
   const initialDungeon = structuredClone(dungeon);
-  const record = { actions: null, party: null, snapshot: null, snapshots: [], logs: [], effects: [], hides: 0 };
+  const record = { actions: null, party: null, snapshot: null, snapshots: [], logs: [], effects: [], hides: 0, defeats: 0 };
+  let defeatHandler = () => {};
   const hud = {
     setActions(actions) { record.actions = actions; },
     clearActions() { record.actions = null; },
@@ -69,24 +74,27 @@ async function withCombat(run) {
   }
 
   function choose(label) {
-    const button = record.actions?.buttons.find((entry) => typeof label === 'string' ? entry.label === label : label.test(entry.label));
-    assert.ok(button, `Expected the command ${label}; offered: ${record.actions?.buttons.map((entry) => entry.label).join(', ')}`);
+    const button = record.actions?.buttons.find(entry => typeof label === 'string' ? entry.label === label : label.test(entry.label));
+    assert.ok(button, `Expected ${label}; offered: ${record.actions?.buttons.map(entry => entry.label).join(', ')}`);
     button.onSelect();
   }
-
   try {
-    const systems = initBt3Systems({ hud, combatView, dungeon });
+    const systems = createGameSystems({ hud, combatView, dungeon, characters, async onPartyDefeated() { record.defeats += 1; await defeatHandler(); } });
     await run({
       systems, dungeon, initialDungeon, record, choose, flush,
+      setDefeatHandler(handler) { defeatHandler = handler; },
+      atService(id) { dungeon.services = [{ ...getCityService(id), x: dungeon.x, y: dungeon.y }]; },
       setRandom(value) { Math.random = typeof value === 'function' ? value : () => value; },
-      async begin(depth = 1) {
-        for (let step = 0; step < 3; step += 1) systems.onStepComplete(depth);
+      async begin(monsterArea = 'Slums') {
+        dungeon.encounters = { tier: 1, monsterArea, maxEnemies: 3 };
+        Math.random = () => 0.4;
+        for (let step = 0; step < 3; step += 1) systems.onStepComplete();
         assert.equal(systems.isCombatActive, true);
         await flush();
-        assert.ok(record.actions, 'The encounter must offer a player command after narration.');
+        assert.ok(record.actions, 'An encounter settles at a player command.');
       },
-      unit(id) { return record.snapshot.units.find((unit) => unit.id === id); },
-      member(id) { return record.party.members.find((member) => member.id === id); },
+      unit(id) { return record.snapshot.units.find(unit => unit.id === id); },
+      member(id) { return record.party.members.find(member => member.id === id); },
     });
   } finally {
     Math.random = originalRandom;
@@ -95,526 +103,360 @@ async function withCombat(run) {
   }
 }
 
-test('normal exploration encounters the full monster roster without a depth override and permits retreat', async () => {
-  const encountered = new Set();
-  for (let sample = 1; sample <= 256; sample += 1) {
-    await withCombat(async ({ systems, record, setRandom, flush }) => {
-      let randomState = sample;
-      setRandom(() => {
-        randomState = (Math.imul(randomState, 1664525) + 1013904223) >>> 0;
-        return randomState / 0x100000000;
-      });
-      for (let step = 0; step < 40 && !systems.isCombatActive; step += 1) systems.onStepComplete();
-      assert.equal(systems.isCombatActive, true, 'Walking normally must trigger an encounter.');
-      await flush();
-      const monsters = record.snapshot.units.filter(unit => unit.team === 'monster');
-      assert.ok(monsters.length > 0);
-      for (const monster of monsters) encountered.add(monster.kind);
-      assert.ok(record.actions.buttons.some(button => button.label === 'Flee'), 'Roaming encounters must allow a starter party to retreat from stronger monsters.');
-      if (monsters.some(monster => ['ogre', 'dragon', 'lich'].includes(monster.kind))) {
-        assert.equal(monsters.length, 1, 'The strongest roaming creatures appear alone.');
-      }
-    });
-  }
-  assert.equal(encountered.size, 14, `Normal encounters must reach all 14 monster species; reached ${[...encountered].join(', ')}.`);
-  assert.ok(encountered.has('ogre') && encountered.has('dragon'), 'Large voxel creatures must appear in actual combat.');
-});
-
-test('clicking heroes shows movement immediately and walks legal cells while preserving each hero budget', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit, dungeon, initialDungeon }) => {
-    await begin();
-    assert.equal(record.snapshot.mode, 'ready');
-    assert.ok(record.snapshot.reachable.some((cell) => cell.cost > 0));
-    assert.equal(record.actions.buttons.some((button) => /^(Move|Attack)\b/.test(button.label)), false);
-    const bard = unit('c_bard');
-    systems.selectCombatCell(bard.x, bard.y);
-    assert.equal(record.snapshot.activeId, bard.id);
-    const previousBardCommands = record.actions.buttons.find((button) => button.label === 'End Turn').onSelect;
-    const start = { x: bard.x, y: bard.y };
-    const destination = record.snapshot.reachable.find((cell) => cell.cost === 4);
-    assert.ok(destination, 'The open room provides a full four-cell route.');
-    const firstSnapshot = record.snapshots.length;
-    systems.selectCombatCell(destination.x, destination.y);
-    assert.equal(record.snapshot.busy, true);
-    assert.equal(unit(bard.id).movementRemaining, 3);
-    const movingCell = { x: unit(bard.id).x, y: unit(bard.id).y };
-    const chrono = unit('c_chrono');
-    systems.selectCombatCell(chrono.x, chrono.y);
-    systems.handleCombatKey('ArrowDown');
-    previousBardCommands();
-    assert.equal(record.snapshot.activeId, bard.id, 'Movement locks hero selection and stale commands until the walk finishes.');
-    assert.deepEqual({ x: unit(bard.id).x, y: unit(bard.id).y }, movingCell);
-    await flush();
-    const steps = record.snapshots.slice(firstSnapshot).filter((snapshot) => snapshot.busy).map((snapshot) => snapshot.units.find((entry) => entry.id === bard.id));
-    assert.equal(steps.length, 4, 'The view receives every step instead of one teleport.');
-    let previous = start;
-    for (const step of steps) {
-      assert.equal(Math.abs(step.x - previous.x) + Math.abs(step.y - previous.y), 1);
-      previous = step;
-    }
-    assert.deepEqual({ x: unit(bard.id).x, y: unit(bard.id).y }, { x: destination.x, y: destination.y });
-    assert.equal(unit(bard.id).movementRemaining, 0);
-    systems.selectCombatCell(chrono.x, chrono.y);
-    assert.equal(record.snapshot.activeId, chrono.id);
-    assert.equal(unit(chrono.id).movementRemaining, 4);
-    systems.selectCombatCell(destination.x, destination.y);
-    assert.equal(record.snapshot.activeId, bard.id);
-    assert.equal(unit(bard.id).movementRemaining, 0, 'Switching heroes must not replenish movement.');
-    assert.ok(record.snapshot.reachable.every((cell) => cell.cost === 0));
-    systems.handleCombatKey('ArrowDown');
-    assert.deepEqual({ x: unit(bard.id).x, y: unit(bard.id).y }, { x: destination.x, y: destination.y });
-    previousBardCommands();
-    assert.equal(record.snapshot.busy, false, 'An old command from before moving cannot spend a new selection.');
-    choose('End Turn');
-    await flush();
-    assert.equal(unit(bard.id).canAct, false);
-    const activeId = record.snapshot.activeId;
-    systems.selectCombatCell(destination.x, destination.y);
-    assert.equal(record.snapshot.activeId, activeId, 'A spent hero cannot be reselected this round.');
-    assert.deepEqual(dungeon, initialDungeon, 'Tactical movement leaves exploration coordinates and map untouched.');
+test('six adventurers use original classes, abilities, armor and memorized spell charges', async () => {
+  await withCombat(async ({ systems, record }) => {
+    assert.deepEqual(record.party.members.map(hero => hero.classType), ['Fighter', 'Fighter', 'Cleric', 'Magic-user', 'Thief', 'Magic-user']);
+    const brynn = systems.getInventorySnapshot('c_fighter');
+    assert.equal(brynn.stats.ac, 4);
+    assert.equal(brynn.stats.thac0, 18);
+    assert.equal(brynn.stats.damageDice, '1d8');
+    assert.equal(brynn.stats.largeDamageDice, '1d12');
+    assert.deepEqual(Object.keys(brynn.character.attributes).sort(), ['charisma','constitution','dexterity','intelligence','strength','wisdom']);
+    assert.equal(brynn.character.nextLevelXp, 2001);
+    assert.equal(brynn.equipment.head, 'iron_helm');
+    assert.equal(systems.getSpellPreparation('c_cleric').prepared.length, 3);
+    assert.equal(systems.getSpellPreparation('c_mage').prepared.length, 1);
   });
 });
 
-test('movement preview highlights reachable foes and one click walks into range before attacking with input locked', async () => {
+test('a reachable enemy click walks before striking, publishes effects before damage, and locks inventory until resolution ends', async () => {
   await withCombat(async ({ systems, record, begin, unit, flush, setRandom }) => {
     await begin();
-    const warrior = unit('c_warrior');
-    const start = { x: warrior.x, y: warrior.y };
-    const target = record.snapshot.units.find(entry => entry.team === 'monster' && entry.alive
-      && Math.abs(entry.x - start.x) + Math.abs(entry.y - start.y) > 1
-      && record.snapshot.reachable.some(cell => Math.abs(entry.x - cell.x) + Math.abs(entry.y - cell.y) === 1));
-    assert.ok(target, 'The encounter must contain a foe reachable within this turn’s movement.');
-    assert.ok(record.snapshot.reachable.some(cell => cell.cost > 0), 'Green movement cells and red attack targets coexist.');
-    assert.ok(record.snapshot.targetIds.includes(target.id), 'A foe is highlighted before the hero walks into melee range.');
-    const stalePass = record.actions.buttons.find(button => button.label === 'End Turn').onSelect;
-    const firstSnapshot = record.snapshots.length;
+    const actor = unit('c_fighter');
+    const target = record.snapshot.targetIds.map(unit).find(foe => Math.abs(foe.x - actor.x) + Math.abs(foe.y - actor.y) > 1);
+    assert.ok(target, 'The walkable display also includes enemies reachable this turn.');
+    const before = record.snapshots.length;
     setRandom(0.99);
     systems.selectCombatCell(target.x, target.y);
     assert.equal(record.snapshot.busy, true);
-    assert.equal(record.snapshot.activeId, warrior.id);
-    assert.equal(record.actions, null);
-    assert.equal(record.effects.length, 0, 'The weapon cannot strike while the hero is still approaching.');
-    assert.equal(unit(target.id).hpCurrent, target.hpCurrent);
-    const movingPosition = { x: unit(warrior.id).x, y: unit(warrior.id).y };
-    const paladin = unit('c_paladin');
-    systems.selectCombatCell(paladin.x, paladin.y);
-    systems.selectCombatCell(target.x, target.y);
-    systems.handleCombatKey('ArrowDown');
-    stalePass();
-    assert.deepEqual({ x: unit(warrior.id).x, y: unit(warrior.id).y }, movingPosition);
-    assert.equal(record.snapshot.activeId, warrior.id);
+    assert.equal(systems.getInventorySnapshot(actor.id).locked, true);
+    assert.equal(systems.unequipInventoryItem(actor.id, 'mainhand').ok, false);
     await flush();
-    assert.equal(record.effects.length, 1, 'The entire click resolves exactly one strike.');
-    const effect = record.effects[0];
-    assert.equal(effect.kind, 'slash');
-    assert.equal(Math.abs(effect.source.x - target.x) + Math.abs(effect.source.y - target.y), 1, 'Movement ends adjacent to the selected enemy.');
-    assert.equal(effect.snapshot.units.find(entry => entry.id === target.id).hpCurrent, target.hpCurrent, 'Damage waits until the approach and visible strike finish.');
-    const cost = 4 - unit(warrior.id).movementRemaining;
-    assert.ok(cost > 0 && cost <= 4);
-    const clicked = record.snapshots.slice(firstSnapshot);
-    const approach = clicked.slice(clicked.findIndex(snapshot => snapshot.busy)).filter(snapshot => snapshot.activeId === warrior.id);
-    assert.ok(approach.every(snapshot => snapshot.busy), 'There is no unlocked command menu between walking and attacking.');
-    assert.ok(unit(target.id).hpCurrent < target.hpCurrent);
-    assert.equal(unit(warrior.id).canAct, false);
-    assert.equal(record.snapshot.activeId, paladin.id);
+    const effect = record.effects.find(effect => effect.kind === 'slash' && effect.source.id === actor.id);
+    assert.ok(effect);
+    assert.equal(effect.snapshot.units.find(foe => foe.id === target.id).hpCurrent, target.hpCurrent);
+    assert.ok(record.snapshots.slice(before).some(snapshot => snapshot.units.find(hero => hero.id === actor.id).movementRemaining < actor.movementRemaining));
+    assert.equal(unit(actor.id).canAct, false);
+    assert.equal(unit(target.id).alive, false);
   });
 });
 
-test('exhausted movement removes distant attack previews and an unreachable enemy click spends nothing', async () => {
-  await withCombat(async ({ systems, record, begin, unit, flush }) => {
+test('natural one misses and spends an action without invented damage', async () => {
+  await withCombat(async ({ systems, record, begin, unit, flush, setRandom }) => {
     await begin();
-    const warrior = unit('c_warrior');
-    const monsters = record.snapshot.units.filter(entry => entry.team === 'monster' && entry.alive);
-    const retreat = record.snapshot.reachable.filter(cell => cell.cost === 4)
-      .sort((a, b) => Math.min(...monsters.map(foe => Math.abs(foe.x - b.x) + Math.abs(foe.y - b.y)))
-        - Math.min(...monsters.map(foe => Math.abs(foe.x - a.x) + Math.abs(foe.y - a.y))))[0];
-    assert.ok(retreat);
-    systems.selectCombatCell(retreat.x, retreat.y);
-    await flush();
-    assert.equal(unit(warrior.id).movementRemaining, 0);
-    assert.deepEqual(record.snapshot.targetIds, [], 'No enemy remains in range after this retreat.');
-    const settled = structuredClone(record.snapshot);
-    systems.selectCombatCell(monsters[0].x, monsters[0].y);
-    await flush();
-    assert.deepEqual(record.snapshot, settled);
-    assert.equal(record.effects.length, 0);
-    assert.equal(unit(warrior.id).canAct, true, 'An impossible attack never spends the action.');
-  });
-});
-
-test('clicking highlighted enemies attacks after its effect and rejects duplicate actions before advancing once', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit }) => {
-    await begin();
-    const monsters = record.snapshot.units.filter((entry) => entry.team === 'monster' && entry.alive);
-    const warrior = unit('c_warrior');
-    if (!monsters.some(monster => Math.abs(monster.x - warrior.x) + Math.abs(monster.y - warrior.y) === 1)) {
-      const approach = record.snapshot.reachable.find((cell) => cell.cost > 0 && monsters.some((monster) => Math.abs(monster.x - cell.x) + Math.abs(monster.y - cell.y) === 1));
-      assert.ok(approach);
-      systems.selectCombatCell(approach.x, approach.y);
-      await flush();
-    }
-    assert.equal(record.snapshot.targetKind, 'attack');
-    const target = record.snapshot.targetIds.map(unit).find(monster => Math.abs(monster.x - unit(warrior.id).x) + Math.abs(monster.y - unit(warrior.id).y) === 1);
-    assert.ok(target);
-    const previousHp = target.hpCurrent;
-    const stalePass = record.actions.buttons.find((button) => button.label === 'End Turn').onSelect;
-    systems.selectCombatCell(target.x, target.y);
-    assert.equal(record.snapshots.findLast((snapshot) => !snapshot.busy).targetId, target.id, 'The renderer sees the chosen foe before the strike begins so the attacker can face it.');
-    assert.equal(record.snapshot.mode, 'resolving');
-    assert.equal(record.snapshot.busy, true);
-    assert.equal(record.actions, null);
-    assert.equal(unit(target.id).hpCurrent, previousHp, 'Damage waits for the visible strike.');
-    assert.equal(record.effects.length, 1);
-    assert.equal(record.effects[0].kind, 'slash');
-    assert.deepEqual(record.effects[0].targets, [{ id: target.id, x: target.x, y: target.y, team: 'monster', footprint: { width: 1, height: 1 } }]);
-    assert.equal(record.effects[0].source.id, 'c_warrior');
-    assert.equal(record.effects[0].source.team, 'party');
-    const duringStrike = structuredClone(record.snapshot.units);
-    systems.selectCombatCell(target.x, target.y);
-    systems.handleCombatKey('ArrowDown');
-    stalePass();
-    assert.deepEqual(record.snapshot.units, duringStrike);
-    assert.equal(record.effects.length, 1);
-    await flush();
-    assert.ok(unit(target.id).hpCurrent < previousHp);
-    assert.equal(unit('c_warrior').canAct, false);
-    assert.equal(record.snapshot.activeId, 'c_paladin');
-    assert.equal(record.snapshot.round, 1);
-    stalePass();
-    assert.equal(record.snapshot.activeId, 'c_paladin');
-    for (let hero = 0; hero < 4; hero += 1) {
-      choose('End Turn');
-      await flush();
-    }
-    assert.equal(record.snapshot.round, 2, 'Completing all five heroes runs exactly one monster phase.');
-    assert.equal(record.snapshot.activeId, 'c_warrior');
-    assert.equal(unit('c_warrior').movementRemaining, 4);
-    assert.equal(unit('c_warrior').canAct, true);
-    assert.ok(record.snapshots.some((snapshot) => snapshot.busy && snapshot.units.some((entry) => entry.team === 'monster' && entry.id === snapshot.activeId)));
-    const monsterSteps = record.snapshots.filter((snapshot) => snapshot.busy && snapshot.activeId !== 'c_warrior').filter((snapshot) => snapshot.units.some((entry) => entry.team === 'monster' && entry.id === snapshot.activeId));
-    assert.ok(monsterSteps.length > 0, 'Monster movement and attacks are presented while interaction remains locked.');
-  });
-});
-
-test('spell targeting highlights only reachable foes, resolves projectile before damage, and spends SP once', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit, member }) => {
-    await begin();
-    const chrono = unit('c_chrono');
-    systems.selectCombatCell(chrono.x, chrono.y);
-    assert.equal(record.snapshot.activeId, chrono.id);
-    const previousSp = member(chrono.id).spCurrent;
-    choose('Cast Spell');
-    choose(/^MIJA /);
-    assert.equal(record.snapshot.mode, 'target');
-    assert.equal(record.snapshot.targetKind, 'spell');
-    assert.ok(record.snapshot.targetIds.length);
-    for (const id of record.snapshot.targetIds) {
-      const foe = unit(id);
-      assert.equal(foe.team, 'monster');
-      assert.ok(Math.abs(foe.x - chrono.x) + Math.abs(foe.y - chrono.y) <= 6);
-    }
     const target = unit(record.snapshot.targetIds[0]);
-    const previousHp = target.hpCurrent;
-    systems.selectCombatCell(0, 0);
-    assert.equal(record.snapshot.mode, 'target');
-    assert.equal(record.effects.length, 0, 'An out-of-range click never starts a cast effect.');
-    assert.equal(member(chrono.id).spCurrent, previousSp);
-    systems.selectCombatCell(target.x, target.y);
-    assert.equal(record.effects[0].kind, 'arrow');
-    assert.deepEqual(record.effects[0].rune, { style: 'arcane', color: 0x55ffff });
-    assert.equal(record.snapshots.findLast((snapshot) => !snapshot.busy).targetId, target.id);
-    assert.equal(record.snapshot.busy, true);
-    assert.equal(unit(target.id).hpCurrent, previousHp);
-    systems.selectCombatCell(target.x, target.y);
-    systems.handleCombatKey('Enter');
-    assert.equal(record.effects.length, 1);
-    await flush();
-    assert.equal(member(chrono.id).spCurrent, previousSp - 4);
-    assert.ok(unit(target.id).hpCurrent < previousHp);
-    assert.equal(unit(chrono.id).canAct, false);
-    assert.equal(record.snapshot.activeId, 'c_warrior', 'Free selection returns to the first unspent hero.');
-  });
-});
-
-test('all four cells of a dragon resolve to one target for melee and spell actions', async () => {
-  for (const action of ['attack', 'spell']) {
-    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
-      await withCombat(async ({ systems, record, choose, flush, begin, unit, setRandom }) => {
-        setRandom(0.6);
-        await begin(5);
-        const dragon = record.snapshot.units.find(entry => entry.kind === 'dragon');
-        assert.ok(dragon, 'A deep encounter must produce an actual dragon.');
-        assert.deepEqual(dragon.footprint, { width: 2, height: 2 });
-        if (action === 'spell') {
-          const chrono = unit('c_chrono');
-          systems.selectCombatCell(chrono.x, chrono.y);
-          choose('Cast Spell');
-          choose(/^MIJA /);
-        }
-        assert.ok(record.snapshot.targetIds.includes(dragon.id), `The dragon must be available for ${action}.`);
-        setRandom(0.99);
-        systems.selectCombatCell(dragon.x + dx, dragon.y + dy);
-        assert.equal(record.snapshots.findLast(snapshot => !snapshot.busy).targetId, dragon.id, `${action} at footprint offset ${dx},${dy} must select the same monster.`);
-        assert.equal(record.snapshot.busy, true);
-        await flush(() => record.effects.length > 0);
-        assert.equal(record.effects.length, 1);
-        assert.equal(record.effects[0].kind, action === 'attack' ? 'slash' : 'arrow');
-        assert.deepEqual(record.effects[0].targets, [{ id: dragon.id, x: dragon.x, y: dragon.y, team: 'monster', footprint: { width: 2, height: 2 } }], 'The effect must receive the whole target footprint, independent of which cell was clicked.');
-        assert.deepEqual(record.effects[0].source.footprint, { width: 1, height: 1 });
-        assert.equal(unit(dragon.id).hpCurrent, dragon.hpCurrent, 'Damage must wait for the visible effect.');
-        await flush();
-        assert.ok(unit(dragon.id).hpCurrent < dragon.hpCurrent, `${action} must damage the dragon selected through cell ${dx},${dy}.`);
-        assert.equal(record.snapshot.units.filter(entry => entry.id === dragon.id).length, 1, 'One large monster remains one combat entity.');
-      });
-    }
-  }
-});
-
-test('targeting an ally with healing takes priority over selecting that hero, while cancelling restores movement', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit }) => {
-    await begin();
-    const paladin = unit('c_paladin');
-    systems.selectCombatCell(paladin.x, paladin.y);
-    choose('Use Ability');
-    assert.equal(record.snapshot.targetKind, 'heal');
-    const warrior = unit('c_warrior');
-    assert.ok(record.snapshot.targetIds.includes(warrior.id));
-    systems.selectCombatCell(warrior.x, warrior.y);
-    assert.equal(record.snapshot.activeId, paladin.id, 'An ally click casts the selected heal rather than switching active hero.');
-    assert.equal(record.effects[0].kind, 'heal');
-    assert.deepEqual(record.effects[0].targets, [{ id: warrior.id, x: warrior.x, y: warrior.y, team: 'party', footprint: { width: 1, height: 1 } }]);
-    assert.deepEqual(record.effects[0].rune, { style: 'holy', color: 0xf4d66a });
-    await flush();
-    assert.equal(unit(paladin.id).canAct, false);
-    const chrono = unit('c_chrono');
-    systems.selectCombatCell(chrono.x, chrono.y);
-    const availableCells = structuredClone(record.snapshot.reachable);
-    choose('Cast Spell');
-    choose(/^MIJA /);
-    systems.handleCombatKey('Escape');
-    assert.equal(record.snapshot.mode, 'menu');
-    systems.handleCombatKey('Escape');
-    assert.equal(record.snapshot.mode, 'ready');
-    assert.deepEqual(record.snapshot.reachable, availableCells);
-  });
-});
-
-test('a stun from the monster phase skips one hero round and expires after that skipped round', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit, setRandom }) => {
-    const encounterRolls = [0.4, 0.4, 0.4, 0.1, 0.1, 0.4, 0.4];
-    setRandom(() => encounterRolls.shift() ?? 0.4);
-    await begin(2);
-    assert.ok(record.snapshot.units.some((entry) => entry.kind === 'monk'), 'This encounter must contain a real stunning foe.');
-    const monks = record.snapshot.units.filter((entry) => entry.kind === 'monk');
-    const approach = record.snapshot.reachable.find((cell) => cell.cost > 0 && monks.some((monk) => Math.abs(monk.x - cell.x) + Math.abs(monk.y - cell.y) === 1));
-    assert.ok(approach, 'The warrior can move into a monk palm strike range.');
-    systems.selectCombatCell(approach.x, approach.y);
-    await flush();
-    setRandom(0.2);
-    for (let hero = 0; hero < 5; hero += 1) {
-      choose('End Turn');
-      await flush();
-    }
-    assert.equal(record.snapshot.round, 2);
-    const warrior = unit('c_warrior');
-    assert.equal(warrior.alive, true);
-    assert.equal(warrior.canAct, false, 'A stun cannot expire before its victim misses a turn.');
-    assert.equal(warrior.movementRemaining, 0);
-    assert.equal(record.logs.filter((message) => message === 'Brynn is incapacitated and misses a turn.').length, 1);
-    const activeId = record.snapshot.activeId;
-    systems.selectCombatCell(warrior.x, warrior.y);
-    assert.equal(record.snapshot.activeId, activeId);
-    const chrono = unit('c_chrono');
-    systems.selectCombatCell(chrono.x, chrono.y);
-    choose('Cast Spell');
-    choose(/^TIME /);
-    await flush();
-    while (record.snapshot.round === 2) {
-      choose('End Turn');
-      await flush();
-    }
-    assert.equal(record.snapshot.round, 3);
-    assert.equal(unit(warrior.id).alive, true);
-    assert.equal(unit(warrior.id).canAct, true, 'The previously skipped hero regains eligibility after status expiry.');
-    assert.equal(record.snapshot.activeId, warrior.id);
-    assert.equal(record.logs.filter((message) => message === 'Brynn is incapacitated and misses a turn.').length, 1);
-  });
-});
-
-test('protective spell auras follow their unit through movement and disappear when the real ward expires', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit, setRandom }) => {
-    await begin();
-    assert.ok(record.snapshot.units.every((entry) => Array.isArray(entry.auras)));
-    const warrior = unit('c_warrior');
-    assert.deepEqual(warrior.auras, []);
-    const chrono = unit('c_chrono');
-    systems.selectCombatCell(chrono.x, chrono.y);
-    choose('Cast Spell');
-    choose(/^STAS /);
-    systems.selectCombatCell(warrior.x, warrior.y);
-    assert.deepEqual(record.effects[0].rune, { style: 'temporal', color: 0xb875ff });
-    assert.deepEqual(unit(warrior.id).auras, [], 'The ward appears only after the spell resolves.');
-    await flush();
-    const aura = unit(warrior.id).auras.find((entry) => entry.kind === 'shield');
-    assert.ok(aura);
-    assert.equal(aura.style, 'temporal');
-    assert.equal(aura.color, 0xb875ff);
-    assert.equal(unit(warrior.id).ac, warrior.ac - 4, 'The shield represents actual protection.');
-
-    const retreat = () => {
-      const foes = record.snapshot.units.filter((entry) => entry.team === 'monster' && entry.alive);
-      const distance = (cell) => Math.min(...foes.map((foe) => Math.abs(foe.x - cell.x) + Math.abs(foe.y - cell.y)));
-      return record.snapshot.reachable.filter((cell) => cell.cost === 4).sort((a, b) => distance(b) - distance(a))[0];
-    };
-    const destination = retreat();
-    assert.ok(destination);
-    const firstStep = record.snapshots.length;
-    systems.selectCombatCell(destination.x, destination.y);
-    await flush();
-    const walk = record.snapshots.slice(firstStep).filter((snapshot) => snapshot.busy).map((snapshot) => snapshot.units.find((entry) => entry.id === warrior.id));
-    assert.equal(walk.length, 4);
-    for (const step of walk) assert.deepEqual(step.auras, [aura], 'The same ward moves with each published character step.');
-    assert.deepEqual({ x: unit(warrior.id).x, y: unit(warrior.id).y }, { x: destination.x, y: destination.y });
-
     setRandom(0);
-    while (record.snapshot.round === 1) {
-      choose('End Turn');
-      await flush();
-    }
-    assert.deepEqual(unit(warrior.id).auras, [aura], 'A two-round ward remains active in round two.');
-    const furtherRetreat = retreat();
-    assert.ok(furtherRetreat);
-    systems.selectCombatCell(furtherRetreat.x, furtherRetreat.y);
-    await flush();
-    while (record.snapshot.round === 2) {
-      choose('End Turn');
-      await flush();
-    }
-    assert.equal(unit(warrior.id).alive, true);
-    assert.deepEqual(unit(warrior.id).auras, []);
-    assert.equal(unit(warrior.id).ac, warrior.ac, 'Visual and mechanical protection expire together.');
-  });
-});
-
-test('missed attacks and resisted spells publish effects without inventing damage for splatter', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit, setRandom }) => {
-    await begin();
-    const monsters = record.snapshot.units.filter((entry) => entry.team === 'monster' && entry.alive);
-    const warrior = unit('c_warrior');
-    if (!monsters.some(monster => Math.abs(monster.x - warrior.x) + Math.abs(monster.y - warrior.y) === 1)) {
-      const approach = record.snapshot.reachable.find((cell) => cell.cost > 0 && monsters.some((monster) => Math.abs(monster.x - cell.x) + Math.abs(monster.y - cell.y) === 1));
-      assert.ok(approach);
-      systems.selectCombatCell(approach.x, approach.y);
-      await flush();
-    }
-    setRandom(0);
-    const target = record.snapshot.targetIds.map(unit).find(monster => Math.abs(monster.x - unit(warrior.id).x) + Math.abs(monster.y - unit(warrior.id).y) === 1);
-    assert.ok(target);
-    const beforeStrike = record.snapshots.length;
     systems.selectCombatCell(target.x, target.y);
     await flush();
+    assert.equal(unit(target.id).hpCurrent, target.hpCurrent);
+    assert.equal(unit('c_fighter').canAct, false);
     assert.ok(record.logs.includes(`Brynn misses ${target.name}.`));
-    assert.equal(record.effects[0].kind, 'slash');
-    assert.ok(record.snapshots.slice(beforeStrike).every((snapshot) => snapshot.units.find((entry) => entry.id === target.id).hpCurrent === target.hpCurrent));
+  });
+});
 
-    const chrono = unit('c_chrono');
-    systems.selectCombatCell(chrono.x, chrono.y);
+test('spell preparation requires an inn rest and a cast consumes exactly one charge', async () => {
+  await withCombat(async ({ systems, record, atService, choose, begin, unit, flush }) => {
+    assert.equal(systems.prepareSpell('c_mage2', 'MU_SHIELD').ok, false, 'A occupied preparation slot cannot be overfilled.');
+    assert.equal(systems.unprepareSpell('c_mage2', 0).ok, true);
+    assert.equal(systems.prepareSpell('c_mage2', 'MU_SHIELD').ok, true);
+    assert.deepEqual(systems.getSpellPreparation('c_mage2').prepared, ['MU_MAGIC_MISSILE'], 'Selecting a plan grants no immediate spell charge.');
+    const gold = record.party.gold;
+    atService('inn');
+    systems.openService('inn');
+    choose(/^Rest and memorize spells/);
+    assert.equal(record.party.gold, gold - 5);
+    assert.deepEqual(systems.getSpellPreparation('c_mage2').prepared, ['MU_SHIELD']);
+    systems.closeService();
+    await begin();
+    const mage = unit('c_mage2');
+    systems.selectCombatCell(mage.x, mage.y);
     choose('Cast Spell');
-    choose(/^FLCO /);
-    const resistant = record.snapshot.targetIds.map(unit).find((entry) => entry.kind === 'hobbit');
-    assert.ok(resistant, 'A real magic-resistant halfling is in spell range.');
-    const beforeSpell = record.snapshots.length;
-    systems.selectCombatCell(resistant.x, resistant.y);
+    choose(/^Shield —/);
     await flush();
-    assert.ok(record.logs.includes(`${resistant.name} resists Flesh to Coal!`));
-    assert.equal(record.effects[1].kind, 'bolt');
-    assert.ok(record.snapshots.slice(beforeSpell).every((snapshot) => snapshot.units.find((entry) => entry.id === resistant.id).hpCurrent === resistant.hpCurrent));
+    assert.equal(unit(mage.id).preparedCount, 0);
+    assert.equal(unit(mage.id).ac, 3);
+    assert.ok(unit(mage.id).auras.some(aura => aura.kind === 'shield'));
+    assert.equal(unit(mage.id).canAct, false);
+    assert.equal(systems.prepareSpell(mage.id, 'MU_SHIELD').ok, false, 'Combat cannot refill charges.');
   });
 });
 
-test('flee ends selection without further hero commands and clears combat once narration settles', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, dungeon, initialDungeon }) => {
-    assert.equal(systems.isCombatActive, false);
-    assert.equal(systems.handleCombatKey('ArrowUp'), false);
-    systems.selectCombatCell(3, 3);
-    assert.equal(record.snapshot, null);
+test('sleep makes weak enemies helpless and a melee hit defeats one without waiting for its saving throw', async () => {
+  await withCombat(async ({ systems, record, choose, begin, unit, flush, setRandom }) => {
     await begin();
-    const enemiesBeforeFlee = record.snapshot.units.filter((entry) => entry.team === 'monster');
-    const retainedFleeCommand = record.actions.buttons.find((button) => button.label === 'Flee').onSelect;
-    choose('Flee');
-    assert.equal(record.actions, null);
-    assert.equal(systems.handleCombatKey('ArrowRight'), true);
-    systems.selectCombatCell(4, 3);
-    retainedFleeCommand();
-    assert.deepEqual(record.snapshot.units.filter((entry) => entry.team === 'monster'), enemiesBeforeFlee);
+    const mage = unit('c_mage');
+    systems.selectCombatCell(mage.x, mage.y);
+    choose('Cast Spell');
+    choose(/^Sleep —/);
+    assert.equal(record.snapshot.targetKind, 'spell');
+    const target = unit(record.snapshot.targetIds[0]);
+    systems.selectCombatCell(target.x, target.y);
+    setRandom(0);
     await flush();
-
-    assert.equal(systems.isCombatActive, false);
-    assert.equal(record.hides, 1);
-    assert.equal(record.actions, null);
-    assert.deepEqual(dungeon, initialDungeon);
-    const finalSnapshots = record.snapshots.length;
-    retainedFleeCommand();
-    systems.selectCombatCell(4, 3);
-    assert.equal(systems.handleCombatKey('ArrowRight'), false);
+    assert.match(unit(target.id).statusText, /Sleep/);
+    assert.equal(unit(mage.id).preparedCount, 0);
+    const fighter = unit('c_fighter');
+    systems.selectCombatCell(fighter.x, fighter.y);
+    systems.selectCombatCell(target.x, target.y);
     await flush();
-    assert.equal(record.snapshots.length, finalSnapshots);
-    assert.equal(record.hides, 1);
-    assert.equal(record.actions, null);
+    assert.equal(unit(target.id).alive, false, 'A helpless foe is dispatched even when the attack die rolls one.');
   });
 });
 
-test('equipped gear reaches combat, remains locked through retreat, and bard songs require the carried-back instrument', async () => {
-  await withCombat(async ({ systems, record, choose, flush, begin, unit }) => {
-    const initial = systems.getInventorySnapshot('c_bard');
-    assert.equal(initial.equipment.back, 'lute');
-    assert.equal(systems.unequipInventoryItem('c_bard', 'back').ok, true);
-    const luteIndex = systems.getInventorySnapshot('c_bard').inventory.findIndex(entry => entry?.itemId === 'lute');
-    assert.ok(luteIndex >= 0, 'The unequipped lute belongs to the carried inventory.');
-    await begin();
-    const bard = unit('c_bard');
-    assert.equal(bard.equipment.back, '', 'The combat renderer receives the actual unequipped appearance.');
-    assert.equal(systems.getInventorySnapshot(bard.id).locked, true);
-    assert.equal(systems.equipInventoryItem(bard.id, luteIndex, 'back').ok, false);
-    assert.equal(systems.transferInventoryItem(bard.id, luteIndex, 'c_warrior').ok, false);
-    assert.equal(systems.unequipInventoryItem(bard.id, 'mainhand').ok, false);
-    systems.selectCombatCell(bard.x, bard.y);
-    choose('Sing');
-    choose("Rogue's March");
-    await flush();
-    assert.ok(record.logs.includes('Lyre fumbles without an instrument.'));
-    assert.equal(unit(bard.id).canAct, true, 'A missing instrument does not consume the hero action.');
-    choose('Flee');
-    assert.equal(systems.getInventorySnapshot(bard.id).locked, true, 'Gear stays locked while the retreat resolves.');
-    await flush();
-    assert.equal(systems.getInventorySnapshot(bard.id).locked, false);
-    assert.equal(systems.equipInventoryItem(bard.id, luteIndex, 'back').ok, true);
-    assert.equal(systems.getInventorySnapshot(bard.id).equipment.back, 'lute');
-    await begin();
-    assert.equal(unit(bard.id).equipment.back, 'lute', 'The next battle receives the changed loadout.');
-  });
-});
-
-test('an equipped bow attacks beyond melee distance with a projectile and resolves damage after the shot', async () => {
+test('an archer can click a red target, retreat from melee, and expend an arrow before projectile damage', async () => {
   await withCombat(async ({ systems, record, begin, unit, flush, setRandom }) => {
-    const inventory = systems.getInventorySnapshot('c_rogue');
-    const bowIndex = inventory.inventory.findIndex(entry => entry?.itemId === 'longbow');
-    assert.ok(bowIndex >= 0);
-    assert.equal(systems.equipInventoryItem('c_rogue', bowIndex, 'mainhand').ok, true);
+    const inventory = systems.getInventorySnapshot('c_fighter');
+    const bow = inventory.inventory.findIndex(entry => entry?.itemId === 'long_bow');
+    assert.equal(systems.equipInventoryItem('c_fighter', bow, 'mainhand').ok, true);
+    const arrowCount = () => systems.getInventorySnapshot('c_fighter').inventory.find(entry => entry?.itemId === 'arrow').qty;
+    assert.equal(arrowCount(), 30);
     await begin();
-    const rogue = unit('c_rogue');
-    systems.selectCombatCell(rogue.x, rogue.y);
-    const target = record.snapshot.targetIds.map(unit).find(foe => Math.abs(foe.x - rogue.x) + Math.abs(foe.y - rogue.y) > 1);
-    assert.ok(target, 'The bow makes a nonadjacent foe attackable without spending movement.');
-    assert.ok(Math.abs(target.x - rogue.x) + Math.abs(target.y - rogue.y) <= 6);
+    const foes = record.snapshot.units.filter(foe => foe.team === 'monster');
+    const origin = unit('c_fighter');
+    systems.selectCombatCell(origin.x, origin.y);
+    assert.ok(foes.some(foe => Math.abs(origin.x - foe.x) + Math.abs(origin.y - foe.y) === 1));
+    const target = unit(record.snapshot.targetIds[0]);
+    assert.ok(target, 'The red preview includes a target reachable after moving out of melee.');
     setRandom(0.99);
     systems.selectCombatCell(target.x, target.y);
+    await flush(() => record.effects.at(-1)?.kind === 'arrow');
     assert.equal(record.effects.at(-1).kind, 'arrow');
-    assert.equal(record.effects.at(-1).source.id, rogue.id);
-    assert.equal(unit(target.id).hpCurrent, target.hpCurrent, 'The shot is visible before damage is applied.');
+    const firingPosition = unit('c_fighter');
+    assert.notDeepEqual({ x: firingPosition.x, y: firingPosition.y }, { x: origin.x, y: origin.y });
+    assert.ok(foes.every(foe => Math.abs(firingPosition.x - foe.x) + Math.abs(firingPosition.y - foe.y) > 1));
+    assert.equal(arrowCount(), 29);
+    assert.equal(unit(target.id).hpCurrent, target.hpCurrent);
     await flush();
+    assert.equal(arrowCount(), 29);
     assert.ok(unit(target.id).hpCurrent < target.hpCurrent);
-    assert.equal(unit(rogue.id).canAct, false);
-    assert.equal(unit(rogue.id).movementRemaining, 4);
+  });
+});
+
+async function winBattle(context, area = 'Slums') {
+  const { systems, record, begin, unit, flush, setRandom } = context;
+  await begin(area);
+  setRandom(0.99);
+  for (let action = 0; action < 30 && systems.isCombatActive; action += 1) {
+    const snapshot = record.snapshot;
+    const fighter = snapshot.units.find(hero => hero.team === 'party' && hero.canAct && hero.kind === 'Fighter');
+    if (fighter) systems.selectCombatCell(fighter.x, fighter.y);
+    const targetId = record.snapshot.targetIds[0];
+    if (targetId) { const target = unit(targetId); systems.selectCombatCell(target.x, target.y); }
+    else context.choose('End Turn');
+    await flush();
+  }
+  assert.equal(systems.isCombatActive, false);
+}
+
+test('council commissions persist and pay once, fund class training, and unlock the wilderness only after Sokal Keep is reported', async () => {
+  await withCombat(async context => {
+    const { systems, record, atService, choose } = context;
+    assert.equal(systems.canTravel('moonsea-wilderness').ok, false);
+    for (let battle = 0; battle < 3; battle += 1) await winBattle(context);
+    assert.equal(systems.getQuestSnapshot().find(quest => quest.id === 'slums').victories, 3);
+    atService('council'); systems.openService('council');
+    const gold = record.party.gold;
+    choose(/^Clear the Slums/);
+    assert.equal(record.party.gold, gold + 6000);
+    const rewarded = record.party.gold;
+    choose(/^Clear the Slums/);
+    assert.equal(record.party.gold, rewarded, 'A retained commission cannot pay twice.');
+    systems.closeService();
+    atService('fighter-trainer'); systems.openService('fighter-trainer');
+    const before = systems.getInventorySnapshot('c_fighter');
+    choose(/^Brynn — Fighter level/);
+    const trained = systems.getInventorySnapshot('c_fighter');
+    assert.equal(trained.character.level, 2);
+    assert.equal(record.party.gold, rewarded - 1000);
+    assert.ok(trained.character.hpMax > before.character.hpMax);
+    assert.equal(trained.stats.thac0, before.stats.thac0 - 1);
+    assert.deepEqual(trained.equipment, before.equipment);
+    systems.closeService();
+    for (let battle = 0; battle < 2; battle += 1) await winBattle(context, 'Sokal Keep');
+    assert.equal(systems.canTravel('moonsea-wilderness').ok, false);
+    atService('council'); systems.openService('council');
+    choose(/^Secure Sokal Keep/);
+    assert.equal(systems.canTravel('moonsea-wilderness').ok, true);
+  });
+});
+
+test('practice restores prior health and spell charges and grants no rewards or temple relocation', async () => {
+  await withCombat(async context => {
+    const { systems, record, atService, choose, unit, flush, setRandom, begin } = context;
+    await begin();
+    const mage = unit('c_mage2');
+    systems.selectCombatCell(mage.x, mage.y);
+    choose('Cast Spell'); choose(/^Magic Missile —/);
+    const target = unit(record.snapshot.targetIds[0]);
+    systems.selectCombatCell(target.x, target.y); await flush();
+    setRandom(0); choose('Flee'); await flush();
+    const original = record.party.members.map(hero => ({ id: hero.id, hp: hero.hpCurrent, charges: hero.preparedCount }));
+    const gold = record.party.gold;
+    atService('dueling-hall'); systems.openService('dueling-hall');
+    choose('Begin a safe practice battle'); await flush();
+    setRandom(0.99);
+    const foe = unit(record.snapshot.targetIds[0]);
+    systems.selectCombatCell(foe.x, foe.y); await flush();
+    assert.equal(systems.isCombatActive, false);
+    assert.deepEqual(record.party.members.map(hero => ({ id: hero.id, hp: hero.hpCurrent, charges: hero.preparedCount })), original);
+    assert.equal(record.party.gold, gold);
+    assert.equal(record.defeats, 0);
+  });
+});
+
+test('a full-party defeat restores all companions and memorized charges before invoking the city temple return', async () => {
+  await withCombat(async ({ systems, record, begin, choose, flush, setRandom, setDefeatHandler }) => {
+    let observed;
+    setDefeatHandler(() => { observed = structuredClone(record.party); });
+    await begin();
+    setRandom(0.99);
+    for (let action = 0; action < 200 && systems.isCombatActive; action += 1) { choose('End Turn'); await flush(); }
+    assert.equal(record.defeats, 1);
+    assert.equal(systems.isCombatActive, false);
+    assert.ok(observed.members.every(hero => hero.alive && hero.hpCurrent === hero.hpMax));
+    assert.equal(observed.members.find(hero => hero.id === 'c_cleric').preparedCount, 3);
+    assert.ok(record.snapshots.some(snapshot => snapshot.units.some(hero => ['unconscious','dying','dead'].includes(hero.healthStatus))), 'Damage must expose real incapacitation states before resurrection.');
+    assert.equal(record.hides, 1);
+  });
+});
+
+test('retained service and flee commands cannot mutate state after their menus close', async () => {
+  await withCombat(async ({ systems, record, atService, choose, begin, flush, setRandom }) => {
+    atService('arms-armor'); systems.openService('arms-armor'); choose(/^Brynn — Fighter/);
+    const purchase = record.actions.buttons.find(button => /^Long Sword —/.test(button.label)).onSelect;
+    const gold = record.party.gold;
+    systems.closeService(); purchase();
+    assert.equal(record.party.gold, gold);
+    await begin();
+    const flee = record.actions.buttons.find(button => button.label === 'Flee').onSelect;
+    setRandom(0); flee(); await flush();
+    const snapshots = record.snapshots.length;
+    flee(); systems.selectCombatCell(0,0); await flush();
+    assert.equal(record.snapshots.length, snapshots);
+    assert.equal(record.hides, 1);
+    assert.equal(record.actions, null);
+  });
+});
+
+test('character creation validates original race and class combinations and constructs the chosen adventurer', async () => {
+  const descriptor = { name: 'Talan', race: 'Elf', classType: 'Fighter', classes: ['Fighter','Magic-user'], alignment: 'Chaotic good', exceptionalStrength: 75,
+    attributes: { strength: 18, intelligence: 17, wisdom: 10, dexterity: 16, constitution: 13, charisma: 11 } };
+  assert.equal(validateParty([descriptor]).ok, true);
+  assert.equal(validateParty([{ ...descriptor, race: 'Human' }]).ok, false, 'Humans do not select simultaneous classes.');
+  assert.equal(validateParty([{ ...descriptor, race: 'Halfling', classType: 'Cleric', classes: ['Cleric'] }]).ok, false);
+  assert.equal(validateParty([{ ...descriptor, attributes: { ...descriptor.attributes, intelligence: 8 } }]).ok, false);
+  assert.equal(validateParty(Array.from({ length: 7 }, (_, index) => ({ ...descriptor, name: `Elf ${index}` }))).ok, false);
+  assert.ok(availableClassOptions('Half-elf').some(option => option.classes.join('/') === 'Cleric/Fighter/Magic-user'));
+  const rolled = rollAbilityScores('Halfling','Thief');
+  assert.ok(rolled.dexterity >= 9 && rolled.constitution >= 10 && rolled.strength <= 17);
+  await withCombat(async ({ systems, record }) => {
+    assert.equal(record.party.members.length, 1);
+    const hero = systems.getInventorySnapshot('c_1');
+    assert.equal(hero.character.name, 'Talan');
+    assert.equal(hero.character.race, 'Elf');
+    assert.equal(hero.character.displayClass, 'Fighter / Magic-user');
+    assert.equal(hero.character.hpMax, 7);
+    assert.equal(hero.stats.saves.spell, 12, 'A multiclass adventurer takes the better saving throw.');
+    assert.equal(hero.equipment.head, 'iron_helm');
+    assert.equal(systems.getSpellPreparation(hero.character.id).prepared.length, 1);
+  }, [descriptor]);
+});
+
+test('camp Read Magic identifies a purchased scroll which can then be cast without consuming a prepared charge', async () => {
+  await withCombat(async ({ systems, record, choose, atService, begin, unit, flush, setRandom }) => {
+    atService('silver-shop'); systems.openService('silver-shop'); choose(/^Quint — Magic-user/);
+    choose(/^Magic-user Scroll: Magic Missile —/);
+    systems.closeService();
+    const scrollIndex = systems.getInventorySnapshot('c_mage').inventory.findIndex(entry => entry?.itemId === 'magic_missile_scroll');
+    assert.equal(systems.getInventorySnapshot('c_mage').inventory[scrollIndex].identified, false);
+    systems.unprepareSpell('c_mage',0); systems.prepareSpell('c_mage','MU_READ_MAGIC');
+    atService('inn'); systems.openService('inn'); choose(/^Rest and memorize spells/); systems.closeService();
+    assert.equal(systems.openCamp().ok, true); choose(/^Quint — Magic-user/); choose('Cast Read Magic');
+    assert.equal(systems.getInventorySnapshot('c_mage').inventory[scrollIndex].identified, true);
+    assert.equal(systems.getSpellPreparation('c_mage').prepared.length, 0);
+    systems.closeService();
+    await begin();
+    const mage = unit('c_mage'); systems.selectCombatCell(mage.x,mage.y); choose('Use Scroll'); choose('Magic-user Scroll: Magic Missile');
+    const foe = unit(record.snapshot.targetIds[0]); setRandom(0.99); systems.selectCombatCell(foe.x,foe.y); await flush();
+    assert.equal(systems.getInventorySnapshot(mage.id).inventory[scrollIndex], null);
+    assert.equal(unit(mage.id).preparedCount, 0);
+    assert.equal(unit(foe.id).alive, false);
+  });
+});
+
+test('combat dice use descending AC, natural roll limits, separate damage dice and saving throws', () => {
+  assert.equal(attackRoll(18,4,0,()=>0.65).success,true, '14 hits armor class4 at THAC0 18.');
+  assert.equal(attackRoll(18,-1,0,()=>0.85).success,false, '18 misses armor class-1.');
+  assert.equal(attackRoll(40,-10,0,()=>0.99).success,true, 'A natural twenty hits even impossible armor.');
+  assert.equal(attackRoll(1,10,100,()=>0).success,false, 'A natural one always misses.');
+  assert.equal(rollDice('3d6+2',()=>0.4),11);
+  assert.equal(savingThrow({spell:12},'spell',0,()=>0.55),true);
+  assert.equal(savingThrow({spell:12},'spell',0,()=>0.5),false);
+});
+
+test('multiclass experience splits and a class trainer advances its own level without granting an unearned mage level', async () => {
+  const descriptor = { name: 'Talan', race: 'Elf', classType: 'Fighter', classes: ['Fighter','Magic-user'], alignment: 'Chaotic good', exceptionalStrength: 75,
+    attributes: { strength: 18, intelligence: 17, wisdom: 10, dexterity: 16, constitution: 13, charisma: 11 } };
+  await withCombat(async context => {
+    const { systems, record, atService, choose, begin, unit, flush } = context;
+    for (let battle=0;battle<3;battle+=1) await winBattle(context);
+    atService('council'); systems.openService('council'); choose(/^Clear the Slums/); systems.closeService();
+    atService('fighter-trainer'); systems.openService('fighter-trainer'); choose(/^Talan — Fighter level/);
+    assert.equal(systems.getInventorySnapshot('c_1').character.level,1, 'The shared XP pool cannot be used as full XP in both classes.');
+    systems.closeService();
+    for (let battle=0;battle<2;battle+=1) await winBattle(context,'Sokal Keep');
+    atService('council'); systems.openService('council'); choose(/^Secure Sokal Keep/); systems.closeService();
+    atService('fighter-trainer'); systems.openService('fighter-trainer');
+    const gold=record.party.gold; choose(/^Talan — Fighter level/);
+    assert.equal(record.party.gold,gold-1000);
+    assert.match(systems.getInventorySnapshot('c_1').character.levelText,/Fighter 2 \/ Magic-user 1/);
+    systems.closeService();
+    atService('magic-user-trainer'); systems.openService('magic-user-trainer'); choose(/^Talan — Magic-user level/);
+    assert.match(systems.getInventorySnapshot('c_1').character.levelText,/Magic-user 1/);
+    assert.equal(record.party.gold,gold-1000);
+    systems.closeService();
+    assert.equal(systems.unprepareSpell('c_1',0).ok,true);
+    assert.equal(systems.prepareSpell('c_1','MU_MAGIC_MISSILE').ok,true);
+    atService('inn'); systems.openService('inn'); choose(/^Rest and memorize spells/); systems.closeService();
+    await begin();
+    const foe=record.snapshot.units.find(target=>target.team==='monster');
+    const retreat=record.snapshot.reachable.find(cell=>Math.abs(cell.x-foe.x)+Math.abs(cell.y-foe.y)===8);
+    assert.ok(retreat);
+    systems.selectCombatCell(retreat.x,retreat.y); await flush();
+    choose('Cast Spell'); choose(/^Magic Missile —/);
+    assert.equal(record.snapshot.targetIds.includes(foe.id),false,'Fighter level two must not extend a level-one mage spell beyond seven cells.');
+    assert.equal(unit('c_1').preparedCount,1,'An out-of-range preview retains the memorized charge.');
+  },[descriptor]);
+});
+
+test('a fighter level does not improve an untrained multiclass cleric’s Turn Undead roll', async () => {
+  const descriptor = { name: 'Lysa', race: 'Half-elf', classType: 'Cleric', classes: ['Cleric','Fighter'], alignment: 'Neutral good', exceptionalStrength: 75,
+    attributes: { strength: 18, intelligence: 12, wisdom: 17, dexterity: 16, constitution: 13, charisma: 11 } };
+  await withCombat(async context => {
+    const { systems, record, atService, choose, begin, unit, flush, setRandom } = context;
+    for (let battle=0;battle<3;battle+=1) await winBattle(context);
+    atService('council'); systems.openService('council'); choose(/^Clear the Slums/); systems.closeService();
+    for (let battle=0;battle<2;battle+=1) await winBattle(context,'Sokal Keep');
+    atService('council'); systems.openService('council'); choose(/^Secure Sokal Keep/); systems.closeService();
+    atService('fighter-trainer'); systems.openService('fighter-trainer'); choose(/^Lysa — Fighter level/); systems.closeService();
+    assert.match(systems.getInventorySnapshot('c_1').character.levelText,/Cleric 1 \/ Fighter 2/);
+    await begin('Sokal Keep');
+    const skeleton=record.snapshot.units.find(target=>target.kind==='skeleton');
+    assert.ok(skeleton);
+    setRandom(0.4); // A nine fails the level-one skeleton turning threshold of ten.
+    choose('Turn Undead'); await flush();
+    assert.equal(unit(skeleton.id).alive,true);
+    assert.notEqual(unit(skeleton.id).healthStatus,'turned');
+  },[descriptor]);
+});
+
+test('camp rejects Animate Dead without changing a living companion or expending charges', async () => {
+  await withCombat(async ({ systems }) => {
+    const before=systems.getInventorySnapshot('c_cleric');
+    const response=systems.castAdventureSpell('c_cleric','CL_ANIMATE_DEAD','c_cleric');
+    assert.equal(response.ok,false);
+    assert.match(response.message,/cannot be cast in camp/);
+    const after=systems.getInventorySnapshot('c_cleric');
+    assert.deepEqual(after,before);
   });
 });

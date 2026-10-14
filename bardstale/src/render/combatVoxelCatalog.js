@@ -25,32 +25,24 @@ export const COMBAT_VOXEL_APPEARANCE_OPTIONS=Object.freeze({
 const PERSON={...EMPTY_VOXEL_GEAR,head:'bare',torso:'tunic',arms:'sleeves',legs:'ranger',mainhand:'sword',offhand:'none',back:'none',palette:'azure'};
 const CASTER={...PERSON,torso:'robe',legs:'robe',mainhand:'staff'};
 const PRESETS=Object.freeze({
-  warrior:{...PERSON,torso:'chain',arms:'chain',legs:'armored',offhand:'round',shoulders:'steel',hands:'steel',feet:'steel',waist:'leather'},
-  paladin:{...PERSON,head:'plumed',torso:'steel',arms:'plate',legs:'armored',offhand:'kite',palette:'steel',shoulders:'steel',hands:'steel',feet:'steel',waist:'gold',neck:'sapphire'},
-  rogue:{...PERSON,head:'hood',torso:'leather',arms:'leather',mainhand:'dagger',palette:'forest',feet:'leather',hands:'leather',waist:'leather'},
-  bard:{...PERSON,head:'longHair',torso:'leather',mainhand:'shortSword',back:'lute',palette:'ochre',feet:'leather',waist:'leather'},
-  hunter:{...PERSON,torso:'leather',arms:'leather',mainhand:'bow',palette:'forest',feet:'leather',hands:'leather',waist:'leather'},
-  monk:{...PERSON,head:'bald',arms:'bare',legs:'skirt',mainhand:'none',palette:'ochre'},
-  conjurer:{...CASTER,palette:'crimson'},
-  magician:{...CASTER,palette:'azure'},
-  sorcerer:{...CASTER,head:'hood',palette:'violet'},
-  wizard:{...CASTER,head:'wizardHat',palette:'steel'},
-  archmage:{...CASTER,head:'crown',palette:'crimson'},
-  chronomancer:{...CASTER,head:'crown',palette:'violet'},
-  geomancer:{...CASTER,head:'bald',palette:'forest'},
-  hobbit:{...PERSON,torso:'leather',legs:'bare',mainhand:'dagger',palette:'ochre'},
+  fighter:{...PERSON,torso:'chain',arms:'chain',legs:'armored',offhand:'round',shoulders:'steel',hands:'steel',feet:'steel',waist:'leather'},
+  cleric:{...PERSON,head:'hood',torso:'chain',arms:'chain',legs:'armored',mainhand:'mace',offhand:'round',palette:'steel',back:'cape'},
+  thief:{...PERSON,head:'hood',torso:'leather',arms:'leather',mainhand:'dagger',palette:'forest',feet:'leather',hands:'leather',waist:'leather'},
+  magic_user:{...CASTER,head:'wizardHat',palette:'violet'},
+  goblin:{...PERSON,head:'goblin',torso:'leather',arms:'bare',legs:'skirt',mainhand:'shortSword',offhand:'round',palette:'goblin'},
+  kobold:{...PERSON,head:'goblin',torso:'tunic',arms:'bare',legs:'bare',mainhand:'spear',palette:'ochre'},
+  orc:{...PERSON,head:'goblin',torso:'chain',arms:'chain',legs:'armored',mainhand:'axe',offhand:'round',palette:'goblin'},
+  gnoll:{...PERSON,head:'goblin',torso:'leather',arms:'bare',legs:'ranger',mainhand:'halberd',palette:'ochre'},
+  bugbear:{...PERSON,head:'goblin',torso:'leather',arms:'leather',legs:'skirt',mainhand:'mace',palette:'ochre'},
+  zombie:{...PERSON,head:'bare',torso:'tunic',arms:'bare',legs:'ranger',mainhand:'none',palette:'bone'},
+  ghoul:{...PERSON,head:'skull',torso:'ribs',arms:'bare',legs:'bones',mainhand:'none',palette:'bone'},
   hobgoblin:{...PERSON,head:'goblin',torso:'leather',arms:'bare',legs:'skirt',mainhand:'axe',offhand:'round',palette:'goblin'},
   skeleton:{...PERSON,head:'skull',torso:'ribs',arms:'bones',legs:'bones',palette:'bone'},
-  knight:{...PERSON,head:'knight',torso:'steel',arms:'plate',legs:'armored',offhand:'kite',palette:'crimson',shoulders:'steel',hands:'steel',feet:'steel',waist:'leather'},
-  mage:{...CASTER,head:'wizardHat',palette:'azure'},
-  enchantress:{...CASTER,head:'longHair',palette:'violet'},
-  warlock:{...CASTER,head:'hood',palette:'crimson'},
-  lich:{...CASTER,head:'skull',arms:'bones',palette:'bone'},
 });
-const CREATURES=Object.freeze(['serpent','rat_swarm','elemental','dragon','ogre']);
+const CREATURES=Object.freeze(['serpent','rat_swarm','elemental','dragon','ogre','troll']);
 export const COMBAT_VOXEL_KINDS=Object.freeze([...Object.keys(PRESETS),...CREATURES]);
 
-const NATURAL_HEAD=Object.freeze({bard:'longHair',enchantress:'longHair',monk:'bald',geomancer:'bald',hobgoblin:'goblin',skeleton:'skull',lich:'skull'});
+const NATURAL_HEAD=Object.freeze({hobgoblin:'goblin',goblin:'goblin',kobold:'goblin',orc:'goblin',gnoll:'goblin',bugbear:'goblin',skeleton:'skull',ghoul:'skull'});
 const NO_ITEM_EFFECTS=Object.freeze([]);
 
 function visualPartFor(slot, part) {
@@ -78,7 +70,7 @@ export function getCombatVoxelAppearance({kind,equipment,appearance={}}) {
       head:NATURAL_HEAD[key]??'bare',torso:'tunic',arms:'sleeves',legs:'plain',
       mainhand:'none',offhand:'none',back:'none',
     });
-    if(['skeleton','lich'].includes(key)) Object.assign(result,{torso:'ribs',arms:'bones',legs:'bones'});
+    if(['skeleton','ghoul'].includes(key)) Object.assign(result,{torso:'ribs',arms:'bones',legs:'bones'});
     for(const [slot,itemId] of Object.entries(equipment)) {
       if(!EQUIPMENT_SLOTS.some(({id})=>id===slot)) throw new RangeError(`Unknown equipment slot: ${slot}`);
       if(!itemId) continue;
@@ -168,7 +160,7 @@ export function assembleCombatVoxelModel(descriptor) {
     const recipe=Object.freeze({...model.recipe,id});
     const assembly=Object.freeze({...model.assembly,id});
     const itemEffects=assembleItemEffects(bindings,assembly);
-    models.set(key,Object.freeze({...model,recipe,assembly,itemEffects,appearance:Object.freeze(appearance),footprint:footprintForKind(kind),scale:kind==='hobbit'?.74:1}));
+    models.set(key,Object.freeze({...model,recipe,assembly,itemEffects,appearance:Object.freeze(appearance),footprint:footprintForKind(kind),scale:1}));
   }
   return models.get(key);
 }

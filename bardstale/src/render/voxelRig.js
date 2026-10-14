@@ -4,6 +4,7 @@ const OGRE_PIVOTS = {
   rightArm: [-6.5,33,-2], leftArm: [12.5,34,-3],
   rightLeg: [-3,19,0], leftLeg: [9,19,-3],
 };
+const TROLL_PIVOTS = { rightArm:[-7,35,0],leftArm:[7,35,0],rightLeg:[-3,17,0],leftLeg:[3,17,0] };
 const RANGE = { body:[0,0], rightArm:[-1.15,1.05], leftArm:[-.85,.85], rightLeg:[-.52,.52], leftLeg:[-.52,.52] };
 const clamp = value => Math.max(0,Math.min(1,value));
 const smooth = value => { const t=clamp(value); return t*t*(3-2*t); };
@@ -12,7 +13,7 @@ const smooth = value => { const t=clamp(value); return t*t*(3-2*t); };
  * but each boot follows its own hip; a complete custom torso may have joints. */
 export function createVoxelRig(model) {
   const { assembly, appearance } = model;
-  const pivots = appearance.form === 'ogre' ? OGRE_PIVOTS : appearance.form ? {} : HUMAN_JOINT_PIVOTS;
+  const pivots = appearance.form === 'ogre' ? OGRE_PIVOTS : appearance.form === 'troll' ? TROLL_PIVOTS : appearance.form ? {} : HUMAN_JOINT_PIVOTS;
   const joints = Object.fromEntries(Object.entries({body:[0,0,0],...pivots}).map(([name,pivot]) =>
     [name,{pivot,angleRange:RANGE[name],voxels:[]}]));
   function effectJoint(slot) {
@@ -46,7 +47,7 @@ export function createVoxelRig(model) {
         : p<.25 ? -.75+1.8*smooth((p-.12)/.13)
         : 1.05*(1-smooth((p-.25)/.75));
       pose.leftArm=-pulse*.32;
-      if (['dagger','shortSword'].includes(appearance.offhand)) pose.leftArm=pose.rightArm*.72;
+      if (['dagger','shortSword','sword','axe','mace','flail'].includes(appearance.offhand)) pose.leftArm=pose.rightArm*.72;
     } else if (action==='arrow') {
       pose.rightArm=-pulse*.7;
       pose.leftArm=-pulse*.85;

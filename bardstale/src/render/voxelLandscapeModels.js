@@ -202,6 +202,44 @@ export function assembleLandscapeModel(environment, kind, variant = 0) {
   if (cache.has(key)) return cache.get(key);
   const p = painter();
   BUILDERS[environment][kind](p, variant);
+  const model = finishModel(environment, kind, variant, p);
+  cache.set(key, model);
+  return model;
+}
+
+/** Harbor water, timber piers and low quay stones share the terrain voxel size. */
+export function assembleHarborModel(terrain, variant = 0) {
+  if (!['water','dock','quay'].includes(terrain)) throw new RangeError(`Unknown harbor terrain: ${terrain}.`);
+  const key = `harbor:${terrain}:${variant}`;
+  if (cache.has(key)) return cache.get(key);
+  const p = painter();
+  if (terrain === 'water') {
+    p.box(0,-6,0,75,-3,75,'#204c61','crystal');
+    const colors=['#326b7d','#39788a','#458391','#4b8e9b','#5c9aa6'];
+    for (let x=0;x<75;x++) for(let z=0;z<75;z++) {
+      const wave=Math.sin((x+variant*11)/12)+Math.cos((z-x*.3)/9);
+      const band=Math.max(0,Math.min(4,Math.floor((wave+2)*1.24)));
+      p.put(x,-3,z,colors[band],'crystal');
+      if (wave>1.55) p.put(x,-2,z,'#6fa3ab','crystal');
+    }
+  } else if (terrain === 'dock') {
+    p.box(0,-5,0,75,-2,75,'#443c31','wood');
+    for (let plank=0;plank<9;plank++) {
+      const z0=plank*9;
+      p.box(0,-2,z0,75,0,Math.min(75,z0+8),plank%2?'#8e7150':'#a08761','wood');
+      for (const x of [5,69]) if(z0+3<75)p.put(x,-1,z0+3,'#697575','steel');
+    }
+  } else {
+    p.box(0,0,-3,75,14,3,'#70818a');
+    for(let stone=0;stone<5;stone++) p.box(stone*15,1,-4,stone*15+14,13,4,stone%2?'#94a09d':'#a8aca0');
+    p.box(0,13,-5,75,16,5,'#c0c5b5');
+  }
+  const model=finishModel('harbor',terrain,variant,p);
+  cache.set(key,model);
+  return model;
+}
+
+function finishModel(environment, kind, variant, p) {
   const voxels = Object.freeze([...p.cells.values()].map(Object.freeze));
   const min = { x: 0, y: 0, z: 0 };
   const max = { x: 0, y: 0, z: 0 };
@@ -218,6 +256,5 @@ export function assembleLandscapeModel(environment, kind, variant = 0) {
   const bounds = Object.freeze({ min: Object.freeze(min), max: Object.freeze(max) });
   const dimensions = Object.freeze(Object.fromEntries(['x', 'y', 'z'].map(axis => [axis, max[axis] - min[axis]])));
   const model = Object.freeze({ environment, kind, variant, voxels, bounds, dimensions });
-  cache.set(key, model);
   return model;
 }

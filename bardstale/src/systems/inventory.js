@@ -1,4 +1,6 @@
 import { ITEM_DB, EQUIPMENT_SLOTS, INVENTORY_CAPACITY } from '../items.js';
+import { strengthModifiers, dexterityModifiers } from '../rules/classes.js';
+import { rollDice, diceBounds } from '../rules/dice.js';
 
 const slotIds = new Set(EQUIPMENT_SLOTS.map(slot => slot.id));
 const result = (ok, message) => ({ ok, message });
@@ -32,7 +34,7 @@ function putItem(inventory, itemId, quantity) {
   for (let index = 0; index < inventory.length && quantity; index += 1) {
     if (inventory[index]) continue;
     const qty = Math.min(quantity, item.stackMax);
-    inventory[index] = { itemId, qty };
+    inventory[index] = { itemId, qty, identified: !item.requiresReadMagic };
     quantity -= qty;
   }
   return quantity === 0;
@@ -57,6 +59,7 @@ export function equipCarriedItem(character, index, slot) {
   if (!entry) return result(false, 'Choose an item from the pack.');
   const item = ITEM_DB[entry.itemId];
   if (!slotIds.has(slot) || !item.slots.includes(slot)) return result(false, `${item.name} cannot be equipped in that slot.`);
+  if (!character.classes.some(classType => item.classes.includes(classType))) return result(false, `${character.classes.join('/')} cannot use ${item.name}.`);
   if (slot === 'offhand' && ITEM_DB[character.equipment.mainhand]?.handedness === 2) {
     return result(false, 'Unequip the two-handed mainhand weapon before using the offhand.');
   }
@@ -104,60 +107,89 @@ export function useCarriedItem(character, index) {
   const entry = entryAt(character, index);
   if (!entry) return result(false, 'Choose an item from the pack.');
   const item = ITEM_DB[entry.itemId];
-  if (!item.heals && !item.restoresSp) return result(false, 'That item cannot be consumed.');
-  if (!character.alive) return result(false, 'A fallen character cannot drink a potion.');
-  const healed = Math.min(item.heals || 0, character.hpMax - character.hpCurrent);
-  const restored = Math.min(item.restoresSp || 0, character.spMax - character.spCurrent);
-  if (!healed && !restored) return result(false, 'Already fully restored; the potion was kept.');
+  if (!item.healingDice) return result(false, 'That item cannot be consumed.');
+  if (character.healthStatus === 'dead' || character.healthStatus === 'gone') return result(false, 'A potion cannot raise the dead.');
+  if (character.hpCurrent >= character.hpMax) return result(false, 'Already fully restored; the potion was kept.');
+  const healed = Math.min(rollDice(item.healingDice), character.hpMax - character.hpCurrent);
   character.hpCurrent += healed;
-  character.spCurrent += restored;
+  if (character.hpCurrent > 0) {
+    character.alive = true;
+    character.healthStatus = 'okay';
+  }
   character.inventory = copyInventory(character.inventory);
   removeOne(character.inventory, index);
-  const changes = [healed && `${healed} HP`, restored && `${restored} SP`].filter(Boolean).join(' and ');
-  return result(true, `${character.name} recovered ${changes}.`);
+  return result(true, `${character.name} recovered ${healed} HP.`);
+}
+
+export function consumeWeaponAmmo(character) {
+  const weapon = getEquippedItem(character, 'mainhand');
+  if (!weapon?.ammoType) return result(true, '');
+  const index = character.inventory.findIndex(entry => entry?.itemId === weapon.ammoType && entry.qty > 0);
+  if (index < 0) return result(false, `${character.name} has no arrows.`);
+  character.inventory = copyInventory(character.inventory);
+  removeOne(character.inventory, index);
+  return result(true, '');
 }
 
 export function getEquippedItem(character, slot) {
   return ITEM_DB[character.equipment[slot]] || null;
 }
 
+export function effectiveAttributes(character) {
+  const attributes = { ...character.attributes };
+  for (const status of character.statusEffects) {
+    for (const key of Object.keys(attributes)) attributes[key] += status.modifiers?.[key] || 0;
+    if (status.modifiers?.minStrength) attributes.strength = Math.max(attributes.strength, status.modifiers.minStrength);
+  }
+  for (const key of Object.keys(attributes)) attributes[key] = Math.max(3, Math.min(25, attributes[key]));
+  return attributes;
+}
+
 export function computeCharacterStats(character) {
   const { base } = character;
   const mainhand = getEquippedItem(character, 'mainhand');
   const offhand = getEquippedItem(character, 'offhand');
-  let ac = base.ac;
-  let toHit = base.toHit;
-  let minDamage = mainhand?.maxDamage ? mainhand.minDamage + base.weaponDamageBonus : base.damage.min;
-  let maxDamage = mainhand?.maxDamage ? mainhand.maxDamage + base.weaponDamageBonus : base.damage.max;
-  let magicRes = base.magicResist;
-  let critBonus = 0;
+  const body = getEquippedItem(character, 'chest');
+  const attributes = effectiveAttributes(character);
+  const strength = strengthModifiers({ ...character, attributes });
+  const dexterity = dexterityModifiers(attributes.dexterity);
+  let damageDice = mainhand?.damageDice || base.damageDice;
+  let largeDamageDice = mainhand?.largeDamageDice || base.largeDamageDice || damageDice;
+  let range = mainhand?.range || 1;
+  let ac = Math.min(base.ac, body?.armorClass ?? base.ac) + dexterity.ac - (body?.magicBonus || 0) - (offhand?.shieldBonus || 0);
+  let thac0 = base.thac0 - (mainhand?.magicBonus || 0) - (mainhand?.ranged ? dexterity.missileToHit : strength.toHit);
+  let damageBonus = (base.damageBonus || 0) + (mainhand?.magicBonus || 0) + (mainhand?.strengthBonus || !mainhand ? strength.damage : 0);
+  let movement = Math.min(base.movement, body?.maxMovement ?? base.movement);
+  let protection = 0;
+  let carriedWeight = Object.values(character.coins || {}).reduce((total, count) => total + count, 0);
+  const saves = { ...base.saves };
   for (const slot of slotIds) {
     const item = getEquippedItem(character, slot);
     if (!item) continue;
-    ac += item.acBonus;
-    toHit += item.toHit;
-    magicRes += item.magicRes;
-    minDamage += item.damageBonus;
-    maxDamage += item.damageBonus;
+    carriedWeight += item.weight;
+    protection = Math.max(protection, item.protectionBonus || 0);
   }
-  if (offhand?.maxDamage) {
-    minDamage += Math.floor(offhand.minDamage / 2);
-    maxDamage += Math.floor(offhand.maxDamage / 2);
-  }
+  for (const entry of character.inventory) if (entry) carriedWeight += ITEM_DB[entry.itemId].weight * entry.qty;
+  if (!body?.magicBonus) ac -= protection;
+  for (const key of Object.keys(saves)) saves[key] -= protection;
+  const over = Math.max(0, carriedWeight - strength.carryWeight);
+  if (over > 1024) movement = Math.min(movement, 3);
+  else if (over > 768) movement = Math.min(movement, 6);
+  else if (over > 512) movement = Math.min(movement, 9);
   for (const status of character.statusEffects) {
     const modifiers = status.modifiers || {};
+    if (modifiers.weaponDice) damageDice = modifiers.weaponDice;
+    if (modifiers.weaponLargeDice) largeDamageDice = modifiers.weaponLargeDice;
+    if (modifiers.weaponRange != null) range = modifiers.weaponRange;
+    if (modifiers.acBase != null) ac = Math.min(ac, modifiers.acBase + dexterity.ac);
     ac += modifiers.ac || 0;
-    toHit += modifiers.toHit || 0;
-    minDamage += modifiers.damageBonus || 0;
-    maxDamage += modifiers.damageBonus || 0;
-    magicRes += modifiers.magicResist || 0;
-    critBonus += modifiers.critBonus || 0;
+    thac0 += modifiers.thac0 || 0;
+    damageBonus += modifiers.damageBonus || 0;
+    movement *= modifiers.movementMultiplier ?? 1;
+    for (const key of Object.keys(saves)) saves[key] += modifiers.saves || 0;
   }
-  if (character.classType === 'Monk' && !character.equipment.chest) ac -= Math.max(1, Math.floor(character.level / 2));
-  if (character.classType === 'Monk' && !mainhand) {
-    const scale = Math.max(4, 6 + character.level);
-    minDamage = Math.max(minDamage, Math.floor(scale / 2));
-    maxDamage = Math.max(maxDamage, scale);
-  }
-  return { ac, toHit, minDamage: Math.max(1, minDamage), maxDamage: Math.max(1, maxDamage), magicRes, critBonus };
+  const bounds = diceBounds(damageDice);
+  return { ac, thac0, damageDice, largeDamageDice, damageBonus, range, attributes,
+    minDamage: Math.max(1, bounds.min + damageBonus), maxDamage: Math.max(1, bounds.max + damageBonus),
+    movement: Math.max(1, Math.floor(movement)), saves, magicRes: base.magicRes || 0, carriedWeight, carryWeight: strength.carryWeight };
 }

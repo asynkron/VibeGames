@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ITEM_DB, INVENTORY_CAPACITY } from '../src/items.js';
 import { createInventory, createEquipment, addInventoryItem, equipCarriedItem, unequipItem, transferCarriedItem, useCarriedItem, computeCharacterStats } from '../src/systems/inventory.js';
-import { initBt3Systems } from '../src/systems/core.js';
+import { createGameSystems } from '../src/systems/core.js';
+import { SPELL_LIBRARY } from '../src/rules/spells.js';
 
-function character(id = 'hero') {
+function character(id = 'hero', classType = 'Fighter') {
   return {
-    id, name: id, classType: 'Warrior', level: 1, alive: true,
-    hpCurrent: 12, hpMax: 30, spCurrent: 3, spMax: 15,
-    base: { ac: 10, toHit: 2, weaponDamageBonus: 3, damage: { min: 4, max: 9 }, magicResist: 0 },
+    id, name: id, classType, classes: [classType], level: 1, alive: true, healthStatus: 'okay',
+    hpCurrent: 12, hpMax: 30,
+    attributes: { strength: 13, intelligence: 13, wisdom: 13, dexterity: 14, constitution: 14, charisma: 13 },
+    base: { ac: 10, thac0: 20, damageDice: '1d2', damageBonus: 0, movement: 12,
+      saves: { death: 14, petrification: 15, wand: 16, breath: 17, spell: 17 } },
     inventory: createInventory(), equipment: createEquipment(), statusEffects: [],
   };
 }
@@ -33,8 +36,8 @@ function equip(hero, itemId, slot) {
 
 test('equipment swaps conserve every item, use the vacated bag slot, and reject a two-handed swap atomically without enough space', () => {
   const hero = character();
-  equip(hero, 'longsword', 'mainhand');
-  equip(hero, 'shield_wood', 'offhand');
+  equip(hero, 'long_sword', 'mainhand');
+  equip(hero, 'shield', 'offhand');
   const halberdIndex = carry(hero, 'halberd');
   carry(hero, 'dagger', INVENTORY_CAPACITY - 1);
   const before = structuredClone(hero);
@@ -49,11 +52,11 @@ test('equipment swaps conserve every item, use the vacated bag slot, and reject 
   assert.equal(hero.equipment.mainhand, 'halberd');
   assert.equal(hero.equipment.offhand, '');
   assert.deepEqual(itemCounts(hero, secondHero), counts);
-  const shieldIndex = hero.inventory.findIndex(entry => entry?.itemId === 'shield_wood');
+  const shieldIndex = hero.inventory.findIndex(entry => entry?.itemId === 'shield');
   const withHalberd = structuredClone(hero);
   assert.equal(equipCarriedItem(hero, shieldIndex, 'offhand').ok, false);
   assert.deepEqual(hero, withHalberd);
-  const swordIndex = hero.inventory.findIndex(entry => entry?.itemId === 'longsword');
+  const swordIndex = hero.inventory.findIndex(entry => entry?.itemId === 'long_sword');
   assert.equal(equipCarriedItem(hero, swordIndex, 'mainhand').ok, true, 'A single-slot swap can use the space freed by the selected item.');
   assert.deepEqual(itemCounts(hero, secondHero), counts);
 });
@@ -79,61 +82,125 @@ test('carried stacks merge and overflow into empty slots while failed transfers 
   assert.deepEqual(itemCounts(giver, receiver), counts);
 });
 
-test('both ring slots and every armor slot contribute while weapon changes and dual wielding alter actual attack damage', () => {
+test('armor and shields set descending AC, magic improves attacks, and rings use the strongest protection once', () => {
   const hero = character();
-  const baseline = computeCharacterStats(hero);
-  const ring = Object.values(ITEM_DB).find(item => item.slots.includes('ring1') && item.toHit);
-  assert.ok(ring, 'The playable catalog provides an accuracy ring.');
-  equip(hero, ring.id, 'ring1');
-  equip(hero, ring.id, 'ring2');
-  assert.equal(computeCharacterStats(hero).toHit, baseline.toHit + ring.toHit * 2);
-  for (const slot of ['head', 'neck', 'shoulders', 'chest', 'hands', 'waist', 'legs', 'feet', 'back']) {
-    const item = Object.values(ITEM_DB).find(candidate => candidate.slots.includes(slot) && (candidate.acBonus || candidate.magicRes || candidate.toHit || candidate.damageBonus));
-    assert.ok(item, `The ${slot} slot must offer meaningful equipment.`);
-    const before = computeCharacterStats(hero);
-    equip(hero, item.id, slot);
-    const after = computeCharacterStats(hero);
-    assert.equal(after.ac - before.ac, item.acBonus, `${slot} protection contributes`);
-    assert.equal(after.toHit - before.toHit, item.toHit, `${slot} accuracy contributes`);
-    assert.equal(after.magicRes - before.magicRes, item.magicRes, `${slot} resistance contributes`);
-    assert.equal(after.minDamage - before.minDamage, item.damageBonus, `${slot} damage contributes`);
-  }
-  const beforeWeapons = computeCharacterStats(hero);
-  equip(hero, 'longsword', 'mainhand');
-  const sword = computeCharacterStats(hero);
-  assert.equal(sword.minDamage - beforeWeapons.minDamage, ITEM_DB.longsword.minDamage - 1);
-  assert.equal(sword.maxDamage - beforeWeapons.maxDamage, ITEM_DB.longsword.maxDamage - 6);
-  equip(hero, 'dagger', 'offhand');
-  const dual = computeCharacterStats(hero);
-  assert.equal(dual.maxDamage, sword.maxDamage + Math.floor(ITEM_DB.dagger.maxDamage / 2));
-  assert.equal(dual.toHit, sword.toHit + ITEM_DB.dagger.toHit);
-  assert.equal(equipCarriedItem(hero, carry(hero, 'shield_wood'), 'head').ok, false);
+  equip(hero, 'long_sword', 'mainhand');
+  equip(hero, 'chain_mail', 'chest');
+  equip(hero, 'shield', 'offhand');
+  assert.equal(computeCharacterStats(hero).ac, 4);
+  assert.equal(computeCharacterStats(hero).movement, 9);
+  assert.equal(computeCharacterStats(hero).damageDice, '1d8');
+  assert.equal(computeCharacterStats(hero).largeDamageDice, '1d12');
+  assert.equal(computeCharacterStats(hero).thac0, 20);
+  equip(hero, 'long_sword_plus1', 'mainhand');
+  const enchanted = computeCharacterStats(hero);
+  assert.equal(enchanted.thac0, 19);
+  assert.equal(enchanted.damageBonus, 1);
+  assert.deepEqual([enchanted.minDamage, enchanted.maxDamage], [2, 9]);
+  equip(hero, 'ring_protection1', 'ring1');
+  equip(hero, 'ring_protection3', 'ring2');
+  assert.equal(computeCharacterStats(hero).ac, 1);
+  assert.equal(computeCharacterStats(hero).saves.spell, 14);
+  equip(hero, 'chain_mail_plus1', 'chest');
+  assert.equal(computeCharacterStats(hero).ac, 3, 'Magical armor replaces ring AC protection.');
+  assert.equal(computeCharacterStats(hero).saves.spell, 14, 'The ring still protects saving throws.');
+  equip(hero, 'plate_mail', 'chest');
+  assert.equal(computeCharacterStats(hero).movement, 6);
 });
 
-test('potions restore only missing resources, consume one dose, and remain owned when unusable', () => {
+test('class restrictions reject unusable weapons and armor without losing items; clothing and offhand blades add no invented combat bonus', () => {
+  for (const [classType, itemId, slot] of [['Cleric', 'long_sword', 'mainhand'], ['Magic-user', 'chain_mail', 'chest'], ['Thief', 'shield', 'offhand']]) {
+    const hero = character(classType, classType);
+    const index = carry(hero, itemId);
+    const before = structuredClone(hero);
+    assert.equal(equipCarriedItem(hero, index, slot).ok, false);
+    assert.deepEqual(hero, before);
+  }
+  const hybrid = character('hybrid', 'Magic-user');
+  hybrid.classes = ['Fighter', 'Magic-user'];
+  equip(hybrid, 'long_sword', 'mainhand');
+  equip(hybrid, 'chain_mail', 'chest');
+  assert.equal(computeCharacterStats(hybrid).ac, 5, 'A multiclass character can use gear allowed to either class.');
+  const hero = character();
+  equip(hero, 'long_sword', 'mainhand');
+  const before = computeCharacterStats(hero);
+  equip(hero, 'dagger', 'offhand');
+  equip(hero, 'plumed_helm', 'head');
+  equip(hero, 'iron_gauntlets', 'hands');
+  const after = computeCharacterStats(hero);
+  assert.deepEqual([after.ac, after.thac0, after.damageBonus, after.minDamage, after.maxDamage],
+    [before.ac, before.thac0, before.damageBonus, before.minDamage, before.maxDamage]);
+  assert.ok(after.carriedWeight > before.carriedWeight);
+});
+
+test('temporary strength changes real attacks and expires without changing natural attributes', () => {
+  const hero = character();
+  equip(hero, 'long_sword', 'mainhand');
+  hero.statusEffects.push({ id: 'strength', name: 'Strength', modifiers: { strength: 4 } });
+  assert.equal(computeCharacterStats(hero).thac0, 19);
+  assert.equal(computeCharacterStats(hero).maxDamage, 9);
+  assert.equal(hero.attributes.strength, 13);
+  hero.statusEffects = [];
+  assert.equal(computeCharacterStats(hero).thac0, 20);
+  assert.equal(computeCharacterStats(hero).maxDamage, 8);
+});
+
+test('Spiritual Hammer replaces attack dice and range until it expires without changing owned equipment', () => {
+  const hero = character('cleric', 'Cleric');
+  equip(hero, 'mace', 'mainhand');
+  const owned = itemCounts(hero);
+  hero.statusEffects.push({ id: 'spiritual_hammer', name: 'Spiritual Hammer', modifiers: { ...SPELL_LIBRARY.CL_SPIRITUAL_HAMMER.modifiers } });
+  const conjured = computeCharacterStats(hero);
+  assert.equal(conjured.damageDice, '1d4+1');
+  assert.equal(conjured.largeDamageDice, '1d4');
+  assert.equal(conjured.range, 3);
+  assert.deepEqual([conjured.minDamage, conjured.maxDamage], [2, 5]);
+  assert.equal(hero.equipment.mainhand, 'mace');
+  assert.deepEqual(itemCounts(hero), owned);
+  hero.statusEffects = [];
+  const physical = computeCharacterStats(hero);
+  assert.equal(physical.damageDice, '1d6+1');
+  assert.equal(physical.largeDamageDice, '1d6');
+  assert.equal(physical.range, 1);
+});
+
+test('coins and carried gear slow an overloaded character, and spending coins restores movement', () => {
+  const hero = character();
+  hero.coins = { gold: 1600 };
+  assert.equal(computeCharacterStats(hero).movement, 12);
+  carry(hero, 'halberd', 8);
+  assert.equal(computeCharacterStats(hero).movement, 3);
+  hero.coins.gold = 0;
+  assert.equal(computeCharacterStats(hero).movement, 12);
+});
+
+test('healing potions roll their published dice, preserve unused doses, and heal dying companions without raising the dead', (t) => {
+  t.mock.method(Math, 'random', () => 0);
   const hero = character();
   const index = carry(hero, 'healing_potion', 2);
   assert.equal(useCarriedItem(hero, index).ok, true);
-  assert.equal(hero.hpCurrent, 30);
+  assert.equal(hero.hpCurrent, 16, 'Minimum healing is 2d4+2 = 4.');
   assert.equal(hero.inventory[index].qty, 1);
+  hero.hpCurrent = hero.hpMax;
   const full = structuredClone(hero);
   assert.equal(useCarriedItem(hero, index).ok, false);
   assert.deepEqual(hero, full);
   hero.alive = false;
-  hero.hpCurrent = 0;
+  hero.healthStatus = 'dead';
+  hero.hpCurrent = -10;
   assert.equal(useCarriedItem(hero, index).ok, false);
   assert.equal(hero.inventory[index].qty, 1);
-  hero.alive = true;
-  const mana = Object.values(ITEM_DB).find(item => item.restoresSp);
-  const manaIndex = carry(hero, mana.id);
-  assert.equal(useCarriedItem(hero, manaIndex).ok, true);
-  assert.equal(hero.spCurrent, Math.min(15, 3 + mana.restoresSp));
-  assert.equal(hero.inventory[manaIndex], null);
+  hero.healthStatus = 'dying';
+  hero.hpCurrent = -1;
+  assert.equal(useCarriedItem(hero, index).ok, true);
+  assert.equal(hero.hpCurrent, 3);
+  assert.equal(hero.alive, true);
+  assert.equal(hero.healthStatus, 'okay');
 });
 
 test('inventory presentation snapshots cannot mutate ownership and subscribers observe real changes only until unsubscribed', () => {
   let partyView;
-  const systems = initBt3Systems({ hud: { setParty(value) { partyView = value; } }, combatView: {}, dungeon: {} });
+  const systems = createGameSystems({ hud: { setParty(value) { partyView = value; } }, combatView: {}, dungeon: { encounters: null, services: [] }, onPartyDefeated: async () => {} });
   const first = systems.getInventorySnapshot();
   assert.equal(first.character.id, partyView.members[0].id);
   assert.equal(first.inventory.length, 24);
@@ -150,7 +217,7 @@ test('inventory presentation snapshots cannot mutate ownership and subscribers o
   const unsubscribe = systems.subscribeInventory(() => { changes += 1; });
   assert.equal(systems.unequipInventoryItem(expected.character.id, 'mainhand').ok, true);
   assert.equal(changes, 1);
-  assert.notEqual(partyView.members[0].damageMin, expected.stats.minDamage, 'HUD attack stats refresh with the real equipment state.');
+  assert.notEqual(partyView.members[0].damageDice, expected.stats.damageDice, 'HUD attack stats refresh with the real equipment state.');
   const removed = systems.getInventorySnapshot();
   const index = removed.inventory.findIndex(entry => entry?.itemId === expected.equipment.mainhand);
   assert.equal(systems.equipInventoryItem(expected.character.id, index, 'head').ok, false);
@@ -161,11 +228,11 @@ test('inventory presentation snapshots cannot mutate ownership and subscribers o
 });
 
 test('equipment previews use complete proposed stats without changing ownership or publishing mutations', () => {
-  const systems = initBt3Systems({ hud: { setParty() {} }, combatView: {}, dungeon: {} });
-  const characterId = 'c_warrior';
+  const systems = createGameSystems({ hud: { setParty() {} }, combatView: {}, dungeon: { encounters: null, services: [] }, onPartyDefeated: async () => {} });
+  const characterId = systems.getInventorySnapshot().character.id;
   let changes = 0;
   systems.subscribeInventory(() => { changes += 1; });
-  for (const [itemId, slot] of [['halberd', 'mainhand'], ['ring_precision', 'ring1'], ['ring_precision', 'ring2']]) {
+  for (const [itemId, slot] of [['halberd', 'mainhand']]) {
     const before = systems.getInventorySnapshot(characterId);
     const index = before.inventory.findIndex(entry => entry?.itemId === itemId);
     assert.ok(index >= 0);
@@ -185,7 +252,7 @@ test('equipment previews use complete proposed stats without changing ownership 
     assert.deepEqual(after.equipment, preview.equipment);
   }
   const before = systems.getInventorySnapshot(characterId);
-  const shieldIndex = before.inventory.findIndex(entry => entry?.itemId === 'shield_wood');
+  const shieldIndex = before.inventory.findIndex(entry => entry?.itemId === 'shield');
   const beforeChanges = changes;
   const blocked = systems.previewInventoryEquipment(characterId, shieldIndex, 'offhand');
   assert.equal(blocked.ok, false);

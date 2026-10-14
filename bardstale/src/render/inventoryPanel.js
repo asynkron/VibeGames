@@ -45,15 +45,15 @@ function itemIcon(item, slot) {
   svg.setAttribute('class', 'inventory-icon');
   let kind = item?.slots?.[0] || slot || 'potion';
   if (kind === 'ring2') kind = 'ring1';
-  if (item?.heals || item?.restoresSp) kind = 'potion';
+  if (item?.healingDice) kind = 'potion';
   else if (/lute/i.test(item?.name)) kind = 'lute';
   else if (/staff/i.test(item?.name)) kind = 'staff';
   else if (/bow/i.test(item?.name)) kind = 'bow';
   else if (/axe|halberd/i.test(item?.name)) kind = 'axe';
   const visual = Object.values(item?.visuals || {});
   if (visual.includes('ruby')) svg.style.setProperty('--item-accent', '#db6660');
-  else if (visual.includes('sapphire') || item?.restoresSp) svg.style.setProperty('--item-accent', '#6fbced');
-  else if (item?.heals) svg.style.setProperty('--item-accent', '#db6660');
+  else if (visual.includes('sapphire')) svg.style.setProperty('--item-accent', '#6fbced');
+  else if (item?.healingDice) svg.style.setProperty('--item-accent', '#db6660');
   for (const [index, d] of (ICONS[kind] || ICONS.chest).entries()) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
@@ -169,10 +169,12 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
       node.classList.toggle('is-selected', selected);
       node.classList.toggle('is-empty', !item);
       node.setAttribute('aria-pressed', String(selected));
-      node.setAttribute('aria-label', `Bag slot ${index + 1}: ${item ? `${item.name}${entry.qty > 1 ? `, ${entry.qty}` : ''}` : 'Empty'}`);
-      node.title = item?.name || `Empty slot ${index + 1}`;
+      const name=item?.requiresReadMagic && !entry.identified ? 'Unread arcane scroll' : item?.name;
+      node.setAttribute('aria-label', `Bag slot ${index + 1}: ${item ? `${name}${entry.qty > 1 ? `, ${entry.qty}` : ''}` : 'Empty'}`);
+      node.title = name || `Empty slot ${index + 1}`;
       if (item) {
-        node.append(itemIcon(item), element('span', 'inventory-cell-name', item.name));
+        node.append(itemIcon(item), element('span', 'inventory-cell-name', name));
+        if (entry.magicalVisible) node.append(element('span','inventory-quantity','Magic'));
         if (entry.qty > 1) node.append(element('span', 'inventory-quantity', String(entry.qty)));
       } else node.append(element('span', 'inventory-cell-number', String(index + 1).padStart(2, '0')));
       return node;
@@ -182,27 +184,29 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
   function renderStats() {
     const s = snapshot.stats;
     statistics.replaceChildren(...[
-      ['Armor class', s.ac], ['To hit', signed(s.toHit)],
-      ['Damage', `${s.minDamage}–${s.maxDamage}`], ['Magic resist', `${s.magicRes}%`],
+      ['Armor class', s.ac], ['THAC0', s.thac0],
+      ['Damage', `${s.minDamage}–${s.maxDamage}`], ['Movement', s.movement],
     ].map(([label, value]) => {
       const pair = element('div');
       pair.append(element('dt', '', label), element('dd', '', String(value)));
       if (label === 'Armor class') pair.title = 'Lower armor class gives better protection.';
+      if (label === 'THAC0') pair.title = 'Lower THAC0 improves the chance to hit. Roll a d20 against THAC0 minus the target’s armor class.';
       return pair;
     }));
   }
 
   function itemProperties(item) {
     const properties = [];
-    if (item.maxDamage) properties.push(`${item.minDamage}–${item.maxDamage} weapon damage`);
-    if (item.toHit) properties.push(`${signed(item.toHit)} to hit`);
-    if (item.acBonus) properties.push(`${signed(item.acBonus)} AC`);
-    if (item.damageBonus) properties.push(`${signed(item.damageBonus)} damage`);
-    if (item.magicRes) properties.push(`${signed(item.magicRes)}% magic resist`);
-    if (item.heals) properties.push(`Restores ${item.heals} HP`);
-    if (item.restoresSp) properties.push(`Restores ${item.restoresSp} SP`);
+    if (item.damageDice) properties.push(`${item.damageDice} damage · ${item.largeDamageDice} against large creatures`);
+    if (item.magicBonus) properties.push(`${signed(item.magicBonus)} magic weapon`);
+    if (item.armorClass !== undefined) properties.push(`Armor class ${item.armorClass}`);
+    if (item.shieldBonus) properties.push(`${-item.shieldBonus} AC`);
+    if (item.protectionBonus) properties.push(`${signed(item.protectionBonus)} protection`);
+    if (item.healingDice) properties.push(`Restores ${item.healingDice} HP`);
+    if (item.cosmetic) properties.push('Appearance only');
+    if (item.classes) properties.push(item.classes.join(', '));
     if (item.handedness === 2) properties.push('Two-handed');
-    if (item.weight) properties.push(`Weight ${item.weight}`);
+    if (item.weight) properties.push(`Weight ${item.weight} coin units`);
     return properties.join(' · ');
   }
 
@@ -222,22 +226,19 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     const changes = element('dl', 'inventory-comparison-stats');
     for (const [label, oldValue, newValue, improvement] of [
       ['Armor class', before.ac, after.ac, before.ac - after.ac],
-      ['To hit', signed(before.toHit), signed(after.toHit), after.toHit - before.toHit],
+      ['THAC0', before.thac0, after.thac0, before.thac0 - after.thac0],
       ['Damage', `${before.minDamage}–${before.maxDamage}`, `${after.minDamage}–${after.maxDamage}`,
         after.minDamage >= before.minDamage && after.maxDamage >= before.maxDamage ? after.minDamage + after.maxDamage - before.minDamage - before.maxDamage
           : after.minDamage <= before.minDamage && after.maxDamage <= before.maxDamage ? -1 : 0],
-      ['Magic resist', `${before.magicRes}%`, `${after.magicRes}%`, after.magicRes - before.magicRes],
+      ['Movement', before.movement, after.movement, after.movement - before.movement],
     ]) {
       const pair = element('div');
       const value = element('dd', improvement > 0 ? 'is-improvement' : improvement < 0 ? 'is-reduction' : '', `${oldValue} → ${newValue}`);
       pair.append(element('dt', '', label), value);
       changes.append(pair);
     }
-    container.append(changes, element('p', 'inventory-item-note', 'Lower armor class gives better protection.'));
+    container.append(changes, element('p', 'inventory-item-note', 'Lower armor class and THAC0 are better. Heavy armor and carried weight can slow movement.'));
     if (returned.length) container.append(element('p', 'inventory-item-note', `To bag: ${returned.join(', ')}.`));
-    if (slot === 'offhand' && ITEM_DB[snapshot.inventory[selection.index].itemId].maxDamage) {
-      container.append(element('p', 'inventory-item-note', 'Half of the offhand weapon’s damage, rounded down, is added to your attacks.'));
-    }
     return true;
   }
 
@@ -258,10 +259,10 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
       return;
     }
     const info = element('div', 'inventory-item-info');
-    info.append(element('h3', '', item.name), element('p', 'inventory-item-description', item.description), element('p', 'inventory-item-properties', itemProperties(item)));
+    const unread=item.requiresReadMagic && !entry?.identified;
+    info.append(element('h3', '', unread ? 'Unread arcane scroll' : item.name), element('p', 'inventory-item-description', unread ? 'Cast Read Magic in camp to decipher this scroll. Read scrolls can be scribed into a spellbook or used in combat.' : item.description), element('p', 'inventory-item-properties', itemProperties(item)));
     const slotText = fromBag ? 'Carried' : `Equipped · ${SLOT_LABELS[selection.slot]}`;
     info.append(element('p', 'inventory-item-location', slotText));
-    if (!fromBag && selection.slot === 'offhand' && item.maxDamage) info.append(element('p', 'inventory-item-note', 'Half of this weapon’s damage, rounded down, is added to your attacks.'));
     const actions = element('div', 'inventory-item-actions');
     if (fromBag && item.slots.length) {
       chosenSlot = item.slots.includes(chosenSlot) ? chosenSlot : item.slots.find(slot => !snapshot.equipment[slot]) || item.slots[0];
@@ -298,7 +299,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
       unequip.dataset.focusKey = 'unequip';
       actions.append(unequip);
     }
-    if (fromBag && (item.heals || item.restoresSp)) {
+    if (fromBag && item.healingDice) {
       const use = button('Use', () => mutate(() => systems.useInventoryItem(characterId, selection.index)), 'inventory-primary');
       use.disabled = snapshot.locked;
       use.dataset.focusKey = 'use';
@@ -330,7 +331,8 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     snapshot = systems.getInventorySnapshot(characterId);
     characterId = snapshot.character.id;
     characterName.textContent = snapshot.character.name;
-    characterVitals.textContent = `Level ${snapshot.character.level} ${snapshot.character.classType}   ·   HP ${snapshot.character.hpCurrent}/${snapshot.character.hpMax}   ·   SP ${snapshot.character.spCurrent}/${snapshot.character.spMax}`;
+    const levels=snapshot.character.levelText || `${snapshot.character.classType} ${snapshot.character.level}`;
+    characterVitals.textContent = `Level ${levels}   ·   HP ${snapshot.character.hpCurrent}/${snapshot.character.hpMax}   ·   Prepared spells ${snapshot.character.preparedCount}/${snapshot.character.spellCapacity}`;
     party.replaceChildren(...snapshot.party.map(hero => {
       const node = button('', () => {
         characterId = hero.id;
@@ -341,7 +343,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
       }, 'inventory-party-member');
       node.dataset.focusKey = `hero-${hero.id}`;
       node.setAttribute('aria-pressed', String(hero.id === characterId));
-      node.append(element('span', '', hero.name), element('small', '', hero.classType));
+      node.append(element('span', '', hero.name), element('small', '', hero.displayClass || hero.classType));
       return node;
     }));
     lockNotice.hidden = !snapshot.locked;

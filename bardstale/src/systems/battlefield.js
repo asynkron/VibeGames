@@ -314,9 +314,14 @@ export function createBattlefield(dungeon, heroes, monsters) {
     return true;
   }
 
-  function canTargetFrom(actor, target, { range = 1, melee = false } = {}, x = actor?.x, y = actor?.y) {
+  function canTargetFrom(actor, target, { range = 1, melee = false, avoidAdjacentEnemies = false } = {}, x = actor?.x, y = actor?.y) {
     if (!actor?.entity.alive || !target || !(range >= 0) || (melee && actor === target)) return false;
-    for (const from of footprintCells(actor, x, y)) {
+    const firingCells = footprintCells(actor, x, y);
+    if (avoidAdjacentEnemies && units.some(enemy => enemy.team !== actor.team && enemy.entity.alive
+      && !enemy.entity.statusEffects?.some(status => status.modifiers?.charmed)
+      && firingCells.some(from => footprintCells(enemy).some(to =>
+        Math.abs(from.x - to.x) + Math.abs(from.y - to.y) === 1 && openEdge(from.x, from.y, to.x, to.y))))) return false;
+    for (const from of firingCells) {
       for (const to of footprintCells(target)) {
         const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
         if (distance > range) continue;

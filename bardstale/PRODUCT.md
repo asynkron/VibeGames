@@ -1,26 +1,46 @@
 # Product
 
-## Register
+<!-- impeccable:product-schema 1 -->
 
-product
+## Platform
+
+web
 
 ## Users
 
-Players exploring a fantasy dungeon with a five-character party, using a keyboard and mouse to manage characters and turn-based combat.
+Players exploring connected fantasy areas with a party of up to six characters, using a keyboard and pointer to manage characters, equipment, and turn-based combat.
 
 ## Product Purpose
 
-Bard’s Tale is a browser dungeon crawler. Players explore, fight monsters, and build party members from equipped items and reusable voxel body parts. Equipment must have the same identity in the inventory, character preview, combat statistics, and battlefield model.
+Bardstale is a Pool of Radiance-inspired browser fantasy crawler with first-person exploration and tactical combat in the same 3D world. Players explore, fight monsters, and build party members from equipped items and reusable voxel body parts. Equipment must have the same identity in the inventory, character preview, combat statistics, and battlefield model.
 
-## Brand Personality
+## Operating Context
 
-Retro, direct, adventurous. The existing game uses bitmap lettering, black panels, patterned borders, and clear cyan, green, white, yellow, and red state colors.
+A party begins at the harbor in New Phlan. Its known city map locates shops, three temples, four class trainers, an inn, tavern, council, and dueling hall. Connected authored areas include the Slums, Sokal Keep, Kuto’s Well, and the Moonsea wilderness. Council commissions reward completed expeditions; securing Sokal Keep opens wider travel. These maps interpret the original campaign in voxels. Travel preserves characters, equipment, prepared spells, experience, gold, and discoveries. A total party defeat revives everyone inside the Temple of Tyr.
 
-## Anti-references
+Players inspect characters through their live voxel portraits and manage equipped gear and carried items in inventory. Combat uses the same environment, characters, objects, and equipment as exploration.
 
-Preserve the playable game interface. Marketing sections, dashboard metrics, decorative cards, and technical model-editing terminology do not belong in player equipment flows.
+## Capabilities and Constraints
 
-## Design Principles
+- Character creation supports six races, the four original classes and permitted multi-class combinations, six ability scores, and alignment. The starting roster can be replaced with a custom party of one to six characters.
+- Combat uses descending armor class, THAC0, weapon damage dice, class restrictions, saving throws, and memorized spells. Prepare a spell plan, then rest at the inn to replenish it.
+- City shops sell into carried inventory using shared party gold. Class trainers advance their assigned classes using earned experience and gold; temples revive companions, restore health and prepared spells, and remove afflictions.
+- The training ground offers safe practice combat that restores pre-practice vitals and conditions afterward and grants no gold, experience, or loot. The safe city has no roaming encounters; beginner areas limit fights to tier-one or tier-two foes.
+- Characters assemble from reusable head, torso, arms, legs, main-hand, off-hand, and back parts. Parts can have the sizes their models need; complete custom creatures can use a single torso model.
+- Armor, weapons, shields, jewelry, and carried-back items contribute to character equipment. Combat gear affects statistics and visible voxel parts; extra clothing slots customize appearance; enchanted items can have graphical effects.
+- Each room tile contains a 3×3 set of combat cells. Objects and creatures occupy combat-cell footprints, including larger monsters.
+- Green overlays show available movement. Red overlays show enemies reachable with the hero’s remaining movement and weapon range; selecting one moves into a legal attack position and strikes in one command.
+- Exploration, combat, and character previews use full RGB voxel graphics rendered at display resolution with antialiasing. The bitmap HUD and minimap supply the interface’s pixel styling; their state colors do not restrict model or environment colors.
+- Environments include voxel surface relief and objects. Torches, lamps, and item effects provide local light; combat adds enough ambient fill to keep figures visible.
+- The browser game uses keyboard and pointer controls. Its base interface has a 640px minimum width; smaller viewports do not currently receive a separate mobile game layout.
+
+## Brand Commitments
+
+Retro, direct, adventurous fantasy gameplay. Preserve the playable bitmap game interface, including its bitmap lettering, black panels, patterned borders, and clear state colors.
+
+Marketing sections, dashboard metrics, decorative cards, and technical model-editing terminology do not belong in player equipment flows.
+
+## Product Principles
 
 - Make the selected character and available actions clear.
 - Show the consequence of equipping an item on the character itself.
@@ -30,4 +50,4 @@ Preserve the playable game interface. Marketing sections, dashboard metrics, dec
 
 ## Accessibility & Inclusion
 
-Maintain keyboard and pointer operation, explicit text labels, visible focus, and accessible counterparts to canvas controls. Do not rely on color alone for equipped, selected, or unavailable states. New screen layouts must remain usable on smaller viewports.
+Maintain keyboard and pointer operation, explicit text labels, visible focus, and accessible counterparts to canvas controls. Do not rely on color alone for equipped, selected, or unavailable states. Keep controls usable at the supported viewport sizes.

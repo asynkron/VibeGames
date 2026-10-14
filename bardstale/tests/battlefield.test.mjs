@@ -289,6 +289,21 @@ test('melee needs adjacent subcells across an open edge while ranged distance co
   assert.equal(blocked.canTarget('hero', 'foe', { range: 1 }), false);
 });
 
+test('a threatened archer can preview a target and move to a legal firing cell', () => {
+  const board = createBattlefield(room(2, 2), [combatant('hero')], [combatant('foe')]);
+  assert.equal(board.move('foe', 2, 1, 2).moved, true);
+  const shot = { range: 6, avoidAdjacentEnemies: true };
+  const origin = { x: board.position('hero').x, y: board.position('hero').y };
+
+  assert.equal(board.canTarget('hero', 'foe', shot), false);
+  assert.equal(board.pathsToTargets('hero', ['foe'], 0, shot).has('foe'), false);
+  const path = board.pathsToTargets('hero', ['foe'], 1, shot).get('foe');
+  assert.equal(path.length, 1);
+  assert.deepEqual({ x: board.position('hero').x, y: board.position('hero').y }, origin);
+  assert.equal(board.move('hero', path[0].x, path[0].y, 1).moved, true);
+  assert.equal(board.canTarget('hero', 'foe', shot), true);
+});
+
 test('straight ranged attacks stop at original map walls and pass through doors symmetrically', async (t) => {
   for (const [name, wall, visible] of [['wall', WALL.WALL, false], ['door', WALL.DOOR, true]]) {
     await t.test(name, () => {

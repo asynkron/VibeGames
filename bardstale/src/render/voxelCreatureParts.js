@@ -19,6 +19,7 @@ const SURFACES = {
   hide: ['#796047', 'leather'], hideLight: ['#aa8761', 'leather'], hideDark: ['#584638', 'leather'],
   stitching: ['#c5b392', 'cloth'], iron: ['#8a9698', 'steel'], brass: ['#bb9d64', 'gold'],
   club: ['#87694c', 'wood'], clubLight: ['#b1966c', 'wood'], clubDark: ['#5b4b3a', 'wood'],
+  trollSkin: ['#668765', 'skin'], trollShadow: ['#405e4e', 'skin'], trollLight: ['#91a17b', 'skin'],
 };
 
 function sculpt() {
@@ -403,6 +404,38 @@ function ogre() {
   }));
 }
 
+function troll() {
+  const p = sculpt();
+  p.oval([12,27,12],[6.5,13,4.5],'trollSkin');
+  p.oval([12,35,12],[8,5,4],'trollSkin');
+  p.oval([12,17,12],[5.5,5,4],'trollShadow');
+  for (const [side, arm, leg] of [[-1,'rightArm','rightLeg'],[1,'leftArm','leftLeg']]) {
+    p.setJoint(leg);
+    p.limb([12+side*3,17,12],[12+side*5,3,14],2.8,'trollSkin');
+    p.oval([12+side*5,2,16],[3.5,2,5],'trollShadow');
+    for (let toe=-1;toe<=1;toe++) p.limb([12+side*5+toe*2,1,18],[12+side*5+toe*2,1,21],.8,'tooth');
+    p.setJoint(arm);
+    p.limb([12+side*7,35,12],[12+side*11,18,15],2.6,'trollSkin');
+    p.oval([12+side*11,16,15],[2.7,3,2.3],'trollLight');
+    for (let finger=-1;finger<=1;finger++) {
+      const x=12+side*11+finger*1.5;
+      p.limb([x,16,16],[x+side,11,18],.8,'trollSkin');
+      p.put(Math.round(x+side),10,18,'tooth');
+    }
+  }
+  p.setJoint();
+  p.limb([12,37,12],[12,43,14],3,'trollShadow');
+  p.oval([12,45,14],[4.1,6,3.8],'trollSkin');
+  p.oval([12,43,17],[3.6,3,3.5],'trollLight');
+  p.oval([12,46,18],[1.5,3.5,2.8],'trollShadow');
+  p.box([8,46,17],[16,48,19],'trollShadow');
+  p.put(9,46,19,'ogreEye');p.put(14,46,19,'ogreEye');
+  p.box([9,41,19],[15,42,20],'black');
+  p.put(9,42,20,'tooth');p.put(14,42,20,'tooth');
+  p.put(11,40,20,'tooth');p.put(13,40,20,'tooth');
+  return p.cells;
+}
+
 function colorFor(cell) {
   const [base, material] = SURFACES[cell.surface];
   let tint = [0, 0, 0];
@@ -444,6 +477,7 @@ const authors = new Map([
   ['elemental', { sculpt:elemental, scale:1.16 }],
   ['dragon', { sculpt:dragon, scale:1 }],
   ['ogre', { sculpt:ogre, scale:1 }],
+  ['troll', { sculpt:troll, scale:1 }],
 ]);
 const models = new Map();
 

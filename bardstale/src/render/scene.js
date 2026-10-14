@@ -8,6 +8,7 @@ import { createCombatLighting } from './combatLighting.js';
 import { createVoxelEnvironment } from './voxelEnvironment.js';
 import { createVoxelWorld } from './voxelWorld.js';
 import { createVoxelTravelExits } from './voxelTravelExits.js';
+import { createVoxelWorldServices } from './voxelWorldServices.js';
 import { getEnvironment } from '../environments.js';
 import { createCombatIndicators } from './combatIndicators.js';
 
@@ -59,6 +60,7 @@ export function buildScene(state, stage) {
   const eye = 0.55;
   const worldGeometry = createVoxelWorld(scene, state);
   const travelExits = createVoxelTravelExits(scene, state);
+  const worldServices = createVoxelWorldServices(scene, state);
 
   // Player rig
   const player = new THREE.Object3D();
@@ -242,6 +244,7 @@ export function buildScene(state, stage) {
       worldGeometry.setCombat(true);
       environmentObjects.setCombat(true);
       travelExits.setCombat(true);
+      worldServices.setCombat(true);
       dirLight.castShadow = false;
       // Keep the fog shader variant stable; its range is beyond the combat camera.
       scene.fog.near = 1000;
@@ -277,6 +280,7 @@ export function buildScene(state, stage) {
     worldGeometry.setCombat(false);
     environmentObjects.setCombat(false);
     travelExits.setCombat(false);
+    worldServices.setCombat(false);
     dirLight.castShadow = environment.outdoors;
     scene.fog.near = lighting.fog[0];
     scene.fog.far = lighting.fog[1];
@@ -302,7 +306,8 @@ export function buildScene(state, stage) {
         sunFocus.set(focus.x,0,focus.z);
       }
     }
-    let shadowDirty = worldGeometry.update({ focus, radius }) || combatShadowDirty;
+    const servicesChanged = worldServices.update(player.position.x, player.position.z);
+    let shadowDirty = worldGeometry.update({ focus, radius }) || servicesChanged || combatShadowDirty;
     if (battleActive) {
       shadowDirty = combatActors.update(now) || shadowDirty;
       combatEffects.update(now);
@@ -361,6 +366,7 @@ export function buildScene(state, stage) {
     worldGeometry.dispose();
     environmentObjects.dispose();
     travelExits.dispose();
+    worldServices.dispose();
     combatIndicators.dispose();
     for (const light of [torch, dirLight, combatKey]) light.shadow.dispose();
     scene.clear();

@@ -52,7 +52,7 @@ export const VOXEL_APPEARANCE_OPTIONS = Object.freeze({
   ring2: jewelryOptions('off-hand ring'),
   back: [{ value: 'none', label: 'No back item' }, { value: 'cape', label: 'Cloth cape' }, { value: 'backpack', label: 'Leather backpack' }, { value: 'lute', label: 'Bard’s lute' }],
   mainhand: [{ value: 'sword', label: 'Longsword' }, { value: 'shortSword', label: 'Short sword' }, { value: 'dagger', label: 'Dagger' }, { value: 'axe', label: 'Battle axe' }, { value: 'mace', label: 'Spiked mace' }, { value: 'flail', label: 'Flail' }, { value: 'staff', label: 'Tall crystal staff' }, { value: 'spear', label: 'Long spear' }, { value: 'halberd', label: 'Halberd' }, { value: 'bow', label: 'Longbow' }, { value: 'club', label: 'Ogre club' }, { value: 'none', label: 'Empty hand' }],
-  offhand: [{ value: 'kite', label: 'Kite shield' }, { value: 'round', label: 'Round shield' }, { value:'dagger',label:'Dagger' }, { value:'shortSword',label:'Short sword' }, { value: 'none', label: 'Empty hand' }],
+  offhand: [{ value: 'kite', label: 'Kite shield' }, { value: 'round', label: 'Round shield' }, { value:'dagger',label:'Dagger' }, { value:'shortSword',label:'Short sword' }, { value:'sword',label:'Long sword' }, { value:'axe',label:'Battle axe' }, { value:'mace',label:'Mace' }, { value:'flail',label:'Flail' }, { value: 'none', label: 'Empty hand' }],
 });
 
 // All parts are authored in the same unrestricted character coordinates.

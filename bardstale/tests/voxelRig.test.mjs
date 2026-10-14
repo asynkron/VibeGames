@@ -26,9 +26,9 @@ test('rigging preserves every assembled voxel exactly once without changing the 
 });
 
 test('held items, wearables, and their emitters share the correct anatomical hinge', () => {
-  const model = assembleCombatVoxelModel({ kind: 'paladin', equipment: {
-    mainhand: 'ember_sword', offhand: 'void_shield', shoulders: 'iron_pauldrons',
-    hands: 'iron_gauntlets', feet: 'iron_boots', ring1: 'ring_power', ring2: 'ring_warding',
+  const model = assembleCombatVoxelModel({ kind: 'fighter', equipment: {
+    mainhand: 'long_sword_flame_tongue', offhand: 'shield_plus1', shoulders: 'iron_pauldrons',
+    hands: 'iron_gauntlets', feet: 'iron_boots', ring1: 'ring_protection1', ring2: 'ring_protection2',
     neck: 'star_amulet', back: 'travel_cape', waist: 'war_belt',
   } });
   const rig = createVoxelRig(model);
@@ -60,7 +60,7 @@ test('held items, wearables, and their emitters share the correct anatomical hin
 });
 
 test('walking keeps the pelvis joined, alternates stiff legs, and returns to a neutral pose', () => {
-  const rig = createVoxelRig(assembleCombatVoxelModel({ kind: 'warrior' }));
+  const rig = createVoxelRig(assembleCombatVoxelModel({ kind: 'fighter' }));
   const forward = rig.samplePose({ walkPhase: Math.PI / 2, walkAmount: 1 });
   const reverse = rig.samplePose({ walkPhase: Math.PI * 1.5, walkAmount: 1 });
   assert.ok(forward.rightLeg > 0 && forward.leftLeg < 0);
@@ -73,7 +73,7 @@ test('walking keeps the pelvis joined, alternates stiff legs, and returns to a n
   assertNeutral(rig.samplePose({ ...movingAttack, reducedMotion: true }));
   assertNeutral(rig.samplePose({ ...movingAttack, active: false }), 'A defeated figure has no continuing limb motion.');
   for (const legs of ['plain','bones']) {
-    const body = createVoxelRig(assembleCombatVoxelModel({kind:'monk',appearance:{legs}}));
+    const body = createVoxelRig(assembleCombatVoxelModel({kind:'fighter',appearance:{legs}}));
     for (const x of [-1,0]) {
       assert.ok(body.joints.body.voxels.some(voxel=>voxel.slot==='legs' && voxel.x===x && voxel.y===8 && voxel.z===0),
         `${legs}: both sides of the lower pelvis must stay joined above the moving legs.`);
@@ -82,7 +82,7 @@ test('walking keeps the pelvis joined, alternates stiff legs, and returns to a n
 });
 
 test('melee winds up before contact, other actions move arms, and all poses fit their camera envelopes', () => {
-  for (const descriptor of [{ kind: 'warrior' }, { kind: 'rogue', equipment: { mainhand: 'dagger', offhand: 'dagger' } }]) {
+  for (const descriptor of [{ kind: 'fighter' }, { kind: 'thief', equipment: { mainhand: 'dagger', offhand: 'dagger' } }]) {
     const rig = createVoxelRig(assembleCombatVoxelModel(descriptor));
     const winding = rig.samplePose({ action: 'slash', progress: 0.12 });
     const contact = rig.samplePose({ action: 'slash', progress: 0.25 });
@@ -103,7 +103,7 @@ test('melee winds up before contact, other actions move arms, and all poses fit 
 
 test('robes and skirts retain a hanging hem while real legs and feet swing underneath', () => {
   for (const legs of ['robe', 'skirt']) {
-    const model = assembleCombatVoxelModel({ kind: 'monk', appearance: { legs } });
+    const model = assembleCombatVoxelModel({ kind: 'fighter', appearance: { legs,feet:'none' } });
     const rig = createVoxelRig(model);
     const hem = model.assembly.voxels.filter(voxel => voxel.slot === 'legs' && voxel.material === 'gold' && voxel.y < 10);
     assert.ok(hem.length > 0, `${legs} must exercise the visible lower hem.`);

@@ -3,7 +3,7 @@ import { WALL } from '../dungeon.js';
 import { acquireVoxelSurfaces } from './voxelGeometryCache.js';
 import { MASONRY_VOXELS_PER_TILE, assembleMasonryModel } from './voxelMasonryModels.js';
 import { createVoxelMaterial } from './voxelMaterials.js';
-import { assembleLandscapeModel } from './voxelLandscapeModels.js';
+import { assembleLandscapeModel, assembleHarborModel } from './voxelLandscapeModels.js';
 import { assembleBuildingModel } from './voxelBuildingModels.js';
 import { getEnvironment } from '../environments.js';
 
@@ -99,7 +99,7 @@ export function createVoxelWorld(parent, state) {
   }
 
   function sourceKey(source) {
-    return source.building ? `house:${source.building.style}:${source.building.stories}` : environment.id;
+    return source.building ? `house:${source.building.style}:${source.building.stories}` : source.terrain ? `harbor:${source.terrain}` : environment.id;
   }
 
   function addInstance(chunk, source, kind, variant, layer, matrix, color) {
@@ -121,8 +121,10 @@ export function createVoxelWorld(parent, state) {
 
   function addEdge(chunk, x, z, vertical, type, first, second) {
     if (type === WALL.OPEN) return;
+    if (first?.terrain === 'water' && (!second || second.terrain === 'water')) return;
     const kind = type === WALL.DOOR ? 'door' : 'wall';
-    const source = first?.building ? first : second?.building ? second : {};
+    const source = first?.building ? first : second?.building ? second
+      : first?.terrain === 'water' || second?.terrain === 'water' ? {terrain:'quay'} : {};
     group.userData[kind === 'door' ? 'doorCount' : 'wallCount']++;
     position.set(x - chunk.group.position.x, 0, z - chunk.group.position.z);
     rotation.setFromAxisAngle(up, vertical ? -Math.PI / 2 : 0);
@@ -151,6 +153,7 @@ export function createVoxelWorld(parent, state) {
     const key = `${sourceKey(source)}:${kind}:${source.building ? 0 : variant}:${layer}`;
     if (prototypes.has(key)) return prototypes.get(key).surfaces;
     const model = source.building ? assembleBuildingModel(kind, source.building.style, source.building.stories)
+      : source.terrain ? assembleHarborModel(source.terrain,variant)
       : environment.id === 'dungeon' ? assembleMasonryModel(kind, variant)
       : assembleLandscapeModel(environment.id, kind, variant);
     const { voxels } = model;

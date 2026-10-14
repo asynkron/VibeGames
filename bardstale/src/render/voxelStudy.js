@@ -44,7 +44,7 @@ try {
   controls.minPolarAngle = 0.18;
   controls.maxPolarAngle = Math.PI / 2 - 0.04;
   controls.autoRotateSpeed = 1.5;
-  let kind = 'paladin';
+  let kind = 'fighter';
   let overrides = {};
   let model = assembleCombatVoxelModel({ kind });
   let sculpture = createVoxelFigure(model, { layout: 'parts' });
@@ -55,7 +55,7 @@ try {
   let walking = false;
   let swingStarted = null;
   scene.add(sculpture.group);
-  const referenceModel = assembleCombatVoxelModel({kind:'warrior',appearance:{mainhand:'none',offhand:'none'}});
+  const referenceModel = assembleCombatVoxelModel({kind:'fighter',appearance:{mainhand:'none',offhand:'none'}});
   const referenceFigure = createVoxelFigure(referenceModel);
   referenceFigure.group.visible = false;
   referenceFigure.group.traverse(object => {

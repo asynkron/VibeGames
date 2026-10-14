@@ -199,7 +199,7 @@ const shields = {
 };
 
 export function paintOffhand(p, style) {
-  if (style==='dagger'||style==='shortSword') {
+  if (['dagger','shortSword','sword','axe','mace','flail'].includes(style)) {
     // Reflect complete geometry into the other hand, which grips three rows lower.
     // Painting through a temporary cell map keeps the weapon's shading and details.
     const start=new Set(p.cells.keys());

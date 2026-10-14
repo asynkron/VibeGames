@@ -16,7 +16,7 @@ const VERTEX_SHADER = `
 
   void main() {
     vec2 size = vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz)) / cellSize;
-    halfSize = size * 0.5 - vec2(0.06);
+    halfSize = size * 0.5;
     localPosition = (uv - 0.5) * size;
     gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
   }
@@ -31,13 +31,11 @@ const FRAGMENT_SHADER = `
   varying vec2 halfSize;
 
   void main() {
-    float radius = 0.09;
-    vec2 corner = abs(localPosition) - halfSize + vec2(radius);
-    float distance = length(max(corner, 0.0)) + min(max(corner.x, corner.y), 0.0) - radius;
+    vec2 edge = abs(localPosition) - halfSize;
+    float distance = max(edge.x, edge.y);
     float antialias = max(fwidth(distance), 0.0001);
-    float outer = 1.0 - smoothstep(-antialias, antialias, distance);
     float inner = 1.0 - smoothstep(-antialias, antialias, distance + lineWidth);
-    float opacity = (outer - inner) * lineOpacity + inner * fillOpacity;
+    float opacity = (1.0 - inner) * lineOpacity + inner * fillOpacity;
     if (opacity < 0.001) discard;
     gl_FragColor = vec4(color, opacity);
     #include <colorspace_fragment>

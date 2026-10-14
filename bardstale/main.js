@@ -6,18 +6,14 @@ import { createMinimapOverlay } from './src/render/minimap.js';
 import { buildScene } from './src/render/scene.js';
 import { createCombatMapControls } from './src/render/combatMapControls.js';
 import { createInventoryPanel } from './src/render/inventoryPanel.js';
-import { initBt3Systems } from './src/systems/core.js';
+import { createCharacterCreationPanel } from './src/render/characterCreationPanel.js';
+import { createGameSystems } from './src/systems/core.js';
 import { UI_SETTINGS } from './config/uiSettings.js';
-import { getEnvironment } from './src/environments.js';
 import { createWorldJourney } from './src/worldTravel.js';
 
 function parseOptsFromURL() {
   const p = new URLSearchParams(window.location.search);
-  const w = parseInt(p.get('w') || p.get('width') || '0', 10) || undefined;
-  const h = parseInt(p.get('h') || p.get('height') || '0', 10) || undefined;
-  const seed = p.get('seed') || undefined;
-  const depth = p.has('depth') ? clamp(parseInt(p.get('depth'), 10) || 1, 1, 5) : undefined;
-  return { width: w, height: h, seed, depth, environment: p.get('environment') || 'dungeon' };
+  return { area: p.get('area') || 'new-phlan' };
 }
 
 function main() {
@@ -33,8 +29,12 @@ function main() {
   let combatLayoutActive = false;
   const hud = createHudRenderer(hudCanvas, {
     onInventoryClick(characterId) { openInventory(characterId); },
+    onCreateParty() { openPartyCreation(); },
+    onCamp() { openCamp(); },
+    onExploreInteraction() { interact(); },
     onViewportClick(event) {
-      if (inventory.isOpen() || !systems.isCombatActive) return;
+      if (inventory.isOpen() || travelling) return;
+      if (!systems.isCombatActive) { interact(); return; }
       const cell = g.pickBattleCell(event.clientX, event.clientY);
       if (cell) systems.selectCombatCell(cell.x, cell.y);
     },
@@ -82,6 +82,7 @@ function main() {
       }
       hud.setCombatStatus(snapshot);
       g.setBattle(snapshot);
+      updateInteraction();
     },
     hide() {
       combatLayoutActive = false;
@@ -90,15 +91,35 @@ function main() {
       sizeScreen();
       hud.setCombatStatus(null);
       g.clearBattle();
+      updateInteraction();
     },
   };
-  const systems = initBt3Systems({ hud, combatView, dungeon: state });
+  const characterData=sessionStorage.getItem('phlan-character-party');
+  const characters=characterData ? JSON.parse(characterData) : undefined;
+  const systems = createGameSystems({ hud, combatView, dungeon: state, characters, onPartyDefeated: returnToTemple, onDungeonChanged:refreshWorld });
   const inventory = createInventoryPanel({
     parent: document.body,
     systems,
     onClose() {
       screenElement.inert = false;
+      updateInteraction();
       hudCanvas.focus({ preventScroll: true });
+    },
+  });
+  const partyCreation=createCharacterCreationPanel({
+    parent:document.body,
+    onCreate(descriptors) {
+      sessionStorage.setItem('phlan-character-party',JSON.stringify(descriptors));
+      const url=new URL(window.location.href);
+      url.search='';
+      url.searchParams.set('area','new-phlan');
+      window.location.assign(url);
+    },
+    onClose() {
+      screenElement.inert=false;
+      hud.setObscured(false);
+      updateInteraction();
+      hudCanvas.focus({preventScroll:true});
     },
   });
   const mapControls = createCombatMapControls(hudCanvas, {
@@ -112,7 +133,7 @@ function main() {
     zoom: (...args) => g.zoomBattle(...args),
     reset: () => g.resetBattleView(),
   });
-  hud.appendLog(`The party enters ${getEnvironment(state.environment).name}.`);
+  hud.appendLog(`Welcome to ${state.name}. Visit the council for a commission, ready your gear, and rest at the inn before venturing into the ruins.`);
 
   // Animation state
   let anim = null; // {type:'move'|'turn', start, duration, fromPos:{x,z}, toPos:{x,z}, fromYaw, toYaw}
@@ -120,54 +141,112 @@ function main() {
   let inventoryQueuedFor = null;
   let lastFrameTime = performance.now();
   let torchPhase = Math.random() * Math.PI * 2;
+  updateInteraction();
+
+  function openPartyCreation() {
+    if (travelling || anim || systems.isCombatActive || inventory.isOpen()) return;
+    systems.closeService();minimap.hide();mapControls.cancel();keyQueued=null;
+    screenElement.inert=true;
+    hud.setObscured(true);
+    partyCreation.open();
+  }
+
+  function openCamp() {
+    if (travelling || anim || systems.isCombatActive || inventory.isOpen() || partyCreation.isOpen()) return;
+    systems.closeService();minimap.hide();keyQueued=null;
+    systems.openCamp();
+  }
+
+  function refreshWorld() {
+    g.dispose();
+    g=buildScene(state,stageElement);
+    updateInteraction();
+  }
 
   function openInventory(characterId) {
     if (travelling) return;
+    const targetId = characterId || hud.getInspectedCharacterId();
+    systems.closeService();
     minimap.hide();
     mapControls.cancel();
     keyQueued = null;
-    const targetId = characterId || hud.getInspectedCharacterId();
     if (anim) {
       inventoryQueuedFor = targetId;
       return;
     }
     inventory.open(targetId);
     screenElement.inert = true;
+    updateInteraction();
   }
 
   function exitAtParty() {
     return state.exits.find(exit => exit.x === state.x && exit.y === state.y);
   }
 
-  async function travel() {
+  function serviceAtParty() {
+    return state.services.find(service => service.x === state.x && service.y === state.y);
+  }
+
+  function updateInteraction() {
     const exit = exitAtParty();
-    if (!exit || travelling || anim || systems.isCombatActive || inventory.isOpen()) return;
+    const service = serviceAtParty();
+    hud.setInteraction({
+      label: exit ? `Travel to ${exit.name}` : service ? service.name : '',
+      enabled: Boolean(exit || service) && !anim && !travelling && !systems.isCombatActive && !inventory.isOpen() && !partyCreation.isOpen(),
+    });
+  }
+
+  function interact() {
+    if (travelling || anim || systems.isCombatActive || inventory.isOpen() || minimap.isVisible()) return;
+    if (exitAtParty()) { travel(); return; }
+    const service = serviceAtParty();
+    if (service && !systems.isServiceOpen) systems.openService(service.id);
+  }
+
+  async function changeArea(next, position, message) {
     travelling = true;
+    anim = null;
     keyQueued = null;
+    inventoryQueuedFor = null;
+    systems.closeService();
     minimap.hide();
     mapControls.cancel();
-    // Yield a frame before generating and meshing the next area.
+    updateInteraction();
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-    const previous = state.environment;
-    Object.assign(journey.areaFor(previous), { x:state.x, y:state.y, dir:state.dir });
-    const next = journey.areaFor(exit.target);
-    const arrival = journey.arrivalFor(previous, exit.target);
+    Object.assign(journey.areaFor(state.id), { x:state.x, y:state.y, dir:state.dir });
     g.dispose();
-    Object.assign(state, next, arrival);
+    Object.assign(state, next, position);
     state.cells[state.y][state.x].visited = true;
     g = buildScene(state, stageElement);
     hud.setLocation(state);
-    hud.appendLog(`The party arrives in ${getEnvironment(state.environment).name}.`);
+    hud.appendLog(message);
     const url = new URL(window.location.href);
-    url.searchParams.set('environment', state.environment);
+    url.search = '';
+    url.searchParams.set('area', state.id);
     history.replaceState(null, '', url);
     travelling = false;
     lastFrameTime = performance.now();
+    updateInteraction();
     hudCanvas.focus({ preventScroll:true });
+  }
+
+  async function travel() {
+    const exit = exitAtParty();
+    if (!exit || travelling || anim || systems.isCombatActive || inventory.isOpen()) return;
+    const permission = systems.canTravel(exit.target);
+    if (!permission.ok) { hud.appendLog(permission.message); return; }
+    const next = journey.areaFor(exit.target);
+    await changeArea(next, journey.arrivalFor(state.id, exit.target), `The party arrives in ${next.name}. ${next.description}`);
+  }
+
+  async function returnToTemple() {
+    const { area, position } = journey.resurrectionSpawn();
+    await changeArea(area, position, 'The priests of Tyr call the fallen party home. Everyone rises with health and prepared spells restored.');
   }
 
   function startMove(dirSign) { // +1 forward, -1 reverse
     if (anim || systems.isCombatActive || minimap.isVisible()) return;
+    systems.closeService();
     const dirToUse = (dirSign === 1) ? state.dir : backOf(state.dir);
     if (getWall(state.cells, state.width, state.height, state.x, state.y, dirToUse) === WALL.WALL) return;
 
@@ -181,10 +260,12 @@ function main() {
     // Track the destination while the camera animates toward it.
     state.x = nx; state.y = ny; state.cells[state.y][state.x].visited = true;
     hud.setLocation(state);
+    updateInteraction();
   }
 
   function startTurn(left) {
     if (anim || systems.isCombatActive || minimap.isVisible()) return;
+    systems.closeService();
     const fromYaw = g.player.rotation.y;
     state.dir = left ? leftOf(state.dir) : rightOf(state.dir);
     hud.setLocation(state);
@@ -194,6 +275,7 @@ function main() {
     while (delta > Math.PI) delta -= 2 * Math.PI;
     while (delta < -Math.PI) delta += 2 * Math.PI;
     anim = { type: 'turn', start: performance.now(), duration: 220, fromYaw, toYaw: fromYaw + delta };
+    updateInteraction();
   }
 
   const navigation = {
@@ -204,20 +286,27 @@ function main() {
   };
 
   function onKey(ev) {
+    if (partyCreation.isOpen()) return;
     if (ev.key === 'Enter' && ev.repeat && !systems.isCombatActive && !inventory.isOpen()) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
       return;
     }
     if (travelling) return;
-    if (ev.key === 'Enter' && exitAtParty() && !systems.isCombatActive && !inventory.isOpen() && !minimap.isVisible()) {
+    if (ev.key === 'Enter' && !systems.isServiceOpen && (exitAtParty() || serviceAtParty()) && !systems.isCombatActive && !inventory.isOpen() && !minimap.isVisible()) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
-      travel();
+      interact();
       return;
     }
     if (inventory.isOpen() || inventoryQueuedFor !== null) return;
     if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
+    if (!systems.isCombatActive && ev.key.toLowerCase() === 'n') {
+      ev.preventDefault();ev.stopImmediatePropagation();openPartyCreation();return;
+    }
+    if (!systems.isCombatActive && ev.key.toLowerCase() === 'r') {
+      ev.preventDefault();ev.stopImmediatePropagation();openCamp();return;
+    }
     if (ev.key.toLowerCase() === 'i') {
       ev.preventDefault();
       ev.stopImmediatePropagation();
@@ -225,6 +314,7 @@ function main() {
       return;
     }
     if (ev.key === 'm' || ev.key === 'M') {
+      systems.closeService();
       ev.preventDefault();
       ev.stopImmediatePropagation();
       minimap.toggle();
@@ -237,6 +327,12 @@ function main() {
       return;
     }
     if (minimap.isVisible()) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      return;
+    }
+    if (ev.key === 'Escape' && systems.isServiceOpen && !systems.isCombatActive) {
+      systems.closeService();
       ev.preventDefault();
       ev.stopImmediatePropagation();
       return;
@@ -274,7 +370,8 @@ function main() {
       if (t >= 1) {
         const wasMove = anim.type === 'move';
         anim = null;
-        if (wasMove && !exitAtParty()) systems.onStepComplete(opts.depth);
+        if (wasMove && !exitAtParty() && !serviceAtParty()) systems.onStepComplete();
+        updateInteraction();
         if (inventoryQueuedFor !== null) {
           const targetId = inventoryQueuedFor;
           inventoryQueuedFor = null;
@@ -291,7 +388,7 @@ function main() {
     // Flicker intensity and anchor wobble with a blend of low/high frequency noise.
     torchPhase += dt * 5.2;
     const spark = Math.sin(torchPhase) * 0.18 + (Math.random() - 0.5) * 0.1;
-    const baseIntensity = g.torch.userData.baseIntensity;
+    const baseIntensity = g.torch.userData.baseIntensity * (state.magic?.light ? 1.6 : 1);
     const baseDistance = g.torch.userData.baseDistance;
     g.torch.intensity = clamp(baseIntensity + spark, baseIntensity * 0.65, baseIntensity * 1.35);
     g.torch.distance = clamp(baseDistance + spark * 1.8, baseDistance * 0.75, baseDistance * 1.2);
@@ -299,7 +396,8 @@ function main() {
     g.torchAnchor.position.x = offset.x + Math.sin(torchPhase * 2.4) * 0.035;
     g.torchAnchor.position.y = offset.y + Math.cos(torchPhase * 3.1) * 0.018;
 
-    hud.setObscured(inventory.isOpen() || minimap.isVisible() || travelling);
+    updateInteraction();
+    hud.setObscured(inventory.isOpen() || partyCreation.isOpen() || minimap.isVisible() || travelling);
     if (!inventory.isOpen() && !travelling) g.render();
     requestAnimationFrame(step);
   }

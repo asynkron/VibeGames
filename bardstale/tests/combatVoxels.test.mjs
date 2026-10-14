@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ITEM_DB } from '../src/items.js';
-import { buildDungeon } from '../src/dungeon.js';
-import { initBt3Systems } from '../src/systems/core.js';
+import { createWorldArea } from '../src/worldAreas.js';
+import { createGameSystems } from '../src/systems/core.js';
 import { assembleVoxelCharacter } from '../src/render/voxelParts.js';
 import { assembleCharacterParts, VOXEL_APPEARANCE_OPTIONS } from '../src/render/voxelCharacterParts.js';
 import { COMBAT_VOXEL_KINDS, assembleCombatVoxelModel } from '../src/render/combatVoxelCatalog.js';
@@ -66,7 +66,7 @@ test('helmet variants enclose the head with armor rather than exposed skin', () 
 });
 
 test('custom creatures use one complete torso and retain their distinct silhouettes and materials', () => {
-  const warrior = assembleCombatVoxelModel({ kind: 'warrior', appearance: { mainhand: 'none', offhand: 'none' } });
+  const warrior = assembleCombatVoxelModel({ kind: 'fighter', appearance: { mainhand: 'none', offhand: 'none' } });
   const skeleton = assembleCombatVoxelModel({ kind: 'skeleton' });
   const serpent = assembleCombatVoxelModel({ kind: 'serpent' });
   const rats = assembleCombatVoxelModel({ kind: 'rat_swarm' });
@@ -89,19 +89,18 @@ test('custom creatures use one complete torso and retain their distinct silhouet
   assert.ok(elemental.assembly.voxels.some(voxel => voxel.material === 'flame'));
   assert.ok(extent(dragon, 'x') >= 40 && extent(dragon, 'z') >= 40, 'The dragon must occupy a broad volume in both ground axes, beyond a humanoid-sized figure.');
   assert.ok(extent(dragon, 'y') > extent(warrior, 'y'), 'The dragon must rise above the human figures.');
-  assert.ok(assembleCombatVoxelModel({ kind: 'hobbit' }).scale < warrior.scale);
   const ogre = assembleCombatVoxelModel({ kind: 'ogre' });
   assert.equal(ogre.scale, warrior.scale, 'The ogre must use the same voxel size as a human.');
   assert.ok(extent(ogre, 'y') >= extent(warrior, 'y') * 1.9, 'A giant ogre must be sculpted from more normal-sized voxels.');
 });
 
 test('weapon types keep distinct silhouettes and polearms extend above the head', () => {
-  const equipment = { mainhand: '', chest: 'chain_armor', offhand: '' };
+  const equipment = { mainhand: '', chest: 'chain_mail', offhand: '' };
   const silhouettes = [];
   for (const [item, variant] of [
-    ['sword_basic', 'shortSword'], ['longsword', 'sword'], ['dagger', 'dagger'], ['quarterstaff', 'staff'], ['spear', 'spear'], ['halberd', 'halberd'],
+    ['short_sword', 'shortSword'], ['long_sword', 'sword'], ['dagger', 'dagger'], ['quarterstaff', 'staff'], ['spear', 'spear'], ['halberd', 'halberd'],
   ]) {
-    const armed = assembleCombatVoxelModel({ kind: 'Warrior', equipment: { ...equipment, mainhand: item } });
+    const armed = assembleCombatVoxelModel({ kind: 'Fighter', equipment: { ...equipment, mainhand: item } });
     assert.equal(armed.appearance.mainhand, variant, item);
     assert.ok(cellsIn(armed, 'mainhand').length > 0, `${item} must be visible.`);
     if (['staff', 'spear', 'halberd'].includes(variant)) {
@@ -114,8 +113,8 @@ test('weapon types keep distinct silhouettes and polearms extend above the head'
 });
 
 test('each equipped wearable changes only its owned visual parts and can be removed cleanly', () => {
-  const base = assembleCombatVoxelModel({ kind:'paladin',equipment:{} });
-  assert.equal(base.appearance.head,'bare','An unequipped paladin must not receive a helmet from the class preset.');
+  const base = assembleCombatVoxelModel({ kind:'fighter',equipment:{} });
+  assert.equal(base.appearance.head,'bare','An unequipped fighter must not receive a helmet from the class preset.');
   const affected = {
     head:['head'],chest:['torso','arms'],legs:['legs'],
     shoulders:['shoulders'],hands:['hands'],feet:['feet'],waist:['waist'],
@@ -123,7 +122,7 @@ test('each equipped wearable changes only its owned visual parts and can be remo
     mainhand:['mainhand'],offhand:['offhand'],
   };
   for(const item of Object.values(ITEM_DB)) for(const slot of item.slots) {
-    const equipped=assembleCombatVoxelModel({kind:'paladin',equipment:{[slot]:item.id}});
+    const equipped=assembleCombatVoxelModel({kind:'fighter',equipment:{[slot]:item.id}});
     assert.notDeepEqual(equipped.assembly.voxels,base.assembly.voxels,`${item.name} in ${slot} must visibly change the character.`);
     for(const part of Object.keys(base.assembly.parts)) {
       if(!affected[slot].includes(part)) {
@@ -131,63 +130,63 @@ test('each equipped wearable changes only its owned visual parts and can be remo
       }
     }
     assert.ok(equipped.assembly.voxels.some(voxel=>affected[slot].includes(voxel.slot)),`${item.name} must survive assembly as visible voxels.`);
-    const removed=assembleCombatVoxelModel({kind:'paladin',equipment:{[slot]:''}});
+    const removed=assembleCombatVoxelModel({kind:'fighter',equipment:{[slot]:''}});
     assert.deepEqual(removed.assembly.voxels,base.assembly.voxels,`Removing ${item.name} must restore the underlying body.`);
   }
-  for(const chest of ['leather_armor','chain_armor','plate_armor','robes']) {
-    const dressed=assembleCombatVoxelModel({kind:'paladin',equipment:{chest}});
+  for(const chest of ['leather_armor','chain_mail','plate_mail','robes']) {
+    const dressed=assembleCombatVoxelModel({kind:'fighter',equipment:{chest}});
     for(const slot of ['shoulders','hands','feet','waist','neck']) {
       assert.equal(dressed.assembly.parts[slot],null,`${chest} must not grant a separate ${slot} item.`);
     }
     assert.ok(cellsIn(dressed,'arms').some(voxel=>voxel.material==='skin'&&voxel.z>=3),'Sleeves leave hands uncovered without gloves.');
   }
-  const twoRings=assembleCombatVoxelModel({kind:'paladin',equipment:{ring1:'ring_power',ring2:'ring_warding'}});
+  const twoRings=assembleCombatVoxelModel({kind:'fighter',equipment:{ring1:'ring_protection1',ring2:'ring_protection2'}});
   assert.ok(cellsIn(twoRings,'ring1').every(voxel=>voxel.x<0),'The first ring follows the main-hand fingers.');
   assert.ok(cellsIn(twoRings,'ring2').every(voxel=>voxel.x>0),'The second ring follows the off-hand fingers.');
-  const dual=assembleCombatVoxelModel({kind:'rogue',equipment:{mainhand:'sword_basic',offhand:'dagger'}});
+  const dual=assembleCombatVoxelModel({kind:'thief',equipment:{mainhand:'short_sword',offhand:'dagger'}});
   assert.ok(cellsIn(dual,'mainhand').every(voxel=>voxel.x<0));
   assert.ok(cellsIn(dual,'offhand').every(voxel=>voxel.x>0),'An offhand dagger must be held in the other hand.');
-  const explicit=assembleCombatVoxelModel({kind:'paladin',equipment:{offhand:'shield_wood',mainhand:'longsword'},appearance:{offhand:'none',mainhand:'none'}});
+  const explicit=assembleCombatVoxelModel({kind:'fighter',equipment:{offhand:'shield',mainhand:'long_sword'},appearance:{offhand:'none',mainhand:'none'}});
   assert.equal(cellsIn(explicit,'mainhand').length,0);
   assert.equal(cellsIn(explicit,'offhand').length,0);
 });
 
 test('item enchantments follow equipped items without leaking between models that share geometry', () => {
-  const descriptor={kind:'warrior',equipment:{mainhand:'longsword'}};
+  const descriptor={kind:'fighter',equipment:{mainhand:'long_sword'}};
   const ordinary=assembleCombatVoxelModel(descriptor);
-  const enchanted=assembleCombatVoxelModel({...descriptor,equipment:{mainhand:'ember_sword'}});
+  const enchanted=assembleCombatVoxelModel({...descriptor,equipment:{mainhand:'long_sword_flame_tongue'}});
   assert.deepEqual(enchanted.assembly,ordinary.assembly,'Enchanting the sword does not replace its authored blade.');
   assert.deepEqual(ordinary.itemEffects,[]);
   assert.equal(enchanted.itemEffects.length,1);
   assert.equal(enchanted.itemEffects[0].kind,'flame');
   assert.equal(enchanted.itemEffects[0].slot,'mainhand');
   assert.deepEqual(assembleCombatVoxelModel(descriptor).itemEffects,[],'A cached plain sword must not acquire the enchanted sword’s flames.');
-  assert.deepEqual(assembleCombatVoxelModel({kind:'warrior',equipment:{}}).itemEffects,[],'Unequipping the item removes its effect.');
-  assert.deepEqual(assembleCombatVoxelModel({kind:'warrior',equipment:{mainhand:'ember_sword'},appearance:{mainhand:'axe'}}).itemEffects,[],
+  assert.deepEqual(assembleCombatVoxelModel({kind:'fighter',equipment:{}}).itemEffects,[],'Unequipping the item removes its effect.');
+  assert.deepEqual(assembleCombatVoxelModel({kind:'fighter',equipment:{mainhand:'long_sword_flame_tongue'},appearance:{mainhand:'axe'}}).itemEffects,[],
     'Replacing the item’s part cannot leave flames attached to an unrelated weapon.');
-  assert.equal(assembleCombatVoxelModel({kind:'warrior',equipment:{mainhand:'ember_sword'},appearance:{head:'plumed'}}).itemEffects.length,1,
+  assert.equal(assembleCombatVoxelModel({kind:'fighter',equipment:{mainhand:'long_sword_flame_tongue'},appearance:{head:'plumed'}}).itemEffects.length,1,
     'Changing another part preserves the weapon effect.');
-  assert.deepEqual(assembleCombatVoxelModel({kind:'mage'}).itemEffects,[],'A class preset must not grant an item enchantment.');
+  assert.deepEqual(assembleCombatVoxelModel({kind:'magic_user'}).itemEffects,[],'A class preset must not grant an item enchantment.');
 });
 
 test('emitting regions stay on blades, crystals, and the selected hand instead of the character origin', () => {
-  const staff=assembleCombatVoxelModel({kind:'wizard',equipment:{mainhand:'quarterstaff',neck:'star_amulet'}});
+  const staff=assembleCombatVoxelModel({kind:'magic_user',equipment:{mainhand:'quarterstaff_plus1',neck:'star_amulet'}});
   const orbit=staff.itemEffects.find(effect=>effect.kind==='orbit');
   const glow=staff.itemEffects.find(effect=>effect.kind==='glow');
   assert.ok(orbit.anchor.y>28&&orbit.anchor.y<36,'The orbit is centered on the crystal above the head.');
   assert.ok(orbit.bounds.min.y>26,'The wooden shaft must not emit crystal particles.');
   assert.ok(glow.anchor.y<18&&glow.anchor.z>2,'The amulet glows on the chest, independently of the staff.');
 
-  const main=assembleCombatVoxelModel({kind:'rogue',equipment:{mainhand:'venom_dagger'}}).itemEffects[0];
-  const off=assembleCombatVoxelModel({kind:'rogue',equipment:{offhand:'venom_dagger'}}).itemEffects[0];
+  const main=assembleCombatVoxelModel({kind:'thief',equipment:{mainhand:'dagger_plus1'}}).itemEffects[0];
+  const off=assembleCombatVoxelModel({kind:'thief',equipment:{offhand:'dagger_plus1'}}).itemEffects[0];
   assert.ok(main.bounds.max.x<0&&off.bounds.min.x>0,'Each dagger emits on its own side of the body.');
   assert.equal(off.anchor.x,-1-main.anchor.x,'The effect follows the reflected weapon, including voxel-center reflection.');
   assert.equal(off.anchor.y,main.anchor.y-3,'The offhand blade sits three voxels lower.');
   assert.equal(off.anchor.z,main.anchor.z);
   assert.ok(main.bounds.min.y>=17&&off.bounds.min.y>=14,'Vapor originates above the gold guard, away from the gripping fingers.');
 
-  for(const equipment of [{mainhand:'ember_sword'},{mainhand:'rime_mace'},{offhand:'void_shield'}]) {
-    const model=assembleCombatVoxelModel({kind:'warrior',equipment});
+  for(const equipment of [{mainhand:'long_sword_flame_tongue'},{mainhand:'mace_plus1'},{offhand:'shield_plus1'}]) {
+    const model=assembleCombatVoxelModel({kind:'fighter',equipment});
     const [effect]=model.itemEffects;
     const part=model.assembly.parts[effect.slot];
     for(const axis of ['x','y','z']) {
@@ -201,24 +200,19 @@ test('emitting regions stay on blades, crystals, and the selected hand instead o
 test('real combat snapshots supply renderable party gear and enemy kinds', t => {
   t.mock.method(Math, 'random', () => 0.4);
   t.mock.method(globalThis, 'setTimeout', () => 0);
-  const generated = buildDungeon({ width: 12, height: 12, seed: 'voxel-combat-gear' });
+  const generated = createWorldArea('slums');
   const dungeon = { ...generated, ...generated.start };
   let snapshot;
-  const systems = initBt3Systems({
+  const systems = createGameSystems({
     dungeon,
+    onPartyDefeated() {},
     hud: { setParty() {}, appendLog() {}, clearActions() {}, setActions() {} },
     combatView: { show(value) { snapshot = value; }, hide() {} },
   });
-  const inventory=systems.getInventorySnapshot('c_warrior');
-  const emberIndex=inventory.inventory.findIndex(entry=>entry?.itemId==='ember_sword');
-  assert.ok(emberIndex>=0,'The new enchanted weapon must be obtainable in the carried inventory.');
-  assert.deepEqual(assembleCombatVoxelModel({kind:inventory.character.classType,equipment:inventory.equipment}).itemEffects,[],
-    'Carrying the Ember Sword does not make the equipped plain sword burn.');
-  assert.equal(systems.equipInventoryItem(inventory.character.id,emberIndex,'mainhand').ok,true);
-  for (let step = 0; step < 3; step++) systems.onStepComplete(1);
+  for (let step = 0; step < 3; step++) systems.onStepComplete();
   assert.equal(systems.isCombatActive, true);
   assert.ok(snapshot.units.some(unit => unit.team === 'monster'));
-  assert.equal(snapshot.units.filter(unit => unit.team === 'party').length, 5);
+  assert.equal(snapshot.units.filter(unit => unit.team === 'party').length, 6);
   for (const unit of snapshot.units) {
     const model = assembleCombatVoxelModel(unit);
     assert.ok(model.assembly.voxels.length > 0, unit.name);
@@ -227,17 +221,6 @@ test('real combat snapshots supply renderable party gear and enemy kinds', t => 
     assert.ok(unit.equipment.mainhand, `${unit.name} must publish the starting weapon.`);
     assert.ok(cellsIn(model, 'mainhand').length > 0, `${unit.name}'s equipped weapon must reach the figure.`);
     assert.equal(cellsIn(model, 'offhand').length > 0, Boolean(unit.equipment.offhand), `${unit.name} must only carry a shield when one is equipped.`);
-    if(unit.id==='c_warrior') assert.equal(model.itemEffects[0]?.kind,'flame','The inventory choice must reach the figure rendered in combat.');
-    if (unit.kind === 'Bard') {
-      assert.equal(unit.equipment.back, 'lute', 'The starting bard must actually carry the instrument shown on the figure.');
-      assert.equal(model.appearance.back, 'lute');
-      assert.ok(cellsIn(model, 'back').some(voxel => voxel.material === 'wood'));
-      const withoutInstrument = assembleCombatVoxelModel({ ...unit, equipment: { ...unit.equipment, back: '' } });
-      assert.equal(cellsIn(withoutInstrument, 'back').length, 0, 'Unequipping the lute must remove it from the back.');
-      for (const slot of Object.keys(model.assembly.parts)) {
-        if (slot !== 'back') assert.deepEqual(withoutInstrument.assembly.parts[slot], model.assembly.parts[slot], `Removing the instrument must preserve ${slot}.`);
-      }
-    }
     const unclothed = assembleCombatVoxelModel({ kind: unit.kind, equipment: {} });
     assert.notDeepEqual(model.assembly.voxels, unclothed.assembly.voxels, `${unit.name}'s gear must visibly change the figure.`);
   }
@@ -246,15 +229,15 @@ test('real combat snapshots supply renderable party gear and enemy kinds', t => 
 test('unknown figure, part, and equipment identifiers are rejected instead of drawing an unrelated model', () => {
   for (const [descriptor, message] of [
     [{ kind: 'missing' }, /kind/],
-    [{ kind: 'warrior', appearance: { head: 'missing' } }, /head/],
-    [{ kind: 'warrior', appearance: { back: 'missing' } }, /back/],
-    [{ kind: 'warrior', appearance: { tail: 'serpent' } }, /part/],
-    [{ kind: 'warrior', equipment: { mainhand: 'missing' } }, /mainhand/],
-    [{ kind: 'warrior', equipment: { chest: 'missing' } }, /chest/],
-    [{ kind: 'warrior', equipment: { offhand: 'missing' } }, /shield|offhand/],
-    [{ kind: 'rat_swarm', equipment: { mainhand: 'longsword' } }, /equipment/],
-    [{ kind: 'warrior', equipment: { feet: 'longsword' } }, /cannot be equipped/],
-    [{ kind: 'warrior', equipment: { tail: 'longsword' } }, /equipment slot/],
+    [{ kind: 'fighter', appearance: { head: 'missing' } }, /head/],
+    [{ kind: 'fighter', appearance: { back: 'missing' } }, /back/],
+    [{ kind: 'fighter', appearance: { tail: 'serpent' } }, /part/],
+    [{ kind: 'fighter', equipment: { mainhand: 'missing' } }, /mainhand/],
+    [{ kind: 'fighter', equipment: { chest: 'missing' } }, /chest/],
+    [{ kind: 'fighter', equipment: { offhand: 'missing' } }, /shield|offhand/],
+    [{ kind: 'rat_swarm', equipment: { mainhand: 'long_sword' } }, /equipment/],
+    [{ kind: 'fighter', equipment: { feet: 'long_sword' } }, /cannot be equipped/],
+    [{ kind: 'fighter', equipment: { tail: 'long_sword' } }, /equipment slot/],
     [{ kind: 'serpent', appearance: { head: 'knight' } }, /variants/],
   ]) assert.throws(() => assembleCombatVoxelModel(descriptor), message);
 });

@@ -2,7 +2,7 @@ const SINGLE_CELL = Object.freeze({ width: 1, height: 1 });
 const LARGE_BODY = Object.freeze({ width: 2, height: 2 });
 
 export function footprintForKind(kind) {
-  return ['dragon', 'ogre'].includes(String(kind ?? '').trim().toLowerCase()) ? LARGE_BODY : SINGLE_CELL;
+  return ['dragon', 'ogre', 'troll'].includes(String(kind ?? '').trim().toLowerCase()) ? LARGE_BODY : SINGLE_CELL;
 }
 
 export function normalizeFootprint(value) {
