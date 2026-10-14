@@ -6,6 +6,7 @@ import { createMinimapOverlay } from './src/render/minimap.js';
 import { buildScene } from './src/render/scene.js';
 import { createCombatMapControls } from './src/render/combatMapControls.js';
 import { createInventoryPanel } from './src/render/inventoryPanel.js';
+import { createTreasurePanel } from './src/render/treasurePanel.js';
 import { createCharacterCreationPanel } from './src/render/characterCreationPanel.js';
 import { createGameSystems } from './src/systems/core.js';
 import { UI_SETTINGS } from './config/uiSettings.js';
@@ -33,7 +34,7 @@ function main() {
     onCamp() { openCamp(); },
     onExploreInteraction() { interact(); },
     onViewportClick(event) {
-      if (inventory.isOpen() || travelling) return;
+      if (inventory.isOpen() || systems.isTreasureOpen || travelling) return;
       if (!systems.isCombatActive) { interact(); return; }
       const cell = g.pickBattleCell(event.clientX, event.clientY);
       if (cell) systems.selectCombatCell(cell.x, cell.y);
@@ -101,7 +102,25 @@ function main() {
     parent: document.body,
     systems,
     onClose() {
-      screenElement.inert = false;
+      treasure.setSuspended(false);
+      screenElement.inert = systems.isTreasureOpen;
+      updateInteraction();
+      hudCanvas.focus({ preventScroll: true });
+    },
+  });
+  const treasure = createTreasurePanel({
+    parent: document.body,
+    systems,
+    onView(characterId) { openInventory(characterId, true); },
+    onOpen() {
+      screenElement.inert = true;
+      minimap.hide();
+      mapControls.cancel();
+      keyQueued = null;
+      updateInteraction();
+    },
+    onClose() {
+      screenElement.inert = inventory.isOpen();
       updateInteraction();
       hudCanvas.focus({ preventScroll: true });
     },
@@ -144,16 +163,18 @@ function main() {
   updateInteraction();
 
   function openPartyCreation() {
-    if (travelling || anim || systems.isCombatActive || inventory.isOpen()) return;
-    systems.closeService();minimap.hide();mapControls.cancel();keyQueued=null;
+    if (travelling || anim || systems.isCombatActive || systems.isTreasureOpen || inventory.isOpen()) return;
+    if (!systems.closeService()) return;
+    minimap.hide();mapControls.cancel();keyQueued=null;
     screenElement.inert=true;
     hud.setObscured(true);
     partyCreation.open();
   }
 
   function openCamp() {
-    if (travelling || anim || systems.isCombatActive || inventory.isOpen() || partyCreation.isOpen()) return;
-    systems.closeService();minimap.hide();keyQueued=null;
+    if (travelling || anim || systems.isCombatActive || systems.isTreasureOpen || inventory.isOpen() || partyCreation.isOpen()) return;
+    if (!systems.closeService()) return;
+    minimap.hide();keyQueued=null;
     systems.openCamp();
   }
 
@@ -163,10 +184,10 @@ function main() {
     updateInteraction();
   }
 
-  function openInventory(characterId) {
-    if (travelling) return;
+  function openInventory(characterId, fromTreasure = false) {
+    if (travelling || (systems.isTreasureOpen && !fromTreasure)) return;
     const targetId = characterId || hud.getInspectedCharacterId();
-    systems.closeService();
+    if (!fromTreasure && !systems.closeService()) return;
     minimap.hide();
     mapControls.cancel();
     keyQueued = null;
@@ -174,6 +195,7 @@ function main() {
       inventoryQueuedFor = targetId;
       return;
     }
+    if (fromTreasure) treasure.setSuspended(true);
     inventory.open(targetId);
     screenElement.inert = true;
     updateInteraction();
@@ -192,23 +214,23 @@ function main() {
     const service = serviceAtParty();
     hud.setInteraction({
       label: exit ? `Travel to ${exit.name}` : service ? service.name : '',
-      enabled: Boolean(exit || service) && !anim && !travelling && !systems.isCombatActive && !inventory.isOpen() && !partyCreation.isOpen(),
+      enabled: Boolean(exit || service) && !anim && !travelling && !systems.isCombatActive && !systems.isTreasureOpen && !inventory.isOpen() && !partyCreation.isOpen(),
     });
   }
 
   function interact() {
-    if (travelling || anim || systems.isCombatActive || inventory.isOpen() || minimap.isVisible()) return;
+    if (travelling || anim || systems.isCombatActive || systems.isTreasureOpen || inventory.isOpen() || minimap.isVisible()) return;
     if (exitAtParty()) { travel(); return; }
     const service = serviceAtParty();
     if (service && !systems.isServiceOpen) systems.openService(service.id);
   }
 
   async function changeArea(next, position, message) {
+    if (!systems.closeService()) return;
     travelling = true;
     anim = null;
     keyQueued = null;
     inventoryQueuedFor = null;
-    systems.closeService();
     minimap.hide();
     mapControls.cancel();
     updateInteraction();
@@ -232,7 +254,7 @@ function main() {
 
   async function travel() {
     const exit = exitAtParty();
-    if (!exit || travelling || anim || systems.isCombatActive || inventory.isOpen()) return;
+    if (!exit || travelling || anim || systems.isCombatActive || systems.isTreasureOpen || inventory.isOpen()) return;
     const permission = systems.canTravel(exit.target);
     if (!permission.ok) { hud.appendLog(permission.message); return; }
     const next = journey.areaFor(exit.target);
@@ -245,8 +267,8 @@ function main() {
   }
 
   function startMove(dirSign) { // +1 forward, -1 reverse
-    if (anim || systems.isCombatActive || minimap.isVisible()) return;
-    systems.closeService();
+    if (anim || systems.isCombatActive || systems.isTreasureOpen || minimap.isVisible()) return;
+    if (!systems.closeService()) return;
     const dirToUse = (dirSign === 1) ? state.dir : backOf(state.dir);
     if (getWall(state.cells, state.width, state.height, state.x, state.y, dirToUse) === WALL.WALL) return;
 
@@ -264,8 +286,8 @@ function main() {
   }
 
   function startTurn(left) {
-    if (anim || systems.isCombatActive || minimap.isVisible()) return;
-    systems.closeService();
+    if (anim || systems.isCombatActive || systems.isTreasureOpen || minimap.isVisible()) return;
+    if (!systems.closeService()) return;
     const fromYaw = g.player.rotation.y;
     state.dir = left ? leftOf(state.dir) : rightOf(state.dir);
     hud.setLocation(state);
@@ -287,6 +309,7 @@ function main() {
 
   function onKey(ev) {
     if (partyCreation.isOpen()) return;
+    if (systems.isTreasureOpen && !inventory.isOpen()) return;
     if (ev.key === 'Enter' && ev.repeat && !systems.isCombatActive && !inventory.isOpen()) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
@@ -314,7 +337,7 @@ function main() {
       return;
     }
     if (ev.key === 'm' || ev.key === 'M') {
-      systems.closeService();
+      if (!systems.closeService()) { ev.preventDefault(); return; }
       ev.preventDefault();
       ev.stopImmediatePropagation();
       minimap.toggle();
@@ -397,8 +420,8 @@ function main() {
     g.torchAnchor.position.y = offset.y + Math.cos(torchPhase * 3.1) * 0.018;
 
     updateInteraction();
-    hud.setObscured(inventory.isOpen() || partyCreation.isOpen() || minimap.isVisible() || travelling);
-    if (!inventory.isOpen() && !travelling) g.render();
+    hud.setObscured(inventory.isOpen() || systems.isTreasureOpen || partyCreation.isOpen() || minimap.isVisible() || travelling);
+    if (!inventory.isOpen() && !systems.isTreasureOpen && !travelling) g.render();
     requestAnimationFrame(step);
   }
 

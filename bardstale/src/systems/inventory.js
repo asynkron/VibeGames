@@ -22,10 +22,21 @@ function entryAt(character, index) {
     ? character.inventory[index] : null;
 }
 
-function putItem(inventory, itemId, quantity) {
+function itemMetadata(entry) {
+  const { itemId, qty, ...metadata } = entry;
+  return metadata;
+}
+
+function sameMetadata(left, right) {
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every(key => left[key] === right[key]);
+}
+
+function putItem(inventory, itemId, quantity, metadata = {}) {
   const item = ITEM_DB[itemId];
+  const properties = itemMetadata({ identified: !item.requiresReadMagic, ...metadata });
   for (const entry of inventory) {
-    if (!entry || entry.itemId !== itemId) continue;
+    if (!entry || entry.itemId !== itemId || !sameMetadata(itemMetadata(entry), properties)) continue;
     const added = Math.min(quantity, item.stackMax - entry.qty);
     entry.qty += added;
     quantity -= added;
@@ -34,7 +45,7 @@ function putItem(inventory, itemId, quantity) {
   for (let index = 0; index < inventory.length && quantity; index += 1) {
     if (inventory[index]) continue;
     const qty = Math.min(quantity, item.stackMax);
-    inventory[index] = { itemId, qty, identified: !item.requiresReadMagic };
+    inventory[index] = { ...properties, itemId, qty };
     quantity -= qty;
   }
   return quantity === 0;
@@ -45,11 +56,15 @@ function removeOne(inventory, index) {
   if (inventory[index].qty === 0) inventory[index] = null;
 }
 
-export function addInventoryItem(character, itemId, quantity = 1) {
+export function addInventoryItem(character, itemId, quantity = 1, metadata = {}) {
   const item = ITEM_DB[itemId];
   if (!item || !Number.isInteger(quantity) || quantity < 1) return result(false, 'Invalid item or quantity.');
   const inventory = copyInventory(character.inventory);
-  if (!putItem(inventory, itemId, quantity)) return result(false, `${character.name}'s pack is full.`);
+  if (!putItem(inventory, itemId, quantity, metadata)) return result(false, `${character.name}'s pack is full.`);
+  const stats = computeCharacterStats({ ...character, inventory });
+  if (stats.carriedWeight > stats.maxCarryWeight) {
+    return result(false, `${character.name} cannot carry that much weight.`);
+  }
   character.inventory = inventory;
   return result(true, `${item.name} added to ${character.name}'s pack.`);
 }
@@ -65,18 +80,22 @@ export function equipCarriedItem(character, index, slot) {
   }
   const inventory = copyInventory(character.inventory);
   const equipment = { ...character.equipment };
+  const equipmentMetadata = { ...character.equipmentMetadata };
   removeOne(inventory, index);
-  const returnedItems = [equipment[slot]];
+  const returnedItems = [{ itemId: equipment[slot], metadata: equipmentMetadata[slot] }];
   equipment[slot] = item.id;
+  equipmentMetadata[slot] = itemMetadata(entry);
   if (slot === 'mainhand' && item.handedness === 2 && equipment.offhand) {
-    returnedItems.push(equipment.offhand);
+    returnedItems.push({ itemId: equipment.offhand, metadata: equipmentMetadata.offhand });
     equipment.offhand = '';
+    delete equipmentMetadata.offhand;
   }
-  for (const returnedId of returnedItems.filter(Boolean)) {
-    if (!putItem(inventory, returnedId, 1)) return result(false, 'Make space in the pack for the equipment being removed.');
+  for (const returned of returnedItems.filter(entry => entry.itemId)) {
+    if (!putItem(inventory, returned.itemId, 1, returned.metadata)) return result(false, 'Make space in the pack for the equipment being removed.');
   }
   character.inventory = inventory;
   character.equipment = equipment;
+  character.equipmentMetadata = equipmentMetadata;
   return result(true, `${character.name} equipped ${item.name}.`);
 }
 
@@ -85,9 +104,11 @@ export function unequipItem(character, slot) {
   const itemId = character.equipment[slot];
   if (!itemId) return result(false, 'That equipment slot is empty.');
   const inventory = copyInventory(character.inventory);
-  if (!putItem(inventory, itemId, 1)) return result(false, 'Make space in the pack before removing equipment.');
+  if (!putItem(inventory, itemId, 1, character.equipmentMetadata?.[slot])) return result(false, 'Make space in the pack before removing equipment.');
   character.inventory = inventory;
   character.equipment = { ...character.equipment, [slot]: '' };
+  character.equipmentMetadata = { ...character.equipmentMetadata };
+  delete character.equipmentMetadata[slot];
   return result(true, `${ITEM_DB[itemId].name} moved to the pack.`);
 }
 
@@ -96,11 +117,23 @@ export function transferCarriedItem(source, index, destination) {
   const entry = entryAt(source, index);
   if (!entry) return result(false, 'Choose an item from the pack.');
   const inventory = copyInventory(destination.inventory);
-  if (!putItem(inventory, entry.itemId, entry.qty)) return result(false, `${destination.name}'s pack has no room for that stack.`);
+  if (!putItem(inventory, entry.itemId, entry.qty, itemMetadata(entry))) return result(false, `${destination.name}'s pack has no room for that stack.`);
+  const stats = computeCharacterStats({ ...destination, inventory });
+  if (stats.carriedWeight > stats.maxCarryWeight) {
+    return result(false, `${destination.name} cannot carry that much weight.`);
+  }
   destination.inventory = inventory;
   source.inventory = copyInventory(source.inventory);
   source.inventory[index] = null;
   return result(true, `${ITEM_DB[entry.itemId].name} given to ${destination.name}.`);
+}
+
+export function dropCarriedItem(character, index) {
+  const entry = entryAt(character, index);
+  if (!entry) return result(false, 'Choose an item from the pack.');
+  character.inventory = copyInventory(character.inventory);
+  character.inventory[index] = null;
+  return result(true, `${character.name} dropped ${entry.qty} × ${ITEM_DB[entry.itemId].name}.`);
 }
 
 export function useCarriedItem(character, index) {
@@ -172,7 +205,7 @@ export function computeCharacterStats(character) {
   for (const entry of character.inventory) if (entry) carriedWeight += ITEM_DB[entry.itemId].weight * entry.qty;
   if (!body?.magicBonus) ac -= protection;
   for (const key of Object.keys(saves)) saves[key] -= protection;
-  const over = Math.max(0, carriedWeight - strength.carryWeight);
+  const over = Math.max(0, carriedWeight - strength.weightAllowance);
   if (over > 1024) movement = Math.min(movement, 3);
   else if (over > 768) movement = Math.min(movement, 6);
   else if (over > 512) movement = Math.min(movement, 9);
@@ -191,5 +224,6 @@ export function computeCharacterStats(character) {
   const bounds = diceBounds(damageDice);
   return { ac, thac0, damageDice, largeDamageDice, damageBonus, range, attributes,
     minDamage: Math.max(1, bounds.min + damageBonus), maxDamage: Math.max(1, bounds.max + damageBonus),
-    movement: Math.max(1, Math.floor(movement)), saves, magicRes: base.magicRes || 0, carriedWeight, carryWeight: strength.carryWeight };
+    movement: Math.max(1, Math.floor(movement)), saves, magicRes: base.magicRes || 0, carriedWeight,
+    maxCarryWeight: strength.carryWeight, weightAllowance: strength.weightAllowance };
 }

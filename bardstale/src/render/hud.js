@@ -1,6 +1,7 @@
 import { UI_SETTINGS } from '../../config/uiSettings.js';
 import { createTilePainter, wrapText } from './tiles.js';
 import { createVoxelCharacterPreview } from './voxelCharacterPreview.js';
+import { createCoins, formatCoins } from '../systems/money.js';
 
 const ACTION_ROWS = 8;
 const DETAIL_ROWS = 12;
@@ -31,7 +32,6 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
   const state = {
     log: [],
     party: [],
-    gold: 0,
     location: null,
     interaction: { label: '', enabled: false },
     inspectedCharacterId: '',
@@ -85,6 +85,8 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
         `XP ${member.xp}  NEXT ${member.nextLevelXp ?? 'MAX LEVEL'}`,
         `HP ${member.hpCurrent}/${member.hpMax}  SPELLS ${member.preparedCount}/${member.spellCapacity}`,
         `THAC0 ${member.thac0}  DAMAGE ${member.damageMin}-${member.damageMax}`,
+        `PURSE ${formatCoins(createCoins(member.coins))}`,
+        `CARRIED ${member.carriedWeight}/${member.maxCarryWeight}  MOVE ${member.movement}`,
       );
       const attributes = member.attributes || {};
       const attributeLabels = [
@@ -287,7 +289,8 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     const fragment = document.createDocumentFragment();
     const status = document.createElement('p');
     const phase = state.combat ? `Combat round ${state.combat.round}` : 'Phlan exploration';
-    status.textContent = `${state.prompt || phase}. Gold ${state.gold}.`;
+    const selected = inspectedMember();
+    status.textContent = `${state.prompt || phase}.${selected ? ` ${selected.name}'s purse: ${formatCoins(createCoins(selected.coins))}.` : ''}`;
     fragment.append(status);
     if (state.combat) {
       const unit = activeCombatUnit();
@@ -298,7 +301,7 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
       }
     }
     for (const member of state.party) {
-      const label = `${member.name}, ${member.displayClass || member.classType}, level ${member.level}, AC ${member.ac}, THAC0 ${member.thac0}, HP ${member.hpCurrent}/${member.hpMax}, prepared spells ${member.preparedCount}/${member.spellCapacity}${member.statusText ? `, ${member.statusText}` : ''}`;
+      const label = `${member.name}, ${member.displayClass || member.classType}, level ${member.level}, AC ${member.ac}, THAC0 ${member.thac0}, HP ${member.hpCurrent}/${member.hpMax}, prepared spells ${member.preparedCount}/${member.spellCapacity}, purse ${formatCoins(createCoins(member.coins))}, carried weight ${member.carriedWeight}/${member.maxCarryWeight}, movement ${member.movement}${member.statusText ? `, ${member.statusText}` : ''}`;
       const combatUnit = state.combat?.units.find((unit) => unit.id === member.id);
       if (combatUnit?.canAct && !state.combat.busy) {
         appendAccessibleButton(fragment, `Select ${label}, ${combatUnit.movementRemaining} movement remaining`, () => onCombatCellClick(combatUnit.x, combatUnit.y));
@@ -380,8 +383,13 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     drawCharacter();
     if (state.location) {
       const facing = ['N', 'E', 'S', 'W'][state.location.dir];
-      tiles.text(`${state.location.x + 1},${state.location.y + 1} ${facing}   GOLD ${state.gold}`, 35, layout.dividerRow - 1, colors.green, 43);
-    } else tiles.text(`GOLD ${state.gold}`, 35, layout.dividerRow - 1, colors.green, 43);
+      const selected = inspectedMember();
+      const purse = selected ? `${selected.name} ${createCoins(selected.coins).gold} GP` : '';
+      tiles.text(`${state.location.x + 1},${state.location.y + 1} ${facing}   ${purse}`, 35, layout.dividerRow - 1, colors.green, 43);
+    } else {
+      const selected = inspectedMember();
+      if (selected) tiles.text(`${selected.name} ${createCoins(selected.coins).gold} GP`, 35, layout.dividerRow - 1, colors.green, 43);
+    }
     if (state.location) {
       const context = state.interaction.enabled && !state.buttons.length
         ? `[ENTER] ${state.interaction.label}`
@@ -455,7 +463,6 @@ export function createHudRenderer(canvas, { onViewportClick, onCombatCellClick, 
     },
     setParty(data) {
       state.party = Array.isArray(data?.members) ? data.members.slice() : [];
-      state.gold = data?.gold ?? state.gold;
       if (!state.party.some((member) => member.id === state.inspectedCharacterId)) {
         state.inspectedCharacterId = state.party[0]?.id || '';
         state.detailPage = 0;

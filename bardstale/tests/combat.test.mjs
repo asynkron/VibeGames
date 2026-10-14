@@ -5,6 +5,19 @@ import { createGameSystems } from '../src/systems/core.js';
 import { validateParty, rollAbilityScores, availableClassOptions } from '../src/rules/characters.js';
 import { attackRoll, rollDice, savingThrow } from '../src/rules/dice.js';
 import { getCityService } from '../src/cityServices.js';
+import { coinValue } from '../src/systems/money.js';
+
+function partyMoney(record) {
+  return record.party.members.reduce((sum, hero) => sum + coinValue(hero.coins), 0);
+}
+
+function collectTreasureMoney(systems) {
+  const response = systems.shareTreasureCoins();
+  if (!response.ok) assert.match(response.message, /cannot carry any more coins/);
+  assert.equal(systems.exitTreasure(true).ok, true);
+  assert.equal(systems.isTreasureOpen, false);
+  assert.equal(systems.closeService(), true);
+}
 
 function openDungeon() {
   const width = 12;
@@ -160,11 +173,11 @@ test('spell preparation requires an inn rest and a cast consumes exactly one cha
     assert.equal(systems.unprepareSpell('c_mage2', 0).ok, true);
     assert.equal(systems.prepareSpell('c_mage2', 'MU_SHIELD').ok, true);
     assert.deepEqual(systems.getSpellPreparation('c_mage2').prepared, ['MU_MAGIC_MISSILE'], 'Selecting a plan grants no immediate spell charge.');
-    const gold = record.party.gold;
+    const money = partyMoney(record);
     atService('inn');
     systems.openService('inn');
     choose(/^Rest and memorize spells/);
-    assert.equal(record.party.gold, gold - 5);
+    assert.equal(partyMoney(record), money - 1000);
     assert.deepEqual(systems.getSpellPreparation('c_mage2').prepared, ['MU_SHIELD']);
     systems.closeService();
     await begin();
@@ -232,7 +245,7 @@ test('an archer can click a red target, retreat from melee, and expend an arrow 
   });
 });
 
-async function winBattle(context, area = 'Slums') {
+async function winBattle(context, area = 'Slums', { collect = true, potion = false } = {}) {
   const { systems, record, begin, unit, flush, setRandom } = context;
   await begin(area);
   setRandom(0.99);
@@ -241,12 +254,161 @@ async function winBattle(context, area = 'Slums') {
     const fighter = snapshot.units.find(hero => hero.team === 'party' && hero.canAct && hero.kind === 'Fighter');
     if (fighter) systems.selectCombatCell(fighter.x, fighter.y);
     const targetId = record.snapshot.targetIds[0];
-    if (targetId) { const target = unit(targetId); systems.selectCombatCell(target.x, target.y); }
+    if (targetId) {
+      const target = unit(targetId);
+      if (potion && record.snapshot.units.filter(foe => foe.team === 'monster' && foe.alive).length === 1) {
+        const rolls = [0.99, 0.99, 0.99, 0];
+        setRandom(() => rolls.shift() ?? 0.99);
+      }
+      systems.selectCombatCell(target.x, target.y);
+    }
     else context.choose('End Turn');
     await flush();
   }
   assert.equal(systems.isCombatActive, false);
+  if (collect) collectTreasureMoney(systems);
 }
+
+test('combat treasure stays unassigned until TAKE, while POOL and SHARE conserve coins, leave items for a chosen companion and award equal XP', async () => {
+  await withCombat(async context => {
+    const { systems, record, atService } = context;
+    const beforeMoney = partyMoney(record);
+    const beforePacks = record.party.members.map(hero => systems.getInventorySnapshot(hero.id).inventory);
+    await winBattle(context, 'Slums', { collect: false, potion: true });
+    const treasure = systems.getTreasureSnapshot();
+    assert.equal(systems.isTreasureOpen, true);
+    assert.equal(treasure.coins.gold, 34);
+    assert.deepEqual(treasure.items, [{ itemId: 'healing_potion', qty: 1, identified: true }]);
+    assert.equal(partyMoney(record), beforeMoney);
+    assert.deepEqual(record.party.members.map(hero => systems.getInventorySnapshot(hero.id).inventory), beforePacks);
+    const exit = systems.exitTreasure();
+    assert.equal(exit.ok, false);
+    assert.equal(exit.needsConfirmation, true);
+    assert.deepEqual(systems.getTreasureSnapshot(), treasure, 'Declining to abandon treasure changes no state.');
+    assert.equal(systems.openCamp().ok, false);
+    atService('inn');
+    assert.equal(systems.openService('inn').ok, false);
+    assert.equal(systems.canTravel('new-phlan').ok, false);
+    for (let step = 0; step < 3; step += 1) systems.onStepComplete();
+    assert.equal(systems.isCombatActive, false, 'Uncollected treasure blocks another encounter.');
+    assert.equal(systems.takeTreasureCoins('c_thief', 'gold', 35).ok, false);
+    assert.deepEqual(systems.getTreasureSnapshot(), treasure, 'An excessive coin request leaves both purses and treasure unchanged.');
+    assert.equal(systems.takeTreasureCoins('c_thief', 'gold', 5).ok, true);
+    assert.equal(systems.getInventorySnapshot('c_thief').coins.gold, 95);
+    assert.equal(systems.getTreasureSnapshot().coins.gold, 29);
+    const availableMoney = beforeMoney + 6800;
+    assert.equal(partyMoney(record) + coinValue(systems.getTreasureSnapshot().coins), availableMoney);
+    assert.equal(systems.poolTreasureCoins().ok, true);
+    assert.equal(partyMoney(record), 0);
+    assert.equal(coinValue(systems.getTreasureSnapshot().coins), availableMoney);
+    assert.equal(systems.shareTreasureCoins().ok, true);
+    assert.equal(partyMoney(record), availableMoney);
+    assert.equal(coinValue(systems.getTreasureSnapshot().coins), 0);
+    assert.deepEqual(systems.getTreasureSnapshot().items, treasure.items, 'SHARE distributes money alone.');
+    const goldPurses = record.party.members.map(hero => hero.coins.gold);
+    assert.ok(Math.max(...goldPurses) - Math.min(...goldPurses) <= 1);
+    const xpAfterCollection = record.party.members.map(hero => hero.xp);
+    assert.equal(systems.poolTreasureCoins().ok, true);
+    assert.equal(systems.shareTreasureCoins().ok, true);
+    assert.deepEqual(record.party.members.map(hero => hero.xp), xpAfterCollection, 'Pooling and sharing collected coins cannot grant their treasure XP twice.');
+    assert.equal(systems.takeTreasureItem('c_thief', 0).ok, true);
+    assert.equal(systems.getInventorySnapshot('c_thief').inventory.find(entry => entry?.itemId === 'healing_potion').qty, 2);
+    assert.deepEqual(systems.getInventorySnapshot('c_fighter').inventory, beforePacks[0]);
+    assert.equal(systems.exitTreasure().ok, true);
+    assert.equal(systems.isTreasureOpen, false);
+    assert.equal(systems.getTreasureSnapshot(), null);
+    assert.equal(systems.takeTreasureItem('c_fighter', 0).ok, false);
+    assert.equal(partyMoney(record), availableMoney);
+  });
+  const descriptor = { name: 'Talan', race: 'Elf', classType: 'Fighter', classes: ['Fighter', 'Magic-user'], alignment: 'Chaotic good', exceptionalStrength: 75,
+    attributes: { strength: 18, intelligence: 17, wisdom: 10, dexterity: 16, constitution: 13, charisma: 11 } };
+  const progress = [];
+  for (const collection of ['one coin at a time', 'SHARE']) {
+    await withCombat(async context => {
+      const { systems } = context;
+      await winBattle(context, 'Slums', { collect: false });
+      assert.equal(systems.getTreasureSnapshot().coins.gold, 34);
+      const xpBeforeCollection = systems.getInventorySnapshot('c_1').character.xp;
+      if (collection === 'SHARE') assert.equal(systems.shareTreasureCoins().ok, true);
+      else {
+        while (systems.getTreasureSnapshot().coins.gold) {
+          assert.equal(systems.takeTreasureCoins('c_1', 'gold', 1).ok, true);
+        }
+      }
+      const hero = systems.getInventorySnapshot('c_1').character;
+      assert.equal(hero.xp - xpBeforeCollection, 36, `${collection}: 34 treasure XP splits into 17 per class, then each prime requisite grants 18 XP.`);
+      progress.push({ xp: hero.xp, levelText: hero.levelText });
+      assert.equal(systems.exitTreasure().ok, true);
+    }, [descriptor]);
+  }
+  assert.deepEqual(progress[0], progress[1], 'The same treasure grants identical multiclass progress regardless of collection size.');
+});
+
+test('a full pack rejects treasure atomically and the unclaimed item remains available to another companion', async () => {
+  await withCombat(async context => {
+    const { systems, record, atService, choose } = context;
+    const potion = systems.getInventorySnapshot('c_fighter').inventory.findIndex(entry => entry?.itemId === 'healing_potion');
+    assert.equal(systems.transferInventoryItem('c_fighter', potion, 'c_mage').ok, true);
+    atService('general-store'); systems.openService('general-store'); choose(/^Brynn — Fighter/);
+    while (systems.getInventorySnapshot('c_fighter').inventory.some(entry => !entry)) choose(/^Leather Belt —/);
+    assert.equal(systems.closeService(), true);
+    await winBattle(context, 'Slums', { collect: false, potion: true });
+    const fullPack = systems.getInventorySnapshot('c_fighter');
+    const treasure = systems.getTreasureSnapshot();
+    const money = partyMoney(record);
+    const denied = systems.takeTreasureItem('c_fighter', 0);
+    assert.equal(denied.ok, false);
+    assert.match(denied.message, /pack is full/);
+    assert.deepEqual(systems.getInventorySnapshot('c_fighter'), fullPack);
+    assert.deepEqual(systems.getTreasureSnapshot(), treasure);
+    assert.equal(partyMoney(record), money);
+    assert.equal(systems.takeTreasureItem('c_thief', 0).ok, true);
+    assert.equal(systems.getTreasureSnapshot().items.some(Boolean), false);
+    collectTreasureMoney(systems);
+  });
+});
+
+test('shops use the buyer purse unless money is explicitly pooled, and require collecting the fund before leaving', async () => {
+  await withCombat(async ({ systems, record, atService, choose }) => {
+    const initialMoney = partyMoney(record);
+    const fighterGold = systems.getInventorySnapshot('c_fighter').coins.gold;
+    assert.equal(systems.transferInventoryCoins('c_fighter', 'c_fighter2', 'gold', fighterGold).ok, true);
+    assert.equal(partyMoney(record), initialMoney, 'TRADE changes ownership without changing coin value.');
+    atService('arms-armor'); systems.openService('arms-armor'); choose(/^Brynn — Fighter/);
+    const pack = systems.getInventorySnapshot('c_fighter').inventory;
+    choose(/^Long Sword —/);
+    assert.deepEqual(systems.getInventorySnapshot('c_fighter').inventory, pack);
+    assert.equal(partyMoney(record), initialMoney, 'Another companion’s purse is unavailable to the buyer.');
+    choose('POOL money');
+    assert.equal(systems.isTreasureOpen, true);
+    assert.equal(partyMoney(record), 0);
+    assert.equal(coinValue(systems.getTreasureSnapshot().coins), initialMoney);
+    assert.equal(systems.exitTreasure().ok, true, 'Returning to the shop retains its temporary purchasing fund.');
+    choose(/^Brynn — Fighter/);
+    const retainedPurchase = record.actions.buttons.find(button => /^Long Sword —/.test(button.label)).onSelect;
+    choose(/^Long Sword —/);
+    assert.equal(systems.getInventorySnapshot('c_fighter').inventory.filter(entry => entry?.itemId === 'long_sword').length, 1);
+    assert.equal(partyMoney(record), 0);
+    assert.equal(systems.closeService(), false);
+    assert.equal(systems.isTreasureOpen, true);
+    assert.equal(systems.getTreasureSnapshot().pendingLeave, true);
+    const remainingMoney = initialMoney - 3000;
+    assert.equal(coinValue(systems.getTreasureSnapshot().coins), remainingMoney);
+    assert.equal(systems.exitTreasure().needsConfirmation, true);
+    const pendingTreasure = systems.getTreasureSnapshot();
+    retainedPurchase();
+    assert.deepEqual(systems.getTreasureSnapshot(), pendingTreasure, 'A retained shop action cannot spend during money collection.');
+    collectTreasureMoney(systems);
+    assert.equal(systems.isServiceOpen, false);
+    assert.equal(partyMoney(record), remainingMoney);
+    const collectedPack = systems.getInventorySnapshot('c_fighter').inventory;
+    retainedPurchase();
+    assert.deepEqual(systems.getInventorySnapshot('c_fighter').inventory, collectedPack);
+    assert.equal(partyMoney(record), remainingMoney);
+    assert.equal(systems.dropInventoryCoins('c_fighter', 'gold', 1).ok, true);
+    assert.equal(partyMoney(record), remainingMoney - 200);
+  });
+});
 
 test('council commissions persist and pay once, fund class training, and unlock the wilderness only after Sokal Keep is reported', async () => {
   await withCombat(async context => {
@@ -255,19 +417,29 @@ test('council commissions persist and pay once, fund class training, and unlock 
     for (let battle = 0; battle < 3; battle += 1) await winBattle(context);
     assert.equal(systems.getQuestSnapshot().find(quest => quest.id === 'slums').victories, 3);
     atService('council'); systems.openService('council');
-    const gold = record.party.gold;
+    const money = partyMoney(record);
     choose(/^Clear the Slums/);
-    assert.equal(record.party.gold, gold + 6000);
-    const rewarded = record.party.gold;
+    assert.equal(partyMoney(record), money, 'Council coins remain on the treasure pile until collected.');
+    assert.equal(systems.getTreasureSnapshot().coins.gold, 6000);
+    const councilReward = systems.getTreasureSnapshot();
+    const overweight = systems.takeTreasureCoins('c_fighter', 'gold', 6000);
+    assert.equal(overweight.ok, false);
+    assert.match(overweight.message, /cannot carry/);
+    assert.deepEqual(systems.getTreasureSnapshot(), councilReward, 'A valid coin amount exceeding carrying capacity remains in the reward pile.');
+    collectTreasureMoney(systems);
+    assert.equal(partyMoney(record), money + 1200000);
+    const rewarded = partyMoney(record);
+    systems.openService('council');
     choose(/^Clear the Slums/);
-    assert.equal(record.party.gold, rewarded, 'A retained commission cannot pay twice.');
+    assert.equal(partyMoney(record), rewarded, 'A retained commission cannot pay twice.');
+    assert.equal(systems.isTreasureOpen, false);
     systems.closeService();
     atService('fighter-trainer'); systems.openService('fighter-trainer');
     const before = systems.getInventorySnapshot('c_fighter');
     choose(/^Brynn — Fighter level/);
     const trained = systems.getInventorySnapshot('c_fighter');
     assert.equal(trained.character.level, 2);
-    assert.equal(record.party.gold, rewarded - 1000);
+    assert.equal(partyMoney(record), rewarded - 200000);
     assert.ok(trained.character.hpMax > before.character.hpMax);
     assert.equal(trained.stats.thac0, before.stats.thac0 - 1);
     assert.deepEqual(trained.equipment, before.equipment);
@@ -276,6 +448,7 @@ test('council commissions persist and pay once, fund class training, and unlock 
     assert.equal(systems.canTravel('moonsea-wilderness').ok, false);
     atService('council'); systems.openService('council');
     choose(/^Secure Sokal Keep/);
+    collectTreasureMoney(systems);
     assert.equal(systems.canTravel('moonsea-wilderness').ok, true);
   });
 });
@@ -291,7 +464,7 @@ test('practice restores prior health and spell charges and grants no rewards or 
     systems.selectCombatCell(target.x, target.y); await flush();
     setRandom(0); choose('Flee'); await flush();
     const original = record.party.members.map(hero => ({ id: hero.id, hp: hero.hpCurrent, charges: hero.preparedCount }));
-    const gold = record.party.gold;
+    const money = partyMoney(record);
     atService('dueling-hall'); systems.openService('dueling-hall');
     choose('Begin a safe practice battle'); await flush();
     setRandom(0.99);
@@ -299,7 +472,8 @@ test('practice restores prior health and spell charges and grants no rewards or 
     systems.selectCombatCell(foe.x, foe.y); await flush();
     assert.equal(systems.isCombatActive, false);
     assert.deepEqual(record.party.members.map(hero => ({ id: hero.id, hp: hero.hpCurrent, charges: hero.preparedCount })), original);
-    assert.equal(record.party.gold, gold);
+    assert.equal(partyMoney(record), money);
+    assert.equal(systems.isTreasureOpen, false);
     assert.equal(record.defeats, 0);
   });
 });
@@ -324,9 +498,9 @@ test('retained service and flee commands cannot mutate state after their menus c
   await withCombat(async ({ systems, record, atService, choose, begin, flush, setRandom }) => {
     atService('arms-armor'); systems.openService('arms-armor'); choose(/^Brynn — Fighter/);
     const purchase = record.actions.buttons.find(button => /^Long Sword —/.test(button.label)).onSelect;
-    const gold = record.party.gold;
+    const money = partyMoney(record);
     systems.closeService(); purchase();
-    assert.equal(record.party.gold, gold);
+    assert.equal(partyMoney(record), money);
     await begin();
     const flee = record.actions.buttons.find(button => button.label === 'Flee').onSelect;
     setRandom(0); flee(); await flush();
@@ -364,6 +538,7 @@ test('character creation validates original race and class combinations and cons
 
 test('camp Read Magic identifies a purchased scroll which can then be cast without consuming a prepared charge', async () => {
   await withCombat(async ({ systems, record, choose, atService, begin, unit, flush, setRandom }) => {
+    assert.equal(systems.transferInventoryCoins('c_fighter', 'c_mage', 'gold', 50).ok, true);
     atService('silver-shop'); systems.openService('silver-shop'); choose(/^Quint — Magic-user/);
     choose(/^Magic-user Scroll: Magic Missile —/);
     systems.closeService();
@@ -400,20 +575,20 @@ test('multiclass experience splits and a class trainer advances its own level wi
   await withCombat(async context => {
     const { systems, record, atService, choose, begin, unit, flush } = context;
     for (let battle=0;battle<3;battle+=1) await winBattle(context);
-    atService('council'); systems.openService('council'); choose(/^Clear the Slums/); systems.closeService();
+    atService('council'); systems.openService('council'); choose(/^Clear the Slums/); collectTreasureMoney(systems);
     atService('fighter-trainer'); systems.openService('fighter-trainer'); choose(/^Talan — Fighter level/);
     assert.equal(systems.getInventorySnapshot('c_1').character.level,1, 'The shared XP pool cannot be used as full XP in both classes.');
     systems.closeService();
     for (let battle=0;battle<2;battle+=1) await winBattle(context,'Sokal Keep');
-    atService('council'); systems.openService('council'); choose(/^Secure Sokal Keep/); systems.closeService();
+    atService('council'); systems.openService('council'); choose(/^Secure Sokal Keep/); collectTreasureMoney(systems);
     atService('fighter-trainer'); systems.openService('fighter-trainer');
-    const gold=record.party.gold; choose(/^Talan — Fighter level/);
-    assert.equal(record.party.gold,gold-1000);
+    const money=partyMoney(record); choose(/^Talan — Fighter level/);
+    assert.equal(partyMoney(record),money-200000);
     assert.match(systems.getInventorySnapshot('c_1').character.levelText,/Fighter 2 \/ Magic-user 1/);
     systems.closeService();
     atService('magic-user-trainer'); systems.openService('magic-user-trainer'); choose(/^Talan — Magic-user level/);
     assert.match(systems.getInventorySnapshot('c_1').character.levelText,/Magic-user 1/);
-    assert.equal(record.party.gold,gold-1000);
+    assert.equal(partyMoney(record),money-200000);
     systems.closeService();
     assert.equal(systems.unprepareSpell('c_1',0).ok,true);
     assert.equal(systems.prepareSpell('c_1','MU_MAGIC_MISSILE').ok,true);
@@ -435,9 +610,9 @@ test('a fighter level does not improve an untrained multiclass cleric’s Turn U
   await withCombat(async context => {
     const { systems, record, atService, choose, begin, unit, flush, setRandom } = context;
     for (let battle=0;battle<3;battle+=1) await winBattle(context);
-    atService('council'); systems.openService('council'); choose(/^Clear the Slums/); systems.closeService();
+    atService('council'); systems.openService('council'); choose(/^Clear the Slums/); collectTreasureMoney(systems);
     for (let battle=0;battle<2;battle+=1) await winBattle(context,'Sokal Keep');
-    atService('council'); systems.openService('council'); choose(/^Secure Sokal Keep/); systems.closeService();
+    atService('council'); systems.openService('council'); choose(/^Secure Sokal Keep/); collectTreasureMoney(systems);
     atService('fighter-trainer'); systems.openService('fighter-trainer'); choose(/^Lysa — Fighter level/); systems.closeService();
     assert.match(systems.getInventorySnapshot('c_1').character.levelText,/Cleric 1 \/ Fighter 2/);
     await begin('Sokal Keep');

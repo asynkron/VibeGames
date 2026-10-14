@@ -1,4 +1,5 @@
 import { ITEM_DB, EQUIPMENT_SLOTS } from '../items.js';
+import { COIN_TYPES, createCoins, formatCoins } from '../systems/money.js';
 import { createVoxelCharacterPreview } from './voxelCharacterPreview.js';
 
 const LEFT_SLOTS = ['head', 'neck', 'shoulders', 'chest', 'hands', 'waist', 'legs'];
@@ -88,6 +89,8 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
   const characterVitals = element('p');
   characterHeader.append(characterName, characterVitals);
   const lockNotice = element('p', 'inventory-lock');
+  const purse = element('section', 'inventory-purse');
+  purse.setAttribute('aria-label', 'Character purse');
   const workspace = element('div', 'inventory-workspace');
   const loadout = element('section', 'inventory-loadout');
   loadout.setAttribute('aria-label', 'Equipped items and character');
@@ -120,7 +123,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
   const status = element('p', 'inventory-status');
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  shell.append(header, party, characterHeader, lockNotice, workspace, statistics, details, status);
+  shell.append(header, party, characterHeader, lockNotice, purse, workspace, statistics, details, status);
   screen.append(shell);
   parent.append(screen);
 
@@ -130,6 +133,9 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
   let chosenSlot;
   let previousFocus;
   let unsubscribe;
+  let coinType = 'gold';
+  let coinAmount = 1;
+  let coinRecipient;
   const characterPreview = createVoxelCharacterPreview(viewport);
 
   function select(next) {
@@ -186,6 +192,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     statistics.replaceChildren(...[
       ['Armor class', s.ac], ['THAC0', s.thac0],
       ['Damage', `${s.minDamage}–${s.maxDamage}`], ['Movement', s.movement],
+      ['Carried weight', `${s.carriedWeight}/${s.maxCarryWeight}`],
     ].map(([label, value]) => {
       const pair = element('div');
       pair.append(element('dt', '', label), element('dd', '', String(value)));
@@ -193,6 +200,50 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
       if (label === 'THAC0') pair.title = 'Lower THAC0 improves the chance to hit. Roll a d20 against THAC0 minus the target’s armor class.';
       return pair;
     }));
+  }
+
+  function renderPurse() {
+    const coins = createCoins(snapshot.coins);
+    purse.replaceChildren(element('h3', '', `${snapshot.character.name}'s purse`), element('p', 'inventory-purse-coins', formatCoins(coins)));
+    const controls = element('div', 'inventory-coin-controls');
+    const denomination = element('select');
+    denomination.setAttribute('aria-label', 'Coin denomination');
+    denomination.dataset.focusKey = 'purse-denomination';
+    for (const coin of COIN_TYPES) {
+      const option = element('option', '', `${coin.label} (${coin.abbreviation}) · ${coins[coin.id]}`);
+      option.value = coin.id;
+      denomination.append(option);
+    }
+    denomination.value = coinType;
+    denomination.disabled = snapshot.locked;
+    denomination.addEventListener('change', () => { coinType = denomination.value; refresh(); });
+    const amountLabel = element('label', 'inventory-coin-amount', 'Amount');
+    const amount = element('input');
+    amount.type = 'number'; amount.min = '1'; amount.max = String(coins[coinType]); amount.step = '1';
+    amount.value = String(coinAmount); amount.disabled = snapshot.locked;
+    amount.setAttribute('aria-label', 'Coin amount'); amount.dataset.focusKey = 'purse-amount';
+    amount.addEventListener('input', () => { coinAmount = Number(amount.value); });
+    amountLabel.append(amount);
+    controls.append(denomination, amountLabel);
+    const recipients = snapshot.party.filter(hero => hero.id !== characterId);
+    if (recipients.length) {
+      const recipient = element('select');
+      recipient.setAttribute('aria-label', 'Trade coins to'); recipient.dataset.focusKey = 'purse-recipient';
+      coinRecipient = recipients.some(hero => hero.id === coinRecipient) ? coinRecipient : recipients[0].id;
+      for (const hero of recipients) {
+        const option = element('option', '', hero.name); option.value = hero.id; recipient.append(option);
+      }
+      recipient.value = coinRecipient;
+      recipient.disabled = snapshot.locked;
+      recipient.addEventListener('change', () => { coinRecipient = recipient.value; });
+      const trade = button('TRADE COINS', () => mutate(() => systems.transferInventoryCoins(characterId, recipient.value, denomination.value, Number(amount.value))));
+      trade.dataset.focusKey = 'purse-trade'; trade.disabled = snapshot.locked || !coins[coinType];
+      controls.append(recipient, trade);
+    }
+    const drop = button('DROP COINS', () => mutate(() => systems.dropInventoryCoins(characterId, denomination.value, Number(amount.value))));
+    drop.dataset.focusKey = 'purse-drop'; drop.disabled = snapshot.locked || !coins[coinType];
+    controls.append(drop);
+    purse.append(controls, element('p', 'inventory-item-note', 'Each coin adds carried weight. Heavy loads reduce movement. Dropped money and items are lost.'));
   }
 
   function itemProperties(item) {
@@ -308,7 +359,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     if (fromBag && snapshot.party.length > 1) {
       const giveRow = element('div', 'inventory-action-row');
       const recipient = element('select');
-      recipient.setAttribute('aria-label', 'Give item to');
+      recipient.setAttribute('aria-label', 'Trade item to');
       recipient.dataset.focusKey = 'recipient';
       for (const hero of snapshot.party.filter(hero => hero.id !== characterId)) {
         const option = element('option', '', hero.name);
@@ -316,11 +367,17 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
         recipient.append(option);
       }
       recipient.disabled = snapshot.locked;
-      const give = button('Give', () => mutate(() => systems.transferInventoryItem(characterId, selection.index, recipient.value)));
+      const give = button('TRADE ITEM', () => mutate(() => systems.transferInventoryItem(characterId, selection.index, recipient.value)));
       give.disabled = snapshot.locked;
-      give.dataset.focusKey = 'give';
+      give.dataset.focusKey = 'trade';
       giveRow.append(recipient, give);
       actions.append(giveRow);
+    }
+    if (fromBag) {
+      const drop = button('DROP ITEM', () => mutate(() => systems.dropInventoryItem(characterId, selection.index)));
+      drop.disabled = snapshot.locked;
+      drop.dataset.focusKey = 'drop-item';
+      actions.append(drop);
     }
     details.append(info, actions);
   }
@@ -348,6 +405,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
     }));
     lockNotice.hidden = !snapshot.locked;
     lockNotice.textContent = snapshot.lockReason || 'Equipment cannot be changed during combat.';
+    renderPurse();
     renderSlots(leftSlots, LEFT_SLOTS);
     renderSlots(rightSlots, RIGHT_SLOTS);
     renderBag();
@@ -402,7 +460,7 @@ export function createInventoryPanel({ parent = document.body, systems, onClose 
       event.preventDefault();
       close();
     } else if (event.key === 'Tab') {
-      const controls = [...screen.querySelectorAll('button:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter(node => node.getClientRects().length);
+      const controls = [...screen.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), [tabindex="0"]')].filter(node => node.getClientRects().length);
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }

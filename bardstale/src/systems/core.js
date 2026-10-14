@@ -8,7 +8,8 @@ import { createBattlefield } from './battlefield.js';
 import { footprintForKind } from '../combatFootprints.js';
 import { INVENTORY_CAPACITY, ITEM_DB } from '../items.js';
 import { getCityService } from '../cityServices.js';
-import { createInventory, createEquipment, addInventoryItem, equipCarriedItem, unequipItem, transferCarriedItem, useCarriedItem, getEquippedItem, computeCharacterStats, consumeWeaponAmmo, effectiveAttributes } from './inventory.js';
+import { createInventory, createEquipment, addInventoryItem, equipCarriedItem, unequipItem, transferCarriedItem, dropCarriedItem, useCarriedItem, getEquippedItem, computeCharacterStats, consumeWeaponAmmo, effectiveAttributes } from './inventory.js';
+import { COIN_TYPES, createCoins, coinCount, formatCoins, canAffordCoins, spendCoins, takeCoins, transferCoins, poolCoins, shareCoins } from './money.js';
 
 export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, characters, onDungeonChanged = () => {} }) {
   if (typeof onPartyDefeated !== 'function') throw new TypeError('A party defeat must be handled by the world journey.');
@@ -59,7 +60,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
       id, name, classType, classes: [classType], classLevels: { [classType]: 1 }, classXp: { [classType]: 0 }, race: 'Human', alignment: 'Neutral good', attributes,
       level: 1, xp: 0, exceptionalStrength: 0,
       base: { ac: 10, thac0: progression.thac0, saves: progression.saves, movement: 12, damageDice: '1d2', damageBonus: 0, magicRes: 0 },
-      inventory: createInventory(), equipment: createEquipment(), statusEffects: [],
+      inventory: createInventory(), equipment: createEquipment(), coins: createCoins({ gold: roll(30, 180) }), statusEffects: [],
       knownSpells: [], spellPreparation: [], preparedSpells: [],
       description: definition.description, alive: true, healthStatus: 'okay',
     };
@@ -117,7 +118,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
     if (!validation.ok) throw new TypeError(validation.message);
   }
   const party = {
-    id: 'p_main', name: 'Adventurers of Phlan', gold: 150,
+    id: 'p_main', name: 'Adventurers of Phlan',
     members: characters !== undefined ? characters.map((descriptor, index) => ({ ...makeCharacter(`c_${index + 1}`, descriptor.name.trim(), descriptor.classType, descriptor.attributes), race: descriptor.race, alignment: descriptor.alignment, exceptionalStrength: descriptor.exceptionalStrength || 0 })) : [
       makeCharacter('c_fighter', 'Brynn', 'Fighter'),
       makeCharacter('c_fighter2', 'Aegis', 'Fighter', { strength: 17, dexterity: 13, constitution: 17 }),
@@ -173,10 +174,168 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
   setupStartingGear();
 
   let serviceState = null;
+  let treasureState = null;
+  const treasureListeners = new Set();
+
+  function notifyTreasure() {
+    for (const listener of treasureListeners) listener();
+  }
+
+  function treasureAvailable() {
+    return treasureState && !combatState && treasureState.area === dungeon.id
+      && treasureState.x === dungeon.x && treasureState.y === dungeon.y;
+  }
+
+  function presentTreasure({ title, source, coins, items = [], rewardXp = false, pendingLeave = false }) {
+    treasureState = { title, source, coins, items, rewardXp, pendingLeave, detected: false,
+      area: dungeon.id, x: dungeon.x, y: dungeon.y, rewardCoins: rewardXp ? { ...coins } : createCoins(),
+      xpRecipients: rewardXp ? livingPartyMembers().map(hero => hero.id) : [], xpValue: 0, xpAwarded: 0 };
+    hud.clearActions();
+    notifyTreasure();
+  }
+
+  function getTreasureSnapshot() {
+    if (!treasureState) return null;
+    return {
+      title: treasureState.title, source: treasureState.source, pendingLeave: treasureState.pendingLeave,
+      coins: { ...treasureState.coins }, items: treasureState.items.map(entry => entry ? { ...entry } : null), detected: treasureState.detected,
+      party: party.members.map(hero => ({ id: hero.id, name: hero.name, displayClass: hero.classes.join(' / '), alive: hero.alive,
+        coins: { ...hero.coins }, stats: computeCharacterStats(hero) })),
+    };
+  }
+
+  function rewardCollectedCoins(type, amount) {
+    const rewarded = Math.min(amount, treasureState.rewardCoins[type]);
+    treasureState.rewardCoins[type] -= rewarded;
+    treasureState.xpValue += rewarded * COIN_TYPES.find(coin => coin.id === type).value;
+    const survivors = treasureState.xpRecipients.map(findPartyMember);
+    const earned = Math.floor(treasureState.xpValue / 200 / Math.max(1, survivors.length));
+    const increase = earned - treasureState.xpAwarded;
+    if (increase > 0) for (const hero of survivors) awardExperience(hero, increase, treasureState.xpAwarded);
+    treasureState.xpAwarded = earned;
+  }
+
+  function takeTreasureItem(characterId, index, quantity = 1) {
+    const hero = findPartyMember(characterId);
+    const entry = treasureState?.items[index];
+    if (!treasureAvailable() || !hero?.alive || !entry || !Number.isInteger(quantity) || quantity < 1 || quantity > entry.qty) {
+      return { ok: false, message: 'Choose a living companion and an available item quantity.' };
+    }
+    const { itemId, qty, ...metadata } = entry;
+    const response = addInventoryItem(hero, itemId, quantity, metadata);
+    if (response.ok) {
+      entry.qty -= quantity;
+      if (!entry.qty) treasureState.items.splice(index, 1);
+      renderParty();
+      notifyTreasure();
+    }
+    return response;
+  }
+
+  function takeTreasureCoins(characterId, type, amount) {
+    const hero = findPartyMember(characterId);
+    if (!treasureAvailable() || !hero?.alive) return { ok: false, message: 'Choose a living companion at the treasure.' };
+    const response = takeCoins(treasureState.coins, hero, type, amount);
+    if (response.ok) {
+      rewardCollectedCoins(type, amount);
+      renderParty();
+      notifyTreasure();
+    }
+    return response;
+  }
+
+  function poolTreasureCoins() {
+    if (!treasureAvailable()) return { ok: false, message: 'No treasure is available.' };
+    const response = poolCoins(party.members, treasureState.coins);
+    if (treasureState.source === 'service') serviceState.pooled = true;
+    renderParty();
+    notifyTreasure();
+    return response;
+  }
+
+  function shareTreasureCoins() {
+    if (!treasureAvailable()) return { ok: false, message: 'No treasure is available.' };
+    const before = { ...treasureState.coins };
+    const response = shareCoins(treasureState.coins, livingPartyMembers());
+    for (const { id } of COIN_TYPES) rewardCollectedCoins(id, before[id] - treasureState.coins[id]);
+    renderParty();
+    notifyTreasure();
+    return response;
+  }
+
+  function detectTreasureMagic(characterId) {
+    const hero = findPartyMember(characterId);
+    if (!treasureAvailable() || !hero?.alive) return { ok: false, message: 'Choose a living companion at the treasure.' };
+    const code = hero.preparedSpells.find(code => SPELL_LIBRARY[code].utility === 'detectMagic');
+    if (!code) return { ok: false, message: `${hero.name} has no memorized Detect Magic spell.` };
+    const response = castAdventureSpell(hero.id, code);
+    if (!response.ok) return response;
+    treasureState.detected = true;
+    for (const entry of treasureState.items.filter(Boolean)) {
+      const item = ITEM_DB[entry.itemId];
+      entry.magicalVisible = Boolean(item.magicBonus || item.protectionBonus || item.scrollClass || item.healingDice);
+    }
+    renderParty();
+    notifyTreasure();
+    return { ok: true, message: 'Detect Magic reveals magical treasure. The memorized spell is spent.' };
+  }
+
+  function exitTreasure(discard = false) {
+    if (!treasureAvailable()) return { ok: false, message: 'No treasure is available.' };
+    const returningToService = treasureState.source === 'service' && !treasureState.pendingLeave;
+    const remaining = !returningToService && (coinCount(treasureState.coins) || treasureState.items.some(Boolean));
+    if (remaining && !discard) return { ok: false, needsConfirmation: true, message: 'Treasure remains. Take it, share the money, or confirm that you want to leave it behind.' };
+    const { source, pendingLeave } = treasureState;
+    if (discard) {
+      for (const { id } of COIN_TYPES) treasureState.coins[id] = 0;
+      treasureState.items = [];
+    }
+    treasureState = null;
+    if (pendingLeave) serviceState = null;
+    notifyTreasure();
+    if (serviceState && (source === 'service' || source === 'council')) resumeService();
+    else hud.clearActions();
+    renderParty();
+    return { ok: true, message: remaining ? 'The remaining treasure was left behind.' : 'Treasure collected.' };
+  }
+
+  function openServiceTreasure(pendingLeave = false) {
+    const service = getCityService(serviceState.id);
+    presentTreasure({ title: pendingLeave ? `Collect money before leaving ${service.name}` : `Money at ${service.name}`,
+      source: 'service', coins: serviceState.coins, pendingLeave });
+  }
+
+  function serviceWallet(hero) { return serviceState.pooled ? serviceState.coins : hero.coins; }
+
+  function shopMenu(service) {
+    serviceMenu(service, 'Choose the character buying equipment. POOL combines purses for purchases.', party.members.map(hero => ({
+      label: `${hero.name} — ${hero.classType}`, onSelect: () => shopItems(service, hero),
+    })));
+  }
+
+  function resumeService() {
+    const service = getCityService(serviceState.id);
+    if (service.type === 'shop') shopMenu(service);
+    else if (service.type === 'trainer') trainerMenu(service);
+    else if (service.type === 'inn') innMenu(service);
+    else if (service.type === 'council') councilMenu(service);
+    else if (service.type === 'temple') templeMenu(service);
+    else serviceMenu(service, service.name, []);
+  }
+
+  function templeMenu(service) {
+    serviceMenu(service, service.name, [{
+      label: 'Restore the party — free blessing',
+      onSelect() {
+        restoreParty();
+        renderParty();
+        serviceMenu(service, 'Every companion is restored. Health, memorized spells, and conditions are renewed.', []);
+      },
+    }]);
+  }
 
   function openCamp() {
-    if (combatState) return { ok: false, message: 'Camp is unavailable during combat.' };
-    closeService();
+    if (combatState || treasureState || !closeService()) return { ok: false, message: 'Collect or leave the treasure before making camp.' };
     serviceState = { id: 'camp', revision: 0, area: dungeon.id, x: dungeon.x, y: dungeon.y };
     campMenu();
     return { ok: true, message: 'Camp' };
@@ -205,21 +364,31 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
   }
 
   function closeService() {
-    if (!serviceState) return;
+    if (treasureState) return false;
+    if (!serviceState) return true;
+    if (serviceState.coins && coinCount(serviceState.coins)) {
+      openServiceTreasure(true);
+      return false;
+    }
     serviceState = null;
     hud.clearActions();
+    return true;
   }
 
   function serviceMenu(service, prompt, buttons, hero = null) {
     if (!serviceState || serviceState.id !== service.id) return;
     const menu = serviceState;
     const revision = ++menu.revision;
+    const moneyButtons = ['shop', 'trainer', 'inn', 'temple'].includes(service.type) ? [
+      { label: 'POOL money', onSelect() { poolCoins(party.members, menu.coins); menu.pooled = true; renderParty(); openServiceTreasure(); } },
+      { label: 'TAKE / SHARE money', onSelect: () => openServiceTreasure() },
+    ] : [];
     hud.setActions({
       prompt,
-      buttons: [...buttons, { label: 'Leave', role: 'back', onSelect: closeService }].map(button => ({
+      buttons: [...buttons, ...moneyButtons, { label: 'Leave', role: 'back', onSelect: closeService }].map(button => ({
         ...button,
         onSelect() {
-          if (serviceState === menu && menu.revision === revision && !combatState && standingAtService(service.id)) button.onSelect();
+          if (serviceState === menu && menu.revision === revision && !combatState && !treasureState && standingAtService(service.id)) button.onSelect();
         },
       })),
       active: { id: hero?.id, heading: service.name, details: service.description },
@@ -237,18 +406,24 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
   }
 
   function shopItems(service, hero, message = '') {
-    serviceMenu(service, `${hero.name} — ${party.gold} gold${message ? `. ${message}` : ''}`, service.stock.map(({ itemId, price: basePrice, quantity = 1 }) => {
+    serviceMenu(service, `${hero.name} — ${serviceState.pooled ? 'Pool' : 'Purse'}: ${formatCoins(serviceWallet(hero))}${message ? `. ${message}` : ''}`, service.stock.map(({ itemId, price: basePrice, quantity = 1 }) => {
       const price = Math.max(1, Math.floor(basePrice * (1 - Math.max(0, effectiveAttributes(hero).charisma - 15) * 0.01)));
       return ({
       label: `${ITEM_DB[itemId].name}${quantity > 1 ? ` x${quantity}` : ''} — ${price} gold`,
       onSelect() {
-        if (party.gold < price) {
-          shopItems(service, hero, 'Not enough gold.');
+        const wallet = serviceWallet(hero);
+        if (!canAffordCoins(wallet, price)) {
+          shopItems(service, hero, 'Not enough money. Use POOL or trade coins to this character.');
           return;
         }
-        const result = addInventoryItem(hero, itemId, quantity);
+        const paid = createCoins(wallet);
+        spendCoins(paid, price);
+        const purchase = { ...hero, coins: serviceState.pooled ? { ...hero.coins } : paid,
+          inventory: hero.inventory.map(entry => entry ? { ...entry } : null) };
+        const result = addInventoryItem(purchase, itemId, quantity);
         if (result.ok) {
-          party.gold -= price;
+          hero.inventory = purchase.inventory;
+          Object.assign(wallet, paid);
           renderParty();
         }
         shopItems(service, hero, result.message);
@@ -269,10 +444,10 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
     else if (required.xp === null) message = 'The character has reached the campaign level limit.';
     else if (!hero.alive) message = 'Visit the temple before training a fallen companion.';
     else if (hero.classXp[classType] < required.xp) message = `${hero.name} needs ${required.xp} earned XP; ${hero.xp} available.`;
-    else if (party.gold < required.gold) message = `Training costs ${required.gold} gold; ${party.gold} available.`;
+    else if (!canAffordCoins(serviceWallet(hero), required.gold)) message = `Training costs ${required.gold} gold. Trade money to ${hero.name} or use POOL.`;
     else {
       const hpGain = Math.max(1, Math.ceil((rollDice(`1d${CLASS_DATA[classType].hitDie}`) + constitutionBonus(hero)) / hero.classes.length));
-      party.gold -= required.gold;
+      spendCoins(serviceWallet(hero), required.gold);
       hero.classLevels[classType] += 1;
       hero.level = Math.max(...Object.values(hero.classLevels));
       hero.hpMax += hpGain;
@@ -298,7 +473,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
 
   function trainerMenu(service, message = '', selectedHero = null) {
     const heroes = party.members.filter(hero => hero.classes.some(classType => service.classes.includes(classType)));
-    serviceMenu(service, message || `${service.name} — ${party.gold} gold`, heroes.map(hero => {
+    serviceMenu(service, message || `${service.name} — pay from the trainee's purse or explicitly POOL money.`, heroes.map(hero => {
       const classType = service.classes.find(classType => hero.classes.includes(classType));
       const required = trainingRequirements(hero, classType);
       return { label: required.xp === null ? `${hero.name} — level ${hero.level}: campaign limit` : `${hero.name} — ${classType} level ${hero.classLevels[classType] + 1}: ${hero.classXp[classType]}/${required.xp} XP, ${required.gold} gold`, onSelect: () => trainHero(service, hero) };
@@ -307,24 +482,14 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
 
   function openService(id) {
     const service = getCityService(id);
-    if (combatState || !service || !standingAtService(id)) return { ok: false, message: 'Stand at this service outside combat to enter.' };
-    closeService();
-    serviceState = { id, revision: 0 };
+    if (combatState || treasureState || !service || !standingAtService(id)) return { ok: false, message: 'Stand at this service outside combat, after collecting or leaving treasure, to enter.' };
+    if (!closeService()) return { ok: false, message: 'Collect or leave the pooled money first.' };
+    serviceState = { id, revision: 0, coins: createCoins(), pooled: false };
     if (service.type === 'shop') {
-      serviceMenu(service, `Choose whose pack to fill — ${party.gold} gold`, party.members.map(hero => ({
-        label: `${hero.name} — ${hero.classType}`, onSelect: () => shopItems(service, hero),
-      })));
+      shopMenu(service);
     } else if (service.type === 'trainer') trainerMenu(service);
-    else if (service.type === 'temple') {
-      serviceMenu(service, service.name, [{
-        label: 'Restore the party — free blessing',
-        onSelect() {
-          restoreParty();
-          renderParty();
-          serviceMenu(service, 'Every companion is restored. Health, memorized spells, and conditions are renewed.', []);
-        },
-      }]);
-    } else if (service.type === 'training') {
+    else if (service.type === 'temple') templeMenu(service);
+    else if (service.type === 'training') {
       serviceMenu(service, service.name, [{
         label: 'Begin a safe practice battle',
         onSelect() {
@@ -361,9 +526,10 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
         equipment: { ...member.equipment },
         attributes: effectiveAttributes(member),
         statusText: describeStatuses(member),
+        coins: { ...member.coins }, carriedWeight: stats.carriedWeight, maxCarryWeight: stats.maxCarryWeight, movement: stats.movement,
       };
     });
-    hud.setParty({ gold: party.gold, members });
+    hud.setParty({ members });
     for (const listener of inventoryListeners) listener();
   }
 
@@ -380,6 +546,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
       },
       equipment: { ...member.equipment },
       inventory: member.inventory.map(entry => entry ? { ...entry } : null),
+      coins: { ...member.coins },
       stats: computeCharacterStats(member),
       capacity: INVENTORY_CAPACITY,
       party: party.members.map(({ id, name, classType, classes }) => ({ id, name, classType, classes: [...classes], displayClass: classes.join(' / ') })),
@@ -431,10 +598,11 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
   }
 
   function innMenu(service, message = '') {
-    serviceMenu(service, message || `Safe rest and spell preparation — ${party.gold} gold`, [
+    const payer = party.members.find(hero => hero.alive) || party.members[0];
+    serviceMenu(service, message || `Safe rest — ${serviceState.pooled ? 'Pool' : `${payer.name}'s purse`}: ${formatCoins(serviceWallet(payer))}`, [
       { label: `Rest and memorize spells — ${service.price} gold`, onSelect() {
-        if (party.gold < service.price) { innMenu(service, 'Not enough gold for lodging.'); return; }
-        party.gold -= service.price;
+        if (!canAffordCoins(serviceWallet(payer), service.price)) { innMenu(service, 'Not enough money for lodging. Trade coins to the payer or use POOL.'); return; }
+        spendCoins(serviceWallet(payer), service.price);
         for (const hero of party.members) {
           if (!['dead', 'gone'].includes(hero.healthStatus)) healTarget(hero, 1);
           if (hero.alive) hero.preparedSpells = [...hero.spellPreparation];
@@ -446,10 +614,12 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
     ]);
   }
 
-  function awardExperience(hero, amount) {
+  function awardExperience(hero, amount, previouslyAwarded = 0) {
     for (const classType of hero.classes) {
       const prime = classType === 'Fighter' ? 'strength' : classType === 'Cleric' ? 'wisdom' : classType === 'Thief' ? 'dexterity' : 'intelligence';
-      hero.classXp[classType] += Math.floor(amount / hero.classes.length * (hero.attributes[prime] >= 16 ? 1.1 : 1));
+      const multiplier = hero.attributes[prime] >= 16 ? 1.1 : 1;
+      hero.classXp[classType] += Math.floor((amount + previouslyAwarded) / hero.classes.length * multiplier)
+        - Math.floor(previouslyAwarded / hero.classes.length * multiplier);
     }
     hero.xp = Object.values(hero.classXp).reduce((total, xp) => total + xp, 0);
   }
@@ -461,10 +631,10 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
         if (quest.claimed) { councilMenu(service, 'This commission is complete.'); return; }
         if (quest.victories < quest.required) { councilMenu(service, `${quest.name}: win ${quest.required} battles in ${quest.area}, then return for ${quest.gold} gold and ${quest.xp} XP each.`); return; }
         quest.claimed = true;
-        party.gold += quest.gold;
         for (const hero of party.members) awardExperience(hero, quest.xp);
         renderParty();
-        councilMenu(service, `${quest.name} complete: ${quest.gold} gold and ${quest.xp} XP each.${quest.id === 'sokal-keep' ? ' The wilderness boat route is open.' : ''}`);
+        log(`${quest.name} complete: ${quest.gold} gold awaits collection and ${quest.xp} XP each.${quest.id === 'sokal-keep' ? ' The wilderness boat route is open.' : ''}`);
+        presentTreasure({ title: `${quest.name} — council reward`, source: 'council', coins: createCoins({ gold: quest.gold }) });
       },
     })));
   }
@@ -1108,21 +1278,22 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
     state.targeting = null;
     hud.clearActions();
     publishBattle(state);
+    let treasure = null;
     if (!state.practiceVitals && state.winner === 'Party' && !state.fled) {
       const gold = roll(12, 28) + state.encounter.tier * 6;
       const experience = state.monsters.reduce((total, monster) => total + monster.xpAward, 0);
       const survivors = livingPartyMembers();
-      const share = Math.floor((experience + gold) / Math.max(1, survivors.length));
-      party.gold += gold;
+      const share = Math.floor(experience / Math.max(1, survivors.length));
       for (const hero of survivors) {
         awardExperience(hero, share);
       }
       const quest = quests.find(quest => quest.area === state.encounter.monsterArea);
       if (quest) { quest.victories += 1; log(`${quest.name}: ${Math.min(quest.victories, quest.required)}/${quest.required} victories. Report to the council when complete.`); }
-      log(`The party claims ${gold} gold and ${share} XP per surviving companion, before ability bonuses.`);
+      log(`Victory earns ${share} XP per surviving companion, before ability bonuses. ${gold} gold remains to be collected.`);
+      treasure = { title: 'Treasure after combat', source: 'battle', coins: createCoins({ gold }), items: [], rewardXp: true };
       if (Math.random() < 0.35) {
-        const carrier = party.members.find(member => addInventoryItem(member, 'healing_potion').ok);
-        log(carrier ? `${carrier.name} recovers a healing potion.` : 'The packs are full; a spare healing potion is left behind.');
+        treasure.items.push({ itemId: 'healing_potion', qty: 1, identified: true });
+        log('A healing potion lies among the treasure. Choose who will take it.');
       }
     }
     log(`Combat ends. Winner: ${state.winner}.`);
@@ -1148,6 +1319,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
       if (combatState === state) {
         combatState = null;
         renderParty();
+        if (treasure) presentTreasure(treasure);
       }
     }
   }
@@ -1339,7 +1511,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
   }
 
   async function beginEncounter(policy, practice = false) {
-    closeService();
+    if (combatState || treasureState || !closeService()) return;
     const practiceVitals = practice ? new Map(party.members.map(hero => [hero.id, {
       alive: hero.alive, healthStatus: hero.healthStatus, hpCurrent: hero.hpCurrent, preparedSpells: [...hero.preparedSpells],
       statusEffects: hero.statusEffects.map(status => ({ ...status, modifiers: { ...status.modifiers }, visual: { ...status.visual } })),
@@ -1360,7 +1532,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
 
   function maybeEncounter() {
     const policy = dungeon.encounters;
-    if (combatState || serviceState || !policy || !livingPartyMembers().length) {
+    if (combatState || treasureState || serviceState || !policy || !livingPartyMembers().length) {
       stepsSinceEncounter = 0;
       return;
     }
@@ -1451,9 +1623,22 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
     get isServiceOpen() {
       return serviceState !== null;
     },
+    get isTreasureOpen() { return treasureState !== null; },
+    getTreasureSnapshot,
+    takeTreasureItem,
+    takeTreasureCoins,
+    poolTreasureCoins,
+    shareTreasureCoins,
+    detectTreasureMagic,
+    exitTreasure,
+    subscribeTreasure(listener) {
+      treasureListeners.add(listener);
+      return () => treasureListeners.delete(listener);
+    },
     openService,
     closeService,
     onStepComplete() {
+      if (treasureState) return;
       for (const hero of party.members) hero.statusEffects = hero.statusEffects.filter(status => {
         if (status.duration === Infinity) return true;
         status.duration -= 1;
@@ -1476,6 +1661,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
     },
     getQuestSnapshot() { return quests.map(quest => ({ ...quest })); },
     canTravel(targetId) {
+      if (treasureState) return { ok: false, message: 'Collect or leave the treasure before traveling.' };
       const unlocked = targetId !== 'moonsea-wilderness' || quests.find(quest => quest.id === 'sokal-keep').claimed;
       return { ok: unlocked, message: unlocked ? '' : 'Secure Sokal Keep and report to the council to open the wilderness boat route.' };
     },
@@ -1486,6 +1672,7 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
         ...member,
         inventory: member.inventory.map(entry => entry ? { ...entry } : null),
         equipment: { ...member.equipment },
+        equipmentMetadata: structuredClone(member.equipmentMetadata),
       };
       const response = equipCarriedItem(preview, index, slot);
       return { ...response, stats: computeCharacterStats(preview), equipment: { ...preview.equipment } };
@@ -1501,6 +1688,22 @@ export function createGameSystems({ hud, combatView, dungeon, onPartyDefeated, c
         const recipient = findPartyMember(targetId);
         return recipient ? transferCarriedItem(member, index, recipient) : { ok: false, message: 'Recipient not found.' };
       });
+    },
+    transferInventoryCoins(characterId, targetId, type, amount) {
+      return changeInventory(characterId, member => {
+        const recipient = findPartyMember(targetId);
+        return recipient ? transferCoins(member, recipient, type, amount) : { ok: false, message: 'Recipient not found.' };
+      });
+    },
+    dropInventoryCoins(characterId, type, amount) {
+      return changeInventory(characterId, member => {
+        if (!COIN_TYPES.some(coin => coin.id === type) || !Number.isInteger(amount) || amount < 1 || amount > member.coins[type]) return { ok: false, message: 'Choose a coin amount carried by this character.' };
+        member.coins[type] -= amount;
+        return { ok: true, message: `${amount} ${type} coins dropped and lost.` };
+      });
+    },
+    dropInventoryItem(characterId, index) {
+      return changeInventory(characterId, member => dropCarriedItem(member, index));
     },
     useInventoryItem(characterId, index) {
       return changeInventory(characterId, member => useCarriedItem(member, index));

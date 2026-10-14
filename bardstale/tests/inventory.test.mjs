@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ITEM_DB, INVENTORY_CAPACITY } from '../src/items.js';
-import { createInventory, createEquipment, addInventoryItem, equipCarriedItem, unequipItem, transferCarriedItem, useCarriedItem, computeCharacterStats } from '../src/systems/inventory.js';
+import { createInventory, createEquipment, addInventoryItem, equipCarriedItem, unequipItem, transferCarriedItem, dropCarriedItem, useCarriedItem, computeCharacterStats } from '../src/systems/inventory.js';
 import { createGameSystems } from '../src/systems/core.js';
 import { SPELL_LIBRARY } from '../src/rules/spells.js';
 
@@ -104,8 +104,9 @@ test('armor and shields set descending AC, magic improves attacks, and rings use
   equip(hero, 'chain_mail_plus1', 'chest');
   assert.equal(computeCharacterStats(hero).ac, 3, 'Magical armor replaces ring AC protection.');
   assert.equal(computeCharacterStats(hero).saves.spell, 14, 'The ring still protects saving throws.');
-  equip(hero, 'plate_mail', 'chest');
-  assert.equal(computeCharacterStats(hero).movement, 6);
+  const plateWearer = character('plate');
+  equip(plateWearer, 'plate_mail', 'chest');
+  assert.equal(computeCharacterStats(plateWearer).movement, 6);
 });
 
 test('class restrictions reject unusable weapons and armor without losing items; clothing and offhand blades add no invented combat bonus', () => {
@@ -164,14 +165,43 @@ test('Spiritual Hammer replaces attack dice and range until it expires without c
   assert.equal(physical.range, 1);
 });
 
-test('coins and carried gear slow an overloaded character, and spending coins restores movement', () => {
+test('coins reduce movement within the carrying limit and overweight item pickups and trades leave ownership unchanged', () => {
   const hero = character();
-  hero.coins = { gold: 1600 };
-  assert.equal(computeCharacterStats(hero).movement, 12);
-  carry(hero, 'halberd', 8);
+  hero.coins = { gold: 1500 };
+  assert.equal(computeCharacterStats(hero).maxCarryWeight, 1600);
   assert.equal(computeCharacterStats(hero).movement, 3);
+  const giver = character('giver');
+  const index = carry(giver, 'halberd');
+  const before = structuredClone([giver, hero]);
+  assert.equal(addInventoryItem(hero, 'halberd').ok, false);
+  assert.equal(transferCarriedItem(giver, index, hero).ok, false);
+  assert.deepEqual([giver, hero], before, 'Weight rejection must preserve the loot and both inventories.');
   hero.coins.gold = 0;
   assert.equal(computeCharacterStats(hero).movement, 12);
+  assert.equal(transferCarriedItem(giver, index, hero).ok, true);
+  assert.equal(computeCharacterStats(hero).carriedWeight, 175);
+});
+
+test('item knowledge survives trades and equipment changes, distinct knowledge does not merge, and dropping removes a whole stack', () => {
+  const giver = character('giver');
+  const receiver = character('receiver');
+  const knowledge = { identified: false, magicalVisible: true };
+  assert.equal(addInventoryItem(giver, 'healing_potion', 3, knowledge).ok, true);
+  carry(receiver, 'healing_potion', 2);
+  assert.equal(transferCarriedItem(giver, 0, receiver).ok, true);
+  const potions = receiver.inventory.filter(entry => entry?.itemId === 'healing_potion');
+  assert.equal(potions.length, 2, 'A known potion and an unknown magical potion must retain separate identities.');
+  assert.deepEqual(potions[1], { ...knowledge, itemId: 'healing_potion', qty: 3 });
+  const counts = itemCounts(giver, receiver);
+  assert.equal(dropCarriedItem(receiver, receiver.inventory.indexOf(potions[1])).ok, true);
+  assert.equal(itemCounts(giver, receiver).healing_potion, counts.healing_potion - 3);
+  assert.deepEqual(receiver.inventory.filter(Boolean), [{ identified: true, itemId: 'healing_potion', qty: 2 }]);
+  assert.equal(addInventoryItem(receiver, 'long_sword_plus1', 1, knowledge).ok, true);
+  const swordIndex = receiver.inventory.findIndex(entry => entry?.itemId === 'long_sword_plus1');
+  assert.equal(equipCarriedItem(receiver, swordIndex, 'mainhand').ok, true);
+  assert.equal(unequipItem(receiver, 'mainhand').ok, true);
+  assert.deepEqual(receiver.inventory.find(entry => entry?.itemId === 'long_sword_plus1'),
+    { ...knowledge, itemId: 'long_sword_plus1', qty: 1 });
 });
 
 test('healing potions roll their published dice, preserve unused doses, and heal dying companions without raising the dead', (t) => {
